@@ -11,10 +11,6 @@ https://platform.openai.com/docs/api-reference/chat/create
 https://rust-lang-nursery.github.io/rust-cookbook/web/clients/apis.html
 
 
-# react-admin test app
-npm init react-admin test_admin
-
-
 
 # rust worker
 cargo new test_worker
