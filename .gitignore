@@ -1,0 +1,11 @@
+openai_key.txt
+
+/docker-compose.yaml
+
+# Ignore old projects
+/chatbot
+/video_processing_project
+
+# ignore python things
+venv
+*.pyc
