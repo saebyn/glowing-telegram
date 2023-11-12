@@ -1,6 +1,7 @@
 openai_key.txt
 
-/docker-compose.yaml
+.env
+docker-compose.override.yaml
 
 # Ignore old projects
 /chatbot
@@ -9,3 +10,6 @@ openai_key.txt
 # ignore python things
 venv
 *.pyc
+
+# ignore rust build things
+target

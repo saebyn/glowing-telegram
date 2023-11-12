@@ -1,13 +1,8 @@
+# build diesel cli docker image
+
 # rust api
-rustup default stable
-
-cargo new test_api
-
-https://github.com/tokio-rs/axum
 
 https://diesel.rs/guides/getting-started
-
-https://crates.io/crates/openai_dive
 
 https://crates.io/crates/redis
 
