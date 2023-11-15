@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AppState {
     openai_key: String,
     pool: crate::db::Pool,

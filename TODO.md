@@ -10,6 +10,8 @@ https://platform.openai.com/docs/api-reference/chat/create
 
 https://rust-lang-nursery.github.io/rust-cookbook/web/clients/apis.html
 
+https://github.com/davidB/sandbox_axum_observability/blob/development/app/src/main.rs#L23-L35
+
 
 
 # rust worker
@@ -36,6 +38,8 @@ https://www.nginx.com/blog/deploying-nginx-plus-as-an-api-gateway-part-1/
 
 
 # other things
+
+- https://github.com/grafana/grafana
 
 - https://github.com/jmorganca/ollama/blob/main/docs/tutorials.md
 

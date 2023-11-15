@@ -58,7 +58,7 @@ pub async fn handler(
 }
 
 // the input to our `complete_chat` handler
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SimpleChatMessage {
     content: String,
     // TODO how do we make this require specific values?

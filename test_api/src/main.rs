@@ -14,10 +14,26 @@ mod schema;
 mod state;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), axum::BoxError> {
     // initialize tracing
     tracing_subscriber::fmt::init();
 
+    // build our application with a route
+    let app = app().await;
+
+    // run our app with hyper
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    tracing::debug!("listening on {}", addr);
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+
+    Ok(())
+}
+
+async fn app() -> Router {
     let state = state::AppState::new(
         std::fs::read_to_string("../openai_key.txt")
             .expect("failed to read openai_key.txt")
@@ -26,13 +42,11 @@ async fn main() {
         db::create_pool().await,
     );
 
-    state.pool().get().await.unwrap();
-
     // build our application with a route
-    let app = Router::new()
-        .route("/", get(handlers::health::handler))
+    Router::new()
         // `POST /api/chat` goes to `complete_chat`
         .route("/api/chat", post(handlers::complete_chat::handler))
+        .route("/", get(handlers::health::handler))
         .with_state(state)
         // TODO make this only allow requests from our frontend?
         .layer(CorsLayer::permissive())
@@ -45,13 +59,31 @@ async fn main() {
         // Propagate `X-Request-Id`s from requests to responses
         .layer(PropagateHeaderLayer::new(HeaderName::from_static(
             "x-request-id",
-        )));
+        )))
+}
 
-    // run our app with hyper
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    tracing::debug!("listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::warn!("signal received, starting graceful shutdown");
 }

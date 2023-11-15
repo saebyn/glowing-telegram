@@ -1,9 +1,10 @@
 use axum::extract::State;
-use axum::{http::StatusCode, response::IntoResponse};
+use axum::response::IntoResponse;
+use serde_json::json;
 
 use crate::state::AppState;
 
 pub async fn handler(State(_state): State<AppState>) -> impl IntoResponse {
     tracing::info!("health check");
-    (StatusCode::OK, "ok")
+    axum::Json(json!({ "status" : "UP" }))
 }
