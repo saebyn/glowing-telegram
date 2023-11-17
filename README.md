@@ -1,5 +1,7 @@
 
-# video-processing-tool
+# glowing-telegraph
+
+A tool for managing stream recordings.
 
 This is a tool for managing stream recordings, ingesting them into a database, providing a web interface for searching, analyzing, and passing them to a video processing pipeline.
 
