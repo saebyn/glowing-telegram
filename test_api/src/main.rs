@@ -6,6 +6,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{compression::CompressionLayer, propagate_header::PropagateHeaderLayer};
+use tracing_subscriber::prelude::*;
 
 mod db;
 mod handlers;
@@ -15,14 +16,21 @@ mod state;
 
 #[tokio::main]
 async fn main() -> Result<(), axum::BoxError> {
-    // initialize tracing
-    tracing_subscriber::fmt::init();
+    init_tracer();
 
     // build our application with a route
     let app = app().await;
 
-    // run our app with hyper
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let host: std::net::IpAddr = std::env::var("HOST")
+        .expect("HOST not set")
+        .parse()
+        .expect("HOST is not a valid IP address");
+    let port = std::env::var("PORT")
+        .expect("PORT not set")
+        .parse()
+        .expect("PORT is not a valid port number");
+
+    let addr = SocketAddr::from((host, port));
     tracing::debug!("listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
@@ -33,10 +41,22 @@ async fn main() -> Result<(), axum::BoxError> {
     Ok(())
 }
 
+fn init_tracer() {
+    let fmt_layer = tracing_subscriber::fmt::layer();
+
+    tracing_subscriber::registry()
+        .with(fmt_layer)
+        .with(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+}
+
 async fn app() -> Router {
+    // get path to openai key from env var
+    let openai_key_path = std::env::var("OPENAI_KEY_PATH").expect("OPENAI_KEY_PATH not set");
+
     let state = state::AppState::new(
-        std::fs::read_to_string("../openai_key.txt")
-            .expect("failed to read openai_key.txt")
+        std::fs::read_to_string(openai_key_path)
+            .expect("failed to read openai key from OPENAI_KEY_PATH")
             .trim()
             .to_string(),
         db::create_pool().await,

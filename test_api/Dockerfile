@@ -62,7 +62,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user to run the app
-ARG USER=someuser
+ARG USER=user
 ARG UID=10001
 
 RUN adduser \
@@ -78,8 +78,10 @@ USER ${USER}:${USER}
 
 WORKDIR /app
 
-COPY --from=builder --chown=${USER}:${USER} /app/target/release/CHANGEME /usr/local/bin
+COPY --from=builder --chown=${USER}:${USER} /app/target/release/test_api /usr/local/bin
 
 ENV CARGO_MANIFEST_DIR=/app
 
-ENTRYPOINT ["CHANGEME"]
+EXPOSE 3000
+
+ENTRYPOINT ["test_api"]

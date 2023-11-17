@@ -10,6 +10,8 @@ https://platform.openai.com/docs/api-reference/chat/create
 
 https://rust-lang-nursery.github.io/rust-cookbook/web/clients/apis.html
 
+https://broch.tech/posts/rust-tracing-opentelemetry/
+
 https://github.com/davidB/sandbox_axum_observability/blob/development/app/src/main.rs#L23-L35
 
 
