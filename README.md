@@ -1,5 +1,6 @@
 
-# glowing-telegraph
+# glowing-telegram
+
 
 A tool for managing stream recordings.
 
