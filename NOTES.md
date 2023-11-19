@@ -1,29 +1,3 @@
-
-- [ ] Fix issue with using common_api crate in ai_api, docker build fails with error:
-
-    ```
-    0.600 error: failed to get `common_api` as a dependency of package `test_api v0.0.1 (/app)`
-    0.600
-    0.600 Caused by:
-    0.600   failed to load source for dependency `common_api`
-    0.600
-    0.600 Caused by:
-    0.600   Unable to update /common_api
-    0.600
-    0.600 Caused by:
-    0.600   failed to read `/common_api/Cargo.toml`
-    0.600
-    0.600 Caused by:
-    0.600   No such file or directory (os error 2)
-    ```
-
-- [ ] set up redis client in rust
-
-- [ ] implement first crud api endpoint
-
-- [ ] continue work on react-admin ui
-
-
 # rust api
 
 
