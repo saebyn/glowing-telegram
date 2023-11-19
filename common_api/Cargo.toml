@@ -1,5 +1,6 @@
 [package]
-name = "test_api"
+name = "common_api"
+description = "Common API elements for the glowing-telegraph microservices"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +8,6 @@ edition = "2021"
 
 [dependencies]
 axum = "0.6.20"
-openai_dive = "0.2.13"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.68"
 tokio = { version = "1.0", features = ["full"] }
@@ -19,16 +19,6 @@ tower-http = { version = "0.4.4", features = [
   "request-id",
   "propagate-header",
 ] }
-diesel = { version = "2", features = ["chrono"] }
-diesel-async = { version = "0.4.1", features = ["postgres", "bb8"] }
 dotenvy = "0.15"
-bb8 = "0.8"
-chrono = "0.4.31"
-reqwest = { version = "0.11.22", features = [
-  "json",
-  "rustls-tls",
-  "trust-dns",
-  "gzip",
-], default-features = false }
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

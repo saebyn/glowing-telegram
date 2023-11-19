@@ -22,7 +22,7 @@ FROM chef AS planner
 
 WORKDIR /app
 
-COPY . .
+COPY .. .
 
 RUN cargo chef prepare --recipe-path recipe.json
 
@@ -39,7 +39,7 @@ COPY --from=planner /app/recipe.json recipe.json
 # Build dependencies. This is the caching Docker layer
 RUN cargo chef cook --release --recipe-path recipe.json
 
-COPY . .
+COPY .. .
 
 # Run tests (If enabled)
 ARG RUN_TESTS=false

@@ -263,6 +263,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "common_api"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "dotenvy",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1660,6 +1674,7 @@ dependencies = [
  "axum",
  "bb8",
  "chrono",
+ "common_api",
  "diesel",
  "diesel-async",
  "dotenvy",

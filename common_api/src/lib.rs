@@ -1,25 +1,28 @@
 use axum::http::header::{HeaderName, AUTHORIZATION};
-use axum::{routing::get, routing::post, Router};
+use axum::response::IntoResponse;
+use axum::{routing::get, Router};
+use serde_json::json;
 use std::iter::once;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{compression::CompressionLayer, propagate_header::PropagateHeaderLayer};
+use tracing;
+use tracing::instrument;
 use tracing_subscriber::prelude::*;
 
-mod db;
-mod handlers;
-mod models;
-mod schema;
-mod state;
-
-#[tokio::main]
-async fn main() -> Result<(), axum::BoxError> {
+pub async fn run<State>(
+    state: State,
+    add_routes: impl FnOnce(Router<State>) -> Router<State>,
+) -> Result<(), axum::BoxError>
+where
+    State: Clone + Send + Sync + 'static,
+{
     init_tracer();
 
     // build our application with a route
-    let app = app().await;
+    let app = app(state, add_routes).await;
 
     let host: std::net::IpAddr = std::env::var("HOST")
         .expect("HOST not set")
@@ -50,23 +53,13 @@ fn init_tracer() {
         .init();
 }
 
-async fn app() -> Router {
-    // get path to openai key from env var
-    let openai_key_path = std::env::var("OPENAI_KEY_PATH").expect("OPENAI_KEY_PATH not set");
-
-    let state = state::AppState::new(
-        std::fs::read_to_string(openai_key_path)
-            .expect("failed to read openai key from OPENAI_KEY_PATH")
-            .trim()
-            .to_string(),
-        db::create_pool().await,
-    );
-
+async fn app<State>(state: State, add_routes: impl FnOnce(Router<State>) -> Router<State>) -> Router
+where
+    State: Clone + Send + Sync + 'static,
+{
     // build our application with a route
-    Router::new()
-        // `POST /api/chat` goes to `complete_chat`
-        .route("/api/chat", post(handlers::complete_chat::handler))
-        .route("/", get(handlers::health::handler))
+    add_routes(Router::<State>::new())
+        .route("/", get(health))
         .with_state(state)
         // TODO make this only allow requests from our frontend?
         .layer(CorsLayer::permissive())
@@ -80,6 +73,13 @@ async fn app() -> Router {
         .layer(PropagateHeaderLayer::new(HeaderName::from_static(
             "x-request-id",
         )))
+}
+
+#[instrument]
+async fn health() -> impl IntoResponse {
+    tracing::info!("health check");
+
+    axum::Json(json!({ "status" : "UP" }))
 }
 
 async fn shutdown_signal() {
@@ -106,4 +106,14 @@ async fn shutdown_signal() {
     }
 
     tracing::warn!("signal received, starting graceful shutdown");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        // TODO
+    }
 }
