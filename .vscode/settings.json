@@ -1,0 +1,7 @@
+{
+  "rust-analyzer.linkedProjects": [
+    ".\\common_api_lib\\Cargo.toml",
+    ".\\common_api_lib\\Cargo.toml"
+  ],
+  "rust-analyzer.showUnlinkedFileNotification": false
+}

@@ -1,12 +1,12 @@
 [package]
-name = "test_api"
+name = "ai_api"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-common_api = { path = "../common_api" }
+common_api_lib = { path = "../common_api_lib" }
 axum = "0.6.20"
 openai_dive = "0.2.13"
 serde = { version = "1.0", features = ["derive"] }

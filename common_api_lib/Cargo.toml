@@ -1,5 +1,5 @@
 [package]
-name = "common_api"
+name = "common_api_lib"
 description = "Common API elements for the glowing-telegraph microservices"
 version = "0.1.0"
 edition = "2021"

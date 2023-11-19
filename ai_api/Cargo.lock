@@ -27,6 +27,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ai_api"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bb8",
+ "chrono",
+ "common_api_lib",
+ "diesel",
+ "diesel-async",
+ "dotenvy",
+ "openai_dive",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -263,7 +284,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "common_api"
+name = "common_api_lib"
 version = "0.1.0"
 dependencies = [
  "axum",
@@ -1665,27 +1686,6 @@ dependencies = [
  "redox_syscall",
  "rustix",
  "windows-sys",
-]
-
-[[package]]
-name = "test_api"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bb8",
- "chrono",
- "common_api",
- "diesel",
- "diesel-async",
- "dotenvy",
- "openai_dive",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tower-http",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

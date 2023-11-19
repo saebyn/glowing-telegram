@@ -1,0 +1,26 @@
+# Ignore Rust build artifacts
+**/target
+
+# Ignore Python virtual environment
+**/venv
+
+# Ignore Python Jupyter Notebook checkpoints
+**/.ipynb_checkpoints
+
+openai_key.txt
+
+# Ignore .env files
+**/.env
+
+# Ignore .DS_Store files
+**/.DS_Store
+
+# Ignore .vscode files
+**/.vscode
+
+# Ignore old project
+video_processing_project
+chatbot
+
+# Ignore node_modules
+**/node_modules

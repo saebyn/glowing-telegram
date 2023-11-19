@@ -19,7 +19,7 @@ async fn main() -> Result<(), axum::BoxError> {
         db::create_pool().await,
     );
 
-    common_api::run(state, |app| {
+    common_api_lib::run(state, |app| {
         app.route("/api/chat", post(handlers::complete_chat::handler))
     })
     .await
