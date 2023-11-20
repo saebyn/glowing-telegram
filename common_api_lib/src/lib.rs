@@ -110,10 +110,14 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
+    use tokio::runtime::Runtime;
+
     use super::*;
 
     #[test]
-    fn it_works() {
-        // TODO
+    fn test_health() {
+        let rt = Runtime::new().unwrap();
+        let response = rt.block_on(health()).into_response();
+        assert_eq!(response.status(), 200);
     }
 }
