@@ -6,7 +6,8 @@ import {
   ShowGuesser,
 } from "react-admin";
 import { dataProvider } from "./dataProvider";
-import StreamList from "./resources/streams/List";
+
+import streamViews from "./resources/streams";
 
 export const App = () => (
   <Admin dataProvider={dataProvider}>
@@ -18,9 +19,10 @@ export const App = () => (
     />
     <Resource
       name="streams"
-      list={StreamList}
-      edit={EditGuesser}
-      show={ShowGuesser}
+      list={streamViews.list}
+      edit={streamViews.edit}
+      show={streamViews.show}
+      create={streamViews.create}
     />
     <Resource
       name="episodes"

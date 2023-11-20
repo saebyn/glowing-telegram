@@ -5,16 +5,17 @@ import {
   ReferenceArrayField,
   TextField,
   ImageField,
+  ListProps,
 } from "react-admin";
 
-const StreamList = () => (
-  <List>
+const StreamList = (props: ListProps) => (
+  <List {...props}>
     <Datagrid rowClick="edit">
-      <DateField source="title" />
+      <TextField source="title" />
       <ImageField source="thumbnail" />
       <ReferenceArrayField source="topic_ids" reference="topics" />
       <DateField source="created_at" />
-      <TextField source="updated_at" />
+      <DateField source="updated_at" />
     </Datagrid>
   </List>
 );

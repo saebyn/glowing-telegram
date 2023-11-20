@@ -1,4 +1,5 @@
-import fakeRestDataProvider from "ra-data-fakerest";
-import data from "./data.json";
+import simpleRestDataProvider from "ra-data-simple-rest";
 
-export const dataProvider = fakeRestDataProvider(data, true);
+export const dataProvider = simpleRestDataProvider(
+  process.env.API_HOST || "http://localhost:3000/records"
+);
