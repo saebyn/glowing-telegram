@@ -1,6 +1,5 @@
 use axum::routing::post;
 
-mod db;
 mod handlers;
 mod models;
 mod schema;
@@ -16,7 +15,7 @@ async fn main() -> Result<(), axum::BoxError> {
             .expect("failed to read openai key from OPENAI_KEY_PATH")
             .trim()
             .to_string(),
-        db::create_pool().await,
+        common_api_lib::db::create_pool().await,
     );
 
     common_api_lib::run(state, |app| {

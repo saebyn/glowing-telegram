@@ -288,6 +288,10 @@ name = "common_api_lib"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "bb8",
+ "chrono",
+ "diesel",
+ "diesel-async",
  "dotenvy",
  "serde",
  "serde_json",

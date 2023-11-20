@@ -7,6 +7,7 @@ mod state;
 #[tokio::main]
 async fn main() -> Result<(), axum::BoxError> {
     let state = state::AppState::new(
+        common_api_lib::db::create_pool().await,
     );
 
     common_api_lib::run(state, |app| {

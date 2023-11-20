@@ -12,6 +12,8 @@ use tracing;
 use tracing::instrument;
 use tracing_subscriber::prelude::*;
 
+pub mod db;
+
 pub async fn run<State>(
     state: State,
     add_routes: impl FnOnce(Router<State>) -> Router<State>,
@@ -24,11 +26,12 @@ where
     // build our application with a route
     let app = app(state, add_routes).await;
 
-    let host: std::net::IpAddr = std::env::var("HOST")
+    let host: std::net::IpAddr = dotenvy::var("HOST")
         .expect("HOST not set")
         .parse()
         .expect("HOST is not a valid IP address");
-    let port = std::env::var("PORT")
+
+    let port = dotenvy::var("PORT")
         .expect("PORT not set")
         .parse()
         .expect("PORT is not a valid port number");
