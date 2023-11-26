@@ -15,6 +15,7 @@ This is a tool for managing stream recordings, ingesting them into a database, p
 1. Episode transcription
 1. Review interface for the transcriptions
 1. Automatic summaries of the episode via text summarization provided by GPT-4
+1. Capture chat messages with author and timestamp metadata from the stream
 1. Flag areas of the video that are interesting
 1. Generate a set of "highlights" from the stream based on the flagged areas
 1. Archive the stream videos to a cloud storage provider
