@@ -309,11 +309,15 @@ name = "crud_api"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "chrono",
  "common_api_lib",
+ "diesel",
+ "diesel-async",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -337,6 +341,7 @@ dependencies = [
  "chrono",
  "diesel_derives",
  "itoa",
+ "uuid",
 ]
 
 [[package]]
@@ -1426,9 +1431,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.5.0"
+version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88ad59a7560b41a70d191093a945f0b87bc1deeda46fb237479708a1d6b6cdfc"
+checksum = "5e395fcf16a7a3d8127ec99782007af141946b4795001f876d54fb0d55978560"
 dependencies = [
  "getrandom",
 ]

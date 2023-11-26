@@ -3,6 +3,8 @@ use axum::{routing::get, routing::post, routing::put, routing::delete};
 
 mod handlers;
 mod state;
+pub mod models;
+pub mod schema;
 
 #[tokio::main]
 async fn main() -> Result<(), axum::BoxError> {

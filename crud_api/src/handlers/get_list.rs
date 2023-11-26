@@ -1,27 +1,57 @@
 use axum::response::IntoResponse;
+use axum::extract::{Path, State};
 use axum::http::header;
-use serde_json::json;
+use serde::Serialize;
+use diesel::prelude::*;
 use tracing;
 use tracing::instrument;
+use diesel_async::{RunQueryDsl};
 
+use crate::state::AppState;
+use crate::schema;
+
+#[derive(Debug, Serialize)]
+struct StreamView {
+  pub id: String,
+  pub title: String,
+  pub thumbnail: String,
+  pub created_at: String,
+  pub updated_at: Option<String>,
+  pub topic_ids: Vec<String>,
+}
 
 #[instrument]
-pub async fn handler() -> impl IntoResponse {
+pub async fn handler(
+  Path(key): Path<String>,
+  State(state): State<AppState>,
+) -> impl IntoResponse {
+    use schema::streams::dsl::*;
+
     tracing::info!("get_list");
 
-    let pagination_info = "items 0-1/1";
+    // get list of records from streams table using diesel
+    let mut connection = state.pool.get().await.unwrap();
+    let results: Vec<crate::models::Stream> = streams
+        .limit(10)
+        .offset(0)
+        .load(&mut connection).await.unwrap();
+
+    let pagination_info = "items 0-10/10";
+
+    // convert the results into a JSON response
+    let prepared_results = results
+        .iter()
+        .map(|stream| {
+            StreamView {
+                id: stream.id.to_string(),
+                title: stream.title.to_string(),
+                thumbnail: stream.thumbnail_url.to_string(),
+                created_at: stream.created_at.to_string(),
+                updated_at: stream.updated_at.map(|dt| dt.to_string()),
+                topic_ids: vec![],
+            }
+        })
+        .collect::<Vec<StreamView>>();
     
-    ([(header::CONTENT_RANGE, pagination_info)], axum::Json(json!([
-        {
-          "id": 0,
-          "title": "2023-11-12",
-          "description": "Description 1",
-          "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/b/bd/Test.svg",
-          "topic_ids": [0],
-          "created_at": "2023-11-12T00:00:00Z",
-          "updated_at": null,
-          "prefix": "2023-11-12",
-          "speech_audio_track": "https://example.invalid/streams/0.mp3"
-        }
-      ])))
+    ([(header::CONTENT_RANGE, pagination_info)], axum::Json(prepared_results))
 }
