@@ -9,15 +9,16 @@ services:
     working_dir: /app
     restart: always
     ports:
-      - "5173:5173"
+      - "8000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
       - NODE_ENV=development
+      # From end user perspective
       - VITE_API_URL=http://localhost:3000
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173/"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
       interval: 60s
       timeout: 30s
       retries: 5
