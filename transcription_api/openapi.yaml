@@ -1,0 +1,191 @@
+---
+openapi: 3.1.0
+
+info:
+  title: transcription_api
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000/api/transcription
+
+components:
+  schemas:
+    TranscriptionSegment:
+      type: object
+      properties:
+        text:
+          type: string
+          description: Transcribed text
+          required: true
+        start:
+          type: string
+          format: duration
+          description: Duration until the start of the segment from the beginning of the audio file, as an ISO 8601 duration.
+          required: true
+        end:
+          type: string
+          format: duration
+          description: Duration until the end of the segment from the start of the segment, as an ISO 8601 duration.
+          required: true
+    TranscribeAudioSegmentRequest:
+      type: object
+      properties:
+        audio_file:
+          type: string
+          format: uri
+          description: URI of the audio file to transcribe
+          required: true
+        cursor:
+          type: string
+          description: Cursor position in the audio file
+          required: false
+        track:
+          type: integer
+          description: Track number in the audio file
+          required: false
+    TranscribeAudioSegmentResponse:
+      type: object
+      properties:
+        cursor:
+          type: string
+          description: Cursor position in the audio file
+          required: true
+        transcription:
+          $ref: "#/components/schemas/TranscriptionSegment"
+    TranscribeAudioRequest:
+      type: object
+      properties:
+        audio_file:
+          type: string
+          format: uri
+          description: URI of the audio file to transcribe
+          required: true
+        cursor:
+          type: string
+          description: Cursor position in the audio file
+          required: false
+        track:
+          type: integer
+          description: Track number in the audio file
+          required: false
+    TranscribeAudioResponse:
+      type: object
+      properties: {}
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Status of the service
+          required: true
+        transcription:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptionSegment"
+          description: Transcriptions
+          required: true
+    HealthResponse:
+      type: object
+      properties: {}
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          required: true
+
+paths:
+  /transcribe_audio_segment:
+    post:
+      summary: Transcribe audio segment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranscribeAudioSegmentRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscribeAudioSegmentResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /transcribe_audio:
+    post:
+      summary: Transcribe audio
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranscribeAudioRequest"
+      responses:
+        "202":
+          description: Accepted
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+                description: URI of the status endpoint for the transcription job
+              required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscribeAudioResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /status:
+    get:
+      summary: Get status
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /health:
+    get:
+      summary: Get health
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
