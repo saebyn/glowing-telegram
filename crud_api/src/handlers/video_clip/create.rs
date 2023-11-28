@@ -5,7 +5,7 @@ use tracing::instrument;
 
 #[instrument]
 pub async fn handler() -> impl IntoResponse {
-    tracing::info!("get_one");
+    tracing::info!("create_video_clip");
 
     axum::Json(json!(
       {
