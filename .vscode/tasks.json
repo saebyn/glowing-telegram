@@ -2,5 +2,42 @@
   // See https://go.microsoft.com/fwlink/?LinkId=733558
   // for the documentation about the tasks.json format
   "version": "2.0.0",
-  "tasks": []
+  "inputs": [
+    {
+      "id": "service",
+      "type": "pickString",
+      "description": "The name of the service to run",
+      "options": [
+        "ai_api",
+        "audio_extraction_api",
+        "crud_api",
+        "media_archive_api",
+        "silence_detection_api",
+        "stream_ingestion_api",
+        "task_api",
+        "transcription_api"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "label": "cargo watch",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/${input:service}",
+        "env": {
+          "RUST_LOG": "debug",
+          "RUST_BACKTRACE": "1",
+          "HOST": "127.0.0.1",
+          "PORT": "8789",
+        }
+      },
+      "command": "systemfd --no-pid -s http::8788 -- cargo watch -x run",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+  ]
 }
