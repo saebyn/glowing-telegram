@@ -62,7 +62,7 @@ where
 {
     // build our application with a route
     add_routes(Router::<State>::new())
-        .route("/", get(health))
+        .route("/health", get(health))
         .with_state(state)
         // TODO make this only allow requests from our frontend?
         .layer(CorsLayer::permissive())

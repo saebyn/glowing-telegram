@@ -41,13 +41,13 @@ services:
       - PORT=3000
       - RUST_LOG=debug
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 5
 
   db:
-    image: postgres
+    image: postgres:15-alpine
     restart: always
     ports:
       - "5432:5432"
