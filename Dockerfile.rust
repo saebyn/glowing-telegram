@@ -28,6 +28,9 @@ WORKDIR /app
 
 COPY . .
 
+# delete top level Cargo.toml
+RUN rm -f Cargo.toml && rm -f Cargo.lock
+
 WORKDIR /app/${SERVICE_NAME}
 
 RUN cargo chef prepare --recipe-path recipe.json
