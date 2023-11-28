@@ -32,7 +32,7 @@
           "PORT": "8789",
         }
       },
-      "command": "systemfd --no-pid -s http::8788 -- cargo watch -x run",
+      "command": "cargo watch -x run",
       "group": {
         "kind": "build",
         "isDefault": true
