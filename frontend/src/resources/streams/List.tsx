@@ -11,9 +11,14 @@ import {
 const StreamList = (props: ListProps) => (
   <List {...props}>
     <Datagrid rowClick="edit">
+      <TextField source="id" />
       <TextField source="title" />
-      <ImageField source="thumbnail" />
-      <ReferenceArrayField source="topic_ids" reference="topics" />
+      <ImageField source="thumbnail" sortable={false} />
+      <ReferenceArrayField
+        source="topic_ids"
+        reference="topics"
+        sortable={false}
+      />
       <DateField source="created_at" />
       <DateField source="updated_at" />
     </Datagrid>
