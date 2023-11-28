@@ -20,9 +20,15 @@ pub async fn handler(
 
     tracing::info!("create_stream");
 
-    let mut connection = state.pool.get().await.unwrap();
+    let mut connection = match state.pool.get().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            tracing::error!("Error getting connection from pool: {}", e);
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+        }
+    };
 
-    let record = diesel::insert_into(streams)
+    let record = match diesel::insert_into(streams)
         .values((
             title.eq(body.title),
             description.eq(body.description.unwrap_or("".to_string())),
@@ -32,16 +38,15 @@ pub async fn handler(
         ))
         .get_result::<Stream>(&mut connection)
         .await
-        .unwrap();
+    {
+        Ok(record) => record,
+        Err(e) => {
+            tracing::error!("Error inserting record: {}", e);
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+        }
+    };
 
     // TODO: add topic_ids
 
-    axum::Json(json!(StreamDetailView {
-        id: record.id.to_string(),
-        title: record.title.to_string(),
-        created_at: record.created_at.to_string(),
-        updated_at: record.updated_at.map(|dt| dt.to_string()),
-        thumbnail: record.thumbnail_url.to_string(),
-        topic_ids: vec![],
-    }))
+    axum::Json(json!(StreamDetailView::from(record))).into_response()
 }

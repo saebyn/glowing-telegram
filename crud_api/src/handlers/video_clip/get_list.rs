@@ -29,20 +29,34 @@ pub async fn handler(State(state): State<AppState>) -> impl IntoResponse {
     let offset = 0;
     let limit = 10;
 
-    let mut connection = state.pool.get().await.unwrap();
+    let mut connection = match state.pool.get().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            tracing::error!("Error getting connection from pool: {}", e);
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+        }
+    };
 
-    let total: i64 = video_clips
-        .count()
-        .get_result(&mut connection)
-        .await
-        .unwrap();
+    let total: i64 = match video_clips.count().get_result(&mut connection).await {
+        Ok(total) => total,
+        Err(e) => {
+            tracing::error!("Error getting total count: {}", e);
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+        }
+    };
 
-    let results: Vec<VideoClips> = video_clips
+    let results: Vec<VideoClips> = match video_clips
         .limit(limit)
         .offset(offset)
         .load(&mut connection)
         .await
-        .unwrap();
+    {
+        Ok(results) => results,
+        Err(e) => {
+            tracing::error!("Error getting results: {}", e);
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+        }
+    };
 
     let prepared_results = results
         .iter()
@@ -65,4 +79,5 @@ pub async fn handler(State(state): State<AppState>) -> impl IntoResponse {
         [(header::CONTENT_RANGE, pagination_info)],
         axum::Json(json!(prepared_results)),
     )
+        .into_response()
 }
