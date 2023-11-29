@@ -1,4 +1,4 @@
-use axum::{routing::delete, routing::get, routing::put};
+use axum::{routing::get, Extension};
 
 mod handlers;
 pub mod models;
@@ -7,7 +7,8 @@ mod state;
 
 #[tokio::main]
 async fn main() -> Result<(), axum::BoxError> {
-    let state = state::AppState::new(common_api_lib::db::create_pool().await);
+    let state = state::AppState::new();
+    let pool = common_api_lib::db::create_pool().await;
 
     common_api_lib::run(state, |app| {
         // Define routes for ra-data-simple-rest
@@ -29,6 +30,7 @@ async fn main() -> Result<(), axum::BoxError> {
                 get(handlers::video_clip::get_list::handler)
                     .post(handlers::video_clip::create::handler),
             )
+            .layer(Extension(pool))
     })
     .await
 }

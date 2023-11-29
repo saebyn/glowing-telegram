@@ -1,4 +1,3 @@
-use axum::extract::State;
 use axum::http::header;
 use axum::response::IntoResponse;
 use diesel::prelude::*;
@@ -8,9 +7,10 @@ use serde_json::json;
 use tracing;
 use tracing::instrument;
 
+use common_api_lib::db::DbConnection;
+
 use crate::models::VideoClips;
 use crate::schema;
-use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
 struct VideoClipsView {
@@ -21,7 +21,7 @@ struct VideoClipsView {
 }
 
 #[instrument]
-pub async fn handler(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn handler(DbConnection(mut db): DbConnection<'_>) -> impl IntoResponse {
     use schema::video_clips::dsl::*;
 
     tracing::info!("get_video_clips_list");
@@ -29,15 +29,7 @@ pub async fn handler(State(state): State<AppState>) -> impl IntoResponse {
     let offset = 0;
     let limit = 10;
 
-    let mut connection = match state.pool.get().await {
-        Ok(conn) => conn,
-        Err(e) => {
-            tracing::error!("Error getting connection from pool: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-        }
-    };
-
-    let total: i64 = match video_clips.count().get_result(&mut connection).await {
+    let total: i64 = match video_clips.count().get_result(&mut db.connection).await {
         Ok(total) => total,
         Err(e) => {
             tracing::error!("Error getting total count: {}", e);
@@ -48,7 +40,7 @@ pub async fn handler(State(state): State<AppState>) -> impl IntoResponse {
     let results: Vec<VideoClips> = match video_clips
         .limit(limit)
         .offset(offset)
-        .load(&mut connection)
+        .load(&mut db.connection)
         .await
     {
         Ok(results) => results,

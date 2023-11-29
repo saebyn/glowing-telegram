@@ -1,4 +1,4 @@
-use axum::extract::{Path, State};
+use axum::extract::Path;
 use axum::response::IntoResponse;
 use axum::Json;
 use diesel::prelude::*;
@@ -8,11 +8,12 @@ use tracing;
 use tracing::instrument;
 use uuid::Uuid;
 
+use common_api_lib::db::DbConnection;
+
 use super::structs::StreamDetailView;
 use super::structs::UpdateStreamRequest;
 use crate::models::Stream;
 use crate::schema::{self, streams};
-use crate::state::AppState;
 
 #[derive(Debug, AsChangeset)]
 #[diesel(table_name = streams)]
@@ -26,21 +27,13 @@ pub struct UpdateStreamChangeset {
 
 #[instrument]
 pub async fn handler(
-    State(state): State<AppState>,
+    DbConnection(mut db): DbConnection<'_>,
     Path(record_id): Path<Uuid>,
     Json(body): Json<UpdateStreamRequest>,
 ) -> impl IntoResponse {
     use schema::streams::dsl::*;
 
     tracing::info!("update_stream");
-
-    let mut connection = match state.pool.get().await {
-        Ok(conn) => conn,
-        Err(e) => {
-            tracing::error!("Error getting connection from pool: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-        }
-    };
 
     let result: Result<Stream, diesel::result::Error> =
         diesel::update(streams.filter(id.eq(record_id)))
@@ -51,7 +44,7 @@ pub async fn handler(
                 prefix: body.prefix,
                 speech_audio_url: body.speech_audio_track,
             })
-            .get_result(&mut connection)
+            .get_result(&mut db.connection)
             .await;
 
     match result {

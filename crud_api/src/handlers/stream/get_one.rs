@@ -1,4 +1,4 @@
-use axum::extract::{Path, State};
+use axum::extract::Path;
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use diesel::prelude::*;
@@ -8,32 +8,25 @@ use tracing;
 use tracing::instrument;
 use uuid::Uuid;
 
+use common_api_lib::db::DbConnection;
+
 use super::structs::StreamDetailView;
 use crate::models::Stream;
 use crate::schema;
-use crate::state::AppState;
 
 #[instrument]
 pub async fn handler(
-    State(state): State<AppState>,
+    DbConnection(mut db): DbConnection<'_>,
     Path(record_id): Path<Uuid>,
 ) -> impl IntoResponse {
     use schema::streams::dsl::*;
 
     tracing::info!("get_stream");
 
-    let mut connection = match state.pool.get().await {
-        Ok(conn) => conn,
-        Err(e) => {
-            tracing::error!("Error getting connection from pool: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-        }
-    };
-
     let result: Result<Stream, _> = streams
         .filter(id.eq(record_id))
         .select(streams::all_columns())
-        .first(&mut connection)
+        .first(&mut db.connection)
         .await;
 
     match result {

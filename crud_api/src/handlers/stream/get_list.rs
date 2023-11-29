@@ -1,4 +1,4 @@
-use axum::extract::{Query, State};
+use axum::extract::Query;
 use axum::http::header;
 use axum::response::IntoResponse;
 use diesel::expression::expression_types::NotSelectable;
@@ -8,15 +8,16 @@ use serde_json::json;
 use tracing;
 use tracing::instrument;
 
+use common_api_lib::db::DbConnection;
+
 use super::structs::ListParams;
 use super::structs::StreamSimpleView;
 use crate::models::Stream;
 use crate::schema;
-use crate::state::AppState;
 
 #[instrument]
 pub async fn handler(
-    State(state): State<AppState>,
+    DbConnection(mut db): DbConnection<'_>,
     Query(params): Query<ListParams>,
 ) -> impl IntoResponse {
     use schema::streams::dsl::*;
@@ -30,15 +31,7 @@ pub async fn handler(
         None => (0, 10),
     };
 
-    let mut connection = match state.pool.get().await {
-        Ok(conn) => conn,
-        Err(e) => {
-            tracing::error!("Error getting connection from pool: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-        }
-    };
-
-    let total: i64 = match streams.count().get_result(&mut connection).await {
+    let total: i64 = match streams.count().get_result(&mut db.connection).await {
         Ok(total) => total,
         Err(e) => {
             tracing::error!("Error getting total count: {}", e);
@@ -67,7 +60,7 @@ pub async fn handler(
         .offset(offset)
         .order_by(order)
         .select(streams::all_columns())
-        .load(&mut connection)
+        .load(&mut db.connection)
         .await
     {
         Ok(results) => results,
