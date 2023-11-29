@@ -10,8 +10,8 @@ use tracing::instrument;
 
 use common_api_lib::db::DbConnection;
 
-use super::structs::ListParams;
 use super::structs::StreamSimpleView;
+use crate::handlers::structs::ListParams;
 use crate::models::Stream;
 use crate::schema;
 
