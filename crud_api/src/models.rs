@@ -18,7 +18,7 @@ pub struct Stream {
 #[derive(Queryable, Selectable, Debug)]
 #[diesel(table_name = crate::schema::video_clips)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct VideoClips {
+pub struct VideoClip {
     pub id: uuid::Uuid,
     pub title: String,
     pub description: String,
