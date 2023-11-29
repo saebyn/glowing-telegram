@@ -21,7 +21,7 @@ pub async fn handler(
     tracing::info!("create_video_clip");
 
     let duration_value = match parse_duration(body.duration) {
-        Ok(durationValue) => durationValue,
+        Ok(duration_value) => duration_value,
         Err(e) => {
             tracing::error!("Error parsing duration: {}", e);
             return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();

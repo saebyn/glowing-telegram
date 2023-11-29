@@ -12,16 +12,17 @@ The `/find_files` API endpoint takes a prefix string and returns a list of URIs 
 
 The `metadata` object contains the following fields:
 
+- `filename`: The name of the file.
 - `content_type`: The content type of the file.
 - `size`: The size of the file in bytes.
 - `last_modified`: The last modified time of the file in ISO 8601 format.
-- `md5`: The MD5 hash of the file.
 - `duration` (optional): The duration of the file in seconds. This field is only present if the file is a video file.
 - `width` (optional): The width of the file in pixels. This field is only present if the file is a video file.
 - `height` (optional): The height of the file in pixels. This field is only present if the file is a video file.
 - `frame_rate` (optional): The frame rate of the file in frames per second. This field is only present if the file is a video file.
-- `bit_rate` (optional): The bit rate of the file in bits per second. This field is only present if the file is a video file.
-- `audio_tracks` (optional): The number of audio tracks in the file. This field is only present if the file is a video file.
+- `video_bitrate` (optional): The bit rate of the file in bits per second. This field is only present if the file is a video file.
+- `audio_bitrate` (optional): The bit rate of the audio in the file in bits per second. This field is only present if the file is a video file.
+- `audio_track_count` (optional): The number of audio tracks in the file. This field is only present if the file is a video file.
 
 ### `/health`
 
