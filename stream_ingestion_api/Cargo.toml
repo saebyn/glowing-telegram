@@ -1,0 +1,11 @@
+
+[package]
+name = "stream_ingestion_api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+common_api_lib = { path = "../common_api_lib" }
+dotenvy = { version = "0.15.7" }
+axum = "0.6.20"
+tokio = { version = "1.0", features = ["full"] }

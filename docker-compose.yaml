@@ -2,21 +2,31 @@ version: "3"
 name: video_processing_project
 
 services:
+  proxy:
+    image: nginx:1.25.1-alpine
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - crud_api
+      - stream_ingestion_api
+
   # run our frontend in dev mode with hot module reloading for vite
   frontend:
     image: node:18-alpine
     command: sh -c "npm install && npm run dev"
     working_dir: /app
     restart: always
-    ports:
-      - "8000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
       - NODE_ENV=development
       # From end user perspective
-      - VITE_API_URL=http://localhost:3000
+      - VITE_API_URL=http://localhost:8080/api
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]
       interval: 60s
@@ -30,8 +40,6 @@ services:
       args:
         - SERVICE_NAME=crud_api
     restart: always
-    ports:
-      - "3000:3000"
     depends_on:
       - db
       - redis
@@ -45,6 +53,26 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+
+  stream_ingestion_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.rust
+      args:
+        - SERVICE_NAME=stream_ingestion_api
+    restart: always
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+      - RUST_LOG=debug
+      - VIDEO_STORAGE_PATH=/obs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - obs:/obs
 
   db:
     image: postgres:15-alpine
