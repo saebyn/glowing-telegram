@@ -15,7 +15,6 @@ async fn main() -> Result<(), axum::BoxError> {
             .expect("failed to read openai key from OPENAI_KEY_PATH")
             .trim()
             .to_string(),
-        common_api_lib::db::create_pool().await,
     );
 
     common_api_lib::run(state, |app| {
