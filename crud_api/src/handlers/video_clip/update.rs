@@ -22,7 +22,7 @@ use crate::schema::{self, video_clips};
 pub struct UpdateVideoClipChangeset {
     pub title: Option<String>,
     pub description: Option<String>,
-    pub url: Option<String>,
+    pub uri: Option<String>,
     pub duration: Option<PgInterval>,
     pub start_time: Option<PgInterval>,
     pub stream_id: Option<Uuid>,
@@ -70,7 +70,7 @@ pub async fn handler(
             .set(&UpdateVideoClipChangeset {
                 title: body.title,
                 description: body.description,
-                url: body.url,
+                uri: body.uri,
                 duration: duration_value,
                 start_time: start_time_value,
                 stream_id: stream_id_value,

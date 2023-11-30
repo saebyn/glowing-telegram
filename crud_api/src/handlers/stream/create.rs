@@ -40,5 +40,5 @@ pub async fn handler(
 
     // TODO: add topic_ids
 
-    axum::Json(json!(StreamDetailView::from(record))).into_response()
+    axum::Json(json!(StreamDetailView::from((record, vec![])))).into_response()
 }

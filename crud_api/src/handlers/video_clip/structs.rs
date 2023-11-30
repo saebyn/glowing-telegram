@@ -6,7 +6,7 @@ use crate::models::VideoClip;
 pub struct CreateVideoClipRequest {
     pub title: String,
     pub description: Option<String>,
-    pub url: Option<String>,
+    pub uri: Option<String>,
     pub duration: Option<String>,
     pub start_time: Option<String>,
     pub stream_id: Option<String>,
@@ -16,7 +16,7 @@ pub struct CreateVideoClipRequest {
 pub struct UpdateVideoClipRequest {
     pub title: Option<String>,
     pub description: Option<String>,
-    pub url: Option<String>,
+    pub uri: Option<String>,
     pub duration: Option<String>,
     pub start_time: Option<String>,
     pub stream_id: Option<String>,
@@ -27,7 +27,7 @@ pub struct VideoClipDetailView {
     pub id: String,
     pub title: String,
     pub description: String,
-    pub url: String,
+    pub uri: String,
     pub duration: String,
     pub start_time: String,
     pub created_at: String,
@@ -61,7 +61,7 @@ impl From<VideoClip> for VideoClipDetailView {
             id: video_clip.id.to_string(),
             title: video_clip.title.to_string(),
             description: video_clip.description.to_string(),
-            url: video_clip.url.to_string(),
+            uri: video_clip.uri.to_string(),
             duration: chrono::Duration::microseconds(video_clip.duration.microseconds).to_string(),
             start_time: chrono::Duration::microseconds(video_clip.start_time.microseconds)
                 .to_string(),

@@ -14,3 +14,7 @@ pub fn parse_duration(duration: Option<String>) -> Result<PgInterval, String> {
         }
     }
 }
+
+pub fn parse_duration_to_string(duration: PgInterval) -> String {
+    chrono::Duration::microseconds(duration.microseconds).to_string()
+}

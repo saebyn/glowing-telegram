@@ -40,7 +40,7 @@ pub async fn handler(
         .values((
             title.eq(body.title),
             description.eq(body.description.unwrap_or("".to_string())),
-            url.eq(body.url.unwrap_or("".to_string())),
+            uri.eq(body.uri.unwrap_or("".to_string())),
             duration.eq(duration_value),
             start_time.eq(start_time_value),
             stream_id.eq(body

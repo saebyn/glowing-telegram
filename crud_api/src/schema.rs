@@ -18,12 +18,24 @@ diesel::table! {
         id -> Uuid,
         title -> Varchar,
         description -> Text,
-        url -> Varchar,
+        uri -> Varchar,
         duration -> Interval,
         start_time -> Interval,
         created_at -> Timestamptz,
         updated_at -> Nullable<Timestamptz>,
         stream_id -> Nullable<Uuid>,
+        audio_bitrate -> Nullable<Int4>,
+        audio_track_count -> Nullable<Int4>,
+        #[max_length = 255]
+        content_type -> Nullable<Varchar>,
+        #[max_length = 255]
+        filename -> Nullable<Varchar>,
+        frame_rate -> Nullable<Float4>,
+        height -> Nullable<Int4>,
+        width -> Nullable<Int4>,
+        video_bitrate -> Nullable<Int4>,
+        size -> Nullable<Int8>,
+        last_modified -> Nullable<Timestamp>,
     }
 }
 

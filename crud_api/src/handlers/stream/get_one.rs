@@ -11,7 +11,7 @@ use uuid::Uuid;
 use common_api_lib::db::DbConnection;
 
 use super::structs::StreamDetailView;
-use crate::models::Stream;
+use crate::models::{Stream, VideoClip};
 use crate::schema;
 
 #[instrument]
@@ -29,8 +29,22 @@ pub async fn handler(
         .first(&mut db.connection)
         .await;
 
+    let video_clips_result: Result<Vec<VideoClip>, _> =
+        crate::schema::video_clips::dsl::video_clips
+            .filter(crate::schema::video_clips::dsl::stream_id.eq(record_id))
+            .select(crate::schema::video_clips::dsl::video_clips::all_columns())
+            .load(&mut db.connection)
+            .await;
+
+    let video_clips = match video_clips_result {
+        Ok(video_clips) => video_clips,
+        Err(_) => vec![],
+    };
+
     match result {
         Ok(result) => {
+            let result = StreamDetailView::from((result, video_clips));
+
             let stream_view = StreamDetailView::from(result);
 
             (
