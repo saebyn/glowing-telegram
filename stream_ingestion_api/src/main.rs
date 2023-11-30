@@ -5,7 +5,6 @@ use axum::{
 };
 use common_api_lib;
 use dotenvy;
-use meowhash::MeowHasher;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -39,7 +38,7 @@ struct Metadata {
 #[derive(Serialize)]
 struct Entry {
     metadata: Metadata,
-    urn: String,
+    uri: String,
 }
 
 #[derive(Serialize)]
@@ -164,11 +163,11 @@ async fn find_files(
             audio_track_count,
         };
 
-        let urn = format!("urn:file:local:{}", file);
+        let uri = format!("file:local:{}", file);
 
-        tracing::debug!("find_files: urn: {:?}", urn);
+        tracing::debug!("find_files: uri: {:?}", uri);
 
-        entries.push(Entry { metadata, urn });
+        entries.push(Entry { metadata, uri });
     }
 
     axum::Json(json!(FindFilesResponse { entries: entries })).into_response()

@@ -8,7 +8,7 @@ This is a microservice that takes a prefix string and finds all of the files in 
 
 ### `/find_files`
 
-The `/find_files` API endpoint takes a prefix string and returns a list of URIs to files that start with that prefix. It accepts a POST request with a JSON body. The JSON body has one field: `prefix`. `prefix` is a string that specifies the prefix to search for. The API endpoint returns a JSON response with one field: `files`. `files` is a list of objects. Each object has two fields: `urn` and `metadata`. `urn` is a string that contains a URI to a file. `metadata` is an object that contains metadata about the file. The API endpoint returns a `200 OK` response.
+The `/find_files` API endpoint takes a prefix string and returns a list of URIs to files that start with that prefix. It accepts a POST request with a JSON body. The JSON body has one field: `prefix`. `prefix` is a string that specifies the prefix to search for. The API endpoint returns a JSON response with one field: `files`. `files` is a list of objects. Each object has two fields: `uri` and `metadata`. `uri` is a string that contains a URI to a file. `metadata` is an object that contains metadata about the file. The API endpoint returns a `200 OK` response.
 
 The `metadata` object contains the following fields:
 
