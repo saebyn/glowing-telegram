@@ -30,6 +30,12 @@ async fn main() -> Result<(), axum::BoxError> {
                 get(handlers::video_clip::get_list::handler)
                     .post(handlers::video_clip::create::handler),
             )
+            .route(
+                "/records/video_clips/:record_id",
+                get(handlers::video_clip::get_one::handler)
+                    .put(handlers::video_clip::update::handler)
+                    .delete(handlers::video_clip::delete::handler),
+            )
             .layer(Extension(pool))
     })
     .await
