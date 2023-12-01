@@ -1,10 +1,11 @@
 use axum::http::header::{HeaderName, AUTHORIZATION};
+use axum::http::HeaderValue;
 use axum::response::IntoResponse;
 use axum::{routing::get, Router};
 use serde_json::json;
 use std::iter::once;
 use std::net::SocketAddr;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{compression::CompressionLayer, propagate_header::PropagateHeaderLayer};
@@ -60,12 +61,18 @@ async fn app<State>(state: State, add_routes: impl FnOnce(Router<State>) -> Rout
 where
     State: Clone + Send + Sync + 'static,
 {
+    let origins = dotenvy::var("CORS_ALLOWED_ORIGINS")
+        .expect("CORS_ALLOWED_ORIGINS not set")
+        .split(',')
+        .map(|s| s.to_string())
+        .map(|s| s.parse::<HeaderValue>().unwrap())
+        .collect::<Vec<_>>();
+
     // build our application with a route
     add_routes(Router::<State>::new())
         .route("/health", get(health))
         .with_state(state)
-        // TODO make this only allow requests from our frontend?
-        .layer(CorsLayer::permissive())
+        .layer(CorsLayer::new().allow_origin(origins))
         // Mark the `Authorization` request header as sensitive so it doesn't show in logs
         .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
         // High level logging of requests and responses
