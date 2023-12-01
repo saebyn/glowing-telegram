@@ -39,24 +39,12 @@ pub async fn handler(
     tracing::info!("update_video_clip");
 
     let duration_value = match body.duration {
-        Some(duration_value) => match parse_duration(Some(duration_value)) {
-            Ok(duration_value) => Some(duration_value),
-            Err(e) => {
-                tracing::error!("Error parsing duration: {}", e);
-                return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-            }
-        },
+        Some(duration_value) => Some(parse_duration(Some(duration_value))),
         None => None,
     };
 
     let start_time_value = match body.start_time {
-        Some(start_time_value) => match parse_duration(Some(start_time_value)) {
-            Ok(start_time_value) => Some(start_time_value),
-            Err(e) => {
-                tracing::error!("Error parsing start_time: {}", e);
-                return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-            }
-        },
+        Some(start_time_value) => Some(parse_duration(Some(start_time_value))),
         None => None,
     };
 

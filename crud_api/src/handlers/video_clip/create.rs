@@ -20,21 +20,9 @@ pub async fn handler(
 
     tracing::info!("create_video_clip");
 
-    let duration_value = match parse_duration(body.duration) {
-        Ok(duration_value) => duration_value,
-        Err(e) => {
-            tracing::error!("Error parsing duration: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-        }
-    };
+    let duration_value = parse_duration(body.duration);
 
-    let start_time_value = match parse_duration(body.start_time) {
-        Ok(start_time_value) => start_time_value,
-        Err(e) => {
-            tracing::error!("Error parsing start_time: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-        }
-    };
+    let start_time_value = parse_duration(body.start_time);
 
     let record = match diesel::insert_into(video_clips)
         .values((

@@ -32,6 +32,7 @@ pub struct StreamDetailView {
     pub id: String,
     pub title: String,
     pub description: String,
+    pub prefix: String,
     pub thumbnail: String,
     pub created_at: String,
     pub updated_at: Option<String>,
@@ -63,7 +64,7 @@ impl From<Stream> for StreamSimpleView {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoClipInlineView {
     pub id: Option<String>,
     pub title: String,
@@ -110,6 +111,8 @@ impl From<(Stream, Vec<VideoClip>)> for StreamDetailView {
             id: stream.id.to_string(),
             title: stream.title.to_string(),
             description: stream.description.to_string(),
+            prefix: stream.prefix.to_string(),
+
             thumbnail: stream.thumbnail_url.to_string(),
             created_at: stream.created_at.to_string(),
             updated_at: stream.updated_at.map(|dt| dt.to_string()),

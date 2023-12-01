@@ -13,6 +13,7 @@ use common_api_lib::db::DbConnection;
 use super::structs::StreamDetailView;
 use super::structs::UpdateStreamRequest;
 use super::structs::VideoClipInlineView;
+use crate::handlers::utils::parse_duration;
 use crate::models::Stream;
 use crate::models::VideoClip;
 use crate::schema::video_clips;
@@ -51,25 +52,31 @@ pub struct VideoClipInsertable {
 }
 
 impl From<(VideoClipInlineView, uuid::Uuid)> for VideoClipInsertable {
-    fn from(self, (clip, stream_id)) -> VideoClipInsertable {
+    fn from((clip, stream_id): (VideoClipInlineView, uuid::Uuid)) -> VideoClipInsertable {
+        let duration = parse_duration(Some(clip.duration));
+        let start_time = parse_duration(Some(clip.start_time));
+
         VideoClipInsertable {
-            id: self.id,
-            title: self.title,
+            id: clip.id.map_or(None, |id| uuid::Uuid::try_parse(&id).ok()),
+            title: clip.title,
             description: "".to_string(),
-            uri: self.uri,
-            duration: self.duration,
-            start_time: self.start_time,
-            stream_id: self.stream_id,
-            audio_bitrate: self.audio_bitrate,
-            audio_track_count: self.audio_track_count,
-            content_type: self.content_type,
-            filename: self.filename,
-            frame_rate: self.frame_rate,
-            height: self.height,
-            width: self.width,
-            video_bitrate: self.video_bitrate,
-            size: self.size,
-            last_modified: self.last_modified,
+            uri: clip.uri,
+            duration,
+            start_time,
+            stream_id: Some(stream_id),
+            audio_bitrate: clip.audio_bitrate,
+            audio_track_count: clip.audio_track_count,
+            content_type: clip.content_type,
+            filename: clip.filename,
+            frame_rate: clip.frame_rate,
+            height: clip.height,
+            width: clip.width,
+            video_bitrate: clip.video_bitrate,
+            size: clip.size,
+            last_modified: clip.last_modified.map_or(None, |last_modified| {
+                iso8601::datetime(&last_modified.to_string())
+                    .map_or(None, |dt: iso8601::DateTime| dt.into_naive())
+            }),
         }
     }
 }
@@ -95,6 +102,35 @@ pub struct VideoClipChangeset {
     pub last_modified: Option<chrono::NaiveDateTime>,
 }
 
+impl From<VideoClipInlineView> for VideoClipChangeset {
+    fn from(clip: VideoClipInlineView) -> VideoClipChangeset {
+        let duration = parse_duration(Some(clip.duration));
+        let start_time = parse_duration(Some(clip.start_time));
+
+        VideoClipChangeset {
+            title: Some(clip.title),
+            description: None,
+            uri: Some(clip.uri),
+            duration: Some(duration),
+            start_time: Some(start_time),
+            stream_id: None,
+            audio_bitrate: clip.audio_bitrate,
+            audio_track_count: clip.audio_track_count,
+            content_type: clip.content_type,
+            filename: clip.filename,
+            frame_rate: clip.frame_rate,
+            height: clip.height,
+            width: clip.width,
+            video_bitrate: clip.video_bitrate,
+            size: clip.size,
+            last_modified: clip.last_modified.map_or(None, |last_modified| {
+                iso8601::datetime(&last_modified.to_string())
+                    .map_or(None, |dt: iso8601::DateTime| dt.into_naive())
+            }),
+        }
+    }
+}
+
 #[instrument]
 pub async fn handler(
     DbConnection(mut db): DbConnection<'_>,
@@ -108,46 +144,11 @@ pub async fn handler(
     // insert body.video_clips into video_clips table, updating existing records and deleting missing records
     if let Some(video_clips) = body.video_clips {
         for video_clip in video_clips {
-            let duration_value = match crate::handlers::utils::parse_duration(video_clip.duration) {
-                Ok(duration_value) => duration_value,
-                Err(e) => {
-                    tracing::error!("Error parsing duration: {}", e);
-                    return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-                }
-            };
-
-            let start_time_value =
-                match crate::handlers::utils::parse_duration(video_clip.start_time) {
-                    Ok(start_time_value) => start_time_value,
-                    Err(e) => {
-                        tracing::error!("Error parsing start_time: {}", e);
-                        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
-                    }
-                };
-
-            let record = match diesel::insert_into(crate::schema::video_clips::table)
-                .values((
-                    crate::schema::video_clips::dsl::title.eq(video_clip.title),
-                    crate::schema::video_clips::dsl::description
-                        .eq(video_clip.description.unwrap_or("".to_string())),
-                    crate::schema::video_clips::dsl::uri
-                        .eq(video_clip.uri.unwrap_or("".to_string())),
-                    crate::schema::video_clips::dsl::duration.eq(duration_value),
-                    crate::schema::video_clips::dsl::start_time.eq(start_time_value),
-                    crate::schema::video_clips::dsl::stream_id.eq(record_id),
-                ))
+            match diesel::insert_into(crate::schema::video_clips::table)
+                .values(VideoClipInsertable::from((video_clip.clone(), record_id)))
                 .on_conflict(crate::schema::video_clips::dsl::id)
                 .do_update()
-                .set((
-                    crate::schema::video_clips::dsl::title.eq(video_clip.title),
-                    crate::schema::video_clips::dsl::description
-                        .eq(video_clip.description.unwrap_or("".to_string())),
-                    crate::schema::video_clips::dsl::uri
-                        .eq(video_clip.uri.unwrap_or("".to_string())),
-                    crate::schema::video_clips::dsl::duration.eq(duration_value),
-                    crate::schema::video_clips::dsl::start_time.eq(start_time_value),
-                    crate::schema::video_clips::dsl::stream_id.eq(record_id),
-                ))
+                .set(VideoClipChangeset::from(video_clip))
                 .get_result::<VideoClip>(&mut db.connection)
                 .await
             {
