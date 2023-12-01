@@ -17,6 +17,7 @@ The `metadata` object contains the following fields:
 - `size`: The size of the file in bytes.
 - `last_modified`: The last modified time of the file in ISO 8601 format.
 - `duration` (optional): The duration of the file in seconds. This field is only present if the file is a video file.
+- `start_time` (optional): The start time of the file in ISO 8601 format. This field is only present if the file is a video file.
 - `width` (optional): The width of the file in pixels. This field is only present if the file is a video file.
 - `height` (optional): The height of the file in pixels. This field is only present if the file is a video file.
 - `frame_rate` (optional): The frame rate of the file in frames per second. This field is only present if the file is a video file.

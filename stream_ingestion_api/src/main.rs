@@ -20,13 +20,26 @@ struct FindFilesQuery {
     prefix: String,
 }
 
+pub fn iso8601_chrono_serde<S>(
+    duration: &chrono::Duration,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&format!("PT{}S", duration.num_seconds()))
+}
+
 #[derive(Serialize)]
 struct Metadata {
     filename: String,
     content_type: String,
     size: u64,
     last_modified: chrono::DateTime<chrono::Utc>,
-    duration: Option<f32>,
+    #[serde(serialize_with = "iso8601_chrono_serde")]
+    duration: chrono::Duration,
+    #[serde(serialize_with = "iso8601_chrono_serde")]
+    start_time: chrono::Duration,
     width: Option<u32>,
     height: Option<u32>,
     frame_rate: Option<f32>,
@@ -147,7 +160,10 @@ async fn find_files(
                 Ok(last_modified) => last_modified.into(),
                 Err(_) => continue,
             },
-            duration,
+            start_time: chrono::Duration::zero(),
+            duration: chrono::Duration::milliseconds(
+                duration.map_or(0, |duration| (duration * 1000.0) as i64),
+            ),
             width,
             height,
             frame_rate: frame_rate.map(|frame_rate| {
@@ -168,6 +184,17 @@ async fn find_files(
         tracing::debug!("find_files: uri: {:?}", uri);
 
         entries.push(Entry { metadata, uri });
+    }
+
+    // sort by filename, ascending
+    entries.sort_by(|a, b| a.metadata.filename.cmp(&b.metadata.filename));
+
+    // populate start_time by calculating the cumulative duration of all previous entries
+    let mut cumulative_duration = chrono::Duration::zero();
+
+    for entry in &mut entries {
+        entry.metadata.start_time = cumulative_duration;
+        cumulative_duration = cumulative_duration + entry.metadata.duration;
     }
 
     axum::Json(json!(FindFilesResponse { entries: entries })).into_response()
