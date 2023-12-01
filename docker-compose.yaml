@@ -33,6 +33,26 @@ services:
       timeout: 30s
       retries: 5
 
+  ai_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.rust
+      args:
+        - SERVICE_NAME=ai_api
+    restart: always
+    volumes:
+      - ./openai_key.txt:/openai_key
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+      - RUST_LOG=debug
+      - OPENAI_KEY_PATH=/openai_key
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   crud_api:
     build:
       context: .
@@ -42,7 +62,6 @@ services:
     restart: always
     depends_on:
       - db
-      - redis
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/video_processing_project
       - HOST=0.0.0.0
