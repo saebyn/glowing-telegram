@@ -5,7 +5,7 @@ use axum::{routing::get, Router};
 use serde_json::json;
 use std::iter::once;
 use std::net::SocketAddr;
-use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{compression::CompressionLayer, propagate_header::PropagateHeaderLayer};
