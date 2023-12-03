@@ -1,6 +1,4 @@
-
 # glowing-telegram
-
 
 A tool for managing stream recordings.
 
@@ -18,9 +16,10 @@ This is a tool for managing stream recordings, ingesting them into a database, p
 1. Capture chat messages with author and timestamp metadata from the stream
 1. Flag areas of the video that are interesting
 1. Generate a set of "highlights" from the stream based on the flagged areas
+1. Generate chapter markers for the episode based on the flagged areas
 1. Archive the stream videos to a cloud storage provider
+1. Generate an AAF file for for the stream video for use in a video editing tool
 
 ## Architecture
 
 The tool is composed of a web interface, a database, and a set of microservices. The web interface is a React app that communicates with the microservices via a REST API. The microservices are written in a combination of Rust and Python. The database is a PostgreSQL database. The microservices do not share state, and most of them are stateless. Metadata about the stream is stored in the database, and the microservices use that metadata to perform their tasks. Video and audio data is stored in mounted volumes, and the microservices use the metadata to locate the data.
-
