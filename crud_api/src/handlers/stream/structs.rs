@@ -45,6 +45,7 @@ pub struct StreamDetailView {
 pub struct StreamSimpleView {
     pub id: String,
     pub title: String,
+    pub prefix: String,
     pub thumbnail: String,
     pub created_at: String,
     pub updated_at: Option<String>,
@@ -56,6 +57,7 @@ impl From<Stream> for StreamSimpleView {
         StreamSimpleView {
             id: stream.id.to_string(),
             title: stream.title.to_string(),
+            prefix: stream.prefix.to_string(),
             thumbnail: stream.thumbnail_url.to_string(),
             created_at: stream.created_at.to_string(),
             updated_at: stream.updated_at.map(|dt| dt.to_string()),

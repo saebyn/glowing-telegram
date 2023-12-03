@@ -1,5 +1,4 @@
 import {
-  DateInput,
   Edit,
   EditProps,
   ReferenceArrayInput,
@@ -14,7 +13,7 @@ const StreamEdit = (props: EditProps) => (
     <SimpleForm>
       <TextInput source="title" />
       <TextInput multiline={true} source="description" />
-      <DateInput source="prefix" />
+      <TextInput source="prefix" />
       <TextInput source="speech_audio_track" />
       <TextInput source="thumbnail" />
       <ReferenceArrayInput source="topic_ids" reference="topics">

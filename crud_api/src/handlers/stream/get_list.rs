@@ -44,6 +44,8 @@ pub async fn handler(
             (Some(sort), Some(order)) => match (sort.as_str(), order.as_str()) {
                 ("id", "ASC") => Box::new(id.asc()),
                 ("id", "DESC") => Box::new(id.desc()),
+                ("prefix", "ASC") => Box::new(prefix.asc()),
+                ("prefix", "DESC") => Box::new(prefix.desc()),
                 ("title", "ASC") => Box::new(title.asc()),
                 ("title", "DESC") => Box::new(title.desc()),
                 ("created_at", "ASC") => Box::new(created_at.asc()),
