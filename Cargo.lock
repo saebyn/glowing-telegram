@@ -294,6 +294,7 @@ dependencies = [
  "diesel",
  "diesel-async",
  "dotenvy",
+ "iso8601",
  "serde",
  "serde_json",
  "tokio",
@@ -1638,6 +1639,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8229b473baa5980ac72ef434c4415e70c4b5e71b423043adb4ba059f89c99a1"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "silence_detection_api"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "common_api_lib",
+ "dotenvy",
+ "iso8601",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
