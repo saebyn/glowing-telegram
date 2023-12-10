@@ -117,6 +117,22 @@ services:
     volumes:
       - obs:/obs
 
+  task_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.rust
+      args:
+        - SERVICE_NAME=task_api
+    restart: always
+    environment:
+      <<: *backend-variables
+      REDIS_URL: redis://redis:6379
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   db:
     image: postgres:15-alpine
     restart: always
