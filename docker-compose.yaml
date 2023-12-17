@@ -133,6 +133,18 @@ services:
       timeout: 10s
       retries: 5
 
+  task_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.rust
+      args:
+        - SERVICE_NAME=task_worker
+    restart: always
+    environment:
+      <<: *backend-variables
+      REDIS_URL: redis://redis:6379
+      QUEUE_NAME: task_queue
+
   db:
     image: postgres:15-alpine
     restart: always

@@ -1835,6 +1835,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "task_worker"
+version = "0.1.0"
+dependencies = [
+ "dotenvy",
+ "redis",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

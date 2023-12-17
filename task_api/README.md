@@ -19,24 +19,11 @@ POST /tasks
 
 #### Request
 
-```json
-{
-  "service": "service_name",
-  "action": "action_name",
-  "payload": {
-    "key": "value"
-  }
-}
-```
+TODO
 
 #### Response
 
-Redirects to the task resource.
-
-```http
-HTTP/1.1 302 Found
-Location: /tasks/1
-```
+TODO
 
 #### Statuses
 
@@ -80,17 +67,7 @@ GET /tasks/:id
 
 #### Response
 
-```json
-{
-  "location": "/tasks/1",
-  "service": "service_name",
-  "action": "action_name",
-  "payload": {
-    "key": "value"
-  },
-  "status": "pending"
-}
-```
+TODO
 
 #### Statuses
 
@@ -121,19 +98,7 @@ GET /tasks
 
 #### Response
 
-```json
-[
-    {
-        "location": "/tasks/1"
-        "service": "service_name",
-        "action": "action_name",
-        "payload": {
-            "key": "value"
-        },
-        "status": "pending"
-    }
-]
-```
+TODO
 
 #### Statuses
 

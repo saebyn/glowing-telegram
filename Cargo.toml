@@ -8,5 +8,6 @@ members = [
   "silence_detection_api",
   "stream_ingestion_api",
   "task_api",
+  "task_worker",
   #"transcription_api",
 ]

@@ -97,15 +97,24 @@ async fn create_handler(State(state): State<AppState>) -> impl IntoResponse {
 
 #[instrument]
 async fn get_one_handler() -> impl IntoResponse {
+    // TODO get the record id from the request path
+    // TODO get the record from redis
+    // TODO return the record
     (StatusCode::OK, axum::Json(json!({}))).into_response()
 }
 
 #[instrument]
 async fn update_handler() -> impl IntoResponse {
+    // TODO get the record id from the request path
+    // TODO update the record in redis
+    // TODO return the updated record
     (StatusCode::OK, axum::Json(json!({}))).into_response()
 }
 
 #[instrument]
 async fn delete_handler() -> impl IntoResponse {
+    // TODO get the record id from the request path
+    // TODO delete the record from redis
+    // TODO return the right status code
     (StatusCode::OK, axum::Json(json!({}))).into_response()
 }
