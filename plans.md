@@ -7,9 +7,9 @@
   - [x] update the readme per the TODO
   - [ ] setting up input/output structs for task APIs, having API do nothing
   - [ ] calling task API from postman
-  - [ ] set up task service to use redis
+  - [x] set up task service to use redis
 - task worker service
-  - [ ] figure out how to have tasks respond to events from redis
+  - [x] figure out how to have tasks respond to events from redis
 - task api
   - [ ] complete todos in task api
   - [ ] add task resource to react frontend

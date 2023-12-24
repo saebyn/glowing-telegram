@@ -127,6 +127,7 @@ services:
     environment:
       <<: *backend-variables
       REDIS_URL: redis://redis:6379
+      QUEUE_NAME: task_queue
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s

@@ -1,8 +1,10 @@
 use axum::extract::State;
+use axum::Json;
 use axum::{http::StatusCode, response::IntoResponse, routing::get};
 use common_api_lib;
 use dotenvy;
 use redis::{Commands, ConnectionLike};
+use serde::Deserialize;
 use serde_json::json;
 use tracing::instrument;
 
@@ -30,19 +32,55 @@ async fn main() -> Result<(), axum::BoxError> {
 }
 
 #[instrument]
-async fn get_list_handler() -> impl IntoResponse {
-    (StatusCode::OK, axum::Json(json!({}))).into_response()
+async fn get_list_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let mut con = match state.redis.get_connection() {
+        Ok(con) => con,
+        Err(e) => {
+            tracing::error!("Failed to get redis connection: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
+        }
+    };
+
+    // get the list of records from redis using the key pattern with scan_match
+    let keys: Vec<String> = match con.scan_match("task:[0-9]+") {
+        Ok(keys) => keys.collect(),
+        Err(e) => {
+            tracing::error!("Failed to get task keys: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
+        }
+    };
+
+    // TODO get the records from redis
+
+    // return the list of records
+    (StatusCode::OK, axum::Json(json!(keys))).into_response()
+}
+
+#[derive(Deserialize, Debug)]
+struct CreateTaskInput {
+    url: String,
+    payload: serde_json::Value,
+    data_key: String,
 }
 
 #[instrument]
-async fn create_handler(State(state): State<AppState>) -> impl IntoResponse {
-    // TODO get request body contents and use that
-
+async fn create_handler(
+    State(state): State<AppState>,
+    Json(body): Json<CreateTaskInput>,
+) -> impl IntoResponse {
     // TODO move this to an axum extractor???
     let mut con = match state.redis.get_connection() {
         Ok(con) => con,
         Err(e) => {
             tracing::error!("Failed to get redis connection: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
+        }
+    };
+
+    let queue_name = match dotenvy::var("QUEUE_NAME") {
+        Ok(queue_name) => queue_name,
+        Err(e) => {
+            tracing::error!("Failed to get QUEUE_NAME: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
         }
     };
@@ -63,14 +101,17 @@ async fn create_handler(State(state): State<AppState>) -> impl IntoResponse {
     let key = format!("task:{}", id);
 
     // create task record as a hash in redis with a unique id
-    // TODO use the request body contents here
     match con.req_command(
         redis::cmd("HMSET")
             .arg(&key)
             .arg("id")
             .arg(id)
-            .arg("name")
-            .arg("test"),
+            .arg("url")
+            .arg(&body.url)
+            .arg("payload")
+            .arg(body.payload.to_string())
+            .arg("data_key")
+            .arg(&body.data_key),
     ) {
         Ok(_) => {
             tracing::info!("Created task record: {}", key);
@@ -80,19 +121,29 @@ async fn create_handler(State(state): State<AppState>) -> impl IntoResponse {
             return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
         }
     };
-    // publish a message to the task channel
-    match con.publish::<&str, std::string::String, ()>("task", key.clone()) {
+
+    // add the task key to the queue
+    match con.lpush::<&std::string::String, &std::string::String, ()>(&queue_name, &key) {
         Ok(_) => {
-            tracing::info!("Published task record: {}", key);
+            tracing::info!("Added task to queue: {}", queue_name);
         }
         Err(e) => {
-            tracing::error!("Failed to publish task record: {}", e);
+            tracing::error!("Failed to add task to queue: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
         }
     };
 
-    // TODO return the created task record
-    (StatusCode::OK, axum::Json(json!({}))).into_response()
+    // return the created task record
+    (
+        StatusCode::OK,
+        axum::Json(json!({
+            "id": id,
+            "url": body.url,
+            "payload": body.payload,
+
+        })),
+    )
+        .into_response()
 }
 
 #[instrument]
