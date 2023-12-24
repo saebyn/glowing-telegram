@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use redis::Commands;
-use serde_json::json;
 
 #[tokio::main]
 async fn main() {
     println!("Starting task worker");
+
+    let client = reqwest::Client::new();
 
     let mut con = redis::Client::open(dotenvy::var("REDIS_URL").expect("REDIS_URL must be set"))
         .expect("Failed to open redis client")
@@ -44,25 +45,45 @@ async fn main() {
         let mut payload_json: serde_json::Value =
             serde_json::from_str(payload_str).expect("Failed to parse payload as json");
 
-        //payload_json["cursor"] = json!("hi");
+        let data_key = task_data
+            .get("data_key")
+            .expect("Failed to get data_key from task data");
 
-        let client = reqwest::Client::new();
+        // loop while the cursor is not Null
+        loop {
+            let response = client
+                .post(&task_data["url"])
+                .json(&payload_json)
+                .send()
+                .await
+                .expect("Failed to get response from url")
+                .json::<serde_json::Value>()
+                .await
+                .expect("Failed to parse response as json");
 
-        let response = client
-            .post(&task_data["url"])
-            .json(&payload_json)
-            .send()
-            .await
-            .expect("Failed to get response from url")
-            .json::<serde_json::Value>()
-            .await
-            .expect("Failed to parse response as json");
+            println!("Got response: {:?}", response);
 
-        println!("Got response: {:?}", response);
+            let cursor = &response["cursor"];
 
-        // TODO Iterate using the returned cursor
+            // Iterate using the returned cursor
 
-        // TODO Store the data from the data_key into the task data as a json string of an array in the data field
+            // Store the data from the data_key into the task data as a json string of an array
+            let data = &response[data_key];
+
+            let data_str = serde_json::to_string(&data).expect("Failed to serialize data as json");
+
+            let task_data_key = format!("{}:data", task_key);
+
+            let _: () = con
+                .rpush(&task_data_key, data_str)
+                .expect("Failed to save task data");
+
+            if cursor.is_null() {
+                break;
+            }
+
+            payload_json["cursor"] = cursor.clone();
+        }
 
         println!("Finished task: {}", task_key);
 
