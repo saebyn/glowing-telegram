@@ -165,6 +165,9 @@ services:
   redis:
     image: redis
     restart: always
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
     healthcheck:
@@ -177,3 +180,4 @@ volumes:
   obs:
   audio:
   postgres_data:
+  redis_data:
