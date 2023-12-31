@@ -42,7 +42,7 @@ async fn get_list_handler(State(state): State<AppState>) -> impl IntoResponse {
     };
 
     // get the list of records from redis using the key pattern with scan_match
-    let keys: Vec<String> = match con.scan_match("task:[0-9]+") {
+    let keys: Vec<String> = match con.scan_match("task:[0-9]*") {
         Ok(keys) => keys.collect(),
         Err(e) => {
             tracing::error!("Failed to get task keys: {}", e);
