@@ -2109,6 +2109,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "transcription_api"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "common_api_lib",
+ "dotenvy",
+ "iso8601",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "trust-dns-proto"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -9,5 +9,5 @@ members = [
   "stream_ingestion_api",
   "task_api",
   "task_worker",
-  #"transcription_api",
+  "transcription_api",
 ]
