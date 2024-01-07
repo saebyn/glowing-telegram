@@ -37,6 +37,11 @@ async fn main() {
 
         println!("Got task data: {:?}", task_data);
 
+        // update the status to processing
+        let _: () = con
+            .hset(&task_key, "status", "processing")
+            .expect("Failed to update task status");
+
         // get the payload from the task data
         let payload_str = task_data
             .get("payload")
@@ -56,7 +61,18 @@ async fn main() {
                 .json(&payload_json)
                 .send()
                 .await
-                .expect("Failed to get response from url")
+                .expect("Failed to get response from url");
+
+            // if the response is not 200, then update the status to failed and break
+            if !response.status().is_success() {
+                let _: () = con
+                    .hset(&task_key, "status", "failed")
+                    .expect("Failed to update task status");
+
+                break;
+            }
+
+            let response = response
                 .json::<serde_json::Value>()
                 .await
                 .expect("Failed to parse response as json");
@@ -86,6 +102,11 @@ async fn main() {
         }
 
         println!("Finished task: {}", task_key);
+
+        // update the status to complete
+        let _: () = con
+            .hset(&task_key, "status", "complete")
+            .expect("Failed to update task status");
 
         let _: () = con
             .lrem(&temp_queue_name, 1, task_key)
