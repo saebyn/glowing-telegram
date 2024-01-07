@@ -127,6 +127,8 @@ services:
     environment:
       VIDEO_STORAGE_PATH: /obs
       MODEL_PATH: /model
+      TASK_API_URL: http://task_api:3000/tasks
+      THIS_API_BASE_URL: http://transcription_api:3000
       <<: *backend-variables
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
