@@ -27,6 +27,9 @@ pub struct UpdateStreamChangeset {
     pub thumbnail_url: Option<String>,
     pub prefix: Option<String>,
     pub speech_audio_url: Option<String>,
+    pub transcription_task_url: Option<String>,
+    // TODO - this should be a Option<Vec<Segment>>
+    pub transcription_segments: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Insertable)]
@@ -169,6 +172,8 @@ pub async fn handler(
                 thumbnail_url: body.thumbnail,
                 prefix: body.prefix,
                 speech_audio_url: body.speech_audio_track,
+                transcription_task_url: body.transcription_task_url,
+                transcription_segments: body.transcription_segments,
             })
             .get_result(&mut db.connection)
             .await;

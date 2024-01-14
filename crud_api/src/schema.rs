@@ -10,6 +10,8 @@ diesel::table! {
         thumbnail_url -> Varchar,
         created_at -> Timestamptz,
         updated_at -> Nullable<Timestamptz>,
+        transcription_task_url -> Nullable<Text>,
+        transcription_segments -> Nullable<Jsonb>,
     }
 }
 
@@ -41,4 +43,7 @@ diesel::table! {
 
 diesel::joinable!(video_clips -> streams (stream_id));
 
-diesel::allow_tables_to_appear_in_same_query!(streams, video_clips,);
+diesel::allow_tables_to_appear_in_same_query!(
+    streams,
+    video_clips,
+);

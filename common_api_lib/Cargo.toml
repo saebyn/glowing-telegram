@@ -22,7 +22,11 @@ tower-http = { version = "0.4.4", features = [
 dotenvy = "0.15"
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-diesel = { version = "2", features = ["chrono"] }
+diesel = { version = "2", features = [
+  "chrono",
+  "postgres_backend",
+  "serde_json",
+] }
 diesel-async = { version = "0.4.1", features = ["postgres", "bb8"] }
 bb8 = "0.8"
 chrono = "0.4.31"

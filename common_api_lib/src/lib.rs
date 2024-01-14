@@ -15,6 +15,7 @@ use tracing_subscriber::prelude::*;
 
 pub mod db;
 pub mod serde;
+pub mod structs;
 
 pub async fn run<State>(
     state: State,

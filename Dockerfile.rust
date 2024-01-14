@@ -7,9 +7,6 @@ FROM rust:${RUST_VERSION:-latest} AS base
 
 ARG SERVICE_NAME
 
-# check that SERVICE_NAME is set
-RUN test -n "${SERVICE_NAME}"
-
 ################################################################################
 # Chef stage
 ################################################################################

@@ -1,5 +1,6 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json};
 use common_api_lib;
+use common_api_lib::structs::Segment;
 use dotenvy;
 use reqwest::header;
 use serde::{Deserialize, Serialize};
@@ -56,19 +57,6 @@ struct DetectSegmentInput {
     cursor: Option<Cursor>,
     language: Option<String>,
     initial_prompt: Option<String>,
-}
-
-/**
- * An individual segment of a transcript with a start and end duration in ISO 8601 format, and
- * the text of the segment.
- */
-#[derive(Serialize, Debug)]
-struct Segment {
-    #[serde(serialize_with = "common_api_lib::serde::serialize_duration")]
-    start: std::time::Duration,
-    #[serde(serialize_with = "common_api_lib::serde::serialize_duration")]
-    end: std::time::Duration,
-    text: String,
 }
 
 #[instrument]

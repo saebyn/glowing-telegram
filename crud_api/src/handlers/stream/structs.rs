@@ -25,6 +25,10 @@ pub struct UpdateStreamRequest {
     pub speech_audio_track: Option<String>,
 
     pub video_clips: Option<Vec<VideoClipInlineView>>,
+
+    pub transcription_task_url: Option<String>,
+    // TODO - this should be a Vec<Segment>
+    pub transcription_segments: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -39,6 +43,10 @@ pub struct StreamDetailView {
     pub topic_ids: Vec<String>,
 
     pub video_clips: Vec<VideoClipInlineView>,
+
+    pub transcription_task_url: Option<String>,
+    // TODO - this should be a Option<Vec<Segment>>
+    pub transcription_segments: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -121,6 +129,9 @@ impl From<(Stream, Vec<VideoClip>)> for StreamDetailView {
             topic_ids: vec![],
 
             video_clips: video_clips.into_iter().map(|vc| vc.into()).collect(),
+
+            transcription_task_url: stream.transcription_task_url,
+            transcription_segments: stream.transcription_segments,
         }
     }
 }
