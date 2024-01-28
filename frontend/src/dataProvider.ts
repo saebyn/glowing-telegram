@@ -52,4 +52,8 @@ export const dataProvider = {
       return taskUrl;
     });
   },
+
+  getTranscriptionTask: async (taskUrl: string) => {
+    return fetch(taskUrl).then((res) => res.json());
+  },
 };

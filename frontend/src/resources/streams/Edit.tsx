@@ -30,7 +30,7 @@ const StreamEdit = (props: EditProps) => (
       <TabbedForm.Tab label="transcript">
         <StreamTranscriptInput
           data="transcription_segments"
-          task="transcription_task_url"
+          taskUrlFieldName="transcription_task_url"
           label="Transcription"
         >
           <TextInput source="start" />

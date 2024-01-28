@@ -108,7 +108,7 @@ async fn detect_segment(
 
     let uri = body.uris[cursor.index].clone();
     // extract filename from uri
-    let filename = match uri.split('/').last() {
+    let filename = match uri.split(&['/', ':'][..]).last() {
         Some(filename) => filename,
         None => return (StatusCode::BAD_REQUEST, "invalid uri").into_response(),
     };
