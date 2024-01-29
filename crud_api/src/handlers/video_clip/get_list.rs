@@ -24,7 +24,7 @@ pub async fn handler(
 
     tracing::info!("get_video_clips_list");
 
-    let ListParams { range, sort, order } = params;
+    let ListParams { range, sort } = params;
 
     let (offset, limit) = match range {
         Some((start, stop)) => (start, stop - start + 1),
@@ -40,8 +40,8 @@ pub async fn handler(
     };
 
     let order: Box<dyn BoxableExpression<video_clips, diesel::pg::Pg, SqlType = NotSelectable>> =
-        match (sort, order) {
-            (Some(sort), Some(order)) => match (sort.as_str(), order.as_str()) {
+        match sort {
+            Some((sort, order)) => match (sort.as_str(), order.as_str()) {
                 ("id", "ASC") => Box::new(id.asc()),
                 ("id", "DESC") => Box::new(id.desc()),
                 ("title", "ASC") => Box::new(title.asc()),
