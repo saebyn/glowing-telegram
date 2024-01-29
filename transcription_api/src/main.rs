@@ -48,6 +48,7 @@ async fn main() -> Result<(), axum::BoxError> {
 #[derive(Deserialize, Serialize, Debug)]
 struct Cursor {
     index: usize,
+    start_offset: std::time::Duration,
 }
 
 #[derive(Deserialize, Debug)]
@@ -76,7 +77,10 @@ async fn detect_segment(
 
     let cursor = match body.cursor {
         Some(cursor) => cursor,
-        None => Cursor { index: 0 },
+        None => Cursor {
+            index: 0,
+            start_offset: std::time::Duration::from_secs(0),
+        },
     };
 
     let uri = &body.uris[cursor.index];
@@ -88,6 +92,17 @@ async fn detect_segment(
     };
 
     let path = format!("{}/{}", state.video_storage_path, filename);
+
+    let video_duration = match get_video_duration(&path).await {
+        Ok(video_duration) => video_duration,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
 
     let mut audio_extraction = match Command::new("ffmpeg")
         .arg("-hide_banner")
@@ -227,32 +242,68 @@ async fn detect_segment(
         }
     };
 
+    // combine the segments into groups where each group is 30 seconds long
     // convert the segments to a vector of Segment structs
     let segments = segments
         .iter()
-        .map(|segment| {
-            let start = match segment["start"].as_f64() {
+        .map(|raw_segment| {
+            let start = match raw_segment["start"].as_f64() {
                 Some(start) => std::time::Duration::from_micros((start * 1_000_000.0) as u64),
                 None => return None,
             };
 
-            let end = match segment["end"].as_f64() {
+            let end = match raw_segment["end"].as_f64() {
                 Some(end) => std::time::Duration::from_micros((end * 1_000_000.0) as u64),
                 None => return None,
             };
 
-            let text = match segment["text"].as_str() {
+            let text = match raw_segment["text"].as_str() {
                 Some(text) => text,
                 None => return None,
             };
 
             Some(Segment {
-                start,
-                end,
+                start: start + cursor.start_offset,
+                end: end + cursor.start_offset,
                 text: text.to_string(),
             })
         })
-        .filter_map(|segment| segment)
+        .filter_map(|segment: Option<Segment>| segment)
+        .fold(vec![vec![]], |mut segment_groups, segment| {
+            let last_segment_group = segment_groups.last_mut().unwrap();
+
+            // if the last segment group less than 30 seconds long, then add the segment to it
+            let last_segment_group_duration = last_segment_group
+                .iter()
+                .map(|segment: &Segment| segment.end - segment.start)
+                .sum::<std::time::Duration>();
+
+            if last_segment_group_duration < std::time::Duration::from_secs(30) {
+                last_segment_group.push(segment);
+            } else {
+                // otherwise, create a new segment group and add the segment to it
+                segment_groups.push(vec![segment]);
+            }
+
+            segment_groups
+        })
+        // [[segment1,segment2],[segment3,segment4]]
+        // combine the segment groups into individual segments
+        .iter()
+        .map(|segment_group| {
+            let start = segment_group.first().unwrap().start;
+
+            let end = segment_group.last().unwrap().end;
+
+            let text = segment_group
+                .iter()
+                .map(|segment| segment.text.as_str())
+                .collect::<Vec<&str>>()
+                .join(" ")
+                .to_string();
+
+            Segment { start, end, text }
+        })
         .collect::<Vec<Segment>>();
 
     // if this was the last item in the list, then return None for the cursor
@@ -262,7 +313,7 @@ async fn detect_segment(
         "cursor": if cursor.index + 1 >= body.uris.len() {
             None
         } else {
-            Some(Cursor { index: cursor.index + 1 })
+            Some(Cursor { index: cursor.index + 1, start_offset: cursor.start_offset + video_duration })
         },
     }))
     .into_response()
@@ -358,4 +409,33 @@ async fn detect(State(state): State<AppState>, Json(body): Json<DetectInput>) ->
         )],
     )
         .into_response()
+}
+
+async fn get_video_duration(path: &str) -> Result<std::time::Duration, String> {
+    let output = match Command::new("ffprobe")
+        .arg("-v")
+        .arg("error")
+        .arg("-show_entries")
+        .arg("format=duration")
+        .arg("-of")
+        .arg("default=noprint_wrappers=1:nokey=1")
+        .arg(path)
+        .output()
+        .await
+    {
+        Ok(output) => output,
+        Err(e) => return Err(e.to_string()),
+    };
+
+    let output = match String::from_utf8(output.stdout) {
+        Ok(output) => output,
+        Err(e) => return Err(e.to_string()),
+    };
+
+    let output = match output.trim().parse::<f64>() {
+        Ok(output) => output,
+        Err(e) => return Err(e.to_string()),
+    };
+
+    Ok(std::time::Duration::from_secs_f64(output))
 }
