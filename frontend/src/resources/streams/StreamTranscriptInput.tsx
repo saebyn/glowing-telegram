@@ -1,8 +1,6 @@
 import { useState } from "react";
 import {
   Button,
-  ArrayInput,
-  SimpleFormIterator,
   useRecordContext,
   useDataProvider,
   useRefresh,
@@ -10,6 +8,9 @@ import {
 } from "react-admin";
 import { useFormContext } from "react-hook-form";
 import { useMutation } from "react-query";
+import { styled } from "@mui/material/styles";
+import TextField from "@mui/material/TextField";
+import { formatDuration, parseISODuration } from "../../isoDuration";
 
 const ScanButton = ({ label }: { label: string }) => {
   const record = useRecordContext();
@@ -148,37 +149,137 @@ const AsyncResultLoader = ({
   );
 };
 
-const FormIterator = ({ children, ...props }: any) => {
-  return (
-    <>
-      <ScanButton label={props.label} />
-      <AsyncResultLoader
-        source={props.source}
-        taskUrlFieldName={props.taskUrlFieldName}
-      />
-
-      <SimpleFormIterator {...props}>{children}</SimpleFormIterator>
-    </>
-  );
-};
+interface StreamTranscriptInputProps {
+  className?: string;
+  source: string;
+  taskUrlFieldName: string;
+}
 
 const StreamTranscriptInput = ({
-  children,
-  data: source,
+  className,
+  source,
   taskUrlFieldName,
-  ...props
-}: any) => {
+}: StreamTranscriptInputProps) => {
+  const record = useRecordContext();
+  const [editing, setEditing] = useState<null | number>(null);
+  const formContext = useFormContext();
+  const transcriptSegments = record[source] || [];
+
+  const onSave = (index: number, buffer: string) => {
+    const newSegments = [...transcriptSegments];
+    newSegments[index].text = buffer;
+    formContext.setValue(source, newSegments, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  };
+
   return (
-    <ArrayInput source={source} {...props}>
-      <FormIterator
-        label={props.label}
-        taskUrlFieldName={taskUrlFieldName}
-        inline
-      >
-        {children}
-      </FormIterator>
-    </ArrayInput>
+    <div className={className}>
+      <ScanButton label="Transcribe" />
+      <AsyncResultLoader source={source} taskUrlFieldName={taskUrlFieldName} />
+
+      {transcriptSegments.map((segment: Segment, index: number) => {
+        return (
+          <StreamTranscriptSegmentInput
+            key={segment.start}
+            segment={segment}
+            index={index}
+            editing={editing}
+            setEditing={setEditing}
+            onSave={onSave}
+          />
+        );
+      })}
+    </div>
   );
 };
 
-export default StreamTranscriptInput;
+const StreamTranscriptSegmentInput = ({
+  segment,
+  index,
+  editing,
+  setEditing,
+  onSave,
+}: {
+  segment: Segment;
+  index: number;
+  editing: null | number;
+  setEditing: (_index: null | number) => void;
+  onSave: (_index: number, _text: string) => void;
+}) => {
+  const [buffer, setBuffer] = useState<null | string>(null);
+
+  const segmentStart = parseISODuration(segment.start);
+  const segmentEnd = parseISODuration(segment.end);
+
+  return (
+    <div
+      key={segment.start}
+      className={LabeledClasses.segment}
+      onClick={() => {
+        setEditing(index);
+      }}
+    >
+      {index === editing ? (
+        <TextField
+          multiline={true}
+          value={buffer || segment.text}
+          onChange={(e) => {
+            setBuffer(e.target.value);
+          }}
+          onBlur={() => {
+            setEditing(null);
+            if (buffer) {
+              onSave(index, buffer);
+              setBuffer(null);
+            }
+          }}
+        />
+      ) : (
+        <span className={LabeledClasses.segmentText}>{segment.text}</span>
+      )}
+
+      <span className={LabeledClasses.segmentStart}>
+        {formatDuration(segmentStart)}
+      </span>
+      <span className={LabeledClasses.segmentEnd}>
+        {formatDuration(segmentEnd)}
+      </span>
+    </div>
+  );
+};
+
+const PREFIX = "StreamTranscriptInput";
+
+export const LabeledClasses = {
+  root: `${PREFIX}-root`,
+  scanButton: `${PREFIX}-scanButton`,
+  taskStatus: `${PREFIX}-taskStatus`,
+  asyncResultLoader: `${PREFIX}-asyncResultLoader`,
+  segment: `${PREFIX}-segment`,
+  segmentText: `${PREFIX}-segmentText`,
+  segmentStart: `${PREFIX}-segmentStart`,
+  segmentEnd: `${PREFIX}-segmentEnd`,
+};
+
+export default styled(StreamTranscriptInput)({
+  [`& .${LabeledClasses.segment}`]: {
+    display: "grid",
+    marginBottom: "8px",
+
+    gridTemplateColumns: "100px 1fr",
+    gridTemplateAreas: `"start text"
+                        "end text"`,
+  },
+
+  [`& .${LabeledClasses.segmentText}`]: {
+    gridArea: "text",
+  },
+  [`& .${LabeledClasses.segmentStart}`]: {
+    gridArea: "start",
+  },
+  [`& .${LabeledClasses.segmentEnd}`]: {
+    gridArea: "end",
+  },
+});
