@@ -6,6 +6,9 @@ module.exports = {
         "plugin:react-hooks/recommended",
         "prettier"
     ],
+    "rules": {
+        "no-unused-vars": ["error", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }],
+    },
     "parser": "@typescript-eslint/parser",
     "plugins": ["@typescript-eslint"],
     "env": {
