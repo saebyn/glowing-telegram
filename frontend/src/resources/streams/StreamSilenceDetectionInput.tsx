@@ -8,7 +8,6 @@ import {
 import { useFormContext } from "react-hook-form";
 import { useMutation } from "react-query";
 import { styled } from "@mui/material/styles";
-import TextField from "@mui/material/TextField";
 import { formatDuration, parseISODuration } from "../../isoDuration";
 import AsyncResultLoader from "./AsyncResultLoader";
 
@@ -18,25 +17,14 @@ const ScanButton = ({ label }: { label: string }) => {
   const dataProvider = useDataProvider();
 
   const { mutate, isLoading } = useMutation<string | null>(() =>
-    dataProvider.queueStreamTranscription({
+    dataProvider.queueStreamSilenceDetection({
       uris: record.video_clips.map((clip: any) => clip.uri),
       track: 2,
-      initial_prompt: `
----
-Date: ${record.prefix}
-Title: ${record.title} on twitch.tv/saebyn
-Description: ${record.description}
----
-
-
-`,
-      language: "en",
-
       stream_id: record.id,
     })
   );
 
-  const queueTranscription = () => {
+  const queueSilenceDetectionion = () => {
     mutate(void 0, {
       onSuccess: () => {
         refresh();
@@ -48,7 +36,7 @@ Description: ${record.description}
     <Button
       disabled={isLoading}
       label={`Start ${label}`}
-      onClick={queueTranscription}
+      onClick={queueSilenceDetectionion}
     />
   );
 };
@@ -72,30 +60,29 @@ export const TaskStatus = ({
   }
 };
 
-interface TranscriptSegment {
+interface SilenceDetectionSegment {
   start: string;
   end: string;
-  text: string;
 }
 
-interface StreamTranscriptInputProps {
+interface StreamSilenceDetectionInputProps {
   className?: string;
   source: string;
   taskUrlFieldName: string;
 }
 
-const StreamTranscriptInput = ({
+const StreamSilenceDetectionInput = ({
   className,
   source,
   taskUrlFieldName,
-}: StreamTranscriptInputProps) => {
+}: StreamSilenceDetectionInputProps) => {
   const record = useRecordContext();
   const [editing, setEditing] = useState<null | number>(null);
   const formContext = useFormContext();
-  const transcriptSegments = record[source] || [];
+  const silenceDetectionSegments = record[source] || [];
 
   const onSave = (index: number, buffer: string) => {
-    const newSegments = [...transcriptSegments];
+    const newSegments = [...silenceDetectionSegments];
     newSegments[index].text = buffer;
     formContext.setValue(source, newSegments, {
       shouldValidate: true,
@@ -105,40 +92,38 @@ const StreamTranscriptInput = ({
 
   return (
     <div className={className}>
-      <ScanButton label="Transcribe" />
+      <ScanButton label="Detect Silences" />
       <AsyncResultLoader source={source} taskUrlFieldName={taskUrlFieldName} />
 
-      {transcriptSegments.map((segment: TranscriptSegment, index: number) => {
-        return (
-          <StreamTranscriptSegmentInput
-            key={segment.start}
-            segment={segment}
-            index={index}
-            editing={editing}
-            setEditing={setEditing}
-            onSave={onSave}
-          />
-        );
-      })}
+      {silenceDetectionSegments.map(
+        (segment: SilenceDetectionSegment, index: number) => {
+          return (
+            <StreamSilenceDetectionSegmentInput
+              key={segment.start}
+              segment={segment}
+              index={index}
+              editing={editing}
+              setEditing={setEditing}
+              onSave={onSave}
+            />
+          );
+        }
+      )}
     </div>
   );
 };
 
-const StreamTranscriptSegmentInput = ({
+const StreamSilenceDetectionSegmentInput = ({
   segment,
   index,
-  editing,
   setEditing,
-  onSave,
 }: {
-  segment: TranscriptSegment;
+  segment: SilenceDetectionSegment;
   index: number;
   editing: null | number;
   setEditing: (_index: null | number) => void;
   onSave: (_index: number, _text: string) => void;
 }) => {
-  const [buffer, setBuffer] = useState<null | string>(null);
-
   const segmentStart = parseISODuration(segment.start);
   const segmentEnd = parseISODuration(segment.end);
 
@@ -150,25 +135,6 @@ const StreamTranscriptSegmentInput = ({
         setEditing(index);
       }}
     >
-      {index === editing ? (
-        <TextField
-          multiline={true}
-          value={buffer || segment.text}
-          onChange={(e) => {
-            setBuffer(e.target.value);
-          }}
-          onBlur={() => {
-            setEditing(null);
-            if (buffer) {
-              onSave(index, buffer);
-              setBuffer(null);
-            }
-          }}
-        />
-      ) : (
-        <span className={LabeledClasses.segmentText}>{segment.text}</span>
-      )}
-
       <span className={LabeledClasses.segmentStart}>
         {formatDuration(segmentStart)}
       </span>
@@ -179,7 +145,7 @@ const StreamTranscriptSegmentInput = ({
   );
 };
 
-const PREFIX = "StreamTranscriptInput";
+const PREFIX = "StreamSilenceDetectionInput";
 
 export const LabeledClasses = {
   root: `${PREFIX}-root`,
@@ -192,7 +158,7 @@ export const LabeledClasses = {
   segmentEnd: `${PREFIX}-segmentEnd`,
 };
 
-export default styled(StreamTranscriptInput)({
+export default styled(StreamSilenceDetectionInput)({
   [`& .${LabeledClasses.segment}`]: {
     display: "grid",
     marginBottom: "8px",

@@ -12,6 +12,8 @@ diesel::table! {
         updated_at -> Nullable<Timestamptz>,
         transcription_task_url -> Nullable<Text>,
         transcription_segments -> Nullable<Jsonb>,
+        silence_detection_task_url -> Nullable<Text>,
+        silence_segments -> Nullable<Jsonb>,
     }
 }
 

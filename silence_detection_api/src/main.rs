@@ -11,13 +11,25 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::process::Command;
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 #[derive(Clone, Debug)]
 struct AppState {
     video_storage_path: String,
     noise: f64,
     duration: f64,
+
+    task_api_url: String,
+    task_api_external_url: String,
+
+    this_api_base_url: String,
+
+    http_client: reqwest::Client,
+}
+
+#[derive(Deserialize, Debug)]
+struct Task {
+    id: String,
 }
 
 #[tokio::main]
@@ -35,6 +47,16 @@ async fn main() -> Result<(), axum::BoxError> {
             .expect("DURATION must be set")
             .parse::<f64>()
             .expect("DURATION must be a float"),
+
+        task_api_url: dotenvy::var("TASK_API_URL").expect("TASK_API_URL must be set"),
+
+        task_api_external_url: dotenvy::var("TASK_API_EXTERNAL_URL")
+            .expect("TASK_API_EXTERNAL_URL must be set"),
+
+        this_api_base_url: dotenvy::var("THIS_API_BASE_URL")
+            .expect("THIS_API_BASE_URL must be set"),
+
+        http_client: reqwest::Client::new(),
     };
 
     common_api_lib::run(state, |app| {
@@ -201,8 +223,65 @@ struct DetectInput {
 }
 
 #[instrument]
-async fn detect(Json(_body): Json<DetectInput>) -> impl IntoResponse {
-    // TODO: implement
+async fn detect(State(state): State<AppState>, Json(body): Json<DetectInput>) -> impl IntoResponse {
+    let uris = body.uris.clone();
 
-    (StatusCode::ACCEPTED, [(header::LOCATION, "test")]).into_response()
+    let track = body.track;
+
+    let http_client = state.http_client.clone();
+
+    let response = match http_client
+        .post(&state.task_api_url)
+        .json(&json!({
+            "url": format!("{}/detect/segment", state.this_api_base_url),
+            "payload": json!({
+                "uris": uris,
+                "track": track,
+            }),
+            "data_key": "segments",
+        }))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+
+    debug!("task api response: {:?}", response);
+
+    // if the task api returns an error, then return an error
+    if !response.status().is_success() {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({ "error": "task api error" })),
+        )
+            .into_response();
+    }
+
+    // log the body of the response
+    let response_body = match response.json::<Task>().await {
+        Ok(response_body) => response_body,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+
+    (
+        StatusCode::ACCEPTED,
+        [(
+            header::LOCATION,
+            format!("{}/{}", state.task_api_external_url, response_body.id),
+        )],
+    )
+        .into_response()
 }

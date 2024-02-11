@@ -1695,6 +1695,7 @@ dependencies = [
  "dotenvy",
  "iso8601",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",

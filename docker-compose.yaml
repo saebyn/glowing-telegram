@@ -108,6 +108,9 @@ services:
       VIDEO_STORAGE_PATH: /obs
       NOISE: 0.004
       DURATION: 2.0
+      TASK_API_URL: http://task_api:3000/tasks
+      TASK_API_EXTERNAL_URL: http://localhost:8080/api/records/tasks
+      THIS_API_BASE_URL: http://silence_detection_api:3000
       <<: *backend-variables
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]

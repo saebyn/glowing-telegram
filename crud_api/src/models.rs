@@ -14,6 +14,8 @@ pub struct Stream {
     pub updated_at: Option<chrono::NaiveDateTime>,
     pub transcription_task_url: Option<String>,
     pub transcription_segments: Option<serde_json::Value>,
+    pub silence_detection_task_url: Option<String>,
+    pub silence_segments: Option<serde_json::Value>,
 }
 
 // then use it for this table model

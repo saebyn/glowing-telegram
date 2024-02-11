@@ -8,6 +8,7 @@ import {
 
 import StreamVideoClipsInput from "./StreamVideoClipsInput";
 import StreamTranscriptInput from "./StreamTranscriptInput";
+import StreamSilenceDetectionInput from "./StreamSilenceDetectionInput";
 
 const StreamEdit = (props: EditProps) => (
   <Edit {...props}>
@@ -31,6 +32,13 @@ const StreamEdit = (props: EditProps) => (
         <StreamTranscriptInput
           source="transcription_segments"
           taskUrlFieldName="transcription_task_url"
+        />
+      </TabbedForm.Tab>
+
+      <TabbedForm.Tab label="audio">
+        <StreamSilenceDetectionInput
+          source="silence_segments"
+          taskUrlFieldName="silence_detection_task_url"
         />
       </TabbedForm.Tab>
     </TabbedForm>

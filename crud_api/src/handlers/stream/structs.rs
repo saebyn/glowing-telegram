@@ -29,6 +29,10 @@ pub struct UpdateStreamRequest {
     pub transcription_task_url: Option<String>,
     // TODO - this should be a Vec<Segment>
     pub transcription_segments: Option<serde_json::Value>,
+
+    pub silence_detection_task_url: Option<String>,
+    // TODO - this should be a Vec<Segment>
+    pub silence_segments: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -47,6 +51,10 @@ pub struct StreamDetailView {
     pub transcription_task_url: Option<String>,
     // TODO - this should be a Option<Vec<Segment>>
     pub transcription_segments: Option<serde_json::Value>,
+
+    pub silence_detection_task_url: Option<String>,
+    // TODO - this should be a Option<Vec<Segment>>
+    pub silence_segments: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -132,6 +140,9 @@ impl From<(Stream, Vec<VideoClip>)> for StreamDetailView {
 
             transcription_task_url: stream.transcription_task_url,
             transcription_segments: stream.transcription_segments,
+
+            silence_detection_task_url: stream.silence_detection_task_url,
+            silence_segments: stream.silence_segments,
         }
     }
 }

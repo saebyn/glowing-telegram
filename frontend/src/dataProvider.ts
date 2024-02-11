@@ -12,6 +12,12 @@ interface TranscriptionAPIDetectInput {
   initial_prompt?: string;
 }
 
+interface SilenceDetectionAPIDetectInput {
+  stream_id: string;
+  uris: string[];
+  track: number;
+}
+
 export const dataProvider = {
   ...baseDataProvider,
 
@@ -53,7 +59,36 @@ export const dataProvider = {
     });
   },
 
-  getTranscriptionTask: async (taskUrl: string) => {
+  queueStreamSilenceDetection: async ({
+    stream_id: streamId,
+    ...payload
+  }: SilenceDetectionAPIDetectInput) => {
+    return fetch(`${baseUrl}/silence_detection/detect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then(async (res) => {
+      if (!res.ok) {
+        throw new Error("Failed to queue silence detection");
+      }
+
+      const taskUrl = res.headers.get("Location");
+
+      if (!taskUrl) {
+        throw new Error("Failed to queue silence detection");
+      }
+
+      await fetch(`${baseUrl}/records/streams/${streamId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ silence_detection_task_url: taskUrl }),
+      });
+
+      return taskUrl;
+    });
+  },
+
+  getTask: async (taskUrl: string) => {
     return fetch(taskUrl).then((res) => res.json());
   },
 };

@@ -30,6 +30,10 @@ pub struct UpdateStreamChangeset {
     pub transcription_task_url: Option<String>,
     // TODO - this should be a Option<Vec<Segment>>
     pub transcription_segments: Option<serde_json::Value>,
+
+    pub silence_detection_task_url: Option<String>,
+    // TODO - this should be a Option<Vec<Segment>>
+    pub silence_segments: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Insertable)]
@@ -174,6 +178,8 @@ pub async fn handler(
                 speech_audio_url: body.speech_audio_track,
                 transcription_task_url: body.transcription_task_url,
                 transcription_segments: body.transcription_segments,
+                silence_detection_task_url: body.silence_detection_task_url,
+                silence_segments: body.silence_segments,
             })
             .get_result(&mut db.connection)
             .await;
