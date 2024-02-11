@@ -12,6 +12,7 @@ const iso8601DurationRegex =
  * parseISODuration('P1M') // 2629746
  * parseISODuration('P1Y') // 31556952
  * parseISODuration('P1Y2M3DT4H5M6S') // 37293756
+ * parseISODuration('PT488.799999S') // 488.799999
  */
 export function parseISODuration(duration: string): number {
   const matches = iso8601DurationRegex.exec(duration);
@@ -24,14 +25,17 @@ export function parseISODuration(duration: string): number {
     matches;
 
   const totalSeconds =
-    (parseInt(years, 10) || 0) * 31556952 +
-    (parseInt(months, 10) || 0) * 2629746 +
-    (parseInt(days, 10) || 0) * 86400 +
-    (parseInt(hours, 10) || 0) * 3600 +
+    (parseInt(years, 10) || 0) * 12 * 30 * 24 * 60 * 60 +
+    (parseInt(months, 10) || 0) * 30 * 24 * 60 * 60 +
+    (parseInt(days, 10) || 0) * 24 * 60 * 60 +
+    (parseInt(hours, 10) || 0) * 60 * 60 +
     (parseInt(minutes, 10) || 0) * 60 +
     (parseInt(seconds, 10) || 0);
 
-  return totalSeconds + (parseInt(milliseconds, 10) || 0) / 1000;
+  return (
+    totalSeconds +
+    (parseInt(milliseconds, 10) || 0) / 10 ** (milliseconds?.length || 0)
+  );
 }
 
 export function formatDuration(seconds: number): string {
