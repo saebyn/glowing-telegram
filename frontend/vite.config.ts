@@ -12,7 +12,7 @@ export default defineConfig({
     strictPort: true,
     port: 3000,
     watch: {
-      usePolling: true,
+      usePolling: false,
       interval: 100,
     },
     hmr: false,
