@@ -1,15 +1,21 @@
-import { useState } from "react";
+//import { useState } from "react";
 import {
   Button,
   useRecordContext,
   useDataProvider,
   useRefresh,
+  //useInput,
+  ArrayInput,
+  SimpleFormIterator,
+  TextInput,
 } from "react-admin";
-import { useFormContext } from "react-hook-form";
+//import { useFormContext } from "react-hook-form";
 import { useMutation } from "react-query";
 import { styled } from "@mui/material/styles";
-import { formatDuration, parseISODuration } from "../../isoDuration";
+//import { formatDuration, parseISODuration } from "../../isoDuration";
 import AsyncResultLoader from "./AsyncResultLoader";
+import Timeline from "../../Timeline";
+import { parseISODuration } from "../../isoDuration";
 
 const ScanButton = ({ label }: { label: string }) => {
   const record = useRecordContext();
@@ -24,7 +30,7 @@ const ScanButton = ({ label }: { label: string }) => {
     })
   );
 
-  const queueSilenceDetectionion = () => {
+  const queueSilenceDetection = () => {
     mutate(void 0, {
       onSuccess: () => {
         refresh();
@@ -36,7 +42,7 @@ const ScanButton = ({ label }: { label: string }) => {
     <Button
       disabled={isLoading}
       label={`Start ${label}`}
-      onClick={queueSilenceDetectionion}
+      onClick={queueSilenceDetection}
     />
   );
 };
@@ -60,10 +66,10 @@ export const TaskStatus = ({
   }
 };
 
-interface SilenceDetectionSegment {
+/*interface SilenceDetectionSegment {
   start: string;
   end: string;
-}
+}*/
 
 interface StreamSilenceDetectionInputProps {
   className?: string;
@@ -75,12 +81,15 @@ const StreamSilenceDetectionInput = ({
   className,
   source,
   taskUrlFieldName,
+  ...props
 }: StreamSilenceDetectionInputProps) => {
   const record = useRecordContext();
-  const [editing, setEditing] = useState<null | number>(null);
-  const formContext = useFormContext();
   const silenceDetectionSegments = record[source] || [];
+  /*const [editing, setEditing] = useState<null | number>(null);
+  const formContext = useFormContext();
+  */
 
+  /*
   const onSave = (index: number, buffer: string) => {
     const newSegments = [...silenceDetectionSegments];
     newSegments[index].text = buffer;
@@ -88,14 +97,30 @@ const StreamSilenceDetectionInput = ({
       shouldValidate: true,
       shouldDirty: true,
     });
-  };
+  };*/
 
   return (
     <div className={className}>
       <ScanButton label="Detect Silences" />
       <AsyncResultLoader source={source} taskUrlFieldName={taskUrlFieldName} />
 
-      {silenceDetectionSegments.map(
+      <Timeline
+        segments={silenceDetectionSegments.map((segment: any) => {
+          return {
+            start: parseISODuration(segment.start),
+            end: parseISODuration(segment.end),
+          };
+        })}
+      />
+
+      <ArrayInput source={source} {...props}>
+        <SimpleFormIterator>
+          <TextInput source="start" />
+          <TextInput source="end" />
+        </SimpleFormIterator>
+      </ArrayInput>
+
+      {/*silenceDetectionSegments.map(
         (segment: SilenceDetectionSegment, index: number) => {
           return (
             <StreamSilenceDetectionSegmentInput
@@ -108,11 +133,12 @@ const StreamSilenceDetectionInput = ({
             />
           );
         }
-      )}
+      )*/}
     </div>
   );
 };
 
+/*
 const StreamSilenceDetectionSegmentInput = ({
   segment,
   index,
@@ -143,7 +169,7 @@ const StreamSilenceDetectionSegmentInput = ({
       </span>
     </div>
   );
-};
+};*/
 
 const PREFIX = "StreamSilenceDetectionInput";
 

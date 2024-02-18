@@ -1,6 +1,6 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json};
-use common_api_lib;
 use common_api_lib::structs::Segment;
+use common_api_lib::{self, media::get_video_duration};
 use dotenvy;
 use reqwest::header;
 use serde::{Deserialize, Serialize};
@@ -409,33 +409,4 @@ async fn detect(State(state): State<AppState>, Json(body): Json<DetectInput>) ->
         )],
     )
         .into_response()
-}
-
-async fn get_video_duration(path: &str) -> Result<std::time::Duration, String> {
-    let output = match Command::new("ffprobe")
-        .arg("-v")
-        .arg("error")
-        .arg("-show_entries")
-        .arg("format=duration")
-        .arg("-of")
-        .arg("default=noprint_wrappers=1:nokey=1")
-        .arg(path)
-        .output()
-        .await
-    {
-        Ok(output) => output,
-        Err(e) => return Err(e.to_string()),
-    };
-
-    let output = match String::from_utf8(output.stdout) {
-        Ok(output) => output,
-        Err(e) => return Err(e.to_string()),
-    };
-
-    let output = match output.trim().parse::<f64>() {
-        Ok(output) => output,
-        Err(e) => return Err(e.to_string()),
-    };
-
-    Ok(std::time::Duration::from_secs_f64(output))
 }

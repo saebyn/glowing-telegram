@@ -14,6 +14,7 @@ use tracing::instrument;
 use tracing_subscriber::prelude::*;
 
 pub mod db;
+pub mod media;
 pub mod serde;
 pub mod structs;
 

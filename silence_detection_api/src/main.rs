@@ -5,7 +5,7 @@ use axum::{
     routing::post,
     Json,
 };
-use common_api_lib;
+use common_api_lib::{self, media::get_video_duration};
 use dotenvy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -69,6 +69,7 @@ async fn main() -> Result<(), axum::BoxError> {
 #[derive(Deserialize, Serialize, Debug)]
 struct Cursor {
     index: usize,
+    start_offset: std::time::Duration,
 }
 
 #[derive(Deserialize, Debug)]
@@ -120,7 +121,10 @@ async fn detect_segment(
     // get cursor or create a new one
     let cursor = match body.cursor {
         Some(cursor) => cursor,
-        None => Cursor { index: 0 },
+        None => Cursor {
+            index: 0,
+            start_offset: std::time::Duration::from_secs(0),
+        },
     };
 
     // if cursor is out of bounds, return an error
@@ -136,6 +140,17 @@ async fn detect_segment(
     };
 
     let path = format!("{}/{}", state.video_storage_path, filename);
+
+    let video_duration = match get_video_duration(&path).await {
+        Ok(video_duration) => video_duration,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
 
     let command_output = match Command::new("ffmpeg")
         .arg("-hide_banner")
@@ -190,8 +205,8 @@ async fn detect_segment(
         let start = end - duration;
 
         segments.push(Segment {
-            start: std::time::Duration::from_secs_f64(start),
-            end: std::time::Duration::from_secs_f64(end),
+            start: std::time::Duration::from_secs_f64(start) + cursor.start_offset,
+            end: std::time::Duration::from_secs_f64(end) + cursor.start_offset,
         });
     }
 
@@ -209,6 +224,7 @@ async fn detect_segment(
     let output = DetectSegmentOutput {
         cursor: Some(Cursor {
             index: cursor.index + 1,
+            start_offset: cursor.start_offset + video_duration,
         }),
         segments,
     };
