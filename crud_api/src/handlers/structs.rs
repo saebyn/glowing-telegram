@@ -1,6 +1,12 @@
 use serde::Deserialize;
 
-fn deserialize_range<'de, D>(deserializer: D) -> Result<Option<(i64, i64)>, D::Error>
+#[derive(Debug)]
+pub struct Range {
+    pub start: i64,
+    pub count: i64,
+}
+
+fn deserialize_range<'de, D>(deserializer: D) -> Result<Range, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -20,7 +26,10 @@ where
         return Err(Error::custom("invalid range"));
     }
 
-    Ok(Some((range[0], range[1])))
+    Ok(Range {
+        start: range[0],
+        count: range[1] - range[0] + 1,
+    })
 }
 
 // deserialize_sort takes a string like "[\"prefix\",\"DESC\"]" and returns a tuple
@@ -66,7 +75,7 @@ pub struct ListParams {
     // query string has the following format: range=[0, 24]
     // convert this string to a tuple
     #[serde(deserialize_with = "deserialize_range")]
-    pub range: Option<(i64, i64)>,
+    pub range: Range,
 
     // Sort
     #[serde(deserialize_with = "deserialize_sort")]

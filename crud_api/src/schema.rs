@@ -1,6 +1,30 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    episodes (id) {
+        id -> Uuid,
+        title -> Varchar,
+        description -> Text,
+        thumbnail_url -> Nullable<Varchar>,
+        created_at -> Timestamptz,
+        updated_at -> Nullable<Timestamptz>,
+        stream_id -> Uuid,
+        tracks -> Jsonb,
+    }
+}
+
+diesel::table! {
+    series (id) {
+        id -> Uuid,
+        title -> Varchar,
+        description -> Text,
+        thumbnail_url -> Nullable<Varchar>,
+        created_at -> Timestamptz,
+        updated_at -> Nullable<Timestamptz>,
+    }
+}
+
+diesel::table! {
     streams (id) {
         id -> Uuid,
         title -> Varchar,
@@ -14,6 +38,32 @@ diesel::table! {
         transcription_segments -> Nullable<Jsonb>,
         silence_detection_task_url -> Nullable<Text>,
         silence_segments -> Nullable<Jsonb>,
+    }
+}
+
+diesel::table! {
+    topic_episodes (id) {
+        id -> Uuid,
+        topic_id -> Uuid,
+        episode_id -> Uuid,
+    }
+}
+
+diesel::table! {
+    topic_series (id) {
+        id -> Uuid,
+        topic_id -> Uuid,
+        series_id -> Uuid,
+    }
+}
+
+diesel::table! {
+    topics (id) {
+        id -> Uuid,
+        title -> Varchar,
+        description -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Nullable<Timestamptz>,
     }
 }
 
@@ -43,9 +93,19 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(episodes -> streams (stream_id));
+diesel::joinable!(topic_episodes -> episodes (episode_id));
+diesel::joinable!(topic_episodes -> topics (topic_id));
+diesel::joinable!(topic_series -> series (series_id));
+diesel::joinable!(topic_series -> topics (topic_id));
 diesel::joinable!(video_clips -> streams (stream_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    episodes,
+    series,
     streams,
+    topic_episodes,
+    topic_series,
+    topics,
     video_clips,
 );

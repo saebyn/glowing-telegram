@@ -10,10 +10,9 @@ use tracing::instrument;
 
 use common_api_lib::db::DbConnection;
 
-use super::structs::VideoClipSimpleView;
+use super::structs::EpisodeSimpleView;
 use crate::handlers::structs::ListParams;
-use crate::models::VideoClip;
-
+use crate::models::Episode;
 use crate::{create_list_handler, schema};
 
-create_list_handler!(handler, video_clips, VideoClip, VideoClipSimpleView, title);
+create_list_handler!(handler, episodes, Episode, EpisodeSimpleView, title);
