@@ -9,7 +9,7 @@ import { useFormContext } from "react-hook-form";
 import { useMutation } from "react-query";
 import { styled } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
-import { formatDuration, parseISODuration } from "../../isoDuration";
+import { formatDuration, parseIntoSeconds } from "../../isoDuration";
 import AsyncResultLoader from "./AsyncResultLoader";
 
 const ScanButton = ({ label }: { label: string }) => {
@@ -139,8 +139,8 @@ const StreamTranscriptSegmentInput = ({
 }) => {
   const [buffer, setBuffer] = useState<null | string>(null);
 
-  const segmentStart = parseISODuration(segment.start);
-  const segmentEnd = parseISODuration(segment.end);
+  const segmentStart = parseIntoSeconds(segment.start);
+  const segmentEnd = parseIntoSeconds(segment.end);
 
   return (
     <div

@@ -7,7 +7,6 @@ import {
   //useInput,
   ArrayInput,
   SimpleFormIterator,
-  TextInput,
 } from "react-admin";
 //import { useFormContext } from "react-hook-form";
 import { useMutation } from "react-query";
@@ -15,7 +14,8 @@ import { styled } from "@mui/material/styles";
 //import { formatDuration, parseISODuration } from "../../isoDuration";
 import AsyncResultLoader from "./AsyncResultLoader";
 import Timeline from "../../Timeline";
-import { parseISODuration } from "../../isoDuration";
+import { parseIntoSeconds } from "../../isoDuration";
+import { DurationInput } from "../../DurationInput";
 
 const ScanButton = ({ label }: { label: string }) => {
   const record = useRecordContext();
@@ -106,21 +106,21 @@ const StreamSilenceDetectionInput = ({
 
       <Timeline
         duration={record.video_clips.reduce(
-          (acc: number, clip: any) => acc + parseISODuration(clip.duration),
+          (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
           0
         )}
         segments={silenceDetectionSegments.map((segment: any) => {
           return {
-            start: parseISODuration(segment.start),
-            end: parseISODuration(segment.end),
+            start: parseIntoSeconds(segment.start),
+            end: parseIntoSeconds(segment.end),
           };
         })}
       />
 
       <ArrayInput source={source} {...props}>
         <SimpleFormIterator>
-          <TextInput source="start" />
-          <TextInput source="end" />
+          <DurationInput source="start" />
+          <DurationInput source="end" />
         </SimpleFormIterator>
       </ArrayInput>
     </div>
