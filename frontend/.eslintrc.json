@@ -1,4 +1,4 @@
-module.exports = {
+{
     "extends": [
         "eslint:recommended",
         "plugin:react/recommended",
@@ -7,10 +7,18 @@ module.exports = {
         "prettier"
     ],
     "rules": {
-        "no-unused-vars": ["error", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }],
+        "no-unused-vars": [
+            "error",
+            {
+                "varsIgnorePattern": "^_",
+                "argsIgnorePattern": "^_"
+            }
+        ]
     },
     "parser": "@typescript-eslint/parser",
-    "plugins": ["@typescript-eslint"],
+    "plugins": [
+        "@typescript-eslint"
+    ],
     "env": {
         "browser": true,
         "es2021": true
