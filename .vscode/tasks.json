@@ -17,6 +17,11 @@
         "task_api",
         "transcription_api"
       ]
+    },
+    {
+      "id": "migration_name",
+      "type": "promptString",
+      "description": "The name of the migration"
     }
   ],
   "tasks": [
@@ -36,5 +41,57 @@
       },
       "problemMatcher": []
     },
+    {
+      "label": "diesel > migration run",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/${input:service}",
+      },
+      "command": "diesel migration run",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "diesel > migration redo",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/${input:service}",
+      },
+      "command": "diesel migration redo",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "diesel > migration revert",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/${input:service}",
+      },
+      "command": "diesel migration revert",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "diesel > migration generate",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/${input:service}",
+      },
+      "command": "diesel migration generate ${input:migration_name}",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
   ]
 }
