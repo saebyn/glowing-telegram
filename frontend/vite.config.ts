@@ -11,11 +11,7 @@ export default defineConfig({
     host: true,
     strictPort: true,
     port: 3000,
-    watch: {
-      usePolling: false,
-      interval: 100,
-    },
-    hmr: false,
+    hmr: true,
 
     proxy: {
       "/api": {
