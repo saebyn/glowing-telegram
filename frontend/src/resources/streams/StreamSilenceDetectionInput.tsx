@@ -105,6 +105,10 @@ const StreamSilenceDetectionInput = ({
       <AsyncResultLoader source={source} taskUrlFieldName={taskUrlFieldName} />
 
       <Timeline
+        duration={record.video_clips.reduce(
+          (acc: number, clip: any) => acc + parseISODuration(clip.duration),
+          0
+        )}
         segments={silenceDetectionSegments.map((segment: any) => {
           return {
             start: parseISODuration(segment.start),
@@ -119,57 +123,9 @@ const StreamSilenceDetectionInput = ({
           <TextInput source="end" />
         </SimpleFormIterator>
       </ArrayInput>
-
-      {/*silenceDetectionSegments.map(
-        (segment: SilenceDetectionSegment, index: number) => {
-          return (
-            <StreamSilenceDetectionSegmentInput
-              key={segment.start}
-              segment={segment}
-              index={index}
-              editing={editing}
-              setEditing={setEditing}
-              onSave={onSave}
-            />
-          );
-        }
-      )*/}
     </div>
   );
 };
-
-/*
-const StreamSilenceDetectionSegmentInput = ({
-  segment,
-  index,
-  setEditing,
-}: {
-  segment: SilenceDetectionSegment;
-  index: number;
-  editing: null | number;
-  setEditing: (_index: null | number) => void;
-  onSave: (_index: number, _text: string) => void;
-}) => {
-  const segmentStart = parseISODuration(segment.start);
-  const segmentEnd = parseISODuration(segment.end);
-
-  return (
-    <div
-      key={segment.start}
-      className={LabeledClasses.segment}
-      onClick={() => {
-        setEditing(index);
-      }}
-    >
-      <span className={LabeledClasses.segmentStart}>
-        {formatDuration(segmentStart)}
-      </span>
-      <span className={LabeledClasses.segmentEnd}>
-        {formatDuration(segmentEnd)}
-      </span>
-    </div>
-  );
-};*/
 
 const PREFIX = "StreamSilenceDetectionInput";
 
@@ -178,29 +134,8 @@ export const LabeledClasses = {
   scanButton: `${PREFIX}-scanButton`,
   taskStatus: `${PREFIX}-taskStatus`,
   asyncResultLoader: `${PREFIX}-asyncResultLoader`,
-  segment: `${PREFIX}-segment`,
-  segmentText: `${PREFIX}-segmentText`,
-  segmentStart: `${PREFIX}-segmentStart`,
-  segmentEnd: `${PREFIX}-segmentEnd`,
 };
 
 export default styled(StreamSilenceDetectionInput)({
-  [`& .${LabeledClasses.segment}`]: {
-    display: "grid",
-    marginBottom: "8px",
-
-    gridTemplateColumns: "100px 1fr",
-    gridTemplateAreas: `"start text"
-                        "end text"`,
-  },
-
-  [`& .${LabeledClasses.segmentText}`]: {
-    gridArea: "text",
-  },
-  [`& .${LabeledClasses.segmentStart}`]: {
-    gridArea: "start",
-  },
-  [`& .${LabeledClasses.segmentEnd}`]: {
-    gridArea: "end",
-  },
+  width: "100%",
 });
