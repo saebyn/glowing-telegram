@@ -4,6 +4,7 @@
  * The timeline is implemented as a React component. The timeline component takes a list of segments as a prop, and renders the segments as colored blocks on the timeline. The timeline component also handles scrolling and zooming of the timeline. The elements of the timeline are SVG elements.
  */
 import React, { useRef, useEffect, useState } from "react";
+import { styled } from "@mui/material/styles";
 
 interface Segment {
   start: number;
@@ -12,16 +13,31 @@ interface Segment {
 
 interface TimelineProps {
   segments: Segment[];
+  duration: number;
+  className?: string;
+  onChange?: (selectedSegmentIndices: number[]) => void;
 }
 
-const Timeline = ({ segments }: TimelineProps) => {
+const Timeline = ({
+  segments,
+  duration,
+  className,
+  onChange,
+}: TimelineProps) => {
   const timelineRef = useRef<SVGSVGElement>(null);
-  const [width, setWidth] = useState(0);
-  const [height, setHeight] = useState(0);
-  const [scrollX, setScrollX] = useState(0);
+  const [panTime, setPanTime] = useState(duration / 2);
+  const [isPanning, setIsPanning] = useState(false);
   const [zoom, setZoom] = useState(1);
 
-  useEffect(() => {
+  const [selectedSegmentIndices, setSelectedSegmentIndices] = useState<
+    number[]
+  >([]);
+
+  const aspectRatio = 20;
+  const viewBoxHeight = duration / aspectRatio;
+  const viewBoxWidth = duration;
+
+  /* useEffect(() => {
     const handleResize = () => {
       if (timelineRef.current) {
         setWidth(timelineRef.current.clientWidth);
@@ -35,46 +51,126 @@ const Timeline = ({ segments }: TimelineProps) => {
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, []); */
 
-  const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
+  const handleWheel = (event: WheelEvent) => {
     event.preventDefault();
-    setZoom(zoom * (1 - event.deltaY / 1000));
+
+    const zoomFactor = 1 - event.deltaY / 1000;
+
+    setZoom(Math.max(zoom * zoomFactor, 1.0));
   };
 
-  const handleScroll = (event: React.UIEvent<SVGSVGElement>) => {
-    setScrollX(event.currentTarget.scrollLeft);
+  useEffect(() => {
+    if (timelineRef.current) {
+      timelineRef.current.addEventListener("wheel", handleWheel, {
+        passive: false,
+      });
+    }
+
+    return () => {
+      if (timelineRef.current) {
+        timelineRef.current.removeEventListener("wheel", handleWheel);
+      }
+    };
+  }, [handleWheel]);
+
+  const handleSegmentClick = (index: number) => {
+    if (selectedSegmentIndices.includes(index)) {
+      setSelectedSegmentIndices(
+        selectedSegmentIndices.filter((i) => i !== index)
+      );
+    } else {
+      setSelectedSegmentIndices([...selectedSegmentIndices, index]);
+    }
+
+    if (onChange) {
+      onChange(selectedSegmentIndices);
+    }
+  };
+
+  const handlePointerDown = () => {
+    setIsPanning(true);
+  };
+
+  const handlePointerUp = () => {
+    setIsPanning(false);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (isPanning) {
+      const dpx = event.movementX * 10 * zoom;
+      const dt = (duration / viewBoxWidth) * dpx;
+      setPanTime(Math.max(-duration / 4, Math.min(duration / 4, panTime + dt)));
+    }
+  };
+
+  const handlePointerLeave = () => {
+    setIsPanning(false);
   };
 
   return (
-    <svg
-      ref={timelineRef}
-      onWheel={handleWheel}
-      onScroll={handleScroll}
-      width={width}
-      height={height}
-      style={{ overflowX: "scroll" }}
-    >
-      <g transform={`translate(${scrollX}, 0) scale(${zoom}, 1)`}>
-        {segments.map((segment, index) => {
-          const x1 = segment.start;
-          const x2 = segment.end;
-          const y1 = 0;
-          const y2 = height;
-          return (
-            <rect
-              key={index}
-              x={x1}
-              y={y1}
-              width={x2 - x1}
-              height={y2 - y1}
-              fill="blue"
-            />
-          );
-        })}
-      </g>
-    </svg>
+    <div className={className}>
+      <svg
+        ref={timelineRef}
+        className={LabeledClasses.root}
+        viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+      >
+        <g
+          className={LabeledClasses.timeline}
+          transform={`translate(${
+            panTime - duration / 2
+          }, 0) scale(${zoom}, 1)`}
+        >
+          {segments.map((segment, index) => {
+            const x1 = segment.start;
+            const x2 = segment.end;
+            const y1 = 0;
+            const y2 = viewBoxHeight;
+            return (
+              <rect
+                className={LabeledClasses.segment}
+                onClick={() => handleSegmentClick(index)}
+                key={index}
+                x={x1}
+                y={y1}
+                width={x2 - x1}
+                height={y2 - y1}
+                fill={
+                  selectedSegmentIndices.includes(index) ? "yellow" : "blue"
+                }
+              />
+            );
+          })}
+        </g>
+      </svg>
+    </div>
   );
 };
 
-export default Timeline;
+const PREFIX = "Timeline";
+
+const LabeledClasses = {
+  root: `${PREFIX}-root`,
+  segment: `${PREFIX}-segment`,
+  timeline: `${PREFIX}-timeline`,
+};
+
+export default styled(Timeline)({
+  cursor: "grab",
+
+  [`& .${LabeledClasses.root}`]: {
+    overflowX: "scroll",
+    border: "1px solid black",
+  },
+
+  [`& .${LabeledClasses.segment}`]: {
+    cursor: "pointer",
+  },
+
+  [`& .${LabeledClasses.timeline}`]: {},
+});
