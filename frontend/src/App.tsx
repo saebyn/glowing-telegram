@@ -9,6 +9,7 @@ import { dataProvider } from "./dataProvider";
 
 import streamViews from "./resources/streams";
 import videoClipsViews from "./resources/videoClips";
+import episodeViews from "./resources/episodes";
 
 export const App = () => (
   <Admin dataProvider={dataProvider}>
@@ -28,9 +29,10 @@ export const App = () => (
     />
     <Resource
       name="episodes"
-      list={ListGuesser}
-      edit={EditGuesser}
-      show={ShowGuesser}
+      list={episodeViews.list}
+      edit={episodeViews.edit}
+      show={episodeViews.show}
+      create={episodeViews.create}
     />
     <Resource
       name="topics"
