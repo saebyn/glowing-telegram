@@ -16,6 +16,9 @@ interface SilenceDetectionAPIDetectInput {
   stream_id: string;
   uris: string[];
   track: number;
+
+  noise?: number;
+  duration?: number;
 }
 
 export const dataProvider = {

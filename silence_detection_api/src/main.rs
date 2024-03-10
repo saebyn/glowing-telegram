@@ -236,6 +236,9 @@ async fn detect_segment(
 struct DetectInput {
     uris: Vec<String>,
     track: u8,
+
+    noise: Option<f64>,
+    duration: Option<f64>,
 }
 
 #[instrument]
@@ -253,6 +256,8 @@ async fn detect(State(state): State<AppState>, Json(body): Json<DetectInput>) ->
             "payload": json!({
                 "uris": uris,
                 "track": track,
+                "noise": body.noise,
+                "duration": body.duration,
             }),
             "data_key": "segments",
         }))
