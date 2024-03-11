@@ -4,7 +4,8 @@
         "plugin:react/recommended",
         "plugin:react/jsx-runtime",
         "plugin:react-hooks/recommended",
-        "prettier"
+        "prettier",
+        "plugin:storybook/recommended"
     ],
     "rules": {
         "no-unused-vars": [
