@@ -77,7 +77,7 @@ export interface Duration {
   milliseconds: number;
 }
 
-const durationParts = [
+const timeDurationParts = [
   {
     key: "hours",
     factor: 60 /* seconds/minute */ * 60 /* minutes/hour */,
@@ -102,7 +102,7 @@ export function parseISO8601Duration(duration: string): Duration {
     milliseconds: 0,
   };
 
-  for (const { key, factor } of durationParts) {
+  for (const { key, factor } of timeDurationParts) {
     result[key] = Math.floor(totalSeconds / factor);
     totalSeconds -= result[key] * factor;
   }
@@ -112,6 +112,39 @@ export function parseISO8601Duration(duration: string): Duration {
   return result;
 }
 
+const durationParts = [
+  {
+    key: "hours",
+    suffix: "H",
+  },
+  {
+    key: "minutes",
+    suffix: "M",
+  },
+  {
+    key: "seconds",
+    suffix: "S",
+  },
+] as const;
+
 export function toISO8601Duration(duration: Duration): string {
-  return `PT${duration.hours}H${duration.minutes}M${duration.seconds}.${duration.milliseconds}S`;
+  const parts = durationParts
+    .map(({ key, suffix }) => {
+      if (duration.milliseconds > 0 && key === "seconds") {
+        return `${duration.seconds + duration.milliseconds / 1000}${suffix}`;
+      }
+
+      if (duration[key]) {
+        return `${duration[key]}${suffix}`;
+      }
+
+      return "";
+    })
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    parts.push("0S");
+  }
+
+  return `PT${parts.join("")}`;
 }
