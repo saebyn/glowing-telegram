@@ -3,7 +3,7 @@
  *
  * The timeline is implemented as a React component. The timeline component takes a list of segments as a prop, and renders the segments as colored blocks on the timeline. The timeline component also handles scrolling and zooming of the timeline. The elements of the timeline are SVG elements.
  */
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { styled } from "@mui/material/styles";
 
 interface Segment {
@@ -15,7 +15,7 @@ interface TimelineProps {
   segments: Segment[];
   duration: number;
   className?: string;
-  onChange?: (selectedSegmentIndices: number[]) => void;
+  onChange?: (_selectedSegmentIndices: number[]) => void;
 }
 
 const Timeline = ({
@@ -37,29 +37,16 @@ const Timeline = ({
   const viewBoxHeight = duration / aspectRatio;
   const viewBoxWidth = duration;
 
-  /* useEffect(() => {
-    const handleResize = () => {
-      if (timelineRef.current) {
-        setWidth(timelineRef.current.clientWidth);
-        setHeight(timelineRef.current.clientHeight);
-      }
-    };
+  const handleWheel = useCallback(
+    (event: WheelEvent) => {
+      event.preventDefault();
 
-    handleResize();
+      const zoomFactor = 1 - event.deltaY / 1000;
 
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []); */
-
-  const handleWheel = (event: WheelEvent) => {
-    event.preventDefault();
-
-    const zoomFactor = 1 - event.deltaY / 1000;
-
-    setZoom(Math.max(zoom * zoomFactor, 1.0));
-  };
+      setZoom(Math.max(zoom * zoomFactor, 1.0));
+    },
+    [zoom]
+  );
 
   useEffect(() => {
     if (timelineRef.current) {
@@ -68,9 +55,11 @@ const Timeline = ({
       });
     }
 
+    const timeline = timelineRef.current;
+
     return () => {
-      if (timelineRef.current) {
-        timelineRef.current.removeEventListener("wheel", handleWheel);
+      if (timeline) {
+        timeline.removeEventListener("wheel", handleWheel);
       }
     };
   }, [handleWheel]);

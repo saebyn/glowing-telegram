@@ -39,7 +39,9 @@ async fn main() -> Result<(), axum::BoxError> {
             // episodes resource
             .route(
                 "/records/episodes",
-                get(handlers::episode::get_list::handler).post(handlers::episode::create::handler),
+                get(handlers::episode::get_list::handler)
+                    .post(handlers::episode::create::handler)
+                    .put(handlers::episode::create_bulk::handler),
             )
             .layer(Extension(pool))
     })
