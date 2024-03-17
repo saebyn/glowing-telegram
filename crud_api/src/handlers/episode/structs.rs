@@ -72,5 +72,5 @@ pub struct CreateEpisodeRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct BulkCreateEpisodeRequest {
-    pub episodes: Vec<CreateEpisodeRequest>,
+    pub records: Vec<CreateEpisodeRequest>,
 }

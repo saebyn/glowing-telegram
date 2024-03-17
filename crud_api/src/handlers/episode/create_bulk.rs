@@ -22,14 +22,15 @@ pub async fn handler(
 
     let records = match diesel::insert_into(episodes)
         .values(
-            body.episodes
+            body.records
                 .iter()
                 .map(|episode| {
                     (
                         title.eq(&episode.title),
                         description.eq(episode.description.clone().unwrap_or("".to_string())),
-                        thumbnail_url.eq(episode.thumbnail_url.clone().unwrap_or("".to_string())),
+                        thumbnail_url.eq::<Option<String>>(episode.thumbnail_url.clone()),
                         stream_id.eq(episode.stream_id),
+                        tracks.eq(json!(episode.tracks)),
                     )
                 })
                 .collect::<Vec<_>>(),

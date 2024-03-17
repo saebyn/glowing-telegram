@@ -26,17 +26,17 @@ export const dataProvider = {
 
   // custom methods
 
-  getStreamClips: async (prefix: string) => {
+  async getStreamClips(prefix: string) {
     const url = new URL(`${baseUrl}/stream_ingestion/find_files`);
     url.searchParams.append("prefix", prefix);
 
     return fetch(url).then((res) => res.json());
   },
 
-  queueStreamTranscription: async ({
+  asyncqueueStreamTranscription({
     stream_id: streamId,
     ...payload
-  }: TranscriptionAPIDetectInput) => {
+  }: TranscriptionAPIDetectInput) {
     return fetch(`${baseUrl}/transcription/detect`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -62,10 +62,10 @@ export const dataProvider = {
     });
   },
 
-  queueStreamSilenceDetection: async ({
+  async queueStreamSilenceDetection({
     stream_id: streamId,
     ...payload
-  }: SilenceDetectionAPIDetectInput) => {
+  }: SilenceDetectionAPIDetectInput) {
     return fetch(`${baseUrl}/silence_detection/detect`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -91,7 +91,16 @@ export const dataProvider = {
     });
   },
 
-  getTask: async (taskUrl: string) => {
+  async getTask(taskUrl: string) {
     return fetch(taskUrl).then((res) => res.json());
+  },
+
+  async bulkCreate<T>(resource: string, data: T[]) {
+    const res = await fetch(`${baseUrl}/records/${resource}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records: data }),
+    });
+    return res.json();
   },
 };

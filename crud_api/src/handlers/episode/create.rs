@@ -24,7 +24,9 @@ pub async fn handler(
         .values((
             title.eq(body.title),
             description.eq(body.description.unwrap_or("".to_string())),
-            thumbnail_url.eq(body.thumbnail_url.unwrap_or("".to_string())),
+            thumbnail_url.eq::<Option<String>>(body.thumbnail_url.clone()),
+            stream_id.eq(body.stream_id),
+            tracks.eq(json!(body.tracks)),
         ))
         .get_result::<Episode>(&mut db.connection)
         .await

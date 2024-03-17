@@ -4,18 +4,17 @@ import {
   useRecordContext,
   useDataProvider,
   useRefresh,
-  //useInput,
+  useNotify,
   ArrayInput,
   SimpleFormIterator,
 } from "react-admin";
-//import { useFormContext } from "react-hook-form";
 import { useMutation } from "react-query";
 import { styled } from "@mui/material/styles";
-//import { formatDuration, parseISODuration } from "../../isoDuration";
 import AsyncResultLoader from "./AsyncResultLoader";
 import Timeline from "../../Timeline";
-import { parseIntoSeconds } from "../../isoDuration";
+import { parseIntoSeconds, toISO8601Duration } from "../../isoDuration";
 import { DurationInput } from "../../DurationInput";
+import { useState } from "react";
 
 const ScanButton = ({ label }: { label: string }) => {
   const record = useRecordContext();
@@ -47,6 +46,88 @@ const ScanButton = ({ label }: { label: string }) => {
   );
 };
 
+interface Segment {
+  start: string;
+  end: string;
+}
+
+function periodsBetweenSegments(
+  segments: Segment[],
+  totalDuration: string
+): Segment[] {
+  const periods: Segment[] = [];
+
+  const paddedSegments = [
+    { start: "PT0S", end: "PT0S" },
+    ...segments,
+    { start: totalDuration, end: totalDuration },
+  ];
+
+  for (let i = 0; i < paddedSegments.length - 1; i++) {
+    periods.push({
+      start: paddedSegments[i].end,
+      end: paddedSegments[i + 1].start,
+    });
+  }
+
+  return periods;
+}
+
+const BulkCreateEpisodesButton = ({
+  label,
+  segments,
+}: {
+  label: string;
+  segments: Segment[];
+}) => {
+  const record = useRecordContext();
+  const notify = useNotify();
+  const dataProvider = useDataProvider();
+
+  const { mutate, isLoading } = useMutation<string | null>(() => {
+    const totalDuration = toISO8601Duration({
+      hours: 0,
+      minutes: 0,
+      milliseconds: 0,
+      seconds: record.video_clips.reduce(
+        (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
+        0
+      ),
+    });
+
+    return dataProvider.bulkCreate(
+      "episodes",
+      periodsBetweenSegments(segments, totalDuration).map((segment, index) => ({
+        stream_id: record.id,
+        title: `${record.title} - Episode ${index + 1}`,
+        tracks: [
+          {
+            start: segment.start,
+            end: segment.end,
+          },
+        ],
+      }))
+    );
+  });
+
+  const bulkCreateEpisodes = () => {
+    mutate(void 0, {
+      onSuccess: () => {
+        // tell the user that the episodes were created
+        notify("Episodes created");
+      },
+    });
+  };
+
+  return (
+    <Button
+      disabled={isLoading}
+      label={`Start ${label}`}
+      onClick={bulkCreateEpisodes}
+    />
+  );
+};
+
 export const TaskStatus = ({
   taskStatus,
 }: {
@@ -66,11 +147,6 @@ export const TaskStatus = ({
   }
 };
 
-/*interface SilenceDetectionSegment {
-  start: string;
-  end: string;
-}*/
-
 interface StreamSilenceDetectionInputProps {
   className?: string;
   source: string;
@@ -85,30 +161,28 @@ const StreamSilenceDetectionInput = ({
 }: StreamSilenceDetectionInputProps) => {
   const record = useRecordContext();
   const silenceDetectionSegments = record[source] || [];
-  /*const [editing, setEditing] = useState<null | number>(null);
-  const formContext = useFormContext();
-  */
-
-  /*
-  const onSave = (index: number, buffer: string) => {
-    const newSegments = [...silenceDetectionSegments];
-    newSegments[index].text = buffer;
-    formContext.setValue(source, newSegments, {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
-  };*/
+  const [selectedSegmentIndices, setSelectedSegmentIndices] = useState<
+    number[]
+  >([]);
 
   return (
     <div className={className}>
       <ScanButton label="Detect Silences" />
       <AsyncResultLoader source={source} taskUrlFieldName={taskUrlFieldName} />
+      <BulkCreateEpisodesButton
+        label="Bulk Create Episodes"
+        segments={silenceDetectionSegments.filter(
+          (_segment: any, index: number) =>
+            selectedSegmentIndices.includes(index)
+        )}
+      />
 
       <Timeline
         duration={record.video_clips.reduce(
           (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
           0
         )}
+        onChange={setSelectedSegmentIndices}
         segments={silenceDetectionSegments.map((segment: any) => {
           return {
             start: parseIntoSeconds(segment.start),
