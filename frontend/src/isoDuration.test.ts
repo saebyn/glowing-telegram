@@ -1,3 +1,5 @@
+import { expect, describe, it } from "vitest";
+
 import { parseIntoSeconds, toISO8601Duration } from "./isoDuration";
 
 describe("isoDuration", () => {
