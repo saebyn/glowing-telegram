@@ -10,6 +10,8 @@ diesel::table! {
         updated_at -> Nullable<Timestamptz>,
         stream_id -> Uuid,
         tracks -> Jsonb,
+        series_id -> Nullable<Uuid>,
+        order_index -> Int4,
     }
 }
 
@@ -93,6 +95,7 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(episodes -> series (series_id));
 diesel::joinable!(episodes -> streams (stream_id));
 diesel::joinable!(topic_episodes -> episodes (episode_id));
 diesel::joinable!(topic_episodes -> topics (topic_id));
