@@ -35,6 +35,20 @@ services:
       - twitch_api
       - youtube_api
 
+  twitch_bot:
+    build:
+      context: twitch_bot
+      dockerfile: Dockerfile
+    restart: always
+    volumes:
+      - ./twitch_key.txt:/twitch_key
+    environment:
+      TWITCH_CHANNEL: $TWITCH_CHANNEL
+      TWITCH_CLIENT_ID: "your_client_id"
+      TWITCH_CLIENT_SECRET_PATH: /twitch_key
+      TWITCH_BOT_USERNAME: "your_bot_username"
+      TWITCH_BOT_OAUTH: "your_bot_oauth"
+
   # run our frontend in dev mode with hot module reloading for vite
   frontend:
     image: node:18-alpine
