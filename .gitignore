@@ -1,4 +1,5 @@
 openai_key.txt
+/*.otio
 
 .env
 docker-compose.override.yaml
