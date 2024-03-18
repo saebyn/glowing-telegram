@@ -1,19 +1,14 @@
 defmodule TwitchBot.Application do
-  # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
-  @moduledoc false
-
   use Application
 
-  @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: TwitchBot.Worker.start_link(arg)
-      # {TwitchBot.Worker, arg}
+      # Starts a worker by calling: TwitchBot.Bot.start_link([])
+      {TwitchBot.Bot, []}
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
+    # Specify strategy as :one_for_one if you want the supervisor to restart
+    # your bot in case it crashes.
     opts = [strategy: :one_for_one, name: TwitchBot.Supervisor]
     Supervisor.start_link(children, opts)
   end
