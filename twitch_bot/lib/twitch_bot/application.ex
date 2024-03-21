@@ -1,6 +1,7 @@
 defmodule TwitchBot.Application do
   use Application
 
+  @spec start(any(), any()) :: {:error, any()} | {:ok, pid()}
   def start(_type, _args) do
     children = [
       # Starts a worker by calling: TwitchBot.Bot.start_link([])
