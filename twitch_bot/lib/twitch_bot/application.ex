@@ -4,7 +4,12 @@ defmodule TwitchBot.Application do
   @spec start(any(), any()) :: {:error, any()} | {:ok, pid()}
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: TwitchBot.Bot.start_link([])
+      {TwitchBot.Websocket,
+       %{
+         :oauth_token => System.get_env("TWITCH_OAUTH_TOKEN"),
+         :username => System.get_env("TWITCH_USERNAME", "saebyn"),
+         :channel => System.get_env("TWITCH_CHANNEL", "saebyn")
+       }},
       {TwitchBot.Bot, []}
     ]
 
