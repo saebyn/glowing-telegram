@@ -1,32 +1,20 @@
-export interface Track {
-  start: number;
-  end: number;
-}
-
-export interface Episode {
-  name: string;
-  description: string;
-  tracks: Track[];
-}
-
-export interface VideoClip {
-  uri: string;
-  duration: number;
-}
-
-export interface Stream {
-  videoClips: VideoClip[];
-}
-
-export interface InternalTrack {
-  sourcePath: string;
-  sourceStartFrames: number;
-  sourceDurationFrames: number;
-
-  clipDurationFrames: number;
-}
-
-const FPS = 60.0;
+import { FPS } from "./constants";
+import floatJsonSerializer, { Float } from "./floatJson";
+import {
+  findMediaClipCursorStart,
+  findMediaClipCursorEnd,
+  sameMediaClip,
+  findMediaClipCursors,
+  convertMediaClipCursorToInternalTrack,
+} from "./mediaClipSequence";
+import {
+  InternalTrack,
+  Stream,
+  VideoClip,
+  Episode,
+  Cut,
+  CutSequence,
+} from "./types";
 
 /**
  * Extracts the filename from a path.
@@ -50,22 +38,22 @@ function internalToOTIO(children: InternalTrack[]): string {
           Name: "Hexagon Iris",
           Parameters: [
             {
-              "Default Parameter Value": 0.0,
+              "Default Parameter Value": new Float(0),
               "Key Frames": {
                 "0": {
-                  Value: 0.0,
+                  Value: new Float(0),
                   "Variant Type": "Double",
                 },
                 "20": {
-                  Value: 1.0,
+                  Value: new Float(1),
                   "Variant Type": "Double",
                 },
               },
               "Parameter ID": "transitionCustomCurvesKeyframes",
-              "Parameter Value": 0.0,
+              "Parameter Value": new Float(0.0),
               "Variant Type": "Double",
-              maxValue: 1.0,
-              minValue: 0.0,
+              maxValue: new Float(1),
+              minValue: new Float(0),
             },
           ],
           Type: 46,
@@ -76,13 +64,13 @@ function internalToOTIO(children: InternalTrack[]): string {
     name: "Hexagon Iris",
     in_offset: {
       OTIO_SCHEMA: "RationalTime.1",
-      rate: 60.0,
-      value: 0.0,
+      rate: new Float(60),
+      value: new Float(0),
     },
     out_offset: {
       OTIO_SCHEMA: "RationalTime.1",
-      rate: 60.0,
-      value: 20.0,
+      rate: new Float(60),
+      value: new Float(20.0),
     },
     transition_type: "Custom_Transition",
   };
@@ -100,13 +88,13 @@ function internalToOTIO(children: InternalTrack[]): string {
         OTIO_SCHEMA: "TimeRange.1",
         duration: {
           OTIO_SCHEMA: "RationalTime.1",
-          rate: 60.0,
-          value: Math.round(track.sourceDurationFrames),
+          rate: new Float(60),
+          value: new Float(track.durationFrames),
         },
         start_time: {
           OTIO_SCHEMA: "RationalTime.1",
-          rate: 60.0,
-          value: Math.round(track.sourceStartFrames),
+          rate: new Float(60),
+          value: new Float(track.sourceStartFrames),
         },
       },
       effects: [],
@@ -121,13 +109,13 @@ function internalToOTIO(children: InternalTrack[]): string {
             OTIO_SCHEMA: "TimeRange.1",
             duration: {
               OTIO_SCHEMA: "RationalTime.1",
-              rate: 60.0,
-              value: Math.round(track.clipDurationFrames),
+              rate: new Float(60),
+              value: new Float(Math.round(track.totalMediaDurationFrames)),
             },
             start_time: {
               OTIO_SCHEMA: "RationalTime.1",
-              rate: 60.0,
-              value: 0.0,
+              rate: new Float(60),
+              value: new Float(0),
             },
           },
           available_image_bounds: null,
@@ -220,13 +208,13 @@ function internalToOTIO(children: InternalTrack[]): string {
           OTIO_SCHEMA: "TimeRange.1",
           duration: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 1910.0,
+            rate: new Float(60),
+            value: new Float(1910),
           },
           start_time: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 0.0,
+            rate: new Float(60),
+            value: new Float(0),
           },
         },
         effects: [
@@ -267,13 +255,13 @@ function internalToOTIO(children: InternalTrack[]): string {
                 Name: "Composite",
                 Parameters: [
                   {
-                    "Default Parameter Value": 100.0,
+                    "Default Parameter Value": new Float(100),
                     "Key Frames": {},
                     "Parameter ID": "opacity",
-                    "Parameter Value": 0.0,
+                    "Parameter Value": new Float(0.0),
                     "Variant Type": "Double",
-                    maxValue: 100.0,
-                    minValue: 0.0,
+                    maxValue: new Float(100),
+                    minValue: new Float(0),
                   },
                 ],
                 Type: 1,
@@ -349,13 +337,13 @@ function internalToOTIO(children: InternalTrack[]): string {
           OTIO_SCHEMA: "TimeRange.1",
           duration: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 106.0,
+            rate: new Float(60),
+            value: new Float(106),
           },
           start_time: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 0.0,
+            rate: new Float(60),
+            value: new Float(0),
           },
         },
         effects: [],
@@ -380,13 +368,13 @@ function internalToOTIO(children: InternalTrack[]): string {
           OTIO_SCHEMA: "TimeRange.1",
           duration: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 1816.0,
+            rate: new Float(60),
+            value: new Float(1816),
           },
           start_time: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 0.0,
+            rate: new Float(60),
+            value: new Float(0),
           },
         },
         effects: [],
@@ -403,13 +391,13 @@ function internalToOTIO(children: InternalTrack[]): string {
           OTIO_SCHEMA: "TimeRange.1",
           duration: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 300.0,
+            rate: new Float(60),
+            value: new Float(300),
           },
           start_time: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 0.0,
+            rate: new Float(60),
+            value: new Float(0),
           },
         },
         effects: [],
@@ -434,13 +422,13 @@ function internalToOTIO(children: InternalTrack[]): string {
           OTIO_SCHEMA: "TimeRange.1",
           duration: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 186387.0,
+            rate: new Float(60),
+            value: new Float(186387.0),
           },
           start_time: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 0.0,
+            rate: new Float(60),
+            value: new Float(0),
           },
         },
         effects: [],
@@ -457,22 +445,22 @@ function internalToOTIO(children: InternalTrack[]): string {
               Name: "Cross Dissolve",
               Parameters: [
                 {
-                  "Default Parameter Value": 0.0,
+                  "Default Parameter Value": new Float(0),
                   "Key Frames": {
                     "0": {
-                      Value: 0.0,
+                      Value: new Float(0),
                       "Variant Type": "Double",
                     },
                     "194": {
-                      Value: 1.0,
+                      Value: new Float(1),
                       "Variant Type": "Double",
                     },
                   },
                   "Parameter ID": "transitionCustomCurvesKeyframes",
-                  "Parameter Value": 0.0,
+                  "Parameter Value": new Float(0),
                   "Variant Type": "Double",
-                  maxValue: 1.0,
-                  minValue: 0.0,
+                  maxValue: new Float(1),
+                  minValue: new Float(0),
                 },
               ],
               Type: 9,
@@ -483,13 +471,13 @@ function internalToOTIO(children: InternalTrack[]): string {
         name: "Cross Dissolve",
         in_offset: {
           OTIO_SCHEMA: "RationalTime.1",
-          rate: 60.0,
-          value: 0.0,
+          rate: new Float(60),
+          value: new Float(0),
         },
         out_offset: {
           OTIO_SCHEMA: "RationalTime.1",
-          rate: 60.0,
-          value: 194.0,
+          rate: new Float(60),
+          value: new Float(194.0),
         },
         transition_type: "SMPTE_Dissolve",
       },
@@ -503,13 +491,13 @@ function internalToOTIO(children: InternalTrack[]): string {
           OTIO_SCHEMA: "TimeRange.1",
           duration: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 1400.0,
+            rate: new Float(60),
+            value: new Float(1400.0),
           },
           start_time: {
             OTIO_SCHEMA: "RationalTime.1",
-            rate: 60.0,
-            value: 400.0,
+            rate: new Float(60),
+            value: new Float(400),
           },
         },
         effects: [],
@@ -524,13 +512,13 @@ function internalToOTIO(children: InternalTrack[]): string {
               OTIO_SCHEMA: "TimeRange.1",
               duration: {
                 OTIO_SCHEMA: "RationalTime.1",
-                rate: 60.0,
-                value: 1800.0,
+                rate: new Float(60),
+                value: new Float(1800.0),
               },
               start_time: {
                 OTIO_SCHEMA: "RationalTime.1",
-                rate: 60.0,
-                value: 0.0,
+                rate: new Float(60),
+                value: new Float(0),
               },
             },
             available_image_bounds: null,
@@ -553,8 +541,8 @@ function internalToOTIO(children: InternalTrack[]): string {
     name: "",
     global_start_time: {
       OTIO_SCHEMA: "RationalTime.1",
-      rate: 60.0,
-      value: 0.0,
+      rate: new Float(60),
+      value: new Float(0),
     },
     tracks: {
       OTIO_SCHEMA: "Stack.1",
@@ -568,42 +556,37 @@ function internalToOTIO(children: InternalTrack[]): string {
     },
   };
 
-  return JSON.stringify(otio, null, 2);
+  return floatJsonSerializer(otio, null, 2);
 }
 
-function findClipIndexStart(clips: VideoClip[], start: number): number | null {
-  let duration = 0;
+function convertStreamToCutSequence(stream: Stream): CutSequence {
+  const fn = (
+    acc: { elapsed: number; clips: CutSequence },
+    clip: VideoClip
+  ) => {
+    return {
+      clips: [
+        ...acc.clips,
+        {
+          start: acc.elapsed,
+          end: acc.elapsed + clip.duration,
+        },
+      ],
+      elapsed: acc.elapsed + clip.duration,
+    };
+  };
 
-  for (let i = 0; i < clips.length; i++) {
-    duration += clips[i].duration;
-
-    if (start < duration) {
-      return i;
-    }
-  }
-
-  return null;
-}
-
-function findClipIndexEnd(clips: VideoClip[], end: number): number {
-  let duration = 0;
-
-  for (let i = 0; i < clips.length; i++) {
-    duration += clips[i].duration;
-
-    if (end <= duration) {
-      return i;
-    }
-  }
-
-  return clips.length - 1;
+  return stream.videoClips.reduce(fn, {
+    clips: [],
+    elapsed: 0,
+  }).clips;
 }
 
 export function generateChildren(
   episode: Episode,
   stream: Stream
 ): InternalTrack[] {
-  if (episode.tracks.length === 0) {
+  if (episode.cuts.length === 0) {
     console.warn("No tracks to export");
     return [];
   }
@@ -613,61 +596,38 @@ export function generateChildren(
     return [];
   }
 
-  const children: InternalTrack[] = [];
+  const cutSequence = convertStreamToCutSequence(stream);
 
-  for (const track of episode.tracks) {
-    // if the track spans multiple clips, we need to split it
-    const startClipIndex = findClipIndexStart(stream.videoClips, track.start);
+  return episode.cuts.flatMap<InternalTrack>((cut: Cut) => {
+    const mediaStart = findMediaClipCursorStart(cutSequence, cut.start);
+    const mediaEnd = findMediaClipCursorEnd(cutSequence, cut.end);
 
-    if (startClipIndex === null) {
-      console.warn("Track start time is out of range");
-      continue;
+    if (!mediaStart || !mediaEnd) {
+      console.warn("Could not find media clips for cut", cut);
+      return [];
     }
 
-    const endClipIndex = findClipIndexEnd(stream.videoClips, track.end);
-
-    let priorClipsDuration = stream.videoClips
-      .slice(0, startClipIndex)
-      .reduce((acc, clip) => acc + clip.duration, 0);
-
-    children.push({
-      sourcePath: stream.videoClips[startClipIndex].uri,
-      sourceStartFrames: (track.start - priorClipsDuration) * FPS,
-      sourceDurationFrames:
-        (stream.videoClips[startClipIndex].duration -
-          (track.start - priorClipsDuration)) *
-        FPS,
-
-      clipDurationFrames: stream.videoClips[startClipIndex].duration * FPS,
-    });
-
-    for (let i = startClipIndex + 1; i <= endClipIndex; i++) {
-      const clip = stream.videoClips[i];
-      priorClipsDuration += stream.videoClips[i - 1].duration;
-
-      const start = 0;
-
-      if (i === endClipIndex) {
-        children.push({
-          sourcePath: clip.uri,
-          sourceStartFrames: start * FPS,
-          sourceDurationFrames: (track.end - priorClipsDuration) * FPS,
-
-          clipDurationFrames: clip.duration * FPS,
-        });
-      } else {
-        children.push({
-          sourcePath: clip.uri,
-          sourceStartFrames: start * FPS,
-          sourceDurationFrames: clip.duration * FPS,
-
-          clipDurationFrames: clip.duration * FPS,
-        });
-      }
+    if (sameMediaClip(mediaStart, mediaEnd)) {
+      return [
+        {
+          sourcePath: stream.videoClips[mediaStart.clipIndex].uri,
+          sourceStartFrames: mediaStart.time * FPS,
+          durationFrames: (cut.end - cut.start) * FPS,
+          totalMediaDurationFrames: (cut.end - cut.start) * FPS,
+        },
+      ];
     }
-  }
 
-  return children;
+    const mediaIntermediates = findMediaClipCursors(
+      cutSequence,
+      mediaStart,
+      mediaEnd
+    );
+
+    return [mediaStart, ...mediaIntermediates, mediaEnd].map((cursor) =>
+      convertMediaClipCursorToInternalTrack(stream.videoClips, cursor)
+    );
+  });
 }
 
 /**

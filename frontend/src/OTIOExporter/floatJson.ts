@@ -1,3 +1,17 @@
+/**
+ * This module provides a custom JSON serializer that serializes floating point
+ * numbers to strings with a fixed number of decimal places.
+ *
+ * This is required because of DaVinci Resolve's OTIO importer. DaVinci Resolve
+ * requires that certain fields in the OTIO file be serialized as numbers with
+ * decimal places.
+ *
+ * The default JSON serializer in JavaScript serializes
+ * numbers with a variable number of decimal places,  which can result in
+ * values like `1` being serialized as `1`. This can cause problems when
+ * generating JSON for OTIO files to be imported into DaVinci Resolve.
+ */
+
 export class Float {
   private readonly value: number;
 
@@ -6,10 +20,13 @@ export class Float {
   }
 
   toString(): string {
-    const str = (
-      Math.round((this.value + Number.EPSILON) * 10000) / 10000
-    ).toFixed(4);
+    // Here I'm rounding the number to 4 decimal places just to
+    // avoid floating point precision issues. This is not strictly
+    // necessary for DaVinci Resolve, but it's my personal preference.
+    const str = this.value.toFixed(4);
 
+    // DaVinci Resolve requires that floating point numbers have a decimal
+    // point and at least one digit after the decimal point.
     return str.endsWith(".0000")
       ? str.slice(0, -3)
       : str.replace(/0+$/, "").replace(/\.$/, "");

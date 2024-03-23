@@ -11,8 +11,8 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
   "name": "",
   "global_start_time": {
     "OTIO_SCHEMA": "RationalTime.1",
-    "rate": 60,
-    "value": 0
+    "rate": 60.0,
+    "value": 0.0
   },
   "tracks": {
     "OTIO_SCHEMA": "Stack.1",
@@ -46,22 +46,22 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "Name": "Hexagon Iris",
                   "Parameters": [
                     {
-                      "Default Parameter Value": 0,
+                      "Default Parameter Value": 0.0,
                       "Key Frames": {
                         "0": {
-                          "Value": 0,
+                          "Value": 0.0,
                           "Variant Type": "Double"
                         },
                         "20": {
-                          "Value": 1,
+                          "Value": 1.0,
                           "Variant Type": "Double"
                         }
                       },
                       "Parameter ID": "transitionCustomCurvesKeyframes",
-                      "Parameter Value": 0,
+                      "Parameter Value": 0.0,
                       "Variant Type": "Double",
-                      "maxValue": 1,
-                      "minValue": 0
+                      "maxValue": 1.0,
+                      "minValue": 0.0
                     }
                   ],
                   "Type": 46
@@ -72,13 +72,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
             "name": "Hexagon Iris",
             "in_offset": {
               "OTIO_SCHEMA": "RationalTime.1",
-              "rate": 60,
-              "value": 0
+              "rate": 60.0,
+              "value": 0.0
             },
             "out_offset": {
               "OTIO_SCHEMA": "RationalTime.1",
-              "rate": 60,
-              "value": 20
+              "rate": 60.0,
+              "value": 20.0
             },
             "transition_type": "Custom_Transition"
           },
@@ -92,13 +92,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 6000
+                "rate": 60.0,
+                "value": 6000.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -113,13 +113,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "OTIO_SCHEMA": "TimeRange.1",
                   "duration": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 6000
+                    "rate": 60.0,
+                    "value": 6000.0
                   },
                   "start_time": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 0
+                    "rate": 60.0,
+                    "value": 0.0
                   }
                 },
                 "available_image_bounds": null,
@@ -138,13 +138,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 6000
+                "rate": 60.0,
+                "value": 6000.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -159,13 +159,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "OTIO_SCHEMA": "TimeRange.1",
                   "duration": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 6000
+                    "rate": 60.0,
+                    "value": 6000.0
                   },
                   "start_time": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 0
+                    "rate": 60.0,
+                    "value": 0.0
                   }
                 },
                 "available_image_bounds": null,
@@ -200,13 +200,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 1910
+                "rate": 60.0,
+                "value": 1910.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [
@@ -247,13 +247,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                     "Name": "Composite",
                     "Parameters": [
                       {
-                        "Default Parameter Value": 100,
+                        "Default Parameter Value": 100.0,
                         "Key Frames": {},
                         "Parameter ID": "opacity",
-                        "Parameter Value": 0,
+                        "Parameter Value": 0.0,
                         "Variant Type": "Double",
-                        "maxValue": 100,
-                        "minValue": 0
+                        "maxValue": 100.0,
+                        "minValue": 0.0
                       }
                     ],
                     "Type": 1
@@ -329,13 +329,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 106
+                "rate": 60.0,
+                "value": 106.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -360,13 +360,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 1816
+                "rate": 60.0,
+                "value": 1816.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -383,13 +383,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 300
+                "rate": 60.0,
+                "value": 300.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -414,13 +414,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 186387
+                "rate": 60.0,
+                "value": 186387.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -437,22 +437,22 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "Name": "Cross Dissolve",
                   "Parameters": [
                     {
-                      "Default Parameter Value": 0,
+                      "Default Parameter Value": 0.0,
                       "Key Frames": {
                         "0": {
-                          "Value": 0,
+                          "Value": 0.0,
                           "Variant Type": "Double"
                         },
                         "194": {
-                          "Value": 1,
+                          "Value": 1.0,
                           "Variant Type": "Double"
                         }
                       },
                       "Parameter ID": "transitionCustomCurvesKeyframes",
-                      "Parameter Value": 0,
+                      "Parameter Value": 0.0,
                       "Variant Type": "Double",
-                      "maxValue": 1,
-                      "minValue": 0
+                      "maxValue": 1.0,
+                      "minValue": 0.0
                     }
                   ],
                   "Type": 9
@@ -463,13 +463,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
             "name": "Cross Dissolve",
             "in_offset": {
               "OTIO_SCHEMA": "RationalTime.1",
-              "rate": 60,
-              "value": 0
+              "rate": 60.0,
+              "value": 0.0
             },
             "out_offset": {
               "OTIO_SCHEMA": "RationalTime.1",
-              "rate": 60,
-              "value": 194
+              "rate": 60.0,
+              "value": 194.0
             },
             "transition_type": "SMPTE_Dissolve"
           },
@@ -483,13 +483,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 1400
+                "rate": 60.0,
+                "value": 1400.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 400
+                "rate": 60.0,
+                "value": 400.0
               }
             },
             "effects": [],
@@ -504,13 +504,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "OTIO_SCHEMA": "TimeRange.1",
                   "duration": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 1800
+                    "rate": 60.0,
+                    "value": 1800.0
                   },
                   "start_time": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 0
+                    "rate": 60.0,
+                    "value": 0.0
                   }
                 },
                 "available_image_bounds": null,
@@ -558,13 +558,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 6000
+                "rate": 60.0,
+                "value": 6000.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -579,13 +579,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "OTIO_SCHEMA": "TimeRange.1",
                   "duration": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 6000
+                    "rate": 60.0,
+                    "value": 6000.0
                   },
                   "start_time": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 0
+                    "rate": 60.0,
+                    "value": 0.0
                   }
                 },
                 "available_image_bounds": null,
@@ -615,13 +615,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 6000
+                "rate": 60.0,
+                "value": 6000.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -636,13 +636,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "OTIO_SCHEMA": "TimeRange.1",
                   "duration": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 6000
+                    "rate": 60.0,
+                    "value": 6000.0
                   },
                   "start_time": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 0
+                    "rate": 60.0,
+                    "value": 0.0
                   }
                 },
                 "available_image_bounds": null,
@@ -690,13 +690,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 6000
+                "rate": 60.0,
+                "value": 6000.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -711,13 +711,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "OTIO_SCHEMA": "TimeRange.1",
                   "duration": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 6000
+                    "rate": 60.0,
+                    "value": 6000.0
                   },
                   "start_time": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 0
+                    "rate": 60.0,
+                    "value": 0.0
                   }
                 },
                 "available_image_bounds": null,
@@ -747,13 +747,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 6000
+                "rate": 60.0,
+                "value": 6000.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -768,13 +768,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "OTIO_SCHEMA": "TimeRange.1",
                   "duration": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 6000
+                    "rate": 60.0,
+                    "value": 6000.0
                   },
                   "start_time": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 0
+                    "rate": 60.0,
+                    "value": 0.0
                   }
                 },
                 "available_image_bounds": null,
@@ -822,13 +822,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 6000
+                "rate": 60.0,
+                "value": 6000.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -843,13 +843,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "OTIO_SCHEMA": "TimeRange.1",
                   "duration": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 6000
+                    "rate": 60.0,
+                    "value": 6000.0
                   },
                   "start_time": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 0
+                    "rate": 60.0,
+                    "value": 0.0
                   }
                 },
                 "available_image_bounds": null,
@@ -879,13 +879,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 6000
+                "rate": 60.0,
+                "value": 6000.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
-                "rate": 60,
-                "value": 0
+                "rate": 60.0,
+                "value": 0.0
               }
             },
             "effects": [],
@@ -900,13 +900,13 @@ exports[`exportOTIO > should generate an OTIO file based on episode and stream d
                   "OTIO_SCHEMA": "TimeRange.1",
                   "duration": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 6000
+                    "rate": 60.0,
+                    "value": 6000.0
                   },
                   "start_time": {
                     "OTIO_SCHEMA": "RationalTime.1",
-                    "rate": 60,
-                    "value": 0
+                    "rate": 60.0,
+                    "value": 0.0
                   }
                 },
                 "available_image_bounds": null,
