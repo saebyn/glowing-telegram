@@ -30,12 +30,26 @@ macro_rules! create_list_handler {
             Query(params): Query<ListParams>,
         ) -> impl IntoResponse {
             use crate::create_order_expression;
+            use uuid::Uuid;
             use schema::$table::dsl::*;
             tracing::info!("get_{}_list", stringify!($table));
 
-            let ListParams { range, sort } = params;
+            let ListParams { range, sort, filter } = params;
 
-            let total: i64 = match $table.count().get_result(&mut db.connection).await {
+            let ids_filter: Box<dyn BoxableExpression<$table,
+                diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> = match filter {
+                Some(ref filter) => match filter.id.len() {
+                    0 => Box::new(id.ne(Uuid::nil())),
+                    _ => Box::new(id.eq_any(filter.id.clone())),
+                },
+                None => Box::new(id.ne(Uuid::nil())),
+            };
+
+
+            let total: i64 = match $table.filter(
+                ids_filter
+            )
+            .count().get_result(&mut db.connection).await {
                 Ok(total) => total,
                 Err(e) => {
                     tracing::error!("Error getting total count: {}", e);
@@ -46,11 +60,23 @@ macro_rules! create_list_handler {
             let order: Box<dyn BoxableExpression<$table, diesel::pg::Pg, SqlType = NotSelectable>> =
                 create_order_expression!(sort, $($field),*);
 
+            let ids_filter: Box<dyn BoxableExpression<$table,
+            diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> = match filter {
+                Some(filter) => match filter.id.len() {
+                    0 => Box::new(id.ne(Uuid::nil())),
+                    _ => Box::new(id.eq_any(filter.id)),
+                },
+                None => Box::new(id.ne(Uuid::nil())),
+            };
+
             let results: Vec<$struct> = match $table
                 .limit(range.count)
                 .offset(range.start)
                 .order_by(order)
                 .select($table::all_columns())
+                .filter(
+                    ids_filter
+                )
                 .load(&mut db.connection)
                 .await
             {
@@ -60,6 +86,8 @@ macro_rules! create_list_handler {
                     return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
                 }
             };
+
+            // If the
 
             let prepared_results = results
                 .into_iter()
