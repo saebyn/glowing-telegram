@@ -74,3 +74,12 @@ pub struct CreateEpisodeRequest {
 pub struct BulkCreateEpisodeRequest {
     pub episodes: Vec<CreateEpisodeRequest>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateEpisodeRequest {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub stream_id: Option<Uuid>,
+    pub tracks: Option<Vec<Track>>,
+}
