@@ -4,18 +4,21 @@ import {
   List,
   TextField,
   ListProps,
-  BulkExportButton,
+  CreateButton,
+  TopToolbar,
 } from "react-admin";
+import TriggerRenderFileScanButton from "./TriggerRenderFileScanButton";
 
-const BulkActionButtons = () => (
-  <>
-    <BulkExportButton />
-  </>
+const ListActions = () => (
+  <TopToolbar>
+    <CreateButton />
+    <TriggerRenderFileScanButton />
+  </TopToolbar>
 );
 
 const EpisodeList = (props: ListProps) => (
-  <List {...props}>
-    <Datagrid rowClick="edit" bulkActionButtons={<BulkActionButtons />}>
+  <List {...props} actions={<ListActions />}>
+    <Datagrid rowClick="edit">
       <TextField source="title" />
       <TextField source="description" />
       <DateField source="created_at" />
