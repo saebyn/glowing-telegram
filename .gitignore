@@ -1,4 +1,4 @@
-openai_key.txt
+*_key.txt
 /*.otio
 
 .env
@@ -14,3 +14,10 @@ venv
 
 # ignore rust build things
 target
+
+# ignore node things
+node_modules
+
+# ignore elixir things
+deps
+_build
