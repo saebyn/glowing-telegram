@@ -46,6 +46,14 @@ export const ExportButton = () => {
       return;
     }
 
+    const videoClips = stream.video_clips.map((clip: any) => ({
+      uri: clip.uri.replace("file:local:", ""),
+      duration: parseIntoSeconds(clip.duration),
+      start: clip.start,
+    }));
+
+    videoClips.sort((a: any, b: any) => a.start - b.start);
+
     // take the episode data and use the OTIOExporter to genrate the OTIO string
     // then create a blob object and create a download link
     // then click the link to download the file
@@ -59,10 +67,7 @@ export const ExportButton = () => {
         })),
       },
       {
-        videoClips: stream.video_clips.map((clip: any) => ({
-          uri: clip.uri.replace("file:local:", ""),
-          duration: parseIntoSeconds(clip.duration),
-        })),
+        videoClips,
       }
     );
 
