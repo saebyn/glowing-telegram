@@ -87,8 +87,6 @@ macro_rules! create_list_handler {
                 }
             };
 
-            // If the
-
             let prepared_results = results
                 .into_iter()
                 .map(|record| $struct_view_simple::from(record))
