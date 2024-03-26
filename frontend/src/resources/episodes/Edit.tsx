@@ -5,11 +5,12 @@ import {
   Edit,
   SimpleForm,
   SimpleFormIterator,
-  TextInput,
   TopToolbar,
 } from "react-admin";
 import { DurationInput } from "../../DurationInput";
 import { ExportButton } from "../../OTIOExporter";
+import TitleInput from "../../TitleInput";
+import DescriptionInput from "../../DescriptionInput";
 
 const EditActions = () => (
   <TopToolbar>
@@ -21,8 +22,8 @@ const EditActions = () => (
 const EpisodeEdit = () => (
   <Edit actions={<EditActions />}>
     <SimpleForm>
-      <TextInput source="title" />
-      <TextInput source="description" />
+      <TitleInput source="title" />
+      <DescriptionInput source="description" />
 
       <ArrayInput source="tracks">
         <SimpleFormIterator>
