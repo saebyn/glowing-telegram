@@ -1,7 +1,6 @@
 use axum::extract::Path;
 use axum::response::IntoResponse;
 use axum::Json;
-use diesel::data_types::PgInterval;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use serde_json::json;
@@ -13,7 +12,6 @@ use common_api_lib::db::DbConnection;
 
 use super::structs::EpisodeDetailView;
 use super::structs::UpdateEpisodeRequest;
-use crate::handlers::utils::parse_duration;
 use crate::models::Episode;
 use crate::schema::{self, episodes};
 

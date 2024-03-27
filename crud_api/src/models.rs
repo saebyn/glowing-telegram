@@ -68,6 +68,8 @@ pub struct Episode {
     pub updated_at: Option<chrono::NaiveDateTime>,
     pub stream_id: Uuid,
     pub tracks: serde_json::Value,
+    pub series_id: Option<Uuid>,
+    pub order_index: i32,
 }
 
 #[derive(Queryable, Selectable, Debug)]
