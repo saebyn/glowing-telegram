@@ -11,7 +11,7 @@ env:
   RUST_CHANNEL: stable
 
 jobs:
-  build:
+  rust_build:
 
     runs-on: ubuntu-latest
 
