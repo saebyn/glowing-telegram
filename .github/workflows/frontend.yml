@@ -10,7 +10,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  frontend_build:
     defaults:
       run:
         working-directory: frontend
