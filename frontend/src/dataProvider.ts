@@ -103,4 +103,20 @@ export const dataProvider = {
     });
     return res.json();
   },
+
+  // twitch login functions
+  async twitchLogin() {
+    const result = await fetch(`${baseUrl}/twitch/login`);
+    const url = (await result.json()).url;
+
+    return url;
+  },
+
+  async twitchCallback(code: string) {
+    await fetch(`${baseUrl}/twitch/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+  },
 };
