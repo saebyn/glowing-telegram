@@ -9,13 +9,15 @@ import {
 import StreamVideoClipsInput from "./StreamVideoClipsInput";
 import StreamTranscriptInput from "./StreamTranscriptInput";
 import StreamSilenceDetectionInput from "./StreamSilenceDetectionInput";
+import DescriptionInput from "../../DescriptionInput";
+import TitleInput from "../../TitleInput";
 
 const StreamEdit = (props: EditProps) => (
   <Edit {...props}>
     <TabbedForm>
       <TabbedForm.Tab label="summary">
-        <TextInput source="title" />
-        <TextInput multiline={true} source="description" />
+        <TitleInput source="title" />
+        <DescriptionInput source="description" />
         <TextInput source="prefix" />
         <TextInput source="speech_audio_track" />
         <TextInput source="thumbnail" />

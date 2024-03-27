@@ -161,9 +161,10 @@ async fn find_files(
                 Err(_) => continue,
             },
             start_time: chrono::Duration::zero(),
-            duration: chrono::Duration::milliseconds(
+            duration: chrono::Duration::try_milliseconds(
                 duration.map_or(0, |duration| (duration * 1000.0) as i64),
-            ),
+            )
+            .unwrap_or(chrono::Duration::zero()),
             width,
             height,
             frame_rate: frame_rate.map(|frame_rate| {

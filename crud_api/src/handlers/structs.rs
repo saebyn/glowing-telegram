@@ -1,4 +1,6 @@
 use serde::Deserialize;
+use serde_json;
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Range {
@@ -30,6 +32,15 @@ where
         start: range[0],
         count: range[1] - range[0] + 1,
     })
+}
+
+impl Default for Range {
+    fn default() -> Self {
+        Range {
+            start: 0,
+            count: 10,
+        }
+    }
 }
 
 // deserialize_sort takes a string like "[\"prefix\",\"DESC\"]" and returns a tuple
@@ -64,20 +75,36 @@ where
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct Filter {
+    #[serde(default)]
+    pub id: Vec<Uuid>,
+}
+
+impl Default for Filter {
+    fn default() -> Self {
+        Filter { id: vec![] }
+    }
+}
+
 /**
  * Params for list endpoint for ra-data-simple-rest
  *
  * @see https://marmelab.com/react-admin/DataProviders.html#rest-api-parameters
  */
 #[derive(Debug, Deserialize)]
-pub struct ListParams {
+pub struct ListParams<FilterType = Filter> {
     // Pagination
     // query string has the following format: range=[0, 24]
     // convert this string to a tuple
-    #[serde(deserialize_with = "deserialize_range")]
+    #[serde(deserialize_with = "deserialize_range", default)]
     pub range: Range,
 
     // Sort
-    #[serde(deserialize_with = "deserialize_sort")]
+    #[serde(deserialize_with = "deserialize_sort", default)]
     pub sort: Option<(String, String)>,
+
+    // Filter
+    #[serde(default, flatten)]
+    pub filter: Option<FilterType>,
 }
