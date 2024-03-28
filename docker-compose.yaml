@@ -22,6 +22,9 @@ services:
       - crud_api
       - stream_ingestion_api
       - silence_detection_api
+      - transcription_api
+      - task_api
+      - twitch_api
 
   # run our frontend in dev mode with hot module reloading for vite
   frontend:
@@ -178,6 +181,27 @@ services:
       <<: *backend-variables
       REDIS_URL: redis://redis:6379
       QUEUE_NAME: task_queue
+
+  twitch_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.rust
+      args:
+        - SERVICE_NAME=twitch_api
+    restart: always
+    volumes:
+      - ./twitch_key.txt:/twitch_client_secret
+    environment:
+      <<: *backend-variables
+      TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
+      TWITCH_CLIENT_SECRET_PATH: /twitch_client_secret
+      REDIRECT_URL: http://localhost:8080/twitch/callback
+      REDIS_URL: redis://redis:6379
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   db:
     image: postgres:15-alpine
