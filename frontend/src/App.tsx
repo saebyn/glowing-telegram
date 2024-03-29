@@ -8,12 +8,13 @@ import {
 } from "react-admin";
 import { Route, BrowserRouter } from "react-router-dom";
 
-import { TwitchLoginPage } from "./twitchLogin/Page";
+import { TwitchLoginPage } from "./twitch/LoginPage";
 import { dataProvider } from "./dataProvider";
 
 import streamViews from "./resources/streams";
 import videoClipsViews from "./resources/videoClips";
 import episodeViews from "./resources/episodes";
+import twitchStreamsViews from "./resources/twitchStreams";
 
 import Layout from "./Layout";
 
@@ -34,6 +35,12 @@ export const App = () => (
         list={ListGuesser}
         edit={EditGuesser}
         show={ShowGuesser}
+      />
+
+      <Resource
+        name="twitchStreams"
+        {...twitchStreamsViews}
+        options={{ label: "Twitch Import" }}
       />
 
       <CustomRoutes>

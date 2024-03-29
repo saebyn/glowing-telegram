@@ -160,10 +160,16 @@ const StreamSilenceDetectionInput = ({
   ...props
 }: StreamSilenceDetectionInputProps) => {
   const record = useRecordContext();
-  const silenceDetectionSegments = record[source] || [];
+
   const [selectedSegmentIndices, setSelectedSegmentIndices] = useState<
     number[]
   >([]);
+
+  if (!record) {
+    return <>Loading...</>;
+  }
+
+  const silenceDetectionSegments = record[source] || [];
 
   return (
     <div className={className}>

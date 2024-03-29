@@ -13,7 +13,7 @@ const StreamList = (props: ListProps) => (
     <Datagrid rowClick="edit">
       <TextField source="prefix" />
       <TextField source="title" />
-      <ImageField source="thumbnail" sortable={false} />
+      <ImageField source="thumbnail_url" sortable={false} />
       <ReferenceArrayField
         source="topic_ids"
         reference="topics"

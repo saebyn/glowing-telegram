@@ -1,5 +1,5 @@
 import { AppBar, AppBarClasses, TitlePortal } from "react-admin";
-import { TwitchLoginButton } from "../twitchLogin/Button";
+import { TwitchLoginButton } from "../twitch/LoginButton";
 
 const MyAppBar = () => (
   <AppBar>

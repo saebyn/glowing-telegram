@@ -1,9 +1,38 @@
-import { Create, SimpleForm, CreateProps, TextInput } from "react-admin";
+import {
+  Create,
+  SimpleForm,
+  CreateProps,
+  TextInput,
+  SelectInput,
+  DateTimeInput,
+} from "react-admin";
+import DescriptionInput from "../../DescriptionInput";
+import TitleInput from "../../TitleInput";
+import { DurationInput } from "../../DurationInput";
 
 const StreamCreate = (props: CreateProps) => (
   <Create {...props} title="Create a Stream">
     <SimpleForm>
-      <TextInput source="title" required />
+      <TitleInput source="title" required />
+      <DescriptionInput source="description" />
+
+      <TextInput source="thumbnail_url" />
+
+      <SelectInput
+        source="stream_platform"
+        choices={[
+          { id: "twitch", name: "Twitch" },
+          { id: "youtube", name: "YouTube" },
+        ]}
+        required
+        defaultValue="twitch"
+      />
+      <TextInput source="stream_id" />
+
+      <DateTimeInput source="stream_date" required />
+
+      <DurationInput source="duration" />
+
       <TextInput
         source="prefix"
         required
