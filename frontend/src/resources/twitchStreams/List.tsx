@@ -57,15 +57,31 @@ const BulkActionButtons = () => {
   const unselectAll = useUnselectAll("twitchStreams");
 
   const handleImport = () => {
-    console.log("Importing streams");
-
     // Notify the user that the import started
     notify("Importing streams");
 
     // get the selected records
-    const selectedRecords = data.filter((record: any) =>
-      selectedIds.includes(record.id)
-    );
+    const selectedRecords = data
+      .filter((record: any) => selectedIds.includes(record.id))
+      .map(({ title, duration, thumbnail_url, stream_id, created_at }: any) => {
+        const createdAt = new Date(created_at);
+        return {
+          title,
+          duration,
+          thumbnail: thumbnail_url,
+          stream_id,
+          stream_date: created_at,
+          stream_platform: "twitch",
+
+          // the date portion of the created_at field
+          prefix: `${createdAt.getFullYear()}-${(createdAt.getMonth() + 1)
+            .toString()
+            .padStart(2, "0")}-${createdAt
+            .getDate()
+            .toString()
+            .padStart(2, "0")}`,
+        };
+      });
 
     // Perform the import
     dataProvider.importStreams(selectedRecords).then(() => {
