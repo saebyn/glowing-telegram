@@ -40,6 +40,12 @@ diesel::table! {
         transcription_segments -> Nullable<Jsonb>,
         silence_detection_task_url -> Nullable<Text>,
         silence_segments -> Nullable<Jsonb>,
+        #[max_length = 255]
+        stream_id -> Nullable<Varchar>,
+        #[max_length = 255]
+        stream_platform -> Nullable<Varchar>,
+        duration -> Interval,
+        stream_date -> Timestamptz,
     }
 }
 

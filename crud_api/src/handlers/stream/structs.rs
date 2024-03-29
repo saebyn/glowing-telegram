@@ -146,3 +146,8 @@ impl From<(Stream, Vec<VideoClip>)> for StreamDetailView {
         }
     }
 }
+
+#[derive(Debug, Deserialize)]
+pub struct BulkCreateStreamRequest {
+    pub records: Vec<CreateStreamRequest>,
+}
