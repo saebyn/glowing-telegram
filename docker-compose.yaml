@@ -193,6 +193,7 @@ services:
       - ./twitch_key.txt:/twitch_client_secret
     environment:
       <<: *backend-variables
+      TWITCH_USER_ID: ${TWITCH_USER_ID}
       TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
       TWITCH_CLIENT_SECRET_PATH: /twitch_client_secret
       REDIRECT_URL: http://localhost:8080/twitch/callback
