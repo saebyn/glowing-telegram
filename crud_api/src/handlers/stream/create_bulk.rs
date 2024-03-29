@@ -9,7 +9,7 @@ use tracing::instrument;
 use common_api_lib::db::DbConnection;
 
 use super::structs::{BulkCreateStreamRequest, StreamSimpleView};
-use crate::models::Stream;
+use crate::{handlers::utils::parse_duration, models::Stream};
 
 #[instrument]
 pub async fn handler(
@@ -25,9 +25,31 @@ pub async fn handler(
             body.records
                 .iter()
                 .map(|stream| {
+                    let duration_value = parse_duration(stream.duration.clone());
+                    let stream_date_value: chrono::DateTime<chrono::Utc> = match &stream.stream_date
+                    {
+                        Some(date) => match date.parse() {
+                            Ok(date) => date,
+                            Err(e) => {
+                                tracing::error!("Error parsing date: {}", e);
+                                chrono::Utc::now()
+                            }
+                        },
+                        // default to now
+                        None => chrono::Utc::now(),
+                    };
+
                     (
                         title.eq(&stream.title),
                         description.eq(stream.description.clone().unwrap_or("".to_string())),
+                        thumbnail_url.eq(stream.thumbnail.clone().unwrap_or("".to_string())),
+                        speech_audio_url
+                            .eq(stream.speech_audio_track.clone().unwrap_or("".to_string())),
+                        prefix.eq(stream.prefix.clone()),
+                        stream_id.eq(stream.stream_id.clone()),
+                        stream_platform.eq(stream.stream_platform.clone()),
+                        duration.eq(duration_value),
+                        stream_date.eq(stream_date_value),
                     )
                 })
                 .collect::<Vec<_>>(),

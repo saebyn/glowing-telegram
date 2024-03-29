@@ -27,6 +27,22 @@ pub async fn handler(
             thumbnail_url.eq(body.thumbnail.unwrap_or("".to_string())),
             prefix.eq(body.prefix),
             speech_audio_url.eq(body.speech_audio_track.unwrap_or("".to_string())),
+            stream_id.eq(body.stream_id),
+            stream_platform.eq(body.stream_platform),
+            duration.eq(crate::handlers::utils::parse_duration(
+                body.duration.clone(),
+            )),
+            stream_date.eq(match body.stream_date {
+                Some(date) => match date.parse() {
+                    Ok(date) => date,
+                    Err(e) => {
+                        tracing::error!("Error parsing date: {}", e);
+                        chrono::Utc::now()
+                    }
+                },
+                // default to now
+                None => chrono::Utc::now(),
+            }),
         ))
         .get_result::<Stream>(&mut db.connection)
         .await

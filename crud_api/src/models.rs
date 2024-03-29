@@ -17,6 +17,10 @@ pub struct Stream {
     pub transcription_segments: Option<serde_json::Value>,
     pub silence_detection_task_url: Option<String>,
     pub silence_segments: Option<serde_json::Value>,
+    pub stream_id: Option<String>,
+    pub stream_platform: Option<String>,
+    pub duration: diesel::pg::data_types::PgInterval,
+    pub stream_date: chrono::NaiveDateTime,
 }
 
 // then use it for this table model

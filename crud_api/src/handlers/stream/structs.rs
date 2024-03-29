@@ -13,6 +13,10 @@ pub struct CreateStreamRequest {
     pub topic_ids: Option<Vec<i32>>,
     pub prefix: String,
     pub speech_audio_track: Option<String>,
+    pub stream_id: Option<String>,
+    pub stream_platform: Option<String>,
+    pub duration: Option<String>,
+    pub stream_date: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
