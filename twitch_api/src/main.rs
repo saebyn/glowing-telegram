@@ -1,6 +1,6 @@
 use axum::extract::{FromRequestParts, Query, State};
-use axum::http::header;
 use axum::http::request::Parts;
+use axum::http::{header, Error};
 use axum::{async_trait, Json};
 use axum::{http::StatusCode, response::IntoResponse, routing::get};
 use common_api_lib;
@@ -83,18 +83,26 @@ impl FromRequestParts<AppState> for AccessToken {
             .await
             .expect("failed to get redis connection");
 
-        let access_token: String = redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY)
-            .await
-            .expect("failed to get access token");
+        let access_token = redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
 
-        if access_token.is_empty() {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized" })),
-            ));
+        match access_token {
+            Ok(access_token) => Ok(AccessToken(access_token)),
+            Err(_) => {
+                let tokens = match update_refresh_token(state).await {
+                    Some(tokens) => tokens,
+                    None => {
+                        trace!("failed to update refresh token");
+
+                        return Err((
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(json!({ "error": "internal server error" })),
+                        ));
+                    }
+                };
+
+                Ok(AccessToken(tokens.access_token))
+            }
         }
-
-        Ok(AccessToken(access_token))
     }
 }
 
@@ -183,7 +191,16 @@ async fn list_videos_handler(
 
             match e.status() {
                 Some(StatusCode::UNAUTHORIZED) => {
-                    let tokens = update_refresh_token(&state).await;
+                    let tokens = match update_refresh_token(&state).await {
+                        Some(tokens) => tokens,
+                        None => {
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(json!({ "error": "internal server error" })),
+                            )
+                                .into_response();
+                        }
+                    };
 
                     let request = state
                         .http_client
@@ -308,16 +325,17 @@ async fn do_refresh_token(state: &AppState, refresh_token: &str) -> AuthTokens {
 }
 
 #[instrument]
-async fn update_refresh_token(state: &AppState) -> AuthTokens {
+async fn update_refresh_token(state: &AppState) -> Option<AuthTokens> {
     let mut con = state
         .redis
         .get_multiplexed_async_connection()
         .await
         .expect("failed to get redis connection");
 
-    let refresh_token: String = redis::AsyncCommands::get(&mut con, REFRESH_TOKEN_KEY)
-        .await
-        .expect("failed to get refresh token");
+    let refresh_token: String = match redis::AsyncCommands::get(&mut con, REFRESH_TOKEN_KEY).await {
+        Ok(token) => token,
+        Err(_) => return None,
+    };
 
     let tokens = do_refresh_token(state, &refresh_token).await;
 
@@ -336,8 +354,8 @@ async fn update_refresh_token(state: &AppState) -> AuthTokens {
         .await
         .expect("failed to set access token");
 
-    AuthTokens {
+    Some(AuthTokens {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
-    }
+    })
 }
