@@ -103,17 +103,14 @@ const BulkCreateEpisodesButton = ({
   const notify = useNotify();
   const dataProvider = useDataProvider();
 
-  const { mutate, isLoading } = useMutation<string | null>(() => {
-    const totalDuration = toISO8601Duration({
-      hours: 0,
-      minutes: 0,
-      milliseconds: 0,
-      seconds: record.video_clips.reduce(
-        (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
-        0
-      ),
-    });
-
+  const { mutate, isLoading } = useMutation<
+    string | null,
+    unknown,
+    {
+      segments: Segment[];
+      totalDuration: string;
+    }
+  >(({ segments, totalDuration }) => {
     return dataProvider.bulkCreate(
       "episodes",
       periodsBetweenSegments(segments, totalDuration).map((segment, index) => ({
@@ -130,12 +127,24 @@ const BulkCreateEpisodesButton = ({
   });
 
   const bulkCreateEpisodes = () => {
-    mutate(void 0, {
-      onSuccess: () => {
-        // tell the user that the episodes were created
-        notify("Episodes created");
-      },
+    const totalDuration = toISO8601Duration({
+      hours: 0,
+      minutes: 0,
+      milliseconds: 0,
+      seconds: record.video_clips.reduce(
+        (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
+        0
+      ),
     });
+    mutate(
+      { segments, totalDuration },
+      {
+        onSuccess: () => {
+          // tell the user that the episodes were created
+          notify("Episodes created");
+        },
+      }
+    );
   };
 
   return (
@@ -184,11 +193,28 @@ const StreamSilenceDetectionInput = ({
     number[]
   >([]);
 
+  const handleSelectedSegmentIndicesChange = (index: number) => {
+    setSelectedSegmentIndices((selectedSegmentIndices) => {
+      if (selectedSegmentIndices.includes(index)) {
+        return selectedSegmentIndices.filter((i) => i !== index);
+      } else {
+        // Ensure that the selected segments are in order
+        const newIndices = [...selectedSegmentIndices, index].sort(
+          (a, b) => a - b
+        );
+        return newIndices;
+      }
+    });
+  };
+
   if (!record) {
     return <>Loading...</>;
   }
 
   const silenceDetectionSegments = record[source] || [];
+  const selectedSegments = selectedSegmentIndices.map(
+    (index) => silenceDetectionSegments[index]
+  );
 
   return (
     <div className={className}>
@@ -196,10 +222,7 @@ const StreamSilenceDetectionInput = ({
       <AsyncResultLoader source={source} taskUrlFieldName={taskUrlFieldName} />
       <BulkCreateEpisodesButton
         label="Bulk Create Episodes"
-        segments={silenceDetectionSegments.filter(
-          (_segment: any, index: number) =>
-            selectedSegmentIndices.includes(index)
-        )}
+        segments={selectedSegments}
       />
 
       <Timeline
@@ -207,7 +230,8 @@ const StreamSilenceDetectionInput = ({
           (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
           0
         )}
-        onChange={setSelectedSegmentIndices}
+        onToggleSegment={handleSelectedSegmentIndicesChange}
+        selectedSegmentIndices={selectedSegmentIndices}
         segments={silenceDetectionSegments.map((segment: any) => {
           return {
             start: parseIntoSeconds(segment.start),

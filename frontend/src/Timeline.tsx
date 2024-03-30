@@ -5,33 +5,32 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { styled } from "@mui/material/styles";
+import { Button } from "@mui/material";
 
 interface Segment {
   start: number;
   end: number;
 }
 
-interface TimelineProps {
+export interface TimelineProps {
   segments: Segment[];
   duration: number;
   className?: string;
-  onChange?: (_selectedSegmentIndices: number[]) => void;
+  onToggleSegment: (_segmentIndex: number) => void;
+  selectedSegmentIndices: number[];
 }
 
 const Timeline = ({
   segments,
   duration,
   className,
-  onChange,
+  onToggleSegment,
+  selectedSegmentIndices,
 }: TimelineProps) => {
   const timelineRef = useRef<SVGSVGElement>(null);
   const [panTime, setPanTime] = useState(duration / 2);
   const [isPanning, setIsPanning] = useState(false);
   const [zoom, setZoom] = useState(1);
-
-  const [selectedSegmentIndices, setSelectedSegmentIndices] = useState<
-    number[]
-  >([]);
 
   const aspectRatio = 20;
   const viewBoxHeight = duration / aspectRatio;
@@ -64,20 +63,6 @@ const Timeline = ({
     };
   }, [handleWheel]);
 
-  const handleSegmentClick = (index: number) => {
-    if (selectedSegmentIndices.includes(index)) {
-      setSelectedSegmentIndices(
-        selectedSegmentIndices.filter((i) => i !== index)
-      );
-    } else {
-      setSelectedSegmentIndices([...selectedSegmentIndices, index]);
-    }
-
-    if (onChange) {
-      onChange(selectedSegmentIndices);
-    }
-  };
-
   const handlePointerDown = () => {
     setIsPanning(true);
   };
@@ -96,6 +81,11 @@ const Timeline = ({
 
   const handlePointerLeave = () => {
     setIsPanning(false);
+  };
+
+  const resetView = () => {
+    setPanTime(duration / 2);
+    setZoom(1);
   };
 
   return (
@@ -123,7 +113,7 @@ const Timeline = ({
             return (
               <rect
                 className={LabeledClasses.segment}
-                onClick={() => handleSegmentClick(index)}
+                onClick={() => onToggleSegment(index)}
                 key={index}
                 x={x1}
                 y={y1}
@@ -137,6 +127,8 @@ const Timeline = ({
           })}
         </g>
       </svg>
+
+      <Button onClick={resetView}>Reset View</Button>
     </div>
   );
 };
