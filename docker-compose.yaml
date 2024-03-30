@@ -91,6 +91,7 @@ services:
     restart: always
     environment:
       VIDEO_STORAGE_PATH: /obs
+      RENDERED_EPISODE_STORAGE_PATH: /renders
       <<: *backend-variables
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
@@ -99,6 +100,7 @@ services:
       retries: 5
     volumes:
       - obs:/obs
+      - renders:/renders
 
   silence_detection_api:
     build:
@@ -237,6 +239,7 @@ services:
 
 volumes:
   obs:
+  renders:
   audio:
   model:
   postgres_data:
