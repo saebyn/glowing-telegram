@@ -15,16 +15,21 @@ import Timeline from "../../Timeline";
 import { parseIntoSeconds, toISO8601Duration } from "../../isoDuration";
 import { DurationInput } from "../../DurationInput";
 import { useState } from "react";
+import { TextField } from "@mui/material";
 
 const ScanButton = ({ label }: { label: string }) => {
   const record = useRecordContext();
   const refresh = useRefresh();
   const dataProvider = useDataProvider();
 
+  const [track, setTrack] = useState(2);
+  const [duration, setDuration] = useState(30);
+
   const { mutate, isLoading } = useMutation<string | null>(() =>
     dataProvider.queueStreamSilenceDetection({
       uris: record.video_clips.map((clip: any) => clip.uri),
-      track: 2,
+      track,
+      duration,
       stream_id: record.id,
     })
   );
@@ -38,11 +43,25 @@ const ScanButton = ({ label }: { label: string }) => {
   };
 
   return (
-    <Button
-      disabled={isLoading}
-      label={`Start ${label}`}
-      onClick={queueSilenceDetection}
-    />
+    <>
+      <Button
+        disabled={isLoading}
+        label={`Start ${label}`}
+        onClick={queueSilenceDetection}
+      />
+      <TextField
+        label="Track"
+        type="number"
+        value={track}
+        onChange={(e) => setTrack(parseInt(e.target.value, 10))}
+      />
+      <TextField
+        label="Duration"
+        type="number"
+        value={duration}
+        onChange={(e) => setDuration(parseInt(e.target.value, 10))}
+      />
+    </>
   );
 };
 
