@@ -7,6 +7,9 @@ import {
   CustomRoutes,
 } from "react-admin";
 import { Route, BrowserRouter } from "react-router-dom";
+import { LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { enUS } from "date-fns/locale";
 
 import { TwitchLoginPage } from "./twitch/LoginPage";
 import { dataProvider } from "./dataProvider";
@@ -20,32 +23,34 @@ import Layout from "./Layout";
 
 export const App = () => (
   <BrowserRouter>
-    <Admin dataProvider={dataProvider} layout={Layout}>
-      <Resource name="video_clips" {...videoClipsViews} />
-      <Resource name="streams" {...streamViews} />
-      <Resource name="episodes" {...episodeViews} />
-      <Resource
-        name="topics"
-        list={ListGuesser}
-        edit={EditGuesser}
-        show={ShowGuesser}
-      />
-      <Resource
-        name="transcriptions"
-        list={ListGuesser}
-        edit={EditGuesser}
-        show={ShowGuesser}
-      />
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enUS}>
+      <Admin dataProvider={dataProvider} layout={Layout}>
+        <Resource name="video_clips" {...videoClipsViews} />
+        <Resource name="streams" {...streamViews} />
+        <Resource name="episodes" {...episodeViews} />
+        <Resource
+          name="topics"
+          list={ListGuesser}
+          edit={EditGuesser}
+          show={ShowGuesser}
+        />
+        <Resource
+          name="transcriptions"
+          list={ListGuesser}
+          edit={EditGuesser}
+          show={ShowGuesser}
+        />
 
-      <Resource
-        name="twitchStreams"
-        {...twitchStreamsViews}
-        options={{ label: "Twitch Import" }}
-      />
+        <Resource
+          name="twitchStreams"
+          {...twitchStreamsViews}
+          options={{ label: "Twitch Import" }}
+        />
 
-      <CustomRoutes>
-        <Route path="/twitch/callback" element={<TwitchLoginPage />} />
-      </CustomRoutes>
-    </Admin>
+        <CustomRoutes>
+          <Route path="/twitch/callback" element={<TwitchLoginPage />} />
+        </CustomRoutes>
+      </Admin>
+    </LocalizationProvider>
   </BrowserRouter>
 );
