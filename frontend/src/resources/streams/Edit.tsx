@@ -1,7 +1,6 @@
 import {
   Edit,
   EditProps,
-  ReferenceArrayInput,
   TextInput,
   TabbedForm,
   SelectInput,
@@ -44,12 +43,6 @@ const StreamEdit = (props: EditProps) => (
           required
           helperText="The prefix is used to identify related video clips for this stream. It's typically in the format YYYY-MM-DD."
           inputProps={{ pattern: "[0-9]{4}-[0-9]{2}-[0-9]{2}" }}
-        />
-
-        <ReferenceArrayInput
-          source="topic_ids"
-          reference="topics"
-          label="Topics"
         />
       </TabbedForm.Tab>
 
