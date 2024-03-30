@@ -2,7 +2,6 @@ import {
   TextField,
   Datagrid,
   InfiniteList,
-  FunctionField,
   SimpleShowLayout,
   Button,
   useRefresh,
@@ -12,29 +11,7 @@ import {
   useUnselectAll,
 } from "react-admin";
 import ImportIcon from "@mui/icons-material/ImportExport";
-
-const ThumbnailField = ({ width, height }: any) => {
-  const widthValue = width || 100;
-  const heightValue = height || 100;
-
-  return (
-    <FunctionField
-      render={(record: any) => {
-        const thumbnailUrl = record.thumbnail_url
-          .replace("%{width}", widthValue)
-          .replace("%{height}", heightValue);
-        return (
-          <img
-            src={thumbnailUrl}
-            alt={record.title}
-            width={widthValue}
-            height={heightValue}
-          />
-        );
-      }}
-    />
-  );
-};
+import ThumbnailField from "../../ThumbnailField";
 
 const StreamPanel = () => (
   <SimpleShowLayout>
@@ -64,10 +41,14 @@ const BulkActionButtons = () => {
     const selectedRecords = data
       .filter((record: any) => selectedIds.includes(record.id))
       .map(({ title, duration, thumbnail_url, stream_id, created_at }: any) => {
+        // convert the duration in the format "HHhMMmSSs" to the ISO 8601 format
+        const durationParts = duration.match(/(\d+)h(\d+)m(\d+)s/);
+        const durationISO = `PT${durationParts[1]}H${durationParts[2]}M${durationParts[3]}S`;
+
         const createdAt = new Date(created_at);
         return {
           title,
-          duration,
+          duration: durationISO,
           thumbnail: thumbnail_url,
           stream_id,
           stream_date: created_at,

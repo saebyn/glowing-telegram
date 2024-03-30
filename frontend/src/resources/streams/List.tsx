@@ -4,16 +4,17 @@ import {
   List,
   ReferenceArrayField,
   TextField,
-  ImageField,
   ListProps,
 } from "react-admin";
+import ThumbnailField from "../../ThumbnailField";
 
 const StreamList = (props: ListProps) => (
   <List {...props}>
     <Datagrid rowClick="edit">
+      <DateField source="stream_date" />
       <TextField source="prefix" />
       <TextField source="title" />
-      <ImageField source="thumbnail_url" sortable={false} />
+      <ThumbnailField source="thumbnail" width={100} height={100} />
       <ReferenceArrayField
         source="topic_ids"
         reference="topics"
