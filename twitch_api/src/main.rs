@@ -1,6 +1,6 @@
 use axum::extract::{FromRequestParts, Query, State};
+use axum::http::header;
 use axum::http::request::Parts;
-use axum::http::{header, Error};
 use axum::{async_trait, Json};
 use axum::{http::StatusCode, response::IntoResponse, routing::get};
 use common_api_lib;
@@ -9,7 +9,7 @@ use redis;
 use reqwest;
 use serde::Deserialize;
 use serde_json::json;
-use tracing::{instrument, trace};
+use tracing::instrument;
 
 // Redis key constants
 const ACCESS_TOKEN_KEY: &str = "twitch:access_token";
@@ -41,7 +41,7 @@ async fn main() -> Result<(), axum::BoxError> {
 
         http_client: reqwest::Client::builder()
             .user_agent("saebyn-twitch-api/0.1")
-            .connection_verbose(true)
+            .connection_verbose(false)
             .build()
             .expect("failed to create http client"),
 
@@ -77,11 +77,17 @@ impl FromRequestParts<AppState> for AccessToken {
         _parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let mut con = state
-            .redis
-            .get_multiplexed_async_connection()
-            .await
-            .expect("failed to get redis connection");
+        let mut con = match state.redis.get_multiplexed_async_connection().await {
+            Ok(con) => con,
+            Err(_) => {
+                tracing::error!("failed to get redis connection");
+
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": "internal server error" })),
+                ));
+            }
+        };
 
         let access_token = redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
 
@@ -91,11 +97,11 @@ impl FromRequestParts<AppState> for AccessToken {
                 let tokens = match update_refresh_token(state).await {
                     Some(tokens) => tokens,
                     None => {
-                        trace!("failed to update refresh token");
+                        tracing::error!("failed to update refresh token");
 
                         return Err((
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(json!({ "error": "internal server error" })),
+                            StatusCode::UNAUTHORIZED,
+                            Json(json!({ "error": "need to login to Twitch" })),
                         ));
                     }
                 };
@@ -185,54 +191,55 @@ async fn list_videos_handler(
         .await;
 
     let response = match request {
-        Ok(response) => response,
-        Err(e) => {
-            trace!("failed to get videos: {:?}", e);
+        Ok(response) => match response.status() {
+            StatusCode::OK => response,
+            StatusCode::UNAUTHORIZED => {
+                tracing::trace!("refreshing token");
+                let tokens = match update_refresh_token(&state).await {
+                    Some(tokens) => tokens,
+                    None => {
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(json!({ "error": "internal server error" })),
+                        )
+                            .into_response();
+                    }
+                };
 
-            match e.status() {
-                Some(StatusCode::UNAUTHORIZED) => {
-                    let tokens = match update_refresh_token(&state).await {
-                        Some(tokens) => tokens,
-                        None => {
-                            return (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                Json(json!({ "error": "internal server error" })),
-                            )
-                                .into_response();
-                        }
-                    };
+                tracing::info!("retrying request with new token");
+                let request = state
+                    .http_client
+                    .get(&url)
+                    .header("Authorization", format!("Bearer {}", tokens.access_token))
+                    .header("Client-Id", state.twitch_client_id.clone())
+                    .send()
+                    .await;
 
-                    let request = state
-                        .http_client
-                        .get(&url)
-                        .header("Authorization", format!("Bearer {}", tokens.access_token))
-                        .header("Client-Id", state.twitch_client_id.clone())
-                        .send()
-                        .await;
-
-                    match request {
-                        Ok(response) => response,
-                        Err(_e) => {
-                            return (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                Json(json!({ "error": "internal server error" })),
-                            )
-                                .into_response();
-                        }
+                match request {
+                    Ok(response) => response,
+                    Err(_e) => {
+                        tracing::error!("failed to get videos after refreshing token");
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(json!({ "error": "internal server error" })),
+                        )
+                            .into_response();
                     }
                 }
-                Some(status) => {
-                    return (status, Json(json!({ "error": "failed to get videos" })))
-                        .into_response();
-                }
-                None => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({ "error": "internal server error" })),
-                    )
-                        .into_response();
-                }
             }
+            status => {
+                tracing::error!("failed to get videos: {:?}", status);
+                return (status, Json(json!({ "error": "failed to get videos" }))).into_response();
+            }
+        },
+        Err(e) => {
+            tracing::error!("failed to get videos: {:?}", e);
+
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal server error" })),
+            )
+                .into_response();
         }
     };
 
