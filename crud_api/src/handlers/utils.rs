@@ -18,3 +18,7 @@ pub fn parse_duration(duration: Option<String>) -> PgInterval {
 pub fn parse_duration_to_string(duration: PgInterval) -> String {
     chrono::Duration::microseconds(duration.microseconds).to_string()
 }
+
+pub fn dt_to_string(dt: chrono::NaiveDateTime) -> String {
+    dt.format("%Y-%m-%dT%H:%M:%S%.6fZ").to_string()
+}
