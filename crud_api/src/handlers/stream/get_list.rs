@@ -15,4 +15,12 @@ use crate::handlers::structs::ListParams;
 use crate::models::Stream;
 use crate::{create_list_handler, schema};
 
-create_list_handler!(handler, streams, Stream, StreamSimpleView, title, prefix);
+create_list_handler!(
+    handler,
+    streams,
+    Stream,
+    StreamSimpleView,
+    title,
+    prefix,
+    stream_date
+);
