@@ -16,7 +16,7 @@ const StreamCreate = (props: CreateProps) => (
       <TitleInput source="title" required />
       <DescriptionInput source="description" />
 
-      <TextInput source="thumbnail_url" />
+      <TextInput source="thumbnail" fullWidth />
 
       <SelectInput
         source="stream_platform"
