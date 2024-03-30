@@ -184,7 +184,7 @@ const StreamSilenceDetectionInput = ({
       />
 
       <Timeline
-        duration={record.video_clips.reduce(
+        duration={(record.video_clips || []).reduce(
           (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
           0
         )}
