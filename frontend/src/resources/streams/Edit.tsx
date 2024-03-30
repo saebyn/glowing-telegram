@@ -22,7 +22,7 @@ const StreamEdit = (props: EditProps) => (
         <TitleInput source="title" required />
         <DescriptionInput source="description" />
 
-        <TextInput source="thumbnail_url" />
+        <TextInput source="thumbnail" fullWidth />
 
         <SelectInput
           source="stream_platform"
@@ -46,9 +46,11 @@ const StreamEdit = (props: EditProps) => (
           inputProps={{ pattern: "[0-9]{4}-[0-9]{2}-[0-9]{2}" }}
         />
 
-        <ReferenceArrayInput source="topic_ids" reference="topics">
-          <TextInput source="id" />
-        </ReferenceArrayInput>
+        <ReferenceArrayInput
+          source="topic_ids"
+          reference="topics"
+          label="Topics"
+        />
       </TabbedForm.Tab>
 
       <TabbedForm.Tab label="video clips">
