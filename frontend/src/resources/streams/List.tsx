@@ -102,8 +102,6 @@ const StreamList = (props: ListProps) => (
       <TextField source="prefix" />
       <TextField source="title" />
       <ThumbnailField source="thumbnail" width={100} height={100} />
-      <DateField source="created_at" />
-      <DateField source="updated_at" />
       <CloneButton />
     </Datagrid>
   </List>

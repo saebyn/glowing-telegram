@@ -75,25 +75,13 @@ where
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct Filter {
-    #[serde(default)]
-    pub id: Vec<Uuid>,
-}
-
-impl Default for Filter {
-    fn default() -> Self {
-        Filter { id: vec![] }
-    }
-}
-
 /**
  * Params for list endpoint for ra-data-simple-rest
  *
  * @see https://marmelab.com/react-admin/DataProviders.html#rest-api-parameters
  */
 #[derive(Debug, Deserialize)]
-pub struct ListParams<FilterType = Filter> {
+pub struct ListParams {
     // Pagination
     // query string has the following format: range=[0, 24]
     // convert this string to a tuple
@@ -105,6 +93,5 @@ pub struct ListParams<FilterType = Filter> {
     pub sort: Option<(String, String)>,
 
     // Filter
-    #[serde(default, flatten)]
-    pub filter: Option<FilterType>,
+    pub filter: String,
 }

@@ -17,10 +17,10 @@ use uuid::Uuid;
 
 use common_api_lib::db::DbConnection;
 
-use super::structs::StreamSimpleView;
+use super::structs::TopicSimpleView;
 use crate::handlers::structs::ListParams;
-use crate::models::Stream;
-use crate::schema::streams::dsl::streams;
+use crate::models::Topic;
+use crate::schema::topics::dsl::topics;
 
 #[tracing::instrument]
 pub async fn handler(
@@ -28,9 +28,9 @@ pub async fn handler(
     Query(params): Query<ListParams>,
 ) -> impl IntoResponse {
     use crate::create_order_expression;
-    use crate::schema::streams::dsl::*;
+    use crate::schema::topics::dsl::*;
 
-    tracing::info!("get_stream_list");
+    tracing::info!("get_topic_list");
 
     let ListParams {
         range,
@@ -48,7 +48,7 @@ pub async fn handler(
 
     let predicate = create_predicate(&filter);
 
-    let total: i64 = match streams
+    let total: i64 = match topics
         .filter(predicate)
         .count()
         .get_result(&mut db.connection)
@@ -63,14 +63,14 @@ pub async fn handler(
 
     let predicate = create_predicate(&filter);
 
-    let order: Box<dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = NotSelectable>> =
-        create_order_expression!(sort, id, title, stream_date, prefix);
+    let order: Box<dyn BoxableExpression<topics, diesel::pg::Pg, SqlType = NotSelectable>> =
+        create_order_expression!(sort, id, title);
 
-    let results: Vec<Stream> = match streams
+    let results: Vec<Topic> = match topics
         .limit(range.count)
         .offset(range.start)
         .order_by(order)
-        .select(streams::all_columns())
+        .select(topics::all_columns())
         .filter(predicate)
         .load(&mut db.connection)
         .await
@@ -84,8 +84,8 @@ pub async fn handler(
 
     let prepared_results = results
         .into_iter()
-        .map(|record| StreamSimpleView::from(record))
-        .collect::<Vec<StreamSimpleView>>();
+        .map(|record| TopicSimpleView::from(record))
+        .collect::<Vec<TopicSimpleView>>();
 
     let pagination_info = format!(
         "{} {start}-{stop}/{total}",
@@ -107,11 +107,11 @@ pub async fn handler(
 
 fn create_predicate(
     filter: &serde_json::Value,
-) -> Box<dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> {
-    use crate::schema::streams::dsl::*;
+) -> Box<dyn BoxableExpression<topics, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> {
+    use crate::schema::topics::dsl::*;
 
     let id_filter: Box<
-        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<topics, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
     > = match filter["id"].is_array() {
         true => {
             let ids = filter["id"]
@@ -128,7 +128,7 @@ fn create_predicate(
     };
 
     let title_filter: Box<
-        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<topics, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
     > = match filter["q"].as_str() {
         Some(q) => Box::new(title.ilike(format!("%{}%", q))),
         None => Box::new(title.ne("")),

@@ -36,14 +36,29 @@ macro_rules! create_list_handler {
 
             let ListParams { range, sort, filter } = params;
 
-            let ids_filter: Box<dyn BoxableExpression<$table,
-                diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> = match filter {
-                Some(ref filter) => match filter.id.len() {
-                    0 => Box::new(id.ne(Uuid::nil())),
-                    _ => Box::new(id.eq_any(filter.id.clone())),
-                },
-                None => Box::new(id.ne(Uuid::nil())),
+            let filter: serde_json::Value = match serde_json::from_str(&filter) {
+                Ok(filter) => filter,
+                Err(e) => {
+                    tracing::error!("Error parsing filter: {}", e);
+                    return (axum::http::StatusCode::BAD_REQUEST).into_response();
+                }
             };
+
+            let ids_filter: Box<dyn BoxableExpression<$table,
+                diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> = match filter["id"].is_array() {
+                    true => {
+                        let ids = filter["id"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|oid| oid.as_str().unwrap())
+                            .map(|oid| Uuid::parse_str(oid).unwrap())
+                            .collect::<Vec<uuid::Uuid>>();
+
+                        Box::new(id.eq_any(ids))
+                    }
+                    false => Box::new(id.ne(Uuid::nil())),
+                };
 
 
             let total: i64 = match $table.filter(
@@ -60,14 +75,22 @@ macro_rules! create_list_handler {
             let order: Box<dyn BoxableExpression<$table, diesel::pg::Pg, SqlType = NotSelectable>> =
                 create_order_expression!(sort, $($field),*);
 
-            let ids_filter: Box<dyn BoxableExpression<$table,
-            diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> = match filter {
-                Some(filter) => match filter.id.len() {
-                    0 => Box::new(id.ne(Uuid::nil())),
-                    _ => Box::new(id.eq_any(filter.id)),
-                },
-                None => Box::new(id.ne(Uuid::nil())),
-            };
+                let ids_filter: Box<dyn BoxableExpression<$table,
+                diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> = match filter["id"].is_array() {
+                    true => {
+                        let ids = filter["id"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|oid| oid.as_str().unwrap())
+                            .map(|oid| Uuid::parse_str(oid).unwrap())
+                            .collect::<Vec<uuid::Uuid>>();
+
+                        Box::new(id.eq_any(ids))
+                    }
+                    false => Box::new(id.ne(Uuid::nil())),
+                };
+
 
             let results: Vec<$struct> = match $table
                 .limit(range.count)
