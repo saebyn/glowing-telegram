@@ -11,7 +11,7 @@ import TitleInput from "../../TitleInput";
 import { DurationInput } from "../../DurationInput";
 
 const StreamCreate = (props: CreateProps) => (
-  <Create {...props} title="Create a Stream">
+  <Create {...props} title="Create a Stream" redirect="list">
     <SimpleForm>
       <TitleInput source="title" required />
       <DescriptionInput source="description" />
@@ -31,7 +31,7 @@ const StreamCreate = (props: CreateProps) => (
 
       <DateTimeInput source="stream_date" required />
 
-      <DurationInput source="duration" />
+      <DurationInput source="duration" required defaultValue="PT3H" />
 
       <TextInput
         source="prefix"
