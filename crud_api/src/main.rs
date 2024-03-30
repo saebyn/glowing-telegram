@@ -16,7 +16,9 @@ async fn main() -> Result<(), axum::BoxError> {
             // streams resource
             .route(
                 "/records/streams",
-                get(handlers::stream::get_list::handler).post(handlers::stream::create::handler),
+                get(handlers::stream::get_list::handler)
+                    .post(handlers::stream::create::handler)
+                    .put(handlers::stream::create_bulk::handler),
             )
             .route(
                 "/records/streams/:record_id",

@@ -42,8 +42,10 @@ where
 
     let addr = SocketAddr::from((host, port));
     tracing::debug!("listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+
+    axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();

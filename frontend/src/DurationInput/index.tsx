@@ -20,7 +20,11 @@ export const DurationInput = (props: DurationInputProps) => {
 
   return (
     <DurationField
-      {...field}
+      onChange={field.onChange}
+      onBlur={field.onBlur}
+      value={field.value}
+      name={field.name}
+      disabled={field.disabled}
       label={label}
       error={(isTouched || isSubmitted) && invalid}
       helperText={(isTouched || isSubmitted) && invalid ? error?.message : ""}

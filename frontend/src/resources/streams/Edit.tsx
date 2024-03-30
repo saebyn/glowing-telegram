@@ -4,6 +4,8 @@ import {
   ReferenceArrayInput,
   TextInput,
   TabbedForm,
+  SelectInput,
+  DateTimeInput,
 } from "react-admin";
 
 import StreamVideoClipsInput from "./StreamVideoClipsInput";
@@ -11,19 +13,44 @@ import StreamTranscriptInput from "./StreamTranscriptInput";
 import StreamSilenceDetectionInput from "./StreamSilenceDetectionInput";
 import DescriptionInput from "../../DescriptionInput";
 import TitleInput from "../../TitleInput";
+import { DurationInput } from "../../DurationInput";
 
 const StreamEdit = (props: EditProps) => (
   <Edit {...props}>
     <TabbedForm>
       <TabbedForm.Tab label="summary">
-        <TitleInput source="title" />
+        <TitleInput source="title" required />
         <DescriptionInput source="description" />
-        <TextInput source="prefix" />
-        <TextInput source="speech_audio_track" />
-        <TextInput source="thumbnail" />
-        <ReferenceArrayInput source="topic_ids" reference="topics">
-          <TextInput source="id" />
-        </ReferenceArrayInput>
+
+        <TextInput source="thumbnail" fullWidth />
+
+        <SelectInput
+          source="stream_platform"
+          choices={[
+            { id: "twitch", name: "Twitch" },
+            { id: "youtube", name: "YouTube" },
+          ]}
+          required
+          defaultValue="twitch"
+        />
+        <TextInput source="stream_id" />
+
+        <DateTimeInput source="stream_date" required />
+
+        <DurationInput source="duration" />
+
+        <TextInput
+          source="prefix"
+          required
+          helperText="The prefix is used to identify related video clips for this stream. It's typically in the format YYYY-MM-DD."
+          inputProps={{ pattern: "[0-9]{4}-[0-9]{2}-[0-9]{2}" }}
+        />
+
+        <ReferenceArrayInput
+          source="topic_ids"
+          reference="topics"
+          label="Topics"
+        />
       </TabbedForm.Tab>
 
       <TabbedForm.Tab label="video clips">

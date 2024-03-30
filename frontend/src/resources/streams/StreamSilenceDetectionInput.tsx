@@ -160,10 +160,16 @@ const StreamSilenceDetectionInput = ({
   ...props
 }: StreamSilenceDetectionInputProps) => {
   const record = useRecordContext();
-  const silenceDetectionSegments = record[source] || [];
+
   const [selectedSegmentIndices, setSelectedSegmentIndices] = useState<
     number[]
   >([]);
+
+  if (!record) {
+    return <>Loading...</>;
+  }
+
+  const silenceDetectionSegments = record[source] || [];
 
   return (
     <div className={className}>
@@ -178,7 +184,7 @@ const StreamSilenceDetectionInput = ({
       />
 
       <Timeline
-        duration={record.video_clips.reduce(
+        duration={(record.video_clips || []).reduce(
           (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
           0
         )}

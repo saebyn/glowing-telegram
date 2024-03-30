@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    handlers::utils::parse_duration_to_string,
+    handlers::utils::{dt_to_string, parse_duration_to_string},
     models::{Stream, VideoClip},
 };
 
@@ -13,6 +13,10 @@ pub struct CreateStreamRequest {
     pub topic_ids: Option<Vec<i32>>,
     pub prefix: String,
     pub speech_audio_track: Option<String>,
+    pub stream_id: Option<String>,
+    pub stream_platform: Option<String>,
+    pub duration: Option<String>,
+    pub stream_date: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -55,6 +59,11 @@ pub struct StreamDetailView {
     pub silence_detection_task_url: Option<String>,
     // TODO - this should be a Option<Vec<Segment>>
     pub silence_segments: Option<serde_json::Value>,
+
+    pub stream_id: Option<String>,
+    pub stream_platform: Option<String>,
+    pub duration: String,
+    pub stream_date: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -63,6 +72,9 @@ pub struct StreamSimpleView {
     pub title: String,
     pub prefix: String,
     pub thumbnail: String,
+    pub video_clip_count: i32,
+    pub duration: String,
+    pub stream_date: String,
     pub created_at: String,
     pub updated_at: Option<String>,
     pub topic_ids: Vec<String>,
@@ -75,8 +87,28 @@ impl From<Stream> for StreamSimpleView {
             title: stream.title.to_string(),
             prefix: stream.prefix.to_string(),
             thumbnail: stream.thumbnail_url.to_string(),
-            created_at: stream.created_at.to_string(),
-            updated_at: stream.updated_at.map(|dt| dt.to_string()),
+            video_clip_count: 0,
+            duration: parse_duration_to_string(stream.duration),
+            stream_date: dt_to_string(stream.stream_date),
+            created_at: dt_to_string(stream.created_at),
+            updated_at: stream.updated_at.map(|dt| dt_to_string(dt)),
+            topic_ids: vec![],
+        }
+    }
+}
+
+impl From<(Stream, i32)> for StreamSimpleView {
+    fn from((stream, video_clip_count): (Stream, i32)) -> Self {
+        StreamSimpleView {
+            id: stream.id.to_string(),
+            title: stream.title.to_string(),
+            prefix: stream.prefix.to_string(),
+            thumbnail: stream.thumbnail_url.to_string(),
+            video_clip_count,
+            duration: parse_duration_to_string(stream.duration),
+            stream_date: dt_to_string(stream.stream_date),
+            created_at: dt_to_string(stream.created_at),
+            updated_at: stream.updated_at.map(|dt| dt_to_string(dt)),
             topic_ids: vec![],
         }
     }
@@ -118,7 +150,7 @@ impl Into<VideoClipInlineView> for VideoClip {
             width: self.width,
             video_bitrate: self.video_bitrate,
             size: self.size,
-            last_modified: self.last_modified.map(|dt| dt.to_string()),
+            last_modified: self.last_modified.map(|dt| dt_to_string(dt)),
         }
     }
 }
@@ -132,8 +164,8 @@ impl From<(Stream, Vec<VideoClip>)> for StreamDetailView {
             prefix: stream.prefix.to_string(),
 
             thumbnail: stream.thumbnail_url.to_string(),
-            created_at: stream.created_at.to_string(),
-            updated_at: stream.updated_at.map(|dt| dt.to_string()),
+            created_at: dt_to_string(stream.created_at),
+            updated_at: stream.updated_at.map(|dt| dt_to_string(dt)),
             topic_ids: vec![],
 
             video_clips: video_clips.into_iter().map(|vc| vc.into()).collect(),
@@ -143,6 +175,16 @@ impl From<(Stream, Vec<VideoClip>)> for StreamDetailView {
 
             silence_detection_task_url: stream.silence_detection_task_url,
             silence_segments: stream.silence_segments,
+
+            stream_id: stream.stream_id,
+            stream_platform: stream.stream_platform,
+            duration: parse_duration_to_string(stream.duration),
+            stream_date: dt_to_string(stream.stream_date),
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkCreateStreamRequest {
+    pub records: Vec<CreateStreamRequest>,
 }
