@@ -50,9 +50,12 @@ export default function AsyncResultLoader<T>({
   const loadData = () => {
     const values: T[] = task?.data || [];
 
-    setValue(source, values);
+    setValue(source, values, { shouldValidate: true, shouldDirty: true });
 
-    setValue(taskUrlFieldName, null);
+    setValue(taskUrlFieldName, null, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
   };
 
   return (
