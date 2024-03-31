@@ -12,6 +12,7 @@ diesel::table! {
         tracks -> Jsonb,
         series_id -> Nullable<Uuid>,
         order_index -> Int4,
+        render_uri -> Nullable<Text>,
     }
 }
 
