@@ -59,15 +59,15 @@ export const ExportButton = () => {
     // then click the link to download the file
     const otioString = exporter(
       {
-        name: episode.name,
+        title: episode.title,
         description: episode.description,
-        cuts: episode.tracks.map((track: { start: string; end: string }) => ({
+        tracks: episode.tracks.map((track: { start: string; end: string }) => ({
           start: parseIntoSeconds(track.start),
           end: parseIntoSeconds(track.end),
         })),
       },
       {
-        videoClips,
+        video_clips: videoClips,
       }
     );
 

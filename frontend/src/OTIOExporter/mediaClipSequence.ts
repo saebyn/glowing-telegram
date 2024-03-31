@@ -1,5 +1,6 @@
 import { FPS } from "./constants";
-import { CutSequence, InternalTrack, VideoClip } from "./types";
+import { InternalTrack, ConvertedCut } from "./types";
+import { VideoClip } from "../types";
 
 interface MediaClipCursor {
   clipIndex: number;
@@ -8,7 +9,7 @@ interface MediaClipCursor {
 }
 
 export function findMediaClipCursorStart(
-  clips: CutSequence,
+  clips: ConvertedCut[],
   time: number
 ): MediaClipCursor | null {
   const clip = clips.find((clip) => {
@@ -29,7 +30,7 @@ export function findMediaClipCursorStart(
 }
 
 export function findMediaClipCursorEnd(
-  clips: CutSequence,
+  clips: ConvertedCut[],
   time: number
 ): MediaClipCursor | null {
   const clip = clips.find((clip) => {
@@ -50,7 +51,7 @@ export function findMediaClipCursorEnd(
 }
 
 export function findMediaClipCursors(
-  _clips: CutSequence,
+  _clips: ConvertedCut[],
   start: MediaClipCursor,
   end: MediaClipCursor
 ): MediaClipCursor[] {

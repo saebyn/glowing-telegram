@@ -76,7 +76,7 @@ export const dataProvider = {
     return fetch(url).then((res) => res.json());
   },
 
-  asyncqueueStreamTranscription({
+  async queueStreamTranscription({
     stream_id: streamId,
     ...payload
   }: TranscriptionAPIDetectInput) {

@@ -1,11 +1,4 @@
-import {
-  Admin,
-  Resource,
-  ListGuesser,
-  EditGuesser,
-  ShowGuesser,
-  CustomRoutes,
-} from "react-admin";
+import { Admin, Resource, CustomRoutes } from "react-admin";
 import { Route, BrowserRouter } from "react-router-dom";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -30,12 +23,6 @@ export const App = () => (
         <Resource name="streams" {...streamViews} />
         <Resource name="episodes" {...episodeViews} />
         <Resource name="topics" {...topicsViews} />
-        <Resource
-          name="transcriptions"
-          list={ListGuesser}
-          edit={EditGuesser}
-          show={ShowGuesser}
-        />
 
         <Resource
           name="twitchStreams"

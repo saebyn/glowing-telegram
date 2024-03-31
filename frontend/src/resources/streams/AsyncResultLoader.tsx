@@ -22,7 +22,7 @@ export default function AsyncResultLoader<T>({
 }) {
   const record = useRecordContext();
   const dataProvider = useDataProvider();
-  const formContext = useFormContext();
+  const { setValue } = useFormContext();
   const notify = useNotify();
 
   const [task, setTask] = useState<Task<T> | null>(null);
@@ -50,12 +50,9 @@ export default function AsyncResultLoader<T>({
   const loadData = () => {
     const values: T[] = task?.data || [];
 
-    formContext.setValue(source, values, {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
+    setValue(source, values, { shouldValidate: true, shouldDirty: true });
 
-    formContext.setValue(taskUrlFieldName, null, {
+    setValue(taskUrlFieldName, null, {
       shouldValidate: true,
       shouldDirty: true,
     });
