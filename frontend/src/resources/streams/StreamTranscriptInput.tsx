@@ -4,6 +4,7 @@ import {
   useRecordContext,
   useDataProvider,
   useRefresh,
+  useInput,
 } from "react-admin";
 import { useFormContext } from "react-hook-form";
 import { useMutation } from "react-query";
@@ -89,10 +90,13 @@ const StreamTranscriptInput = ({
   source,
   taskUrlFieldName,
 }: StreamTranscriptInputProps) => {
-  const record = useRecordContext();
   const [editing, setEditing] = useState<null | number>(null);
   const formContext = useFormContext();
-  const transcriptSegments = record[source] || [];
+  const {
+    field: { value },
+  } = useInput({ source });
+
+  const transcriptSegments: TranscriptSegment[] = value || [];
 
   const onSave = (index: number, buffer: string) => {
     const newSegments = [...transcriptSegments];
