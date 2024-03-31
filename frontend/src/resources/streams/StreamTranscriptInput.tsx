@@ -12,6 +12,7 @@ import { styled } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
 import { formatDuration, parseIntoSeconds } from "../../isoDuration";
 import AsyncResultLoader from "./AsyncResultLoader";
+import { TranscriptSegment } from "../../types";
 
 const ScanButton = ({ label }: { label: string }) => {
   const record = useRecordContext();
@@ -72,12 +73,6 @@ export const TaskStatus = ({
       return null;
   }
 };
-
-interface TranscriptSegment {
-  start: string;
-  end: string;
-  text: string;
-}
 
 interface StreamTranscriptInputProps {
   className?: string;

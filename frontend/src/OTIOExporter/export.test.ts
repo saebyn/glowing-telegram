@@ -1,21 +1,22 @@
 import { expect, describe, it } from "vitest";
 
 import exportOTIO, { generateChildren } from "./export";
-import { Episode, InternalTrack, Stream } from "./types";
+import { InternalTrack, ConvertedEpisode } from "./types";
+import { Stream, Episode } from "../types";
 
 describe("generateChildren", () => {
-  it("should generate internal tracks based on episode and stream data", () => {
-    const episode: Episode = {
-      name: "Episode 1",
-      description: "This is episode 1",
-      cuts: [
+  it("should generate internal tracks based on convertedepisode and stream data", () => {
+    const convertedepisode: ConvertedEpisode = {
+      title: "ConvertedEpisode 1",
+      description: "This is convertedepisode 1",
+      tracks: [
         { start: 0, end: 100 },
         { start: 200, end: 300 },
       ],
     };
 
     const stream: Stream = {
-      videoClips: [
+      video_clips: [
         { uri: "video1.mp4", duration: 100 },
         { uri: "video2.mp4", duration: 100 },
         { uri: "video3.mp4", duration: 100 },
@@ -39,23 +40,23 @@ describe("generateChildren", () => {
       },
     ];
 
-    const result = generateChildren(episode, stream);
+    const result = generateChildren(convertedepisode, stream);
 
     expect(result).toEqual(expected);
   });
 
-  it("should generate internal tracks when episode tracks overlap multiple video clips", () => {
-    const episode: Episode = {
-      name: "Episode 2",
-      description: "This is episode 2",
-      cuts: [
+  it("should generate internal tracks when convertedepisode tracks overlap multiple video clips", () => {
+    const convertedepisode: ConvertedEpisode = {
+      title: "ConvertedEpisode 2",
+      description: "This is convertedepisode 2",
+      tracks: [
         { start: 0, end: 200 }, // Overlaps video1.mp4 and video2.mp4
         { start: 150, end: 350 }, // Overlaps video2.mp4 and video3.mp4
       ],
     };
 
     const stream: Stream = {
-      videoClips: [
+      video_clips: [
         { uri: "video1.mp4", duration: 100 },
         { uri: "video2.mp4", duration: 200 },
         { uri: "video3.mp4", duration: 100 },
@@ -89,94 +90,94 @@ describe("generateChildren", () => {
       },
     ];
 
-    const result = generateChildren(episode, stream);
+    const result = generateChildren(convertedepisode, stream);
 
     expect(result).toEqual(expected);
   });
 
-  it("should return an empty array if there are no tracks in the episode", () => {
-    const episode: Episode = {
-      name: "Episode 3",
-      description: "This is episode 3",
-      cuts: [],
+  it("should return an empty array if there are no tracks in the convertedepisode", () => {
+    const convertedepisode: ConvertedEpisode = {
+      title: "ConvertedEpisode 3",
+      description: "This is convertedepisode 3",
+      tracks: [],
     };
 
     const stream: Stream = {
-      videoClips: [
+      video_clips: [
         { uri: "video1.mp4", duration: 100 },
         { uri: "video2.mp4", duration: 100 },
         { uri: "video3.mp4", duration: 100 },
       ],
     };
 
-    const result = generateChildren(episode, stream);
+    const result = generateChildren(convertedepisode, stream);
 
     expect(result).toEqual([]);
   });
 
   it("should return an empty array if there are no video clips in the stream", () => {
-    const episode: Episode = {
-      name: "Episode 4",
-      description: "This is episode 4",
-      cuts: [
+    const convertedepisode: ConvertedEpisode = {
+      title: "ConvertedEpisode 4",
+      description: "This is convertedepisode 4",
+      tracks: [
         { start: 0, end: 100 },
         { start: 200, end: 300 },
       ],
     };
 
     const stream: Stream = {
-      videoClips: [],
+      video_clips: [],
     };
 
-    const result = generateChildren(episode, stream);
+    const result = generateChildren(convertedepisode, stream);
 
     expect(result).toEqual([]);
   });
 
   it("should return an empty array if there are no video clips and no tracks", () => {
-    const episode: Episode = {
-      name: "Episode 5",
-      description: "This is episode 5",
-      cuts: [],
+    const convertedepisode: ConvertedEpisode = {
+      title: "ConvertedEpisode 5",
+      description: "This is convertedepisode 5",
+      tracks: [],
     };
 
     const stream: Stream = {
-      videoClips: [],
+      video_clips: [],
     };
 
-    const result = generateChildren(episode, stream);
+    const result = generateChildren(convertedepisode, stream);
 
     expect(result).toEqual([]);
   });
 
-  it("should return an empty array if the episode tracks are outside the video clips", () => {
-    const episode: Episode = {
-      name: "Episode 6",
-      description: "This is episode 6",
-      cuts: [
+  it("should return an empty array if the convertedepisode tracks are outside the video clips", () => {
+    const convertedepisode: ConvertedEpisode = {
+      title: "ConvertedEpisode 6",
+      description: "This is convertedepisode 6",
+      tracks: [
         { start: 300, end: 400 },
         { start: 500, end: 600 },
       ],
     };
 
     const stream: Stream = {
-      videoClips: [
+      video_clips: [
         { uri: "video1.mp4", duration: 100 },
         { uri: "video2.mp4", duration: 100 },
         { uri: "video3.mp4", duration: 100 },
       ],
     };
 
-    const result = generateChildren(episode, stream);
+    const result = generateChildren(convertedepisode, stream);
 
     expect(result).toEqual([]);
   });
 
   it('should work with "real" data', () => {
-    const episode: Episode = {
-      name: "Episode 1",
-      description: "This is episode 1",
-      cuts: [
+    const convertedepisode: ConvertedEpisode = {
+      title: "ConvertedEpisode 1",
+      description: "This is convertedepisode 1",
+      tracks: [
         { start: 28280.0 / 60, end: (28280 + 43971) / 60 },
         { start: (28280 + 43971) / 60, end: (28280 + 43971 + 72000) / 60 },
         {
@@ -191,7 +192,7 @@ describe("generateChildren", () => {
     };
 
     const stream: Stream = {
-      videoClips: [
+      video_clips: [
         {
           uri: "F:\\Video\\OBS\\2024-01-31 17-54-59.mkv",
           duration: 72251.0 / 60,
@@ -211,7 +212,7 @@ describe("generateChildren", () => {
       ],
     };
 
-    const result = generateChildren(episode, stream);
+    const result = generateChildren(convertedepisode, stream);
 
     const expected: InternalTrack[] = [
       {
@@ -245,18 +246,18 @@ describe("generateChildren", () => {
 });
 
 describe("exportOTIO", () => {
-  it("should generate an OTIO file based on episode and stream data", () => {
+  it("should generate an OTIO file based on convertedepisode and stream data", () => {
     const episode: Episode = {
-      name: "Episode 1",
-      description: "This is episode 1",
-      cuts: [
-        { start: 0, end: 100 },
-        { start: 200, end: 300 },
+      title: "ConvertedEpisode 1",
+      description: "This is convertedepisode 1",
+      tracks: [
+        { start: "PT0S", end: "PT100S" },
+        { start: "PT200S", end: "PT300S" },
       ],
     };
 
     const stream: Stream = {
-      videoClips: [
+      video_clips: [
         { uri: "2024-01-31 17-54-59.mkv", duration: 100 },
         { uri: "2024-01-31 18-15-04.mkv", duration: 100 },
         { uri: "2024-01-31 18-35-04.mkv", duration: 100 },
@@ -273,25 +274,32 @@ describe("exportOTIO", () => {
   });
 
   it("should generate a matching OTIO file for my sample export from DaVinci Resolve", () => {
+    function w(duration: number) {
+      return `PT${duration}S`;
+    }
+
     const episode: Episode = {
-      name: "Episode 1",
+      title: "Episode 1",
       description: "This is episode 1",
-      cuts: [
-        { start: 28280.0 / 60, end: (28280 + 43971) / 60 },
-        { start: (28280 + 43971) / 60, end: (28280 + 43971 + 72000) / 60 },
+      tracks: [
+        { start: w(28280.0 / 60), end: w((28280 + 43971) / 60) },
         {
-          start: (28280 + 43971 + 72000) / 60,
-          end: (28280 + 43971 + 72000 + 72000) / 60,
+          start: w((28280 + 43971) / 60),
+          end: w((28280 + 43971 + 72000) / 60),
         },
         {
-          start: (28280 + 43971 + 72000 + 72000) / 60,
-          end: (28280 + 43971 + 72000 + 72000 + 2742) / 60,
+          start: w((28280 + 43971 + 72000) / 60),
+          end: w((28280 + 43971 + 72000 + 72000) / 60),
+        },
+        {
+          start: w((28280 + 43971 + 72000 + 72000) / 60),
+          end: w((28280 + 43971 + 72000 + 72000 + 2742) / 60),
         },
       ],
     };
 
     const stream: Stream = {
-      videoClips: [
+      video_clips: [
         {
           uri: "F:\\Video\\OBS\\2024-01-31 17-54-59.mkv",
           duration: 72251.0 / 60,
