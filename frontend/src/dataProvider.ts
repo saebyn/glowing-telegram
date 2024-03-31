@@ -76,7 +76,13 @@ export const dataProvider = {
     return fetch(url).then((res) => res.json());
   },
 
-  asyncqueueStreamTranscription({
+  async getRenderedEpisodeFiles() {
+    return fetch(
+      `${baseUrl}/stream_ingestion/find_rendered_episode_files`
+    ).then((res) => res.json());
+  },
+
+  async queueStreamTranscription({
     stream_id: streamId,
     ...payload
   }: TranscriptionAPIDetectInput) {
