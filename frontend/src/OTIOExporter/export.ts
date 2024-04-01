@@ -1,3 +1,5 @@
+import { parseIntoSeconds } from "../isoDuration";
+import { Episode, Stream, VideoClip } from "../types";
 import { FPS } from "./constants";
 import floatJsonSerializer, { Float } from "./floatJson";
 import {
@@ -7,14 +9,7 @@ import {
   findMediaClipCursors,
   convertMediaClipCursorToInternalTrack,
 } from "./mediaClipSequence";
-import {
-  InternalTrack,
-  Stream,
-  VideoClip,
-  Episode,
-  Cut,
-  CutSequence,
-} from "./types";
+import { ConvertedCut, ConvertedEpisode, InternalTrack } from "./types";
 
 /**
  * Extracts the filename from a path.
@@ -559,11 +554,11 @@ function internalToOTIO(children: InternalTrack[]): string {
   return floatJsonSerializer(otio, null, 2);
 }
 
-function convertStreamToCutSequence(stream: Stream): CutSequence {
-  const fn = (
-    acc: { elapsed: number; clips: CutSequence },
+function convertStreamToCutSequence(stream: Stream): ConvertedCut[] {
+  function fn(
+    acc: { elapsed: number; clips: ConvertedCut[] },
     clip: VideoClip
-  ) => {
+  ): { elapsed: number; clips: ConvertedCut[] } {
     return {
       clips: [
         ...acc.clips,
@@ -574,31 +569,31 @@ function convertStreamToCutSequence(stream: Stream): CutSequence {
       ],
       elapsed: acc.elapsed + clip.duration,
     };
-  };
+  }
 
-  return stream.videoClips.reduce(fn, {
+  return stream.video_clips.reduce(fn, {
     clips: [],
     elapsed: 0,
   }).clips;
 }
 
 export function generateChildren(
-  episode: Episode,
+  episode: ConvertedEpisode,
   stream: Stream
 ): InternalTrack[] {
-  if (episode.cuts.length === 0) {
+  if (episode.tracks.length === 0) {
     console.warn("No tracks to export");
     return [];
   }
 
-  if (stream.videoClips.length === 0) {
+  if (stream.video_clips.length === 0) {
     console.warn("No video clips to export");
     return [];
   }
 
   const cutSequence = convertStreamToCutSequence(stream);
 
-  return episode.cuts.flatMap<InternalTrack>((cut: Cut) => {
+  return episode.tracks.flatMap<InternalTrack>((cut: ConvertedCut) => {
     const mediaStart = findMediaClipCursorStart(cutSequence, cut.start);
     const mediaEnd = findMediaClipCursorEnd(cutSequence, cut.end);
 
@@ -610,7 +605,7 @@ export function generateChildren(
     if (sameMediaClip(mediaStart, mediaEnd)) {
       return [
         {
-          sourcePath: stream.videoClips[mediaStart.clipIndex].uri,
+          sourcePath: stream.video_clips[mediaStart.clipIndex].uri,
           sourceStartFrames: mediaStart.time * FPS,
           durationFrames: (cut.end - cut.start) * FPS,
           totalMediaDurationFrames: (cut.end - cut.start) * FPS,
@@ -625,7 +620,7 @@ export function generateChildren(
     );
 
     return [mediaStart, ...mediaIntermediates, mediaEnd].map((cursor) =>
-      convertMediaClipCursorToInternalTrack(stream.videoClips, cursor)
+      convertMediaClipCursorToInternalTrack(stream.video_clips, cursor)
     );
   });
 }
@@ -638,5 +633,13 @@ export function generateChildren(
  * @returns       The OTIO file as a string.
  */
 export default function exportOTIO(episode: Episode, stream: Stream): string {
-  return internalToOTIO(generateChildren(episode, stream));
+  const convertedEp: ConvertedEpisode = {
+    title: episode.title,
+    description: episode.description,
+    tracks: episode.tracks.map((cut) => ({
+      start: parseIntoSeconds(cut.start),
+      end: parseIntoSeconds(cut.end),
+    })),
+  };
+  return internalToOTIO(generateChildren(convertedEp, stream));
 }

@@ -4,6 +4,7 @@ import {
   useRecordContext,
   useDataProvider,
   useRefresh,
+  useInput,
 } from "react-admin";
 import { useFormContext } from "react-hook-form";
 import { useMutation } from "react-query";
@@ -11,6 +12,7 @@ import { styled } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
 import { formatDuration, parseIntoSeconds } from "../../isoDuration";
 import AsyncResultLoader from "./AsyncResultLoader";
+import { TranscriptSegment } from "../../types";
 
 const ScanButton = ({ label }: { label: string }) => {
   const record = useRecordContext();
@@ -72,12 +74,6 @@ export const TaskStatus = ({
   }
 };
 
-interface TranscriptSegment {
-  start: string;
-  end: string;
-  text: string;
-}
-
 interface StreamTranscriptInputProps {
   className?: string;
   source: string;
@@ -89,10 +85,13 @@ const StreamTranscriptInput = ({
   source,
   taskUrlFieldName,
 }: StreamTranscriptInputProps) => {
-  const record = useRecordContext();
   const [editing, setEditing] = useState<null | number>(null);
   const formContext = useFormContext();
-  const transcriptSegments = record[source] || [];
+  const {
+    field: { value },
+  } = useInput({ source });
+
+  const transcriptSegments: TranscriptSegment[] = value || [];
 
   const onSave = (index: number, buffer: string) => {
     const newSegments = [...transcriptSegments];

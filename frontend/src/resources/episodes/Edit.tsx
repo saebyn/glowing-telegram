@@ -1,14 +1,16 @@
 import {
   ArrayInput,
-  DateInput,
   DeleteButton,
   Edit,
+  ReferenceInput,
   SimpleForm,
   SimpleFormIterator,
+  SelectInput,
   TopToolbar,
 } from "react-admin";
 import { DurationInput } from "../../DurationInput";
-import { ExportButton } from "../../OTIOExporter";
+import { ExportButton as OTIOExportButton } from "../../OTIOExporter";
+import { ExportButton as SRTExportButton } from "../../SRTExporter";
 import TitleInput from "../../TitleInput";
 import DescriptionInput from "../../DescriptionInput";
 import MediaPickerInput from "../../MediaPickerInput";
@@ -16,7 +18,8 @@ import MediaPickerInput from "../../MediaPickerInput";
 const EditActions = () => (
   <TopToolbar>
     <DeleteButton />
-    <ExportButton />
+    <OTIOExportButton />
+    <SRTExportButton />
   </TopToolbar>
 );
 
@@ -41,8 +44,9 @@ const EpisodeEdit = () => (
         </SimpleFormIterator>
       </ArrayInput>
 
-      <DateInput source="updated_at" />
-      <DateInput source="created_at" />
+      <ReferenceInput source="stream_id" reference="streams">
+        <SelectInput optionText="title" />
+      </ReferenceInput>
     </SimpleForm>
   </Edit>
 );

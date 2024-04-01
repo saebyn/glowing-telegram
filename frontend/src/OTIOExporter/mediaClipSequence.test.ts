@@ -5,12 +5,12 @@ import {
   findMediaClipCursorEnd,
   findMediaClipCursors,
 } from "./mediaClipSequence";
-import { CutSequence } from "./types";
+import { ConvertedCut } from "./types";
 
 describe("mediaClipSequence", () => {
   describe("findMediaClipCursorStart", () => {
     it("should return the index of the media clip that contains the cursor", () => {
-      const mediaClips: CutSequence = [
+      const mediaClips: ConvertedCut[] = [
         { start: 0, end: 100 },
         { start: 200, end: 300 },
       ];
@@ -30,7 +30,7 @@ describe("mediaClipSequence", () => {
 
   describe("findMediaClipCursorEnd", () => {
     it("should return the index of the media clip that contains the cursor", () => {
-      const mediaClips: CutSequence = [
+      const mediaClips: ConvertedCut[] = [
         { start: 0, end: 100 },
         { start: 200, end: 300 },
       ];
@@ -43,7 +43,7 @@ describe("mediaClipSequence", () => {
     });
 
     it("should find the cursor for the last clip", () => {
-      const mediaClips: CutSequence = [
+      const mediaClips: ConvertedCut[] = [
         { start: 0, end: 100 },
         { start: 100, end: 300 },
         { start: 300, end: 400 },
@@ -59,7 +59,7 @@ describe("mediaClipSequence", () => {
 
   describe("findMediaClipCursors", () => {
     it("should return the start and end cursors for a given time", () => {
-      const mediaClips: CutSequence = [
+      const mediaClips: ConvertedCut[] = [
         { start: 0, end: 100 },
         { start: 100, end: 300 },
         { start: 300, end: 400 },
