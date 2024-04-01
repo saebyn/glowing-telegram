@@ -2865,6 +2865,20 @@ dependencies = [
 [[package]]
 name = "youtube_upload_api"
 version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "common_api_lib",
+ "dotenvy",
+ "iso8601",
+ "redis 0.25.2",
+ "regex",
+ "reqwest 0.12.2",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "zeroize"
