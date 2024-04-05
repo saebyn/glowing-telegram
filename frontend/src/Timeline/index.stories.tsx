@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import Timeline from "./Timeline";
+import Timeline from ".";
 import { fn } from "@storybook/test";
 
 const meta = {
@@ -8,6 +8,7 @@ const meta = {
   tags: ["autodocs"],
   argTypes: {
     onToggleSegment: { control: "function" },
+    onUpdateSegment: { control: "function" },
     selectedSegmentIndices: { control: "array" },
     segments: { control: "object" },
     duration: { control: "number" },
@@ -16,7 +17,8 @@ const meta = {
     segments: [],
     duration: 0,
     onToggleSegment: fn(),
-    selectedSegmentIndices: [],
+    onUpdateSegment: fn(),
+    selectedSegmentIndices: new Map(),
   },
 } satisfies Meta<typeof Timeline>;
 
@@ -29,7 +31,7 @@ export const Empty: Story = {
     segments: [],
     duration: 0,
     onToggleSegment: fn(),
-    selectedSegmentIndices: [],
+    selectedSegmentIndices: new Map(),
   },
 };
 
@@ -41,7 +43,7 @@ export const WithSegments: Story = {
     ],
     duration: 30,
     onToggleSegment: fn(),
-    selectedSegmentIndices: [],
+    selectedSegmentIndices: new Map(),
   },
 };
 
@@ -62,6 +64,10 @@ export const WithUsualStreamSegments: Story = {
     ],
     duration: 10800,
     onToggleSegment: fn(),
-    selectedSegmentIndices: [],
+    selectedSegmentIndices: new Map([
+      [0, false],
+      [1, true],
+      [2, false],
+    ]),
   },
 };

@@ -191,30 +191,38 @@ const StreamSilenceDetectionInput = ({
   const record = useRecordContext();
 
   const [selectedSegmentIndices, setSelectedSegmentIndices] = useState<
-    number[]
-  >([]);
+    Map<number, boolean>
+  >(new Map());
 
   const handleSelectedSegmentIndicesChange = (index: number) => {
     setSelectedSegmentIndices((selectedSegmentIndices) => {
-      if (selectedSegmentIndices.includes(index)) {
-        return selectedSegmentIndices.filter((i) => i !== index);
+      if (selectedSegmentIndices.get(index)) {
+        selectedSegmentIndices.delete(index);
+        return selectedSegmentIndices;
       } else {
-        // Ensure that the selected segments are in order
-        const newIndices = [...selectedSegmentIndices, index].sort(
-          (a, b) => a - b
-        );
-        return newIndices;
+        selectedSegmentIndices.set(index, true);
+        return selectedSegmentIndices;
       }
     });
+  };
+
+  const handleUpdateSegment = (
+    index: number,
+    segment: {
+      start: number;
+      end: number;
+    }
+  ) => {
+    console.log(index, segment);
   };
 
   if (!record) {
     return <>Loading...</>;
   }
 
-  const silenceDetectionSegments = record[source] || [];
-  const selectedSegments = selectedSegmentIndices.map(
-    (index) => silenceDetectionSegments[index]
+  const silenceDetectionSegments: Segment[] = record[source] || [];
+  const selectedSegments = silenceDetectionSegments.filter((_, index) =>
+    selectedSegmentIndices.get(index)
   );
 
   return (
@@ -231,6 +239,7 @@ const StreamSilenceDetectionInput = ({
           (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
           0
         )}
+        onUpdateSegment={handleUpdateSegment}
         onToggleSegment={handleSelectedSegmentIndicesChange}
         selectedSegmentIndices={selectedSegmentIndices}
         segments={silenceDetectionSegments.map((segment: any) => {
