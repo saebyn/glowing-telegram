@@ -25,6 +25,7 @@ services:
       - transcription_api
       - task_api
       - twitch_api
+      - youtube_api
 
   # run our frontend in dev mode with hot module reloading for vite
   frontend:
@@ -200,6 +201,29 @@ services:
       TWITCH_CLIENT_SECRET_PATH: /twitch_client_secret
       REDIRECT_URL: http://localhost:8080/twitch/callback
       REDIS_URL: redis://redis:6379
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  youtube_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.rust
+      args:
+        - SERVICE_NAME=youtube_upload_api
+    restart: always
+    environment:
+      <<: *backend-variables
+      YOUTUBE_AUTH_URI: ${YOUTUBE_AUTH_URI}
+      YOUTUBE_TOKEN_URI: ${YOUTUBE_TOKEN_URI}
+      YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
+      YOUTUBE_CLIENT_SECRET_PATH: /youtube_client_secret
+      REDIRECT_URL: http://localhost:8080/yt/callback
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./youtube_key.txt:/youtube_client_secret
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s

@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+url = "2.5.0"
 common_api_lib = { path = "../common_api_lib" }
 dotenvy = { version = "0.15.7" }
 axum = "0.7.5"

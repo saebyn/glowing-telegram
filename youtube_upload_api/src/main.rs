@@ -10,6 +10,7 @@ use reqwest;
 use serde::Serialize;
 use serde_json::json;
 use tracing::instrument;
+use url::Url;
 
 // Redis key constants
 const ACCESS_TOKEN_KEY: &str = "youtube:access_token";
@@ -19,6 +20,9 @@ const REFRESH_TOKEN_KEY: &str = "youtube:refresh_token";
 #[derive(Clone, Debug)]
 struct AppState {
     redis: redis::Client,
+
+    youtube_auth_uri: String,
+    youtube_token_uri: String,
     youtube_client_id: String,
     youtube_client_secret: String,
 
@@ -29,6 +33,8 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), axum::BoxError> {
+    let auth_uri = dotenvy::var("YOUTUBE_AUTH_URI").expect("YOUTUBE_AUTH_URI not set");
+    let token_uri = dotenvy::var("YOUTUBE_TOKEN_URI").expect("YOUTUBE_TOKEN_URI not set");
     let youtube_client_id = dotenvy::var("YOUTUBE_CLIENT_ID").expect("YOUTUBE_CLIENT_ID not set");
     let youtube_client_secret_path =
         dotenvy::var("YOUTUBE_CLIENT_SECRET_PATH").expect("YOUTUBE_CLIENT_SECRET_PATH not set");
@@ -43,8 +49,9 @@ async fn main() -> Result<(), axum::BoxError> {
             .build()
             .expect("failed to create http client"),
 
+        youtube_auth_uri: auth_uri,
+        youtube_token_uri: token_uri,
         youtube_client_id,
-
         youtube_client_secret: std::fs::read_to_string(youtube_client_secret_path)
             .expect("failed to read youtube secret from YOUTUBE_CLIENT_SECRET_PATH")
             .trim()
@@ -120,14 +127,17 @@ impl FromRequestParts<AppState> for AccessToken {
 
 #[instrument]
 async fn get_login_handler(State(state): State<AppState>) -> impl IntoResponse {
-    let scopes = vec!["chat:read"];
+    let mut url = Url::parse(&state.youtube_auth_uri).expect("failed to parse URL");
+    url.query_pairs_mut()
+        .append_pair("client_id", &state.youtube_client_id)
+        .append_pair("redirect_uri", &state.redirect_url)
+        .append_pair("response_type", "code")
+        .append_pair("access_type", "offline")
+        .append_pair("incude_granted_scopes", "true")
+        .append_pair("scope", "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly")
+        .finish();
 
-    let url = format!(
-        "https://id.youtube.tv/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}",
-        state.youtube_client_id,
-        state.redirect_url,
-        scopes.join("+")
-    );
+    let url: String = url.into();
 
     (StatusCode::OK, Json(json!({ "url": url })))
 }
@@ -213,7 +223,7 @@ async fn update_refresh_token(state: &AppState) -> Result<AuthTokens, ()> {
  * from the Youtube API.
  */
 async fn get_token(state: &AppState, code: &str) -> Result<AuthTokens, ()> {
-    let url = "https://id.youtube.tv/oauth2/token";
+    let url = state.youtube_token_uri.clone();
 
     let body = json!({
         "client_id": state.youtube_client_id,
