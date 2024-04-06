@@ -26,7 +26,6 @@ import MuiTextField from "@mui/material/TextField";
 import MuiButton from "@mui/material/Button";
 import React, { useState } from "react";
 
-// TODO add q to the crud api
 const StreamsFilter = (props: any) => (
   <Filter {...props}>
     <TextInput label="Search" source="q" alwaysOn />
@@ -123,6 +122,7 @@ const BulkSilenceDetectionButton = () => {
           id: streamId,
         });
         await dataProvider.queueStreamSilenceDetection({
+          task_title: `Silence Detection for ${stream.title}`,
           uris: stream.video_clips.map((clip: any) => clip.uri),
           track,
           duration,
