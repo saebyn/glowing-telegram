@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use axum::extract::{Path, State};
+use axum::http::header;
 use axum::Json;
 use axum::{http::StatusCode, response::IntoResponse, routing::get};
 use common_api_lib;
@@ -42,7 +45,7 @@ async fn get_list_handler(State(state): State<AppState>) -> impl IntoResponse {
     };
 
     // get the list of records from redis using the key pattern with scan_match
-    let keys: Vec<String> = match con.scan_match("task:[0-9]*") {
+    let keys: Vec<String> = match con.scan_match("task:item:[0-9]*") {
         Ok(keys) => keys.collect(),
         Err(e) => {
             tracing::error!("Failed to get task keys: {}", e);
@@ -50,14 +53,50 @@ async fn get_list_handler(State(state): State<AppState>) -> impl IntoResponse {
         }
     };
 
-    // TODO get the records from redis
+    //  get the records from redis using the keys
+    let records: Vec<serde_json::Value> = keys
+        .iter()
+        .map::<HashMap<String, String>, _>(|key| match con.hgetall(key) {
+            Ok(record) => record,
+            Err(e) => {
+                tracing::error!("Failed to get task record: {}", e);
+                HashMap::new()
+            }
+        })
+        .map(|record| {
+            serde_json::json!({
+                "id": record.get("id").unwrap_or(&"".to_string()),
+                "title": record.get("title").unwrap_or(&"".to_string()),
+                "status": record.get("status").unwrap_or(&"".to_string()),
+                "url": record.get("url").unwrap_or(&"".to_string()),
+                "payload": record.get("payload").unwrap_or(&"".to_string()),
+                "data_key": record.get("data_key").unwrap_or(&"".to_string()),
+            })
+        })
+        .collect();
+
+    let pagination_info = format!(
+        "{} {start}-{stop}/{total}",
+        "tasks",
+        start = 0,
+        stop = records.len(),
+        total = records.len()
+    );
 
     // return the list of records
-    (StatusCode::OK, axum::Json(json!(keys))).into_response()
+    (
+        [
+            (header::CONTENT_RANGE, pagination_info),
+            (header::CONTENT_TYPE, "application/json".to_string()),
+        ],
+        axum::Json(json!(records)),
+    )
+        .into_response()
 }
 
 #[derive(Deserialize, Debug)]
 struct CreateTaskInput {
+    title: String,
     url: String,
     payload: serde_json::Value,
     data_key: String,
@@ -97,7 +136,6 @@ async fn create_handler(
         }
     };
 
-    // key pattern = task:(next-id)
     let key = generate_task_key(id);
 
     // create task record as a hash in redis with a unique id
@@ -106,6 +144,8 @@ async fn create_handler(
             .arg(&key)
             .arg("id")
             .arg(id)
+            .arg("title")
+            .arg(&body.title)
             .arg("status")
             .arg("queued")
             .arg("url")
@@ -244,9 +284,9 @@ async fn delete_handler() -> impl IntoResponse {
 }
 
 fn generate_task_key(id: u64) -> String {
-    format!("task:{}", id)
+    format!("task:item:{}", id)
 }
 
 fn generate_task_data_key(id: u64) -> String {
-    format!("task:{}:data", id)
+    format!("task:data:{}", id)
 }

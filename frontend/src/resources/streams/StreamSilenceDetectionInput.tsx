@@ -27,6 +27,7 @@ const ScanButton = ({ label }: { label: string }) => {
 
   const { mutate, isLoading } = useMutation<string | null>(() =>
     dataProvider.queueStreamSilenceDetection({
+      task_title: `Silence Detection for ${record.title}`,
       uris: record.video_clips.map((clip: any) => clip.uri),
       track,
       duration,

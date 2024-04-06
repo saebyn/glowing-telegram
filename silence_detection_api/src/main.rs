@@ -234,6 +234,8 @@ async fn detect_segment(
 
 #[derive(Deserialize, Debug)]
 struct DetectInput {
+    task_title: String,
+
     uris: Vec<String>,
     track: u8,
 
@@ -253,6 +255,7 @@ async fn detect(State(state): State<AppState>, Json(body): Json<DetectInput>) ->
         .post(&state.task_api_url)
         .json(&json!({
             "url": format!("{}/detect/segment", state.this_api_base_url),
+            "title": body.task_title,
             "payload": json!({
                 "uris": uris,
                 "track": track,

@@ -21,6 +21,7 @@ const ScanButton = ({ label }: { label: string }) => {
 
   const { mutate, isLoading } = useMutation<string | null>(() =>
     dataProvider.queueStreamTranscription({
+      task_title: `Transcription for ${record.title}`,
       uris: record.video_clips.map((clip: any) => clip.uri),
       track: 2,
       initial_prompt: `
