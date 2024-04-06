@@ -3,11 +3,13 @@ import {
   DateField,
   List,
   TextField,
+  NumberField,
   ListProps,
   CloneButton,
   TextInput,
   Filter,
   useListContext,
+  BooleanField,
   Button,
   useDataProvider,
   LoadingIndicator,
@@ -192,9 +194,11 @@ const StreamList = (props: ListProps) => (
   <List {...props} filters={<StreamsFilter />} aside={<CalendarView />}>
     <Datagrid rowClick="edit" bulkActionButtons={<StreamBulkActions />}>
       <DateField source="stream_date" />
-      <TextField source="prefix" />
       <TextField source="title" />
       <ThumbnailField source="thumbnail" width={100} height={100} />
+      <NumberField source="video_clip_count" />
+      <BooleanField source="has_transcription" />
+      <BooleanField source="has_silence_detection" />
       <CloneButton />
     </Datagrid>
   </List>

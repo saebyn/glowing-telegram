@@ -2,7 +2,6 @@ use axum::extract::Query;
 
 use axum::http::header;
 use axum::response::IntoResponse;
-
 use diesel::expression::expression_types::NotSelectable;
 use diesel::BoolExpressionMethods;
 use diesel::BoxableExpression;
@@ -66,13 +65,19 @@ pub async fn handler(
     let order: Box<dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = NotSelectable>> =
         create_order_expression!(sort, id, title, stream_date, prefix);
 
-    let results: Vec<Stream> = match streams
+    let results: Vec<(Stream, i64)> = match streams
         .limit(range.count)
         .offset(range.start)
         .order_by(order)
-        .select(streams::all_columns())
+        .select((
+            streams::all_columns(),
+            // count of video clips
+            diesel::dsl::sql::<diesel::sql_types::BigInt>(
+                "(SELECT COUNT(*) FROM video_clips WHERE video_clips.stream_id = streams.id)",
+            ),
+        ))
         .filter(predicate)
-        .load(&mut db.connection)
+        .load::<(Stream, i64)>(&mut db.connection)
         .await
     {
         Ok(results) => results,
