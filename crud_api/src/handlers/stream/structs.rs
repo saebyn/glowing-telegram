@@ -72,12 +72,14 @@ pub struct StreamSimpleView {
     pub title: String,
     pub prefix: String,
     pub thumbnail: String,
-    pub video_clip_count: i32,
+    pub video_clip_count: i64,
     pub duration: String,
     pub stream_date: String,
     pub created_at: String,
     pub updated_at: Option<String>,
     pub topic_ids: Vec<String>,
+    pub has_transcription: bool,
+    pub has_silence_detection: bool,
 }
 
 impl From<Stream> for StreamSimpleView {
@@ -93,12 +95,14 @@ impl From<Stream> for StreamSimpleView {
             created_at: dt_to_string(stream.created_at),
             updated_at: stream.updated_at.map(|dt| dt_to_string(dt)),
             topic_ids: vec![],
+            has_transcription: stream.transcription_task_url.is_some(),
+            has_silence_detection: stream.silence_detection_task_url.is_some(),
         }
     }
 }
 
-impl From<(Stream, i32)> for StreamSimpleView {
-    fn from((stream, video_clip_count): (Stream, i32)) -> Self {
+impl From<(Stream, i64)> for StreamSimpleView {
+    fn from((stream, video_clip_count): (Stream, i64)) -> Self {
         StreamSimpleView {
             id: stream.id.to_string(),
             title: stream.title.to_string(),
@@ -110,6 +114,8 @@ impl From<(Stream, i32)> for StreamSimpleView {
             created_at: dt_to_string(stream.created_at),
             updated_at: stream.updated_at.map(|dt| dt_to_string(dt)),
             topic_ids: vec![],
+            has_transcription: stream.transcription_task_url.is_some(),
+            has_silence_detection: stream.silence_detection_task_url.is_some(),
         }
     }
 }
