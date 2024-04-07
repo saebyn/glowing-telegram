@@ -17,6 +17,7 @@ pub mod db;
 pub mod media;
 pub mod serde;
 pub mod structs;
+pub mod task;
 
 pub async fn run<State>(
     state: State,

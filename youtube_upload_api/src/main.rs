@@ -1,13 +1,18 @@
 use axum::extract::{FromRequestParts, State};
 
 use axum::http::request::Parts;
+use axum::routing::post;
 use axum::{async_trait, Json};
-use axum::{http::StatusCode, response::IntoResponse, routing::get};
-use common_api_lib;
+use axum::{
+    http::{header, StatusCode},
+    response::IntoResponse,
+    routing::get,
+};
+use common_api_lib::{self, task};
 use dotenvy;
 use redis;
 use reqwest;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::instrument;
 use url::Url;
@@ -27,6 +32,11 @@ struct AppState {
     youtube_client_secret: String,
 
     redirect_url: String,
+
+    task_api_url: String,
+    task_api_external_url: String,
+
+    this_api_base_url: String,
 
     http_client: reqwest::Client,
 }
@@ -49,6 +59,14 @@ async fn main() -> Result<(), axum::BoxError> {
             .build()
             .expect("failed to create http client"),
 
+        task_api_url: dotenvy::var("TASK_API_URL").expect("TASK_API_URL must be set"),
+
+        task_api_external_url: dotenvy::var("TASK_API_EXTERNAL_URL")
+            .expect("TASK_API_EXTERNAL_URL must be set"),
+
+        this_api_base_url: dotenvy::var("THIS_API_BASE_URL")
+            .expect("THIS_API_BASE_URL must be set"),
+
         youtube_auth_uri: auth_uri,
         youtube_token_uri: token_uri,
         youtube_client_id,
@@ -60,19 +78,141 @@ async fn main() -> Result<(), axum::BoxError> {
 
     common_api_lib::run(state, |app| {
         app.route("/login", get(get_login_handler).post(post_login_handler))
+            .route("/upload", post(upload_start_task_handler))
+            .route("/upload/task", post(upload_video_handler))
     })
     .await
 }
 
-#[derive(Serialize, Debug)]
-struct YoutubeUpload {
+#[derive(Serialize, Debug, Deserialize)]
+struct YoutubeUploadRequest {
     title: String,
     description: String,
     tags: Vec<String>,
-    category: String,
+    category: u8,
     render_uri: String,
     thumbnail_uri: Option<String>,
     notify_subscribers: bool,
+
+    task_title: String,
+}
+
+#[derive(Serialize, Debug, Deserialize)]
+struct YoutubeUploadTaskPayload {
+    title: String,
+    description: String,
+    tags: Vec<String>,
+    category: u8,
+    render_uri: String,
+    thumbnail_uri: Option<String>,
+    notify_subscribers: bool,
+}
+
+#[instrument]
+async fn upload_start_task_handler(
+    State(state): State<AppState>,
+    AccessToken(access_token): AccessToken,
+    Json(body): Json<YoutubeUploadRequest>,
+) -> impl IntoResponse {
+    let task_url = match task::start(
+        task::Context {
+            http_client: state.http_client.clone(),
+            task_api_url: state.task_api_url.clone(),
+            task_api_external_url: state.task_api_external_url.clone(),
+        },
+        task::TaskRequest {
+            url: format!("{}/upload/task", state.this_api_base_url),
+            title: body.task_title,
+            payload: json!(YoutubeUploadTaskPayload {
+                title: body.title,
+                description: body.description,
+                tags: body.tags,
+                category: body.category,
+                render_uri: body.render_uri,
+                thumbnail_uri: body.thumbnail_uri,
+                notify_subscribers: body.notify_subscribers,
+            }),
+            data_key: "summary".to_string(),
+        },
+    )
+    .await
+    {
+        Ok(task_url) => task_url,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": e })),
+            )
+                .into_response()
+        }
+    };
+
+    (StatusCode::ACCEPTED, [(header::LOCATION, task_url)]).into_response()
+}
+
+#[derive(Serialize, Debug)]
+struct UploadVideoTaskOutput {
+    cursor: Option<()>,
+    summary: Vec<String>,
+}
+
+#[instrument]
+async fn upload_video_handler(
+    State(state): State<AppState>,
+    AccessToken(access_token): AccessToken,
+    Json(body): Json<YoutubeUploadTaskPayload>,
+) -> impl IntoResponse {
+    let url = "https://www.googleapis.com/upload/youtube/v3/videos";
+
+    let body = json!({
+        "snippet": {
+            "title": body.title,
+            "description": body.description,
+            "tags": body.tags,
+            "categoryId": body.category,
+        },
+        "status": {
+            "privacyStatus": "private",
+        },
+    });
+
+    let response = match state
+        .http_client
+        .post(url)
+        .header(header::AUTHORIZATION, format!("Bearer {}", access_token))
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": "failed to send request to Youtube API" })),
+            )
+                .into_response()
+        }
+    };
+
+    if !response.status().is_success() {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({ "error": "failed to upload video" })),
+        )
+            .into_response();
+    }
+
+    // TODO upload the contents of the video using the upload URL and
+    // chunked upload
+
+    (
+        StatusCode::OK,
+        axum::Json(json!(UploadVideoTaskOutput {
+            cursor: None,
+            summary: vec!["video uploaded".to_string()],
+        })),
+    )
+        .into_response()
 }
 
 #[derive(Serialize, Debug)]

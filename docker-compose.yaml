@@ -7,6 +7,8 @@ x-backend-variables: &backend-variables
   RUST_LOG: trace
   RUST_BACKTRACE: 1
   CORS_ALLOWED_ORIGINS: http://localhost:8080
+  TASK_API_URL: http://task_api:3000/tasks
+  TASK_API_EXTERNAL_URL: http://localhost:8080/api/records/tasks
 
 services:
   proxy:
@@ -114,8 +116,6 @@ services:
       VIDEO_STORAGE_PATH: /obs
       NOISE: 0.004
       DURATION: 2.0
-      TASK_API_URL: http://task_api:3000/tasks
-      TASK_API_EXTERNAL_URL: http://localhost:8080/api/records/tasks
       THIS_API_BASE_URL: http://silence_detection_api:3000
       <<: *backend-variables
     healthcheck:
@@ -136,8 +136,6 @@ services:
     environment:
       VIDEO_STORAGE_PATH: /obs
       MODEL_PATH: /model
-      TASK_API_URL: http://task_api:3000/tasks
-      TASK_API_EXTERNAL_URL: http://localhost:8080/api/records/tasks
       THIS_API_BASE_URL: http://transcription_api:3000
       <<: *backend-variables
     healthcheck:
@@ -220,6 +218,7 @@ services:
       YOUTUBE_TOKEN_URI: ${YOUTUBE_TOKEN_URI}
       YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
       YOUTUBE_CLIENT_SECRET_PATH: /youtube_client_secret
+      THIS_API_BASE_URL: http://youtube_api:3000
       REDIRECT_URL: http://localhost:8080/yt/callback
       REDIS_URL: redis://redis:6379
     volumes:
