@@ -176,4 +176,20 @@ export const dataProvider = {
       body: JSON.stringify({ records: streams }),
     });
   },
+
+  // youtube functions
+  async youtubeLogin() {
+    const result = await fetch(`${baseUrl}/youtube/login`);
+    const url = (await result.json()).url;
+
+    return url;
+  },
+
+  async youtubeCallback(code: string) {
+    await fetch(`${baseUrl}/youtube/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+  },
 };

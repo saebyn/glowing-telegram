@@ -219,7 +219,7 @@ services:
       YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
       YOUTUBE_CLIENT_SECRET_PATH: /youtube_client_secret
       THIS_API_BASE_URL: http://youtube_api:3000
-      REDIRECT_URL: http://localhost:8080/yt/callback
+      REDIRECT_URL: http://localhost:8080/youtube/callback
       REDIS_URL: redis://redis:6379
     volumes:
       - ./youtube_key.txt:/youtube_client_secret

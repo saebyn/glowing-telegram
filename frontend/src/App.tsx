@@ -5,6 +5,7 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { enUS } from "date-fns/locale";
 
 import { TwitchLoginPage } from "./twitch/LoginPage";
+import { YoutubeLoginPage } from "./youtube/LoginPage";
 import { dataProvider } from "./dataProvider";
 
 import streamViews from "./resources/streams";
@@ -32,6 +33,7 @@ export const App = () => (
 
         <CustomRoutes>
           <Route path="/twitch/callback" element={<TwitchLoginPage />} />
+          <Route path="/youtube/callback" element={<YoutubeLoginPage />} />
         </CustomRoutes>
       </Admin>
     </LocalizationProvider>
