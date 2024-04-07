@@ -18,7 +18,7 @@ This is a tool for managing stream recordings, ingesting them into a database, p
 1. Generate a set of "highlights" from the stream based on the flagged areas
 1. Generate chapter markers for the episode based on the flagged areas
 1. Archive the stream videos to a cloud storage provider
-1. Generate an AAF file for for the stream video for use in a video editing tool
+1. Generate an OTIO file for for the stream video for use in a video editing tool
 
 ## Architecture
 
