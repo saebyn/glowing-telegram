@@ -162,7 +162,14 @@ async fn upload_video_handler(
     AccessToken(access_token): AccessToken,
     Json(body): Json<YoutubeUploadTaskPayload>,
 ) -> impl IntoResponse {
-    let url = "https://www.googleapis.com/upload/youtube/v3/videos";
+    let mut url = Url::parse("https://www.googleapis.com/upload/youtube/v3/videos")
+        .expect("failed to parse URL");
+
+    url.query_pairs_mut()
+        .append_pair("uploadType", "resumable")
+        .append_pair("part", "snippet,status,contentDetails")
+        .append_pair("notifySubscribers", &body.notify_subscribers.to_string())
+        .finish();
 
     let body = json!({
         "snippet": {
@@ -173,28 +180,36 @@ async fn upload_video_handler(
         },
         "status": {
             "privacyStatus": "private",
+            "embeddable": true,
+            "selfDeclaredMadeForKids": false,
+            "license": "creativeCommon"
         },
     });
 
     let response = match state
         .http_client
         .post(url)
-        .header(header::AUTHORIZATION, format!("Bearer {}", access_token))
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("X-Upload-Content-Length", "12345678")
+        .header("X-Upload-Content-Type", "video/mp4")
         .json(&body)
         .send()
         .await
     {
         Ok(response) => response,
-        Err(_) => {
+        Err(e) => {
+            tracing::error!("failed to send request to Youtube API: {:?}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 axum::Json(json!({ "error": "failed to send request to Youtube API" })),
             )
-                .into_response()
+                .into_response();
         }
     };
 
     if !response.status().is_success() {
+        tracing::error!("response: {:?}", response);
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({ "error": "failed to upload video" })),
