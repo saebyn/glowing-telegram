@@ -221,8 +221,10 @@ services:
       THIS_API_BASE_URL: http://youtube_api:3000
       REDIRECT_URL: http://localhost:8080/youtube/callback
       REDIS_URL: redis://redis:6379
+      RENDER_STORAGE_PATH: /renders
     volumes:
       - ./youtube_key.txt:/youtube_client_secret
+      - renders:/renders
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s

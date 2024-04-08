@@ -26,6 +26,8 @@ const REFRESH_TOKEN_KEY: &str = "youtube:refresh_token";
 struct AppState {
     redis: redis::Client,
 
+    render_storage_path: String,
+
     youtube_auth_uri: String,
     youtube_token_uri: String,
     youtube_client_id: String,
@@ -51,6 +53,10 @@ async fn main() -> Result<(), axum::BoxError> {
 
     let state = AppState {
         redis: redis::Client::open(dotenvy::var("REDIS_URL").expect("REDIS_URL must be set"))?,
+
+        render_storage_path: dotenvy::var("RENDER_STORAGE_PATH")
+            .expect("RENDER_STORAGE_PATH must be set"),
+
         redirect_url: dotenvy::var("REDIRECT_URL").expect("REDIRECT_URL must be set"),
 
         http_client: reqwest::Client::builder()
@@ -162,6 +168,31 @@ async fn upload_video_handler(
     AccessToken(access_token): AccessToken,
     Json(body): Json<YoutubeUploadTaskPayload>,
 ) -> impl IntoResponse {
+    // extract filename from uri
+    let uri = body.render_uri;
+    let filename = match uri.split(&['/', ':'][..]).last() {
+        Some(filename) => filename,
+        None => return (StatusCode::BAD_REQUEST, "invalid uri").into_response(),
+    };
+
+    let path = format!("{}/{}", state.render_storage_path, filename);
+
+    // TODO: get the content type
+    let content_length = match tokio::fs::metadata(&path).await {
+        Ok(metadata) => metadata.len(),
+        Err(e) => {
+            tracing::error!("failed to get file metadata: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to get file metadata",
+            )
+                .into_response();
+        }
+    };
+
+    let content_type = "video/mp4";
+
+    // get the upload URL
     let mut url = Url::parse("https://www.googleapis.com/upload/youtube/v3/videos")
         .expect("failed to parse URL");
 
@@ -171,29 +202,27 @@ async fn upload_video_handler(
         .append_pair("notifySubscribers", &body.notify_subscribers.to_string())
         .finish();
 
-    let body = json!({
-        "snippet": {
-            "title": body.title,
-            "description": body.description,
-            "tags": body.tags,
-            "categoryId": body.category,
-        },
-        "status": {
-            "privacyStatus": "private",
-            "embeddable": true,
-            "selfDeclaredMadeForKids": false,
-            "license": "creativeCommon"
-        },
-    });
-
     let response = match state
         .http_client
         .post(url)
         .header("Content-Type", "application/json")
         .header("Authorization", format!("Bearer {}", access_token))
-        .header("X-Upload-Content-Length", "12345678")
-        .header("X-Upload-Content-Type", "video/mp4")
-        .json(&body)
+        .header("X-Upload-Content-Length", content_length.to_string())
+        .header("X-Upload-Content-Type", content_type)
+        .json(&json!({
+            "snippet": {
+                "title": body.title,
+                "description": body.description,
+                "tags": body.tags,
+                "categoryId": body.category,
+            },
+            "status": {
+                "privacyStatus": "private",
+                "embeddable": true,
+                "selfDeclaredMadeForKids": false,
+                "license": "creativeCommon"
+            },
+        }))
         .send()
         .await
     {
@@ -217,8 +246,66 @@ async fn upload_video_handler(
             .into_response();
     }
 
-    // TODO upload the contents of the video using the upload URL and
+    // get an async file handle
+    let file = match tokio::fs::File::open(path).await {
+        Ok(file) => file,
+        Err(e) => {
+            tracing::error!("failed to open file: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": "failed to open file" })),
+            )
+                .into_response();
+        }
+    };
+
+    let upload_url = match response
+        .headers()
+        .get("Location")
+        .and_then(|v| v.to_str().ok())
+    {
+        Some(upload_url) => upload_url,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": "upload URL not found" })),
+            )
+                .into_response();
+        }
+    };
+
+    // upload the contents of the video using the upload URL and
     // chunked upload
+    let response = match state
+        .http_client
+        .put(upload_url)
+        .header("Content-Type", content_type)
+        .header("Authorization", format!("Bearer {}", access_token))
+        .body(file)
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("failed to send request to Youtube API: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": "failed to send request to Youtube API" })),
+            )
+                .into_response();
+        }
+    };
+
+    if !response.status().is_success() {
+        tracing::error!("response: {:?}", response);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({ "error": "failed to upload video" })),
+        )
+            .into_response();
+    }
+
+    // TODO recover from a failed upload
 
     (
         StatusCode::OK,

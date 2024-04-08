@@ -1,5 +1,6 @@
 import simpleRestDataProvider from "ra-data-simple-rest";
 import { GetListParams, combineDataProviders } from "react-admin";
+import { YoutubeUploadTaskPayload } from "./types";
 
 const baseUrl = `${import.meta.env.VITE_API_URL || "http://localhost:3000"}`;
 
@@ -190,6 +191,14 @@ export const dataProvider = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code }),
+    });
+  },
+
+  async uploadEpisodeToYoutube(video: YoutubeUploadTaskPayload) {
+    return fetch(`${baseUrl}/youtube/video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(video),
     });
   },
 };
