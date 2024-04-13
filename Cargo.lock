@@ -1458,6 +1458,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redact"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7301863b5e5486c9f18320ccc1aedce9a5fdf3056ae89fa021933d6f054430f"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "redis"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2459,6 +2468,7 @@ dependencies = [
  "common_api_lib",
  "dotenvy",
  "iso8601",
+ "redact",
  "redis 0.25.2",
  "regex",
  "reqwest 0.12.2",
@@ -2873,6 +2883,7 @@ dependencies = [
  "common_api_lib",
  "dotenvy",
  "iso8601",
+ "redact",
  "redis 0.25.2",
  "regex",
  "reqwest 0.12.2",

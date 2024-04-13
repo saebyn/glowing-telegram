@@ -10,6 +10,7 @@ use axum::{
 };
 use common_api_lib::{self, task};
 use dotenvy;
+use redact::Secret;
 use redis;
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -31,7 +32,7 @@ struct AppState {
     youtube_auth_uri: String,
     youtube_token_uri: String,
     youtube_client_id: String,
-    youtube_client_secret: String,
+    youtube_client_secret: Secret<String>,
 
     redirect_url: String,
 
@@ -76,10 +77,12 @@ async fn main() -> Result<(), axum::BoxError> {
         youtube_auth_uri: auth_uri,
         youtube_token_uri: token_uri,
         youtube_client_id,
-        youtube_client_secret: std::fs::read_to_string(youtube_client_secret_path)
-            .expect("failed to read youtube secret from YOUTUBE_CLIENT_SECRET_PATH")
-            .trim()
-            .to_string(),
+        youtube_client_secret: Secret::new(
+            std::fs::read_to_string(youtube_client_secret_path)
+                .expect("failed to read youtube secret from YOUTUBE_CLIENT_SECRET_PATH")
+                .trim()
+                .to_string(),
+        ),
     };
 
     common_api_lib::run(state, |app| {
@@ -206,7 +209,10 @@ async fn upload_video_handler(
         .http_client
         .post(url)
         .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", access_token))
+        .header(
+            "Authorization",
+            format!("Bearer {}", access_token.expose_secret()),
+        )
         .header("X-Upload-Content-Length", content_length.to_string())
         .header("X-Upload-Content-Type", content_type)
         .json(&json!({
@@ -280,7 +286,10 @@ async fn upload_video_handler(
         .http_client
         .put(upload_url)
         .header("Content-Type", content_type)
-        .header("Authorization", format!("Bearer {}", access_token))
+        .header(
+            "Authorization",
+            format!("Bearer {}", access_token.expose_secret()),
+        )
         .body(file)
         .send()
         .await
@@ -317,10 +326,10 @@ async fn upload_video_handler(
         .into_response()
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Debug)]
 struct AuthTokens {
-    access_token: String,
-    refresh_token: String,
+    access_token: Secret<String>,
+    refresh_token: Secret<String>,
 }
 
 /**
@@ -329,7 +338,7 @@ struct AuthTokens {
  * This is a simple extractor that gets the access token from Redis
  * and injects it into the request's extensions.
  */
-struct AccessToken(String);
+struct AccessToken(Secret<String>);
 
 #[async_trait]
 impl FromRequestParts<AppState> for AccessToken {
@@ -351,10 +360,11 @@ impl FromRequestParts<AppState> for AccessToken {
             }
         };
 
-        let access_token = redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
+        let access_token: Result<String, _> =
+            redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
 
         match access_token {
-            Ok(access_token) => Ok(AccessToken(access_token)),
+            Ok(access_token) => Ok(AccessToken(Secret::new(access_token))),
             Err(_) => {
                 tracing::error!("failed to get access token from Redis");
 
@@ -414,11 +424,12 @@ async fn post_login_handler(
         .await
         .expect("failed to get redis connection");
 
-    let _: () = redis::AsyncCommands::set(&mut con, REFRESH_TOKEN_KEY, refresh_token)
-        .await
-        .expect("failed to set refresh token");
+    let _: () =
+        redis::AsyncCommands::set(&mut con, REFRESH_TOKEN_KEY, refresh_token.expose_secret())
+            .await
+            .expect("failed to set refresh token");
 
-    let _: () = redis::AsyncCommands::set(&mut con, ACCESS_TOKEN_KEY, access_token)
+    let _: () = redis::AsyncCommands::set(&mut con, ACCESS_TOKEN_KEY, access_token.expose_secret())
         .await
         .expect("failed to set access token");
 
@@ -469,7 +480,7 @@ async fn get_token(state: &AppState, code: &str) -> Result<AuthTokens, ()> {
 
     let body = json!({
         "client_id": state.youtube_client_id,
-        "client_secret": state.youtube_client_secret,
+        "client_secret": state.youtube_client_secret.expose_secret(),
         "code": code,
         "grant_type": "authorization_code",
         "redirect_uri": state.redirect_url,
@@ -494,14 +505,18 @@ async fn get_token(state: &AppState, code: &str) -> Result<AuthTokens, ()> {
     };
 
     Ok(AuthTokens {
-        access_token: response["access_token"]
-            .as_str()
-            .expect("access_token not found")
-            .to_string(),
-        refresh_token: response["refresh_token"]
-            .as_str()
-            .expect("refresh_token not found")
-            .to_string(),
+        access_token: Secret::new(
+            response["access_token"]
+                .as_str()
+                .expect("access_token not found")
+                .to_string(),
+        ),
+        refresh_token: Secret::new(
+            response["refresh_token"]
+                .as_str()
+                .expect("refresh_token not found")
+                .to_string(),
+        ),
     })
 }
 
@@ -517,7 +532,7 @@ async fn get_refresh_token(state: &AppState, refresh_token: &str) -> Result<Auth
 
     let body = json!({
         "client_id": state.youtube_client_id,
-        "client_secret": state.youtube_client_secret,
+        "client_secret": state.youtube_client_secret.expose_secret(),
         "refresh_token": refresh_token,
         "grant_type": "refresh_token",
     });
@@ -541,13 +556,17 @@ async fn get_refresh_token(state: &AppState, refresh_token: &str) -> Result<Auth
     };
 
     Ok(AuthTokens {
-        access_token: response["access_token"]
-            .as_str()
-            .expect("access_token not found")
-            .to_string(),
-        refresh_token: response["refresh_token"]
-            .as_str()
-            .expect("refresh_token not found")
-            .to_string(),
+        access_token: Secret::new(
+            response["access_token"]
+                .as_str()
+                .expect("access_token not found")
+                .to_string(),
+        ),
+        refresh_token: Secret::new(
+            response["refresh_token"]
+                .as_str()
+                .expect("refresh_token not found")
+                .to_string(),
+        ),
     })
 }

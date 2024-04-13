@@ -25,3 +25,4 @@ reqwest = { version = "0.12.2", features = [
   "gzip",
   "stream",
 ], default-features = false }
+redact = { version = "0.1.9", features = ["serde"] }
