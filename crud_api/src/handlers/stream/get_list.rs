@@ -136,8 +136,42 @@ fn create_predicate(
         dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
     > = match filter["q"].as_str() {
         Some(q) => Box::new(title.ilike(format!("%{}%", q))),
-        None => Box::new(title.ne("")),
+        None => Box::new(id.ne(Uuid::nil())),
     };
 
-    Box::new(id_filter.and(title_filter))
+    let has_video_clips_filter: Box<
+        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+    > = match filter["has_video_clips"].as_bool() {
+        Some(true) => Box::new(diesel::dsl::sql::<diesel::sql_types::Bool>(
+            "(SELECT COUNT(*) FROM video_clips WHERE video_clips.stream_id = streams.id) > 0",
+        )),
+        Some(false) => Box::new(diesel::dsl::sql::<diesel::sql_types::Bool>(
+            "(SELECT COUNT(*) FROM video_clips WHERE video_clips.stream_id = streams.id) = 0",
+        )),
+        None => Box::new(id.ne(Uuid::nil())),
+    };
+
+    let has_transcription_filter: Box<
+        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+    > = match filter["has_transcription"].as_bool() {
+        Some(true) => Box::new(transcription_segments.is_not_null()),
+        Some(false) => Box::new(transcription_segments.is_null()),
+        None => Box::new(id.ne(Uuid::nil())),
+    };
+
+    let has_silence_detection_filter: Box<
+        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+    > = match filter["has_silence_detection"].as_bool() {
+        Some(true) => Box::new(silence_segments.is_not_null()),
+        Some(false) => Box::new(silence_segments.is_null()),
+        None => Box::new(id.ne(Uuid::nil())),
+    };
+
+    Box::new(
+        id_filter
+            .and(title_filter)
+            .and(has_video_clips_filter)
+            .and(has_transcription_filter)
+            .and(has_silence_detection_filter),
+    )
 }

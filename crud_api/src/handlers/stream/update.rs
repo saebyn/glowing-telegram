@@ -36,6 +36,20 @@ pub struct UpdateStreamChangeset {
     pub silence_segments: Option<serde_json::Value>,
 }
 
+impl UpdateStreamChangeset {
+    pub fn is_empty(&self) -> bool {
+        self.title.is_none()
+            && self.description.is_none()
+            && self.thumbnail_url.is_none()
+            && self.prefix.is_none()
+            && self.speech_audio_url.is_none()
+            && self.transcription_task_url.is_none()
+            && self.transcription_segments.is_none()
+            && self.silence_detection_task_url.is_none()
+            && self.silence_segments.is_none()
+    }
+}
+
 #[derive(Debug, Insertable)]
 #[diesel(table_name = video_clips)]
 pub struct VideoClipInsertable {
@@ -168,21 +182,30 @@ pub async fn handler(
         }
     };
 
-    let result: Result<Stream, diesel::result::Error> =
+    let changeset = UpdateStreamChangeset {
+        title: body.title,
+        description: body.description,
+        thumbnail_url: body.thumbnail,
+        prefix: body.prefix,
+        speech_audio_url: body.speech_audio_track,
+        transcription_task_url: body.transcription_task_url,
+        transcription_segments: body.transcription_segments,
+        silence_detection_task_url: body.silence_detection_task_url,
+        silence_segments: body.silence_segments,
+    };
+
+    let result: Result<Stream, diesel::result::Error> = if !changeset.is_empty() {
+        // If any of the fields are present in the body besides the video_clips, update the stream record
         diesel::update(streams.filter(id.eq(record_id)))
-            .set(&UpdateStreamChangeset {
-                title: body.title,
-                description: body.description,
-                thumbnail_url: body.thumbnail,
-                prefix: body.prefix,
-                speech_audio_url: body.speech_audio_track,
-                transcription_task_url: body.transcription_task_url,
-                transcription_segments: body.transcription_segments,
-                silence_detection_task_url: body.silence_detection_task_url,
-                silence_segments: body.silence_segments,
-            })
+            .set(&changeset)
             .get_result(&mut db.connection)
-            .await;
+            .await
+    } else {
+        streams
+            .filter(id.eq(record_id))
+            .get_result(&mut db.connection)
+            .await
+    };
 
     let video_clips_result: Result<Vec<VideoClip>, _> =
         crate::schema::video_clips::dsl::video_clips
