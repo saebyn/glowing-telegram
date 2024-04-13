@@ -1,5 +1,5 @@
 {
-  "name": "test-admin",
+  "name": "glowing-telegram",
   "private": true,
   "scripts": {
     "dev": "vite",
