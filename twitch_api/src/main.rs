@@ -5,6 +5,7 @@ use axum::{async_trait, Json};
 use axum::{http::StatusCode, response::IntoResponse, routing::get};
 use common_api_lib;
 use dotenvy;
+use redact::Secret;
 use redis;
 use reqwest;
 use serde::Deserialize;
@@ -20,7 +21,7 @@ const REFRESH_TOKEN_KEY: &str = "twitch:refresh_token";
 struct AppState {
     redis: redis::Client,
     twitch_client_id: String,
-    twitch_client_secret: String,
+    twitch_client_secret: Secret<String>,
     twitch_user_id: String,
 
     redirect_url: String,
@@ -48,10 +49,12 @@ async fn main() -> Result<(), axum::BoxError> {
         twitch_client_id,
         twitch_user_id,
 
-        twitch_client_secret: std::fs::read_to_string(twitch_client_secret_path)
-            .expect("failed to read twitch secret from TWITCH_CLIENT_SECRET_PATH")
-            .trim()
-            .to_string(),
+        twitch_client_secret: Secret::new(
+            std::fs::read_to_string(twitch_client_secret_path)
+                .expect("failed to read twitch secret from TWITCH_CLIENT_SECRET_PATH")
+                .trim()
+                .to_string(),
+        ),
     };
 
     common_api_lib::run(state, |app| {
@@ -67,7 +70,7 @@ async fn main() -> Result<(), axum::BoxError> {
  * This is a simple extractor that gets the access token from Redis
  * and injects it into the request's extensions.
  */
-struct AccessToken(String);
+struct AccessToken(Secret<String>);
 
 #[async_trait]
 impl FromRequestParts<AppState> for AccessToken {
@@ -89,10 +92,11 @@ impl FromRequestParts<AppState> for AccessToken {
             }
         };
 
-        let access_token = redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
+        let access_token: Result<String, redis::RedisError> =
+            redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
 
         match access_token {
-            Ok(access_token) => Ok(AccessToken(access_token)),
+            Ok(access_token) => Ok(AccessToken(Secret::new(access_token))),
             Err(_) => {
                 let tokens = match update_refresh_token(state).await {
                     Some(tokens) => tokens,
@@ -151,11 +155,12 @@ async fn post_login_handler(
         .await
         .expect("failed to get redis connection");
 
-    let _: () = redis::AsyncCommands::set(&mut con, REFRESH_TOKEN_KEY, refresh_token)
-        .await
-        .expect("failed to set refresh token");
+    let _: () =
+        redis::AsyncCommands::set(&mut con, REFRESH_TOKEN_KEY, refresh_token.expose_secret())
+            .await
+            .expect("failed to set refresh token");
 
-    let _: () = redis::AsyncCommands::set(&mut con, ACCESS_TOKEN_KEY, access_token)
+    let _: () = redis::AsyncCommands::set(&mut con, ACCESS_TOKEN_KEY, access_token.expose_secret())
         .await
         .expect("failed to set access token");
 
@@ -185,7 +190,10 @@ async fn list_videos_handler(
     let request = state
         .http_client
         .get(&url)
-        .header("Authorization", format!("Bearer {}", access_token))
+        .header(
+            "Authorization",
+            format!("Bearer {}", access_token.expose_secret()),
+        )
         .header("Client-Id", state.twitch_client_id.clone())
         .send()
         .await;
@@ -210,7 +218,10 @@ async fn list_videos_handler(
                 let request = state
                     .http_client
                     .get(&url)
-                    .header("Authorization", format!("Bearer {}", tokens.access_token))
+                    .header(
+                        "Authorization",
+                        format!("Bearer {}", tokens.access_token.expose_secret()),
+                    )
                     .header("Client-Id", state.twitch_client_id.clone())
                     .send()
                     .await;
@@ -256,8 +267,8 @@ async fn list_videos_handler(
 }
 
 struct AuthTokens {
-    access_token: String,
-    refresh_token: String,
+    access_token: Secret<String>,
+    refresh_token: Secret<String>,
 }
 
 #[instrument]
@@ -267,7 +278,7 @@ async fn get_token(state: &AppState, code: &str) -> AuthTokens {
     // urlencoded form data
     let body = json!({
       "client_id": state.twitch_client_id,
-      "client_secret": state.twitch_client_secret,
+      "client_secret": state.twitch_client_secret.expose_secret(),
       "code": code,
       "grant_type": "authorization_code",
       "redirect_uri": state.redirect_url,
@@ -285,26 +296,30 @@ async fn get_token(state: &AppState, code: &str) -> AuthTokens {
         .expect("failed to parse response");
 
     AuthTokens {
-        access_token: response["access_token"]
-            .as_str()
-            .expect("access_token not found")
-            .to_string(),
-        refresh_token: response["refresh_token"]
-            .as_str()
-            .expect("refresh_token not found")
-            .to_string(),
+        access_token: Secret::new(
+            response["access_token"]
+                .as_str()
+                .expect("access_token not found")
+                .to_string(),
+        ),
+        refresh_token: Secret::new(
+            response["refresh_token"]
+                .as_str()
+                .expect("refresh_token not found")
+                .to_string(),
+        ),
     }
 }
 
 #[instrument]
-async fn do_refresh_token(state: &AppState, refresh_token: &str) -> AuthTokens {
+async fn do_refresh_token(state: &AppState, refresh_token: Secret<String>) -> AuthTokens {
     let url = "https://id.twitch.tv/oauth2/token";
 
     // urlencoded form data
     let body = json!({
       "client_id": state.twitch_client_id,
-      "client_secret": state.twitch_client_secret,
-      "refresh_token": refresh_token,
+      "client_secret": state.twitch_client_secret.expose_secret(),
+      "refresh_token": refresh_token.expose_secret(),
       "grant_type": "refresh_token",
     });
 
@@ -320,14 +335,18 @@ async fn do_refresh_token(state: &AppState, refresh_token: &str) -> AuthTokens {
         .expect("failed to parse response");
 
     AuthTokens {
-        access_token: response["access_token"]
-            .as_str()
-            .expect("access_token not found")
-            .to_string(),
-        refresh_token: response["refresh_token"]
-            .as_str()
-            .expect("refresh_token not found")
-            .to_string(),
+        access_token: Secret::new(
+            response["access_token"]
+                .as_str()
+                .expect("access_token not found")
+                .to_string(),
+        ),
+        refresh_token: Secret::new(
+            response["refresh_token"]
+                .as_str()
+                .expect("refresh_token not found")
+                .to_string(),
+        ),
     }
 }
 
@@ -339,12 +358,13 @@ async fn update_refresh_token(state: &AppState) -> Option<AuthTokens> {
         .await
         .expect("failed to get redis connection");
 
-    let refresh_token: String = match redis::AsyncCommands::get(&mut con, REFRESH_TOKEN_KEY).await {
-        Ok(token) => token,
-        Err(_) => return None,
-    };
+    let refresh_token: Secret<String> =
+        match redis::AsyncCommands::get(&mut con, REFRESH_TOKEN_KEY).await {
+            Ok(token) => Secret::new(token),
+            Err(_) => return None,
+        };
 
-    let tokens = do_refresh_token(state, &refresh_token).await;
+    let tokens = do_refresh_token(state, refresh_token).await;
 
     let mut con = state
         .redis
@@ -352,14 +372,21 @@ async fn update_refresh_token(state: &AppState) -> Option<AuthTokens> {
         .await
         .expect("failed to get redis connection");
 
-    let _: () =
-        redis::AsyncCommands::set(&mut con, REFRESH_TOKEN_KEY, tokens.refresh_token.clone())
-            .await
-            .expect("failed to set refresh token");
+    let _: () = redis::AsyncCommands::set(
+        &mut con,
+        REFRESH_TOKEN_KEY,
+        tokens.refresh_token.expose_secret(),
+    )
+    .await
+    .expect("failed to set refresh token");
 
-    let _: () = redis::AsyncCommands::set(&mut con, ACCESS_TOKEN_KEY, tokens.access_token.clone())
-        .await
-        .expect("failed to set access token");
+    let _: () = redis::AsyncCommands::set(
+        &mut con,
+        ACCESS_TOKEN_KEY,
+        tokens.access_token.expose_secret(),
+    )
+    .await
+    .expect("failed to set access token");
 
     Some(AuthTokens {
         access_token: tokens.access_token,

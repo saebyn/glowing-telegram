@@ -21,6 +21,9 @@ pub struct UpdateEpisodeChangeset {
     pub title: Option<String>,
     pub description: Option<String>,
     pub stream_id: Option<Uuid>,
+    pub render_uri: Option<String>,
+    pub tracks: Option<serde_json::Value>,
+    pub thumbnail_url: Option<String>,
 }
 
 #[instrument]
@@ -33,12 +36,27 @@ pub async fn handler(
 
     tracing::info!("update_episode");
 
+    let tracks_json = match body.tracks {
+        Some(actual_tracks) => match serde_json::to_value(actual_tracks) {
+            Ok(value) => Some(value),
+            Err(e) => {
+                tracing::error!("Error serializing tracks: {}", e);
+                return (axum::http::StatusCode::BAD_REQUEST).into_response();
+            }
+        },
+
+        None => None,
+    };
+
     let result: Result<Episode, diesel::result::Error> =
         diesel::update(episodes.filter(id.eq(record_id)))
             .set(&UpdateEpisodeChangeset {
                 title: body.title,
                 description: body.description,
                 stream_id: body.stream_id,
+                render_uri: body.render_uri,
+                tracks: tracks_json,
+                thumbnail_url: body.thumbnail_url,
             })
             .get_result(&mut db.connection)
             .await;
