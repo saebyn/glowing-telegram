@@ -15,6 +15,7 @@ use redis;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio::io::AsyncSeekExt;
 use tracing::instrument;
 use url::Url;
 
@@ -252,19 +253,6 @@ async fn upload_video_handler(
             .into_response();
     }
 
-    // get an async file handle
-    let file = match tokio::fs::File::open(path).await {
-        Ok(file) => file,
-        Err(e) => {
-            tracing::error!("failed to open file: {:?}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(json!({ "error": "failed to open file" })),
-            )
-                .into_response();
-        }
-    };
-
     let upload_url = match response
         .headers()
         .get("Location")
@@ -280,50 +268,32 @@ async fn upload_video_handler(
         }
     };
 
-    // upload the contents of the video using the upload URL and
-    // chunked upload
-    let response = match state
-        .http_client
-        .put(upload_url)
-        .header("Content-Type", content_type)
-        .header(
-            "Authorization",
-            format!("Bearer {}", access_token.expose_secret()),
-        )
-        .body(file)
-        .send()
-        .await
+    match upload(
+        &state.http_client,
+        &path,
+        content_length,
+        upload_url,
+        content_type,
+        &access_token,
+    )
+    .await
     {
-        Ok(response) => response,
+        Ok(_) => (
+            StatusCode::OK,
+            axum::Json(json!(UploadVideoTaskOutput {
+                cursor: None,
+                summary: vec!["video uploaded".to_string()],
+            })),
+        )
+            .into_response(),
         Err(e) => {
-            tracing::error!("failed to send request to Youtube API: {:?}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(json!({ "error": "failed to send request to Youtube API" })),
+                axum::Json(json!({ "error": e })),
             )
                 .into_response();
         }
-    };
-
-    if !response.status().is_success() {
-        tracing::error!("response: {:?}", response);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(json!({ "error": "failed to upload video" })),
-        )
-            .into_response();
     }
-
-    // TODO recover from a failed upload
-
-    (
-        StatusCode::OK,
-        axum::Json(json!(UploadVideoTaskOutput {
-            cursor: None,
-            summary: vec!["video uploaded".to_string()],
-        })),
-    )
-        .into_response()
 }
 
 #[derive(Debug)]
@@ -569,4 +539,227 @@ async fn get_refresh_token(state: &AppState, refresh_token: &str) -> Result<Auth
                 .to_string(),
         ),
     })
+}
+
+enum UploadInnerStatus {
+    Success,
+    TemporaryFailure,
+    PermanentFailure,
+}
+
+#[instrument]
+async fn upload_inner(
+    http_client: &reqwest::Client,
+    path: &str,
+    start_byte: u64,
+    file_size: u64,
+    upload_url: &str,
+    content_type: &str,
+    access_token: &Secret<String>,
+) -> UploadInnerStatus {
+    // get an async file handle
+    let mut file = match tokio::fs::File::open(path).await {
+        Ok(file) => file,
+        Err(e) => {
+            tracing::error!("failed to open file: {:?}", e);
+            return UploadInnerStatus::PermanentFailure;
+        }
+    };
+
+    let mut request = http_client
+        .put(upload_url)
+        .header("Content-Type", content_type)
+        .header(
+            "Authorization",
+            format!("Bearer {}", access_token.expose_secret()),
+        );
+
+    if start_byte > 0 {
+        request = request.header(
+            "Content-Range",
+            format!("bytes {}-{}/{}", start_byte, file_size - 1, file_size),
+        );
+
+        file.seek(std::io::SeekFrom::Start(start_byte))
+            .await
+            .expect("failed to seek to start of file");
+    }
+
+    // upload the contents of the video using the upload URL and
+    // chunked upload
+    let response = match request.body(file).send().await {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("failed to send request to Youtube API: {:?}", e);
+            return UploadInnerStatus::PermanentFailure;
+        }
+    };
+
+    if response.status().is_success() {
+        UploadInnerStatus::Success
+    } else if vec![500, 502, 503, 504].contains(&response.status().as_u16()) {
+        UploadInnerStatus::TemporaryFailure
+    } else {
+        UploadInnerStatus::PermanentFailure
+    }
+}
+
+enum UploadStatus {
+    Success,
+    TemporaryFailure { start_byte: u64, wait_time_ms: u64 },
+    PermanentFailure,
+}
+
+const MAX_ATTEMPTS: u8 = 10;
+const BASE_WAIT_TIME: u64 = 1000;
+
+#[instrument]
+async fn upload_status(
+    http_client: &reqwest::Client,
+    file_size: u64,
+    upload_url: &str,
+    access_token: &Secret<String>,
+    attempts: u8,
+) -> UploadStatus {
+    if attempts >= MAX_ATTEMPTS {
+        return UploadStatus::PermanentFailure;
+    }
+
+    // get the upload status from the Youtube API
+    let response = match http_client
+        .put(upload_url)
+        .header(
+            "Authorization",
+            format!("Bearer {}", access_token.expose_secret()),
+        )
+        .header("Content-Range", format!("bytes */{}", file_size))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("failed to send request to Youtube API: {:?}", e);
+
+            return UploadStatus::PermanentFailure;
+        }
+    };
+
+    if response.status().is_success() {
+        UploadStatus::Success
+    } else if response.status().as_u16() == 308 {
+        let range = match response
+            .headers()
+            .get("Range")
+            .and_then(|v| v.to_str().ok())
+        {
+            Some(range) => range,
+            None => {
+                tracing::error!("Range header not found in response");
+                return UploadStatus::PermanentFailure;
+            }
+        };
+
+        // parse the range header which looks like "bytes=0-12345"
+        let range_parts = range.split(&['=', '-'][..]).collect::<Vec<&str>>();
+
+        let start_byte = match range_parts.get(1) {
+            Some(start_byte) => start_byte,
+            None => {
+                tracing::error!("start byte not found in range header");
+                return UploadStatus::PermanentFailure;
+            }
+        };
+
+        let start_byte = match start_byte.parse::<u64>() {
+            Ok(start_byte) => start_byte,
+            Err(e) => {
+                tracing::error!("failed to parse start byte: {:?}", e);
+                return UploadStatus::PermanentFailure;
+            }
+        };
+
+        let wait_time_ms = match response
+            .headers()
+            .get("Retry-After")
+            .and_then(|v| v.to_str().ok())
+        {
+            Some(wait_time) => {
+                match wait_time.parse::<u64>() {
+                    Ok(wait_time) => wait_time * 1000,
+                    Err(_) => {
+                        // Retry-After is a date
+                        match chrono::DateTime::parse_from_rfc2822(wait_time) {
+                            Ok(wait_time) => wait_time.timestamp_millis() as u64,
+                            Err(e) => {
+                                tracing::error!("failed to parse Retry-After header: {:?}", e);
+                                BASE_WAIT_TIME * 2u64.pow(attempts as u32)
+                            }
+                        }
+                    }
+                }
+            }
+            None => BASE_WAIT_TIME * 2u64.pow(attempts as u32),
+        };
+
+        UploadStatus::TemporaryFailure {
+            start_byte,
+            wait_time_ms,
+        }
+    } else {
+        UploadStatus::PermanentFailure
+    }
+}
+
+#[instrument]
+async fn upload(
+    http_client: &reqwest::Client,
+    path: &str,
+    file_size: u64,
+    upload_url: &str,
+    content_type: &str,
+    access_token: &Secret<String>,
+) -> Result<(), String> {
+    let mut attempt = 0;
+    let mut start_byte = 0;
+
+    loop {
+        match upload_inner(
+            http_client,
+            path,
+            start_byte,
+            file_size,
+            upload_url,
+            content_type,
+            access_token,
+        )
+        .await
+        {
+            UploadInnerStatus::Success => break,
+            UploadInnerStatus::TemporaryFailure => {
+                match upload_status(http_client, file_size, upload_url, access_token, attempt).await
+                {
+                    UploadStatus::Success => break,
+                    UploadStatus::TemporaryFailure {
+                        start_byte: new_start_byte,
+                        wait_time_ms,
+                    } => {
+                        start_byte = new_start_byte;
+                        attempt += 1;
+
+                        tokio::time::sleep(std::time::Duration::from_millis(wait_time_ms)).await;
+                    }
+                    UploadStatus::PermanentFailure => {
+                        tracing::error!("failed to get upload status");
+                        return Err("failed to get upload status".to_string());
+                    }
+                }
+            }
+            UploadInnerStatus::PermanentFailure => {
+                tracing::error!("failed to upload video");
+                return Err("failed to upload video".to_string());
+            }
+        }
+    }
+
+    Ok(())
 }
