@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-
 use redis::Commands;
+
+use task_worker::{pop_task, remove_task_from_temp_queue, update_task_status, TaskStatus};
 
 #[tokio::main]
 async fn main() {
@@ -15,59 +15,24 @@ async fn main() {
 
     let queue_name = dotenvy::var("QUEUE_NAME").expect("QUEUE_NAME must be set");
 
-    let temp_queue_name = format!("{}:temp", queue_name);
-
     loop {
-        let task_key: String = con
-            .blmove(
-                &queue_name,
-                &temp_queue_name,
-                redis::Direction::Right,
-                redis::Direction::Left,
-                0.0,
-            )
-            .expect("Failed to get task from queue");
-
-        println!("Got task key: {}", task_key);
-
-        // get the task data
-        let task_data: HashMap<String, String> = con
-            .hgetall(&task_key)
-            .expect("Failed to get task data from redis");
-
-        println!("Got task data: {:?}", task_data);
+        let mut task = pop_task(&mut con, &queue_name);
 
         // update the status to processing
-        let _: () = con
-            .hset(&task_key, "status", "processing")
-            .expect("Failed to update task status");
-
-        // get the payload from the task data
-        let payload_str = task_data
-            .get("payload")
-            .expect("Failed to get payload from task data");
-        // parse the payload as json
-        let mut payload_json: serde_json::Value =
-            serde_json::from_str(payload_str).expect("Failed to parse payload as json");
-
-        let data_key = task_data
-            .get("data_key")
-            .expect("Failed to get data_key from task data");
+        update_task_status(&mut con, &task, TaskStatus::Processing);
 
         // loop while the cursor is not Null
         loop {
             let response = client
-                .post(&task_data["url"])
-                .json(&payload_json)
+                .post(&task.url)
+                .json(&task.payload)
                 .send()
                 .await
                 .expect("Failed to get response from url");
 
             // if the response is not 200, then update the status to failed and break
             if !response.status().is_success() {
-                let _: () = con
-                    .hset(&task_key, "status", "failed")
-                    .expect("Failed to update task status");
+                update_task_status(&mut con, &task, TaskStatus::Failed);
 
                 break;
             }
@@ -84,12 +49,11 @@ async fn main() {
             // Iterate using the returned cursor
 
             // Store the data from the data_key into the task data as a json string of an array
-            let data = &response[data_key];
+            let data = &response[task.data_key.as_str()];
 
             let data_str = serde_json::to_string(&data).expect("Failed to serialize data as json");
 
-            let task_data_key = format!("task:data:{}", task_data["id"].as_str());
-
+            let task_data_key = format!("task:data:{}", task.id);
             let _: () = con
                 .rpush(&task_data_key, data_str)
                 .expect("Failed to save task data");
@@ -98,18 +62,15 @@ async fn main() {
                 break;
             }
 
-            payload_json["cursor"] = cursor.clone();
+            task.payload["cursor"] = cursor.clone();
         }
 
-        println!("Finished task: {}", task_key);
+        println!("Finished task: {}", task.key);
 
         // update the status to complete
-        let _: () = con
-            .hset(&task_key, "status", "complete")
-            .expect("Failed to update task status");
+        update_task_status(&mut con, &task, TaskStatus::Complete);
 
-        let _: () = con
-            .lrem(&temp_queue_name, 1, task_key)
-            .expect("Failed to remove task from temp queue");
+        // remove the task from redis
+        remove_task_from_temp_queue(&mut con, &task);
     }
 }

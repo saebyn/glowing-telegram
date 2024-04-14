@@ -15,4 +15,5 @@ iso8601 = { version = "0.6.1", features = ["serde"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 tracing = { version = "0.1.40" }
 regex = "1.10.2"
-redis = { version = "0.25.2", features = ["aio", "json", "tokio-comp"] }
+redis = { version = "0.25.3", features = ["aio", "json", "tokio-comp"] }
+task_worker = { path = "../task_worker" }

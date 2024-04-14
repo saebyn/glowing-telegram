@@ -11,7 +11,9 @@ import DoneIcon from "@mui/icons-material/Done";
 import ErrorIcon from "@mui/icons-material/Error";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import Button from "@mui/material/Button";
-import { LoadingIndicator, useGetList, useStore } from "react-admin";
+import { LoadingIndicator } from "react-admin";
+import useTasks from "./useTasks";
+import { useRef } from "react";
 
 const containerStyles = {
   minWidth: 250,
@@ -25,71 +27,91 @@ const statusIcons = {
   queued: <HourglassEmptyIcon />,
 } as const;
 
-const TasksDrawerList = () => {
-  const [hideViewed, setHideViewed] = useStore("hideViewedTasks", false);
-  const [viewedTasks, setViewedTasks] = useStore("viewedTasks", [] as string[]);
+const Task = ({
+  task,
 
-  const { data: tasks, refetch, isLoading } = useGetList("tasks");
+  lastViewedTaskTimestamp,
+  markViewed,
+}: any) => {
+  const timestamp = task.last_updated
+    ? new Date(task.last_updated).toLocaleString()
+    : "unknown";
 
-  const handleMarkAllViewed = () => {
-    if (tasks) {
-      setViewedTasks(tasks.map((task: any) => task.id));
-    }
-  };
-
-  const handleMarkViewed = (taskId: string) => {
-    setViewedTasks((ids) => [...ids, taskId]);
-  };
-
-  const allViewed = (tasks || []).every((task: any) =>
-    viewedTasks.includes(task.id)
+  return (
+    <ListItemButton
+      key={task.id}
+      selected={task.last_updated > lastViewedTaskTimestamp}
+      onClick={() => markViewed(task.id)}
+    >
+      <ListItemIcon>
+        {statusIcons[task.status as keyof typeof statusIcons] ||
+          statusIcons.queued}
+      </ListItemIcon>
+      <ListItemText
+        primary={task.title || task.id}
+        secondary={`${task.status} (${task.id}) @ ${timestamp}`}
+      />
+    </ListItemButton>
   );
+};
 
-  const handleRefresh = () => {
-    refetch();
-  };
+const TasksDrawerList = () => {
+  const {
+    lastViewedTaskTimestamp,
+    tasks,
+    isLoading,
+    markAllViewed,
+    markViewed,
+    allViewed,
+    refetch,
+    toggleHidden,
+    hiddenTasks,
+  } = useTasks();
 
-  const handleToggleHideViewed = () => {
-    setHideViewed(!hideViewed);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const backToTop = () => {
+    // Scroll to the top of the list
+    if (containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   if (!open) {
     return null;
   }
 
-  const filteredTasks = (tasks || []).filter((task: any) =>
-    hideViewed ? !viewedTasks.includes(task.id) : true
-  );
-
   return (
-    <Box sx={containerStyles}>
+    <Box sx={containerStyles} ref={containerRef}>
       <Typography variant="h6" component="div">
         Tasks
       </Typography>
 
       {isLoading && <LoadingIndicator />}
 
+      <Typography variant="subtitle1">
+        {tasks ? `${tasks.length} tasks` : "Loading tasks..."}
+      </Typography>
+      <Button onClick={markAllViewed} disabled={allViewed}>
+        Mark all as viewed
+      </Button>
+      <Button onClick={() => refetch()}>Refresh</Button>
+      <Switch checked={hiddenTasks} onChange={toggleHidden} />
+      <Typography variant="caption">Hide viewed</Typography>
+
       <List>
-        {filteredTasks.length === 0 && (
+        {tasks.length === 0 && (
           <ListItem>
             <ListItemText primary="No tasks" />
           </ListItem>
         )}
-        {filteredTasks.map((task) => (
-          <ListItemButton
+        {tasks.map((task) => (
+          <Task
+            task={task}
             key={task.id}
-            selected={!viewedTasks.includes(task.id)}
-            onClick={() => handleMarkViewed(task.id)}
-          >
-            <ListItemIcon>
-              {statusIcons[task.status as keyof typeof statusIcons] ||
-                statusIcons.queued}
-            </ListItemIcon>
-            <ListItemText
-              primary={task.title || task.id}
-              secondary={`${task.status} (${task.id})`}
-            />
-          </ListItemButton>
+            lastViewedTaskTimestamp={lastViewedTaskTimestamp}
+            markViewed={markViewed}
+          />
         ))}
       </List>
 
@@ -97,12 +119,7 @@ const TasksDrawerList = () => {
         {tasks ? `${tasks.length} tasks` : "Loading tasks..."}
       </Typography>
 
-      <Button onClick={handleMarkAllViewed} disabled={allViewed}>
-        Mark all as viewed
-      </Button>
-      <Button onClick={handleRefresh}>Refresh</Button>
-      <Switch checked={hideViewed} onChange={handleToggleHideViewed} />
-      <Typography variant="caption">Hide viewed</Typography>
+      <Button onClick={backToTop}>Back to top</Button>
     </Box>
   );
 };

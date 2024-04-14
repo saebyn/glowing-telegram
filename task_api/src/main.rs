@@ -6,10 +6,12 @@ use axum::Json;
 use axum::{http::StatusCode, response::IntoResponse, routing::get};
 use common_api_lib;
 use dotenvy;
-use redis::{Commands, ConnectionLike};
+use redis::Commands;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::instrument;
+
+use task_worker::{create_task, generate_task_data_key, generate_task_key, Task, TaskStatus};
 
 #[derive(Clone, Debug)]
 struct AppState {
@@ -63,16 +65,8 @@ async fn get_list_handler(State(state): State<AppState>) -> impl IntoResponse {
                 HashMap::new()
             }
         })
-        .map(|record| {
-            serde_json::json!({
-                "id": record.get("id").unwrap_or(&"".to_string()),
-                "title": record.get("title").unwrap_or(&"".to_string()),
-                "status": record.get("status").unwrap_or(&"".to_string()),
-                "url": record.get("url").unwrap_or(&"".to_string()),
-                "payload": record.get("payload").unwrap_or(&"".to_string()),
-                "data_key": record.get("data_key").unwrap_or(&"".to_string()),
-            })
-        })
+        .map(|record| record.into())
+        .map(|record: Task| json!(record))
         .collect();
 
     let pagination_info = format!(
@@ -136,27 +130,18 @@ async fn create_handler(
         }
     };
 
-    let key = generate_task_key(id);
-
     // create task record as a hash in redis with a unique id
-    match con.req_command(
-        redis::cmd("HMSET")
-            .arg(&key)
-            .arg("id")
-            .arg(id)
-            .arg("title")
-            .arg(&body.title)
-            .arg("status")
-            .arg("queued")
-            .arg("url")
-            .arg(&body.url)
-            .arg("payload")
-            .arg(body.payload.to_string())
-            .arg("data_key")
-            .arg(&body.data_key),
+    let task = match create_task(
+        &mut con,
+        id,
+        &body.title,
+        &body.url,
+        body.payload.clone(),
+        &body.data_key,
     ) {
-        Ok(_) => {
-            tracing::info!("Created task record: {}", key);
+        Ok(task) => {
+            tracing::info!("Created task record: {}", task.key);
+            task
         }
         Err(e) => {
             tracing::error!("Failed to create task record: {}", e);
@@ -165,7 +150,7 @@ async fn create_handler(
     };
 
     // add the task key to the queue
-    match con.lpush::<&std::string::String, &std::string::String, ()>(&queue_name, &key) {
+    match con.lpush::<&std::string::String, &std::string::String, ()>(&queue_name, &task.key) {
         Ok(_) => {
             tracing::info!("Added task to queue: {}", queue_name);
         }
@@ -188,17 +173,10 @@ async fn create_handler(
 }
 
 #[derive(Serialize, Debug)]
-enum TaskStatus {
-    Queued,
-    Processing,
-    Complete,
-    Failed,
-}
-
-#[derive(Serialize, Debug)]
-struct Task {
+struct TaskOutput {
     id: String,
     status: TaskStatus,
+    last_updated: String,
     data: Vec<serde_json::Value>,
 }
 
@@ -226,13 +204,13 @@ async fn get_one_handler(
         }
     };
 
-    let status = match status.as_str() {
-        "queued" => TaskStatus::Queued,
-        "processing" => TaskStatus::Processing,
-        "complete" => TaskStatus::Complete,
-        "failed" => TaskStatus::Failed,
-        _ => {
-            tracing::error!("Invalid task status: {}", status);
+    let status: TaskStatus = status.into();
+
+    // get the last_updated field from redis
+    let last_updated: String = match con.hget(&key, "last_updated") {
+        Ok(last_updated) => last_updated,
+        Err(e) => {
+            tracing::error!("Failed to get last_updated field: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
         }
     };
@@ -256,10 +234,11 @@ async fn get_one_handler(
         .collect();
 
     // return the record
-    let record = Task {
+    let record = TaskOutput {
         id: record_id.to_string(),
 
         status,
+        last_updated,
 
         data,
     };
@@ -281,12 +260,4 @@ async fn delete_handler() -> impl IntoResponse {
     // TODO delete the record from redis
     // TODO return the right status code
     (StatusCode::OK, axum::Json(json!({}))).into_response()
-}
-
-fn generate_task_key(id: u64) -> String {
-    format!("task:item:{}", id)
-}
-
-fn generate_task_data_key(id: u64) -> String {
-    format!("task:data:{}", id)
 }
