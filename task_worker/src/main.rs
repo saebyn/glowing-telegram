@@ -53,8 +53,7 @@ async fn main() {
 
             let data_str = serde_json::to_string(&data).expect("Failed to serialize data as json");
 
-            let task_data_key = format!("task:data:{}", task_data["id"].as_str());
-
+            let task_data_key = format!("task:data:{}", task.id);
             let _: () = con
                 .rpush(&task_data_key, data_str)
                 .expect("Failed to save task data");
