@@ -8,6 +8,7 @@ import {
   TopToolbar,
 } from "react-admin";
 import TriggerRenderFileScanButton from "./TriggerRenderFileScanButton";
+import UploadEpisodeToYoutubeButton from "./UploadEpisodeToYoutubeButton";
 
 const ListActions = () => (
   <TopToolbar>
@@ -16,9 +17,15 @@ const ListActions = () => (
   </TopToolbar>
 );
 
+const BulkActionButtons = () => (
+  <>
+    <UploadEpisodeToYoutubeButton />
+  </>
+);
+
 const EpisodeList = (props: ListProps) => (
   <List {...props} actions={<ListActions />}>
-    <Datagrid rowClick="edit">
+    <Datagrid rowClick="edit" bulkActionButtons={<BulkActionButtons />}>
       <TextField source="title" />
       <TextField source="description" />
       <DateField source="created_at" />
