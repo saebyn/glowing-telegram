@@ -27,6 +27,34 @@ const statusIcons = {
   queued: <HourglassEmptyIcon />,
 } as const;
 
+const Task = ({
+  task,
+
+  lastViewedTaskTimestamp,
+  markViewed,
+}: any) => {
+  const timestamp = task.last_updated
+    ? new Date(task.last_updated).toLocaleString()
+    : "unknown";
+
+  return (
+    <ListItemButton
+      key={task.id}
+      selected={task.last_updated > lastViewedTaskTimestamp}
+      onClick={() => markViewed(task.id)}
+    >
+      <ListItemIcon>
+        {statusIcons[task.status as keyof typeof statusIcons] ||
+          statusIcons.queued}
+      </ListItemIcon>
+      <ListItemText
+        primary={task.title || task.id}
+        secondary={`${task.status} (${task.id}) @ ${timestamp}`}
+      />
+    </ListItemButton>
+  );
+};
+
 const TasksDrawerList = () => {
   const {
     lastViewedTaskTimestamp,
@@ -78,20 +106,12 @@ const TasksDrawerList = () => {
           </ListItem>
         )}
         {tasks.map((task) => (
-          <ListItemButton
+          <Task
+            task={task}
             key={task.id}
-            selected={task.last_updated > lastViewedTaskTimestamp}
-            onClick={() => markViewed(task.id)}
-          >
-            <ListItemIcon>
-              {statusIcons[task.status as keyof typeof statusIcons] ||
-                statusIcons.queued}
-            </ListItemIcon>
-            <ListItemText
-              primary={task.title || task.id}
-              secondary={`${task.status} (${task.id})`}
-            />
-          </ListItemButton>
+            lastViewedTaskTimestamp={lastViewedTaskTimestamp}
+            markViewed={markViewed}
+          />
         ))}
       </List>
 
