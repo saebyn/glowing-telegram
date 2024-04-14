@@ -7,8 +7,11 @@ use crate::models::Episode;
 pub struct EpisodeSimpleView {
     pub id: String,
     pub title: String,
+    pub description: String,
     pub created_at: String,
     pub updated_at: Option<String>,
+
+    pub render_uri: Option<String>,
 }
 
 impl From<Episode> for EpisodeSimpleView {
@@ -16,8 +19,11 @@ impl From<Episode> for EpisodeSimpleView {
         EpisodeSimpleView {
             id: episode.id.to_string(),
             title: episode.title,
+            description: episode.description,
             created_at: episode.created_at.to_string(),
             updated_at: episode.updated_at.map(|dt| dt.to_string()),
+
+            render_uri: episode.render_uri,
         }
     }
 }
