@@ -1,5 +1,6 @@
 import { AppBar, AppBarClasses, TitlePortal } from "react-admin";
 import { TwitchLoginButton } from "../twitch/LoginButton";
+import { YoutubeLoginButton } from "../youtube/LoginButton";
 import TasksDrawer from "../TasksDrawer";
 
 const MyAppBar = () => (
@@ -7,6 +8,7 @@ const MyAppBar = () => (
     <TitlePortal className={AppBarClasses.title} />
 
     <TwitchLoginButton />
+    <YoutubeLoginButton />
 
     <TasksDrawer />
   </AppBar>

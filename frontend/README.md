@@ -1,4 +1,4 @@
-# test-admin
+# Glowing Telegram Frontend
 
 ## Installation
 
@@ -32,4 +32,3 @@ You'll find a `data.json` file in the `src` directory that includes some fake da
 It includes two resources, posts and comments.
 Posts have the following properties: `id`, `title` and `content`.
 Comments have the following properties: `id`, `post_id` and `content`.
-

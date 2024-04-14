@@ -74,6 +74,7 @@ pub struct Episode {
     pub tracks: serde_json::Value,
     pub series_id: Option<Uuid>,
     pub order_index: i32,
+    pub render_uri: Option<String>,
 }
 
 #[derive(Queryable, Selectable, Debug)]

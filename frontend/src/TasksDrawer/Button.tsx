@@ -12,12 +12,12 @@ interface Props {
 }
 
 const TasksDrawerButton = ({ onClick }: Props) => {
-  const [seenTasks] = useStore("seenTasks", [] as string[]);
+  const [viewedTasks] = useStore("viewedTasks", [] as string[]);
 
   const { data: tasks } = useGetList("tasks");
 
   const count = tasks
-    ? tasks.filter((task: any) => !seenTasks.includes(task.id)).length
+    ? tasks.filter((task: any) => !viewedTasks.includes(task.id)).length
     : 0;
 
   return (

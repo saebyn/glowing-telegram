@@ -36,3 +36,12 @@ export interface Stream {
 
   video_clips: VideoClip[];
 }
+
+export interface YoutubeUploadTaskPayload {
+  title: string;
+  description: string;
+  tags: string[];
+  category: number;
+  render_uri: string;
+  notify_subscribers: boolean;
+}

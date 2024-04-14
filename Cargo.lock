@@ -315,6 +315,7 @@ dependencies = [
  "diesel-async",
  "dotenvy",
  "iso8601",
+ "reqwest 0.12.2",
  "serde",
  "serde_json",
  "tokio",
@@ -1457,6 +1458,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redact"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7301863b5e5486c9f18320ccc1aedce9a5fdf3056ae89fa021933d6f054430f"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "redis"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1648,6 +1658,7 @@ dependencies = [
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams",
  "web-sys",
  "webpki-roots 0.26.1",
  "winreg",
@@ -1927,7 +1938,7 @@ dependencies = [
  "dotenvy",
  "iso8601",
  "regex",
- "reqwest 0.11.25",
+ "reqwest 0.12.2",
  "serde",
  "serde_json",
  "tokio",
@@ -2457,6 +2468,7 @@ dependencies = [
  "common_api_lib",
  "dotenvy",
  "iso8601",
+ "redact",
  "redis 0.25.2",
  "regex",
  "reqwest 0.12.2",
@@ -2860,6 +2872,26 @@ checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
 dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "youtube_upload_api"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "common_api_lib",
+ "dotenvy",
+ "iso8601",
+ "redact",
+ "redis 0.25.2",
+ "regex",
+ "reqwest 0.12.2",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]

@@ -1,5 +1,6 @@
 import simpleRestDataProvider from "ra-data-simple-rest";
 import { GetListParams, combineDataProviders } from "react-admin";
+import { YoutubeUploadTaskPayload } from "./types";
 
 const baseUrl = `${import.meta.env.VITE_API_URL || "http://localhost:3000"}`;
 
@@ -74,6 +75,12 @@ export const dataProvider = {
     url.searchParams.append("prefix", prefix);
 
     return fetch(url).then((res) => res.json());
+  },
+
+  async getRenderedEpisodeFiles() {
+    return fetch(
+      `${baseUrl}/stream_ingestion/find_rendered_episode_files`
+    ).then((res) => res.json());
   },
 
   async queueStreamTranscription({
@@ -168,6 +175,30 @@ export const dataProvider = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ records: streams }),
+    });
+  },
+
+  // youtube functions
+  async youtubeLogin() {
+    const result = await fetch(`${baseUrl}/youtube/login`);
+    const url = (await result.json()).url;
+
+    return url;
+  },
+
+  async youtubeCallback(code: string) {
+    await fetch(`${baseUrl}/youtube/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  async uploadEpisodeToYoutube(video: YoutubeUploadTaskPayload) {
+    return fetch(`${baseUrl}/youtube/video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(video),
     });
   },
 };
