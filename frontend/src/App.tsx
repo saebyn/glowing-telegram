@@ -16,10 +16,33 @@ import topicsViews from "./resources/topics";
 
 import Layout from "./Layout";
 
+import { createTheme } from "@mui/material/styles";
+import GlobalStyles from "@mui/material/GlobalStyles";
+
+const paletteMode = "dark";
+
+const theme = createTheme({
+  palette: { mode: paletteMode },
+
+  components: {
+    MuiInputBase: {
+      defaultProps: {
+        disableInjectingGlobalStyles: true,
+      },
+    },
+  },
+});
+
 export const App = () => (
   <BrowserRouter>
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enUS}>
-      <Admin dataProvider={dataProvider} layout={Layout}>
+      <Admin dataProvider={dataProvider} layout={Layout} theme={theme}>
+        <GlobalStyles
+          styles={{
+            "@keyframes mui-auto-fill": { from: { display: "block" } },
+            "@keyframes mui-auto-fill-cancel": { from: { display: "block" } },
+          }}
+        />
         <Resource name="video_clips" {...videoClipsViews} />
         <Resource name="streams" {...streamViews} />
         <Resource name="episodes" {...episodeViews} />
