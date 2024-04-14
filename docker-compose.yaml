@@ -182,6 +182,9 @@ services:
       <<: *backend-variables
       REDIS_URL: redis://redis:6379
       QUEUE_NAME: task_queue
+    deploy:
+      mode: replicated
+      replicas: 2
 
   twitch_api:
     build:

@@ -6,13 +6,14 @@ import {
   NumberField,
   ListProps,
   CloneButton,
-  TextInput,
   Filter,
   useListContext,
   BooleanField,
   Button,
   useDataProvider,
   LoadingIndicator,
+  SearchInput,
+  NullableBooleanInput,
 } from "react-admin";
 import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
 import { PickersDay } from "@mui/x-date-pickers/PickersDay";
@@ -28,7 +29,14 @@ import React, { useState } from "react";
 
 const StreamsFilter = (props: any) => (
   <Filter {...props}>
-    <TextInput label="Search" source="q" alwaysOn />
+    <SearchInput source="q" alwaysOn />
+
+    <NullableBooleanInput source="has_transcription" label="Transcription" />
+    <NullableBooleanInput
+      source="has_silence_detection"
+      label="Silence Detection"
+    />
+    <NullableBooleanInput source="has_video_clips" label="Video Clips" />
   </Filter>
 );
 
@@ -184,9 +192,55 @@ const BulkSilenceDetectionButton = () => {
   );
 };
 
+const BulkScanForClipsButton = () => {
+  const { selectedIds, refetch, onSelect } = useListContext();
+  const dataProvider = useDataProvider();
+
+  const onScanForClips = async () => {
+    await Promise.all(
+      selectedIds.map(async (streamId) => {
+        const { data: stream } = await dataProvider.getOne("streams", {
+          id: streamId,
+        });
+        const clips = await dataProvider.getStreamClips(stream.prefix);
+
+        await dataProvider.update("streams", {
+          id: streamId,
+          previousData: stream,
+          data: {
+            video_clips: clips.entries.map((entry: any) => ({
+              title: entry.metadata.title || entry.metadata.filename,
+              uri: entry.uri,
+              duration: entry.metadata.duration,
+              start_time: entry.metadata.start_time,
+              audio_bitrate: entry.metadata.audio_bitrate,
+              audio_track_count: entry.metadata.audio_track_count,
+              content_type: entry.metadata.content_type,
+              filename: entry.metadata.filename,
+              frame_rate: entry.metadata.frame_rate,
+              height: entry.metadata.height,
+              width: entry.metadata.width,
+              video_bitrate: entry.metadata.video_bitrate,
+              size: entry.metadata.size,
+              last_modified: entry.metadata.last_modified,
+            })),
+          },
+        });
+
+        onSelect([]);
+
+        await refetch();
+      })
+    );
+  };
+
+  return <Button label="Scan for Clips" onClick={onScanForClips} />;
+};
+
 const StreamBulkActions = () => (
   <>
     <BulkSilenceDetectionButton />
+    <BulkScanForClipsButton />
   </>
 );
 
