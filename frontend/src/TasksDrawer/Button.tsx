@@ -5,20 +5,14 @@
  */
 import { Button, Badge } from "@mui/material";
 import ListIcon from "@mui/icons-material/List";
-import { useGetList, useStore } from "react-admin";
+import useTasks from "./useTasks";
 
 interface Props {
   onClick: () => void;
 }
 
 const TasksDrawerButton = ({ onClick }: Props) => {
-  const [viewedTasks] = useStore("viewedTasks", [] as string[]);
-
-  const { data: tasks } = useGetList("tasks");
-
-  const count = tasks
-    ? tasks.filter((task: any) => !viewedTasks.includes(task.id)).length
-    : 0;
+  const { count } = useTasks();
 
   return (
     <Button color="primary" onClick={onClick}>

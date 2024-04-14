@@ -16,6 +16,7 @@ const TasksDrawer = () => {
       <Menu
         open={open}
         onClose={handleClose}
+        anchorEl={document.body}
         anchorOrigin={{ vertical: "top", horizontal: "right" }}
       >
         <TasksDrawerList />
