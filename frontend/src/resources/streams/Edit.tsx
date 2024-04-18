@@ -1,11 +1,4 @@
-import {
-  Edit,
-  EditProps,
-  TextInput,
-  TabbedForm,
-  SelectInput,
-  DateTimeInput,
-} from "react-admin";
+import { TextInput, TabbedForm, SelectInput, DateTimeInput } from "react-admin";
 
 import StreamVideoClipsInput from "./StreamVideoClipsInput";
 import StreamTranscriptInput from "./StreamTranscriptInput";
@@ -13,6 +6,7 @@ import StreamSilenceDetectionInput from "./StreamSilenceDetectionInput";
 import DescriptionInput from "../../DescriptionInput";
 import TitleInput from "../../TitleInput";
 import { DurationInput } from "../../DurationInput";
+import Edit, { EditProps } from "../../Edit";
 
 const StreamEdit = (props: EditProps) => (
   <Edit {...props}>
