@@ -39,6 +39,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 
 COPY common_api_lib /app/common_api_lib
+COPY task_worker /app/task_worker
 
 WORKDIR /app/${SERVICE_NAME}
 
