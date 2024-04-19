@@ -44,6 +44,7 @@ const UploadEpisodeToYoutubeButton = () => {
         category: 20,
         tags: [],
         notify_subscribers: false,
+        task_title: `Upload ${episode.title} to Youtube`,
       }))
     );
     setOpen(true);

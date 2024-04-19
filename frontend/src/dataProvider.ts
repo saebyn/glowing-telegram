@@ -195,7 +195,7 @@ export const dataProvider = {
   },
 
   async uploadEpisodeToYoutube(video: YoutubeUploadTaskPayload) {
-    return fetch(`${baseUrl}/youtube/video`, {
+    return fetch(`${baseUrl}/youtube/upload`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(video),

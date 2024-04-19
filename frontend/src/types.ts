@@ -44,4 +44,6 @@ export interface YoutubeUploadTaskPayload {
   category: number;
   render_uri: string;
   notify_subscribers: boolean;
+
+  task_title: string;
 }
