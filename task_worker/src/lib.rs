@@ -17,10 +17,12 @@ pub struct Task {
 
 impl From<HashMap<String, String>> for Task {
     fn from(data: HashMap<String, String>) -> Self {
+        let id = data["id"].parse().expect("Failed to parse task id");
+
         Task {
-            key: data["key"].clone(),
-            id: data["id"].parse().expect("Failed to parse task id"),
-            title: data["title"].clone(),
+            key: generate_task_key(id),
+            id,
+            title: data.get("title").unwrap_or(&"".to_string()).clone(),
             url: data["url"].clone(),
             payload: serde_json::from_str(&data["payload"]).expect("Failed to parse payload"),
             data_key: data["data_key"].clone(),
