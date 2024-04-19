@@ -62,8 +62,8 @@ export const ExportButton = () => {
         title: episode.title,
         description: episode.description,
         tracks: episode.tracks.map((track: { start: string; end: string }) => ({
-          start: parseIntoSeconds(track.start),
-          end: parseIntoSeconds(track.end),
+          start: track.start,
+          end: track.end,
         })),
       },
       {

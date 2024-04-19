@@ -33,6 +33,7 @@ pub async fn handler(
         crate::schema::video_clips::dsl::video_clips
             .filter(crate::schema::video_clips::dsl::stream_id.eq(record_id))
             .select(crate::schema::video_clips::dsl::video_clips::all_columns())
+            .order_by(crate::schema::video_clips::dsl::start_time.asc())
             .load(&mut db.connection)
             .await;
 
