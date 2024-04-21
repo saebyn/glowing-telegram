@@ -114,8 +114,8 @@ impl From<(Stream, i64)> for StreamSimpleView {
             created_at: dt_to_string(stream.created_at),
             updated_at: stream.updated_at.map(|dt| dt_to_string(dt)),
             topic_ids: vec![],
-            has_transcription: stream.transcription_task_url.is_some(),
-            has_silence_detection: stream.silence_detection_task_url.is_some(),
+            has_transcription: stream.transcription_segments.is_some(),
+            has_silence_detection: stream.silence_segments.is_some(),
         }
     }
 }
