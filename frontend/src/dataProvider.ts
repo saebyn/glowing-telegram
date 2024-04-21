@@ -1,6 +1,6 @@
 import simpleRestDataProvider from "ra-data-simple-rest";
 import { GetListParams, combineDataProviders } from "react-admin";
-import { YoutubeUploadTaskPayload } from "./types";
+import { ChatMessage, YoutubeUploadTaskPayload } from "./types";
 
 const baseUrl = `${import.meta.env.VITE_API_URL || "http://localhost:3000"}`;
 
@@ -69,6 +69,15 @@ export const dataProvider = {
   ...baseDataProvider,
 
   // custom methods
+  async chat(messages: ChatMessage[]): Promise<ChatMessage[]> {
+    const result = await fetch(`${baseUrl}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(messages),
+    });
+
+    return result.json();
+  },
 
   async getStreamClips(prefix: string) {
     const url = new URL(`${baseUrl}/stream_ingestion/find_files`);

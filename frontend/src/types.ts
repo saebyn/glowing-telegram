@@ -47,3 +47,8 @@ export interface YoutubeUploadTaskPayload {
 
   task_title: string;
 }
+
+export interface ChatMessage {
+  content: string;
+  role: "system" | "user" | "assistant" | "function";
+}
