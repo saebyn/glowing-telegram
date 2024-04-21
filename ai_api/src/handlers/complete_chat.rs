@@ -15,7 +15,7 @@ pub async fn handler(
     let client = Client::new(state.openai_key());
 
     let parameters = ChatCompletionParameters {
-        model: "gpt-4".to_string(),
+        model: "gpt-4-turbo".to_string(),
         messages: payload
             .iter()
             .map(|m| {
@@ -43,10 +43,24 @@ pub async fn handler(
         .await
         .expect("failed to complete chat");
 
+    // log the whole response
+    tracing::info!("{:?}", response);
+
+    // take the first choice and convert it into a `SimpleChatMessage`
     let message = SimpleChatMessage {
         content: response.choices[0].message.content.clone(),
         role: response.choices[0].message.role.to_string().to_lowercase(),
     };
+
+    // if there is more content to be generated, we will get it here
+    match &response.choices[0].finish_reason {
+        Some(reason) => {
+            tracing::info!("Finish reason: {:?}", reason);
+        }
+        None => {
+            tracing::info!("No finish reason provided");
+        }
+    }
 
     // take the original payload and add message to the end
     let mut payload = payload;
