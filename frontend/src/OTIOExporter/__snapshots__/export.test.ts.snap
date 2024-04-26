@@ -415,7 +415,7 @@ exports[`exportOTIO > should generate an OTIO file based on convertedepisode and
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
                 "rate": 60.0,
-                "value": 186387.0
+                "value": 12000.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
