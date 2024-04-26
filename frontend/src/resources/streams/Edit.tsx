@@ -10,7 +10,7 @@ import Edit, { EditProps } from "../../Edit";
 
 const StreamEdit = (props: EditProps) => (
   <Edit {...props}>
-    <TabbedForm>
+    <TabbedForm reValidateMode="onBlur" mode="onBlur">
       <TabbedForm.Tab label="summary">
         <TitleInput source="title" required />
         <DescriptionInput source="description" />
