@@ -80,6 +80,7 @@ pub struct StreamSimpleView {
     pub topic_ids: Vec<String>,
     pub has_transcription: bool,
     pub has_silence_detection: bool,
+    pub has_episodes: bool,
 }
 
 impl From<Stream> for StreamSimpleView {
@@ -97,12 +98,13 @@ impl From<Stream> for StreamSimpleView {
             topic_ids: vec![],
             has_transcription: stream.transcription_task_url.is_some(),
             has_silence_detection: stream.silence_detection_task_url.is_some(),
+            has_episodes: false,
         }
     }
 }
 
-impl From<(Stream, i64)> for StreamSimpleView {
-    fn from((stream, video_clip_count): (Stream, i64)) -> Self {
+impl From<(Stream, i64, i64)> for StreamSimpleView {
+    fn from((stream, video_clip_count, ep_count): (Stream, i64, i64)) -> Self {
         StreamSimpleView {
             id: stream.id.to_string(),
             title: stream.title.to_string(),
@@ -116,6 +118,7 @@ impl From<(Stream, i64)> for StreamSimpleView {
             topic_ids: vec![],
             has_transcription: stream.transcription_segments.is_some(),
             has_silence_detection: stream.silence_segments.is_some(),
+            has_episodes: ep_count > 0,
         }
     }
 }
