@@ -3,7 +3,7 @@ import { FC } from "react";
 interface DensityPeriod {
   start: number;
   end: number;
-  density: number;
+  density?: number;
 }
 
 /**
@@ -50,7 +50,7 @@ const DensityLine: FC<DensityLineProps> = ({
   transitionMargin = 2,
 }) => {
   // Calculate the maximum density
-  const maxDensity = Math.max(...data.map((period) => period.density));
+  const maxDensity = Math.max(...data.map((period) => period.density || 0));
 
   // If no color is provided, default to black
   if (!color) {
@@ -59,11 +59,26 @@ const DensityLine: FC<DensityLineProps> = ({
 
   // Create the gradient color stops
   const colorStops = [];
+  let previousPeriodEnd = start;
 
   for (const period of data) {
     // Skip periods that are outside the timeline
     if (period.start >= end || period.end <= start) {
       continue;
+    }
+
+    // if there is a gap between the end of the previous period and the start of this period, add a pair of color stops to transition between the two periods
+    if (period.start > previousPeriodEnd) {
+      const startPosition = ((previousPeriodEnd - start) / (end - start)) * 100;
+      const endPosition = ((period.start - start) / (end - start)) * 100;
+      colorStops.push(
+        `${`rgba(${color[0]}, ${color[1]}, ${color[2]}, 0)`} ${
+          startPosition + transitionMargin / 2
+        }%`,
+        `${`rgba(${color[0]}, ${color[1]}, ${color[2]}, 0)`} ${
+          endPosition - transitionMargin / 2
+        }%`
+      );
     }
 
     // Calculate the start position of the period as a percentage of the total timeline width
@@ -73,7 +88,7 @@ const DensityLine: FC<DensityLineProps> = ({
     const endPosition = ((period.end - start) / (end - start)) * 100;
 
     // Calculate the opacity of the period based on its density
-    const opacity = period.density / maxDensity;
+    const opacity = (period.density || 0) / maxDensity;
     colorStops.push(
       `${`rgba(${color[0]}, ${color[1]}, ${color[2]}, ${opacity})`} ${
         startPosition + transitionMargin / 2

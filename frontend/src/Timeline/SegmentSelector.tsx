@@ -9,7 +9,7 @@ import React, { FC, useState, useEffect } from "react";
  * @param start - The start time of the segment.
  * @param end - The end time of the segment.
  */
-interface Segment {
+export interface Segment {
   id: number;
   start: number;
   end: number;
@@ -29,7 +29,7 @@ interface SegmentSelectorProps {
   segments: Segment[];
   boundsStart: number;
   boundsEnd: number;
-  onUpdateSegment: (_id: number, _segment: Segment) => void;
+  onUpdateSegment: (_segment: Segment) => void;
 
   // Optional props
   handleWidth?: number;
@@ -74,10 +74,6 @@ const SegmentSelector: FC<SegmentSelectorProps> = ({
   segmentFill = "rgba(0, 0, 255, 0.25)",
   handleFill = "goldenrod",
 }) => {
-  const handleUpdateSegment = (segment: Segment) => {
-    onUpdateSegment(segment.id, segment);
-  };
-
   return (
     <svg
       viewBox={`${boundsStart} 0 ${boundsEnd} 1`}
@@ -98,7 +94,7 @@ const SegmentSelector: FC<SegmentSelectorProps> = ({
             />
             <SegmentHandles
               segment={segment}
-              onUpdateSegment={handleUpdateSegment}
+              onUpdateSegment={onUpdateSegment}
               boundsStart={boundsStart}
               boundsEnd={boundsEnd}
               handleWidth={handleWidth}

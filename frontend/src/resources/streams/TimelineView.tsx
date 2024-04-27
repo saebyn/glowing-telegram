@@ -6,11 +6,12 @@ import {
   useRecordContext,
 } from "react-admin";
 import { useMutation } from "react-query";
-import { parseIntoSeconds, toISO8601Duration } from "../../isoDuration";
+import { parseIntoSeconds } from "../../isoDuration";
 
-import Timeline from "../../Timeline/StreamTimeline";
+import Timeline, { DataStreamDataElement } from "../../Timeline/StreamTimeline";
 
 import { styled } from "@mui/material/styles";
+import { Segment } from "../../Timeline/SegmentSelector";
 
 interface TimelineViewProps {
   className?: string;
@@ -18,61 +19,62 @@ interface TimelineViewProps {
 
 const TimelineView = ({ className }: TimelineViewProps) => {
   const record = useRecordContext();
-  const [selectedSegmentIndices, setSelectedSegmentIndices] = useState<
-    Map<number, boolean>
-  >(new Map());
+
+  const start = 0;
+  const end = parseIntoSeconds(record.duration);
+
+  const silenceDetectionSegments: DataStreamDataElement[] =
+    record.silence_segments?.map((segment: any) => ({
+      start: parseIntoSeconds(segment.start),
+      end: parseIntoSeconds(segment.end),
+      density: 1,
+    })) || [];
+
+  const initialSegments: Segment[] = periodsBetweenSegments(
+    silenceDetectionSegments,
+    end - start
+  )
+    .map((segment, index) => ({
+      id: index,
+      start: segment.start,
+      end: segment.end,
+    }))
+    .slice(1, -1);
+
+  const [segments, setSegments] = useState<Segment[]>(initialSegments);
+
+  const handleUpdateSegment = (segment: any) => {
+    setSegments((prevSegments) =>
+      prevSegments.map((prevSegment) =>
+        prevSegment.id === segment.id ? segment : prevSegment
+      )
+    );
+  };
 
   if (!record) {
     return <>Loading...</>;
   }
-
-  const handleSelectedSegmentIndicesChange = (index: number) => {
-    setSelectedSegmentIndices((selectedSegmentIndices) => {
-      if (selectedSegmentIndices.get(index)) {
-        selectedSegmentIndices.delete(index);
-        return selectedSegmentIndices;
-      } else {
-        selectedSegmentIndices.set(index, true);
-        return selectedSegmentIndices;
-      }
-    });
-  };
-
-  const handleUpdateSegment = (
-    index: number,
-    segment: {
-      start: number;
-      end: number;
-    }
-  ) => {
-    alert("Implement me!");
-    console.log(index, segment);
-  };
-
-  if (!record) {
-    return <>Loading...</>;
-  }
-
-  const silenceDetectionSegments: Segment[] =
-    record.silence_detection_segments?.map((segment: any) => {
-      return {
-        start: parseIntoSeconds(segment.start),
-        end: parseIntoSeconds(segment.end),
-      };
-    }) || [];
-
-  const selectedSegments = silenceDetectionSegments.filter((_, index) =>
-    selectedSegmentIndices.get(index)
-  );
 
   return (
     <div className={className}>
       <BulkCreateEpisodesButton
         label="Bulk Create Episodes"
-        segments={selectedSegments}
+        segments={segments}
       />
 
-      <Timeline />
+      <Timeline
+        segments={segments}
+        onUpdateSegment={handleUpdateSegment}
+        start={start}
+        end={end}
+        dataStreams={[
+          {
+            name: "Silence Detection",
+            data: silenceDetectionSegments,
+            color: [0, 0, 255],
+          },
+        ]}
+      />
     </div>
   );
 };
@@ -90,19 +92,14 @@ export default styled(TimelineView)({
   width: "100%",
 });
 
-interface Segment {
-  start: string;
-  end: string;
-}
-
 function periodsBetweenSegments(
-  segments: Segment[],
-  totalDuration: string
-): Segment[] {
-  const periods: Segment[] = [];
+  segments: DataStreamDataElement[],
+  totalDuration: number
+): DataStreamDataElement[] {
+  const periods: DataStreamDataElement[] = [];
 
   const paddedSegments = [
-    { start: "PT0S", end: "PT0S" },
+    { start: 0, end: 0 },
     ...segments,
     { start: totalDuration, end: totalDuration },
   ];
@@ -122,7 +119,7 @@ const BulkCreateEpisodesButton = ({
   segments,
 }: {
   label: string;
-  segments: Segment[];
+  segments: DataStreamDataElement[];
 }) => {
   const record = useRecordContext();
   const notify = useNotify();
@@ -132,8 +129,8 @@ const BulkCreateEpisodesButton = ({
     string | null,
     unknown,
     {
-      segments: Segment[];
-      totalDuration: string;
+      segments: DataStreamDataElement[];
+      totalDuration: number;
     }
   >(({ segments, totalDuration }) => {
     return dataProvider.bulkCreate(
@@ -152,15 +149,10 @@ const BulkCreateEpisodesButton = ({
   });
 
   const bulkCreateEpisodes = () => {
-    const totalDuration = toISO8601Duration({
-      hours: 0,
-      minutes: 0,
-      milliseconds: 0,
-      seconds: record.video_clips.reduce(
-        (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
-        0
-      ),
-    });
+    const totalDuration = record.video_clips.reduce(
+      (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
+      0
+    );
     mutate(
       { segments, totalDuration },
       {
