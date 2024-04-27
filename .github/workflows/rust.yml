@@ -3,8 +3,13 @@ name: Rust
 on:
   push:
     branches: ["main"]
+    paths: ["!frontend/**",".github/workflows/**"]
   pull_request:
     branches: ["main"]
+    types: [opened, reopened, synchronize]
+    paths: ["!frontend/**",".github/workflows/**"]
+  
+    
 
 env:
   CARGO_TERM_COLOR: always
