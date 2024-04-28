@@ -14,6 +14,7 @@ import {
   LoadingIndicator,
   SearchInput,
   NullableBooleanInput,
+  DateInput,
 } from "react-admin";
 import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
 import { PickersDay } from "@mui/x-date-pickers/PickersDay";
@@ -37,6 +38,9 @@ const StreamsFilter = (props: any) => (
       label="Silence Detection"
     />
     <NullableBooleanInput source="has_video_clips" label="Video Clips" />
+    <NullableBooleanInput source="has_episodes" label="Episodes" />
+
+    <DateInput source="stream_date__gte" label="Stream Date After" />
   </Filter>
 );
 
@@ -253,6 +257,7 @@ const StreamList = (props: ListProps) => (
       <NumberField source="video_clip_count" />
       <BooleanField source="has_transcription" />
       <BooleanField source="has_silence_detection" />
+      <BooleanField source="has_episodes" />
       <CloneButton />
     </Datagrid>
   </List>

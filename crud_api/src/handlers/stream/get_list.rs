@@ -65,7 +65,7 @@ pub async fn handler(
     let order: Box<dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = NotSelectable>> =
         create_order_expression!(sort, id, title, stream_date, prefix);
 
-    let results: Vec<(Stream, i64)> = match streams
+    let results: Vec<(Stream, i64, i64)> = match streams
         .limit(range.count)
         .offset(range.start)
         .order_by(order)
@@ -75,9 +75,13 @@ pub async fn handler(
             diesel::dsl::sql::<diesel::sql_types::BigInt>(
                 "(SELECT COUNT(*) FROM video_clips WHERE video_clips.stream_id = streams.id)",
             ),
+            // count of episodes
+            diesel::dsl::sql::<diesel::sql_types::BigInt>(
+                "(SELECT COUNT(*) FROM episodes WHERE episodes.stream_id = streams.id)",
+            ),
         ))
         .filter(predicate)
-        .load::<(Stream, i64)>(&mut db.connection)
+        .load::<(Stream, i64, i64)>(&mut db.connection)
         .await
     {
         Ok(results) => results,
@@ -167,11 +171,43 @@ fn create_predicate(
         None => Box::new(id.ne(Uuid::nil())),
     };
 
+    let has_episodes_filter: Box<
+        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+    > = match filter["has_episodes"].as_bool() {
+        Some(true) => Box::new(diesel::dsl::sql::<diesel::sql_types::Bool>(
+            "(SELECT COUNT(*) FROM episodes WHERE episodes.stream_id = streams.id) > 0",
+        )),
+        Some(false) => Box::new(diesel::dsl::sql::<diesel::sql_types::Bool>(
+            "(SELECT COUNT(*) FROM episodes WHERE episodes.stream_id = streams.id) = 0",
+        )),
+        None => Box::new(id.ne(Uuid::nil())),
+    };
+
+    // stream_date__gte
+    let stream_date_gte_filter: Box<
+        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+    > = match filter["stream_date__gte"].as_str() {
+        Some(stream_date_gte) => {
+            match chrono::NaiveDate::parse_from_str(stream_date_gte, "%Y-%m-%d") {
+                Ok(stream_date_gte) => Box::new(stream_date.ge(
+                    stream_date_gte.and_time(chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()),
+                )),
+                Err(e) => {
+                    tracing::error!("Error parsing stream_date__gte: {}", e);
+                    return Box::new(id.ne(Uuid::nil()));
+                }
+            }
+        }
+        None => Box::new(id.ne(Uuid::nil())),
+    };
+
     Box::new(
         id_filter
             .and(title_filter)
             .and(has_video_clips_filter)
             .and(has_transcription_filter)
-            .and(has_silence_detection_filter),
+            .and(has_silence_detection_filter)
+            .and(has_episodes_filter)
+            .and(stream_date_gte_filter),
     )
 }
