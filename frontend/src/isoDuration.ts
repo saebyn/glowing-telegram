@@ -152,3 +152,12 @@ export function toISO8601Duration(duration: Duration): string {
 
   return `PT${parts.join("")}`;
 }
+
+export function convertSecondsToISODuration(seconds: number): string {
+  return toISO8601Duration({
+    hours: 0,
+    minutes: 0,
+    seconds,
+    milliseconds: 0,
+  });
+}
