@@ -45,10 +45,14 @@ export const App = () => (
           }}
         />
         <Resource name="video_clips" {...videoClipsViews} />
-        <Resource name="streams" {...streamViews} />
+        <Resource
+          name="streams"
+          {...streamViews}
+          recordRepresentation="title"
+        />
         <Resource name="episodes" {...episodeViews} />
         <Resource name="topics" {...topicsViews} />
-        <Resource name="series" {...seriesViews} />
+        <Resource name="series" {...seriesViews} recordRepresentation="title" />
 
         <Resource
           name="twitchStreams"

@@ -26,6 +26,7 @@ pub struct UpdateEpisodeChangeset {
     pub thumbnail_url: Option<String>,
     pub series_id: Option<Uuid>,
     pub order_index: Option<i32>,
+    pub is_published: Option<bool>,
 }
 
 #[instrument]
@@ -61,6 +62,7 @@ pub async fn handler(
                 thumbnail_url: body.thumbnail_url,
                 series_id: body.series_id,
                 order_index: body.order_index,
+                is_published: body.is_published,
             })
             .get_result(&mut db.connection)
             .await;

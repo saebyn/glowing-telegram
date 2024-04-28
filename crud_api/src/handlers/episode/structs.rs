@@ -14,6 +14,29 @@ pub struct EpisodeSimpleView {
     pub render_uri: Option<String>,
     pub series_id: Option<String>,
     pub order_index: i32,
+    pub is_published: bool,
+
+    pub stream_date: Option<String>,
+}
+
+impl From<(Episode, Option<chrono::NaiveDateTime>)> for EpisodeSimpleView {
+    fn from((episode, stream_date): (Episode, Option<chrono::NaiveDateTime>)) -> Self {
+        EpisodeSimpleView {
+            id: episode.id.to_string(),
+            title: episode.title,
+            description: episode.description,
+            created_at: episode.created_at.to_string(),
+            updated_at: episode.updated_at.map(|dt| dt.to_string()),
+
+            series_id: episode.series_id.map(|id| id.to_string()),
+            order_index: episode.order_index,
+            is_published: episode.is_published,
+
+            render_uri: episode.render_uri,
+
+            stream_date: stream_date.map(|dt| dt.to_string()),
+        }
+    }
 }
 
 impl From<Episode> for EpisodeSimpleView {
@@ -27,8 +50,11 @@ impl From<Episode> for EpisodeSimpleView {
 
             series_id: episode.series_id.map(|id| id.to_string()),
             order_index: episode.order_index,
+            is_published: episode.is_published,
 
             render_uri: episode.render_uri,
+
+            stream_date: None,
         }
     }
 }
@@ -47,6 +73,7 @@ pub struct EpisodeDetailView {
     pub stream_id: String,
     pub series_id: Option<String>,
     pub order_index: i32,
+    pub is_published: bool,
 
     pub tracks: Vec<Track>,
 }
@@ -66,6 +93,7 @@ impl From<Episode> for EpisodeDetailView {
             stream_id: episode.stream_id.to_string(),
             series_id: episode.series_id.map(|id| id.to_string()),
             order_index: episode.order_index,
+            is_published: episode.is_published,
 
             tracks: serde_json::from_value(episode.tracks).unwrap_or(vec![]),
         }
@@ -106,4 +134,5 @@ pub struct UpdateEpisodeRequest {
     pub render_uri: Option<String>,
     pub series_id: Option<Uuid>,
     pub order_index: Option<i32>,
+    pub is_published: Option<bool>,
 }
