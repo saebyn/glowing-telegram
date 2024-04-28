@@ -1,6 +1,7 @@
 import { FC } from "react";
 import SegmentSelector, { Segment } from "./SegmentSelector";
 import DensityLine from "./DensityLine";
+import { formatDuration } from "../isoDuration";
 
 export interface DataStreamDataElement {
   start: number;
@@ -64,10 +65,8 @@ const StreamTimeline: FC<StreamTimelineProps> = ({
       <div
         style={{
           position: "absolute",
-          top: 0,
-          left: 0,
-          bottom: 0,
-          right: 0,
+          inset: "0",
+          height: "100px",
         }}
       >
         <SegmentSelector
@@ -81,9 +80,54 @@ const StreamTimeline: FC<StreamTimelineProps> = ({
 
       {dataStreams.map(({ name, data, color }) => (
         <div style={{ flex: 1 }} key={name} title={name}>
-          <DensityLine data={data} start={start} end={end} color={color} />
+          <DensityLine
+            data={data}
+            start={start}
+            end={end}
+            color={color}
+            transitionMargin={0}
+          />
         </div>
       ))}
+
+      <TimelineLegend start={start} end={end} />
+    </div>
+  );
+};
+
+interface TimelineLegendProps {
+  start: number;
+  end: number;
+}
+
+const TimelineLegend: FC<TimelineLegendProps> = ({ start, end }) => {
+  const timeIntervals = [15, 60, 300, 900, 3600, 14400, 86400];
+
+  // Find the largest time interval that fits at least 3 times in the timeline
+  const interval =
+    timeIntervals.findLast((interval) => (end - start) / interval > 3) || 1;
+
+  const intervals = Array.from(
+    { length: Math.floor((end - start) / interval) - 1 },
+    (_, i) => start + (i + 1) * interval
+  );
+
+  return (
+    <div
+      style={{
+        pointerEvents: "none",
+        display: "flex",
+        flexDirection: "row",
+        justifyContent: "space-between",
+      }}
+    >
+      <div>{formatDuration(Math.floor(start))}</div>
+
+      {intervals.map((time) => (
+        <div key={time}>{formatDuration(time)}</div>
+      ))}
+
+      <div>{formatDuration(Math.floor(end))}</div>
     </div>
   );
 };

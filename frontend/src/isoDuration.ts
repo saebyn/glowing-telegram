@@ -67,6 +67,10 @@ export function formatDuration(seconds: number): string {
     parts.push(`${Math.round(seconds * 100) / 100}s`);
   }
 
+  if (parts.length === 0) {
+    return "0s";
+  }
+
   return parts.join(" ");
 }
 
