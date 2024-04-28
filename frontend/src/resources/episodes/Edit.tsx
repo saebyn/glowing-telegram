@@ -10,6 +10,7 @@ import {
   PrevNextButtons,
   useRecordContext,
   useGetOne,
+  BooleanInput,
 } from "react-admin";
 
 import { useFormContext } from "react-hook-form";
@@ -44,6 +45,8 @@ const EpisodeEdit = () => (
       </ReferenceInput>
 
       <NumberInput source="order_index" />
+
+      <BooleanInput source="is_published" />
 
       <DescriptionInput source="description" />
 

@@ -75,6 +75,7 @@ pub struct Episode {
     pub series_id: Option<Uuid>,
     pub order_index: i32,
     pub render_uri: Option<String>,
+    pub is_published: bool,
 }
 
 #[derive(Queryable, Selectable, Debug)]

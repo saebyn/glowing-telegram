@@ -13,6 +13,7 @@ diesel::table! {
         series_id -> Nullable<Uuid>,
         order_index -> Int4,
         render_uri -> Nullable<Text>,
+        is_published -> Bool,
     }
 }
 
