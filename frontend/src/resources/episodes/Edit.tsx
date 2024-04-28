@@ -6,6 +6,7 @@ import {
   SimpleFormIterator,
   SelectInput,
   TopToolbar,
+  NumberInput,
   PrevNextButtons,
   useRecordContext,
   useGetOne,
@@ -37,6 +38,13 @@ const EpisodeEdit = () => (
   <Edit actions={<EditActions />}>
     <SimpleForm>
       <TitleInput source="title" />
+
+      <ReferenceInput source="series_id" reference="series">
+        <SelectInput optionText="title" />
+      </ReferenceInput>
+
+      <NumberInput source="order_index" />
+
       <DescriptionInput source="description" />
 
       <EpisodeDescriptionChatButton />

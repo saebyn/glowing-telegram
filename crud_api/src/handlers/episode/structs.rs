@@ -12,6 +12,8 @@ pub struct EpisodeSimpleView {
     pub updated_at: Option<String>,
 
     pub render_uri: Option<String>,
+    pub series_id: Option<String>,
+    pub order_index: i32,
 }
 
 impl From<Episode> for EpisodeSimpleView {
@@ -22,6 +24,9 @@ impl From<Episode> for EpisodeSimpleView {
             description: episode.description,
             created_at: episode.created_at.to_string(),
             updated_at: episode.updated_at.map(|dt| dt.to_string()),
+
+            series_id: episode.series_id.map(|id| id.to_string()),
+            order_index: episode.order_index,
 
             render_uri: episode.render_uri,
         }
@@ -40,6 +45,8 @@ pub struct EpisodeDetailView {
     pub render_uri: Option<String>,
 
     pub stream_id: String,
+    pub series_id: Option<String>,
+    pub order_index: i32,
 
     pub tracks: Vec<Track>,
 }
@@ -57,6 +64,8 @@ impl From<Episode> for EpisodeDetailView {
             render_uri: episode.render_uri,
 
             stream_id: episode.stream_id.to_string(),
+            series_id: episode.series_id.map(|id| id.to_string()),
+            order_index: episode.order_index,
 
             tracks: serde_json::from_value(episode.tracks).unwrap_or(vec![]),
         }
@@ -76,6 +85,8 @@ pub struct CreateEpisodeRequest {
     pub thumbnail_url: Option<String>,
 
     pub stream_id: Uuid,
+    pub series_id: Option<Uuid>,
+    pub order_index: Option<i32>,
 
     pub tracks: Vec<Track>,
 }
@@ -93,4 +104,6 @@ pub struct UpdateEpisodeRequest {
     pub stream_id: Option<Uuid>,
     pub tracks: Option<Vec<Track>>,
     pub render_uri: Option<String>,
+    pub series_id: Option<Uuid>,
+    pub order_index: Option<i32>,
 }
