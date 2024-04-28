@@ -363,7 +363,7 @@ function internalToOTIO(children: InternalTrack[]): string {
         Locked: false,
       },
     },
-    name: "Video 2",
+    name: "Overlay",
     source_range: null,
     effects: [],
     markers: [],
@@ -374,7 +374,7 @@ function internalToOTIO(children: InternalTrack[]): string {
         metadata: {
           Resolve_OTIO: {},
         },
-        name: "Solid Color",
+        name: "Start buffer",
         source_range: {
           OTIO_SCHEMA: "TimeRange.1",
           duration: {
@@ -594,7 +594,10 @@ function internalToOTIO(children: InternalTrack[]): string {
           duration: {
             OTIO_SCHEMA: "RationalTime.1",
             rate: new Float(60),
-            value: new Float(totalMediaDurationFrames),
+            value: new Float(
+              // media duration - (start buffer + live on twitch + gap + like reminder) - outro transition
+              totalMediaDurationFrames - (1910 + 106 + 1816 + 300) - 194
+            ),
           },
           start_time: {
             OTIO_SCHEMA: "RationalTime.1",
