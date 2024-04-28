@@ -273,7 +273,7 @@
             "Locked": false
           }
         },
-        "name": "Video 2",
+        "name": "Overlay",
         "source_range": null,
         "effects": [],
         "markers": [],
@@ -284,7 +284,7 @@
             "metadata": {
               "Resolve_OTIO": {}
             },
-            "name": "Solid Color",
+            "name": "Start buffer",
             "source_range": {
               "OTIO_SCHEMA": "TimeRange.1",
               "duration": {
@@ -504,7 +504,7 @@
               "duration": {
                 "OTIO_SCHEMA": "RationalTime.1",
                 "rate": 60.0,
-                "value": 190713.0
+                "value": 186387.0
               },
               "start_time": {
                 "OTIO_SCHEMA": "RationalTime.1",
