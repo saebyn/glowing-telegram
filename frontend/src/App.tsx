@@ -13,6 +13,7 @@ import videoClipsViews from "./resources/videoClips";
 import episodeViews from "./resources/episodes";
 import twitchStreamsViews from "./resources/twitchStreams";
 import topicsViews from "./resources/topics";
+import seriesViews from "./resources/series";
 
 import Layout from "./Layout";
 
@@ -47,6 +48,7 @@ export const App = () => (
         <Resource name="streams" {...streamViews} />
         <Resource name="episodes" {...episodeViews} />
         <Resource name="topics" {...topicsViews} />
+        <Resource name="series" {...seriesViews} />
 
         <Resource
           name="twitchStreams"

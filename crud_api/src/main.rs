@@ -56,6 +56,17 @@ async fn main() -> Result<(), axum::BoxError> {
                 "/records/topics",
                 get(handlers::topics::get_list::handler).post(handlers::topics::create::handler),
             )
+            // series resource
+            .route(
+                "/records/series",
+                get(handlers::series::get_list::handler).post(handlers::series::create::handler),
+            )
+            .route(
+                "/records/series/:record_id",
+                get(handlers::series::get_one::handler)
+                    .put(handlers::series::update::handler)
+                    .delete(handlers::series::delete::handler),
+            )
             .layer(Extension(pool))
     })
     .await

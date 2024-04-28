@@ -24,6 +24,8 @@ pub struct UpdateEpisodeChangeset {
     pub render_uri: Option<String>,
     pub tracks: Option<serde_json::Value>,
     pub thumbnail_url: Option<String>,
+    pub series_id: Option<Uuid>,
+    pub order_index: Option<i32>,
 }
 
 #[instrument]
@@ -57,6 +59,8 @@ pub async fn handler(
                 render_uri: body.render_uri,
                 tracks: tracks_json,
                 thumbnail_url: body.thumbnail_url,
+                series_id: body.series_id,
+                order_index: body.order_index,
             })
             .get_result(&mut db.connection)
             .await;

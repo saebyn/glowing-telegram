@@ -8,29 +8,25 @@ use tracing::instrument;
 
 use common_api_lib::db::DbConnection;
 
-use super::structs::{CreateEpisodeRequest, EpisodeDetailView};
-use crate::models::Episode;
+use super::structs::{CreateSeriesRequest, SeriesDetailView};
+use crate::models::Series;
 
 #[instrument]
 pub async fn handler(
     DbConnection(mut db): DbConnection<'_>,
-    Json(body): Json<CreateEpisodeRequest>,
+    Json(body): Json<CreateSeriesRequest>,
 ) -> impl IntoResponse {
-    use crate::schema::episodes::dsl::*;
+    use crate::schema::series::dsl::*;
 
-    tracing::info!("create_episode");
+    tracing::info!("create_series");
 
-    let record = match diesel::insert_into(episodes)
+    let record = match diesel::insert_into(series)
         .values((
             title.eq(body.title),
             description.eq(body.description.unwrap_or("".to_string())),
-            thumbnail_url.eq::<Option<String>>(body.thumbnail_url.clone()),
-            stream_id.eq(body.stream_id),
-            tracks.eq(json!(body.tracks)),
-            series_id.eq(body.series_id),
-            order_index.eq(body.order_index.unwrap_or(0)),
+            thumbnail_url.eq(body.thumbnail_url.unwrap_or("".to_string())),
         ))
-        .get_result::<Episode>(&mut db.connection)
+        .get_result::<Series>(&mut db.connection)
         .await
     {
         Ok(record) => record,
@@ -40,5 +36,5 @@ pub async fn handler(
         }
     };
 
-    axum::Json(json!(EpisodeDetailView::from(record))).into_response()
+    axum::Json(json!(SeriesDetailView::from(record))).into_response()
 }
