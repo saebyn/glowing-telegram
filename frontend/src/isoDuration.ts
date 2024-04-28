@@ -67,6 +67,10 @@ export function formatDuration(seconds: number): string {
     parts.push(`${Math.round(seconds * 100) / 100}s`);
   }
 
+  if (parts.length === 0) {
+    return "0s";
+  }
+
   return parts.join(" ");
 }
 
@@ -147,4 +151,13 @@ export function toISO8601Duration(duration: Duration): string {
   }
 
   return `PT${parts.join("")}`;
+}
+
+export function convertSecondsToISODuration(seconds: number): string {
+  return toISO8601Duration({
+    hours: 0,
+    minutes: 0,
+    seconds,
+    milliseconds: 0,
+  });
 }

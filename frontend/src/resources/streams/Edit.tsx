@@ -7,6 +7,7 @@ import DescriptionInput from "../../DescriptionInput";
 import TitleInput from "../../TitleInput";
 import { DurationInput } from "../../DurationInput";
 import Edit, { EditProps } from "../../Edit";
+import TimelineView from "./TimelineView";
 
 const StreamEdit = (props: EditProps) => (
   <Edit {...props}>
@@ -56,6 +57,10 @@ const StreamEdit = (props: EditProps) => (
           source="silence_segments"
           taskUrlFieldName="silence_detection_task_url"
         />
+      </TabbedForm.Tab>
+
+      <TabbedForm.Tab label="timeline">
+        <TimelineView />
       </TabbedForm.Tab>
     </TabbedForm>
   </Edit>
