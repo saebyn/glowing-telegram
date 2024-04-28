@@ -6,7 +6,10 @@ import {
   useRecordContext,
 } from "react-admin";
 import { useMutation } from "react-query";
-import { parseIntoSeconds } from "../../isoDuration";
+import {
+  convertSecondsToISODuration,
+  parseIntoSeconds,
+} from "../../isoDuration";
 
 import Timeline, { DataStreamDataElement } from "../../Timeline/StreamTimeline";
 
@@ -43,12 +46,12 @@ const TimelineView = ({ className }: TimelineViewProps) => {
 
   const [segments, setSegments] = useState<Segment[]>(initialSegments);
 
-  const handleUpdateSegment = (segment: any) => {
-    setSegments((prevSegments) =>
-      prevSegments.map((prevSegment) =>
-        prevSegment.id === segment.id ? segment : prevSegment
-      )
-    );
+  const handleUpdateSegments = (segments: any) => {
+    setSegments(segments);
+  };
+
+  const handleResetSegments = () => {
+    setSegments(initialSegments);
   };
 
   if (!record) {
@@ -64,7 +67,8 @@ const TimelineView = ({ className }: TimelineViewProps) => {
 
       <Timeline
         segments={segments}
-        onUpdateSegment={handleUpdateSegment}
+        onUpdate={handleUpdateSegments}
+        onReset={handleResetSegments}
         start={start}
         end={end}
         dataStreams={[
@@ -128,20 +132,17 @@ const BulkCreateEpisodesButton = ({
   const { mutate, isLoading } = useMutation<
     string | null,
     unknown,
-    {
-      segments: DataStreamDataElement[];
-      totalDuration: number;
-    }
-  >(({ segments, totalDuration }) => {
+    DataStreamDataElement[]
+  >((segments) => {
     return dataProvider.bulkCreate(
       "episodes",
-      periodsBetweenSegments(segments, totalDuration).map((segment, index) => ({
+      segments.map((segment, index) => ({
         stream_id: record.id,
         title: `${record.title} - Episode ${index + 1}`,
         tracks: [
           {
-            start: segment.start,
-            end: segment.end,
+            start: convertSecondsToISODuration(segment.start),
+            end: convertSecondsToISODuration(segment.end),
           },
         ],
       }))
@@ -149,19 +150,12 @@ const BulkCreateEpisodesButton = ({
   });
 
   const bulkCreateEpisodes = () => {
-    const totalDuration = record.video_clips.reduce(
-      (acc: number, clip: any) => acc + parseIntoSeconds(clip.duration),
-      0
-    );
-    mutate(
-      { segments, totalDuration },
-      {
-        onSuccess: () => {
-          // tell the user that the episodes were created
-          notify("Episodes created");
-        },
-      }
-    );
+    mutate(segments, {
+      onSuccess: () => {
+        // tell the user that the episodes were created
+        notify("Episodes created");
+      },
+    });
   };
 
   return (
