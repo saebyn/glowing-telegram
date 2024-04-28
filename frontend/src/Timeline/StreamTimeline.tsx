@@ -2,6 +2,7 @@ import { FC } from "react";
 import SegmentSelector, { Segment } from "./SegmentSelector";
 import DensityLine from "./DensityLine";
 import { formatDuration } from "../isoDuration";
+import Button from "@mui/material/Button";
 
 export interface DataStreamDataElement {
   start: number;
@@ -14,7 +15,8 @@ interface StreamTimelineProps {
   end: number;
 
   segments: Array<Segment>;
-  onUpdateSegment: (_segment: Segment) => void;
+  onUpdate: (_segments: Segment[]) => void;
+  onReset: () => void;
 
   dataStreams: Array<{
     name: string;
@@ -42,55 +44,108 @@ const StreamTimeline: FC<StreamTimelineProps> = ({
   end,
   segments,
   dataStreams,
-  onUpdateSegment,
+  onUpdate,
+  onReset,
 }) => {
   const unitlessWidth = end - start;
 
+  const handleAddSegment = () => {
+    const newSegment = {
+      id: segments.length,
+      start: start,
+      end: end,
+    };
+    onUpdate([...segments, newSegment]);
+  };
+
+  const handleRemoveSegment = (segment: Segment) => {
+    onUpdate(segments.filter((s) => s.id !== segment.id));
+  };
+
+  const handleUpdateSegment = (segment: Segment) => {
+    onUpdate(segments.map((s) => (s.id === segment.id ? segment : s)));
+  };
+
   return (
-    <div
-      style={{
-        width: "calc(100% - 32px)", // "100% - 2 * 16px
-        height: "150px",
-        position: "relative",
-
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "stretch",
-        gap: "16px",
-        margin: "16px",
-        paddingTop: "16px",
-        paddingBottom: "16px",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: "0",
-          height: "100px",
-        }}
-      >
-        <SegmentSelector
-          segments={segments}
-          boundsStart={start}
-          boundsEnd={end}
-          onUpdateSegment={onUpdateSegment}
-          handleWidth={unitlessWidth * 0.02}
-        />
-      </div>
-
-      {dataStreams.map(({ name, data, color }) => (
-        <div style={{ flex: 1 }} key={name} title={name}>
-          <DensityLine
-            data={data}
-            start={start}
-            end={end}
-            color={color}
-            transitionMargin={0}
-          />
+    <div>
+      <div style={{ display: "flex", flexDirection: "row" }}>
+        <div style={{ flex: 1 }}>
+          <Button onClick={handleAddSegment}>Add</Button>
+          <Button onClick={onReset}>Reset</Button>
         </div>
-      ))}
 
-      <TimelineLegend start={start} end={end} />
+        <div
+          style={{
+            width: "calc(100% - 32px)", // "100% - 2 * 16px
+            height: "150px",
+            position: "relative",
+
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "stretch",
+            gap: "16px",
+            margin: "16px",
+            paddingTop: "16px",
+            paddingBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              inset: "0",
+              height: "100px",
+            }}
+          >
+            <SegmentSelector
+              segments={segments}
+              boundsStart={start}
+              boundsEnd={end}
+              onUpdateSegment={handleUpdateSegment}
+              handleWidth={unitlessWidth * 0.02}
+            />
+          </div>
+
+          {dataStreams.map(({ name, data, color }) => (
+            <div style={{ flex: 1 }} key={name} title={name}>
+              <DensityLine
+                data={data}
+                start={start}
+                end={end}
+                color={color}
+                transitionMargin={0}
+              />
+            </div>
+          ))}
+
+          <TimelineLegend start={start} end={end} />
+        </div>
+      </div>
+      <div style={{ flex: 1 }}>
+        <table style={{ width: "100%", marginTop: "16px" }}>
+          <thead>
+            <tr>
+              <th>Start</th>
+              <th>End</th>
+              <th>Duration</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {segments.map((segment) => (
+              <tr key={segment.start}>
+                <td>{formatDuration(segment.start)}</td>
+                <td>{formatDuration(segment.end)}</td>
+                <td>{formatDuration(segment.end - segment.start)}</td>
+                <td>
+                  <Button onClick={() => handleRemoveSegment(segment)}>
+                    Remove
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
