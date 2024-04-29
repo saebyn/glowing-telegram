@@ -17,6 +17,7 @@ import {
 } from "react-admin";
 import TriggerRenderFileScanButton from "./TriggerRenderFileScanButton";
 import UploadEpisodeToYoutubeButton from "./UploadEpisodeToYoutubeButton";
+import { BulkExportButton } from "../../OTIOExporter/Exporter";
 
 const ListActions = (props: any) => (
   <TopToolbar {...props}>
@@ -29,6 +30,8 @@ const ListActions = (props: any) => (
 const BulkActionButtons = () => (
   <>
     <UploadEpisodeToYoutubeButton />
+
+    <BulkExportButton />
   </>
 );
 
