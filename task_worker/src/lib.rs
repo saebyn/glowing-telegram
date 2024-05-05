@@ -13,6 +13,16 @@ pub struct Task {
     pub title: String,
     pub status: TaskStatus,
     pub last_updated: String,
+    pub next_task: Option<NextTask>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NextTask {
+    pub url: String,
+    pub payload: serde_json::Value,
+    pub data_key: String,
+    pub title: String,
+    pub next_task: Option<NextTask>,
 }
 
 impl From<HashMap<String, String>> for Task {
@@ -171,4 +181,22 @@ pub fn remove_task_from_temp_queue(con: &mut redis::Connection, task: &Task) {
     let _: () = con
         .lrem(&temp_queue_name, 1, task.key.clone())
         .expect("Failed to remove task from temp queue");
+}
+
+pub fn push_task(
+    con: &mut redis::Connection,
+    queue_name: &str,
+    task: &Task,
+) -> Result<(), redis::RedisError> {
+    let _ = con.lpush(queue_name, task.key.clone());
+
+    Ok(())
+}
+
+pub fn get_next_task_id(con: &mut redis::Connection) -> Result<u64, redis::RedisError> {
+    let next_task_id: u64 = con
+        .incr("task:next_id")
+        .expect("Failed to get next task id");
+
+    Ok(next_task_id)
 }

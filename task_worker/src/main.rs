@@ -1,6 +1,6 @@
 use redis::Commands;
 
-use task_worker::{pop_task, remove_task_from_temp_queue, update_task_status, TaskStatus};
+use task_worker::{pop_task, remove_task_from_temp_queue, update_task_status, TaskStatus, push_task, generate_task_data_key, get_next_task_id};
 
 #[tokio::main]
 async fn main() {
@@ -53,7 +53,7 @@ async fn main() {
 
             let data_str = serde_json::to_string(&data).expect("Failed to serialize data as json");
 
-            let task_data_key = format!("task:data:{}", task.id);
+            let task_data_key = generate_task_data_key(task.id);
             let _: () = con
                 .rpush(&task_data_key, data_str)
                 .expect("Failed to save task data");
@@ -65,6 +65,38 @@ async fn main() {
             task.payload["cursor"] = cursor.clone();
         }
 
+        
+        // if the task has a next_task, then create a new task with the data from the previous task
+        if let Some(next_task) = task.next_task {
+            let task_data_key = generate_task_data_key(task.id);
+            let data = con
+                .lrange(&task_data_key, 0, -1)
+                .expect("Failed to get task data");
+
+            let data: Vec<String> = data;
+
+            let mut payload = next_task.payload.clone();
+            payload["data"] = serde_json::Value::Array(
+                data.iter()
+                    .map(|d| serde_json::from_str(d).expect("Failed to parse data"))
+                    .collect(),
+            );
+
+            let next_task_id = get_next_task_id(&mut con).expect("Failed to get next task id");
+
+            let next_task = task_worker::Task {
+                id: next_task_id,
+                key: generate_task_key(next_task_id),
+                url: next_task.url,
+                payload,
+                data_key: next_task.data_key,
+                next_task: next_task.next_task,
+            };
+
+            // push the next task to the queue
+            push_task(&mut con, &queue_name, &next_task);
+        }
+        
         println!("Finished task: {}", task.key);
 
         // update the status to complete
