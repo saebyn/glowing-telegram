@@ -211,7 +211,7 @@ async fn upload_video_handler(
 
     url.query_pairs_mut()
         .append_pair("uploadType", "resumable")
-        .append_pair("part", "snippet,status,contentDetails")
+        .append_pair("part", "snippet,status,recordingDetails")
         .append_pair("notifySubscribers", &body.notify_subscribers.to_string())
         .finish();
 
@@ -246,7 +246,7 @@ async fn upload_video_handler(
                 "selfDeclaredMadeForKids": false,
                 "license": "creativeCommon"
             },
-            "contentDetails": {
+            "recordingDetails": {
                 "recordingDate": recording_date_iso8601
             }
         }))
