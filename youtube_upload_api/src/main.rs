@@ -288,6 +288,26 @@ async fn upload_video_handler(
         }
     };
 
+    let response = match upload(
+        &state.http_client,
+        &path,
+        content_length,
+        &upload_url,
+        content_type,
+        &access_token,
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": e })),
+            )
+                .into_response();
+        }
+    };
+
     // if the body contains a playlist_id, add the video to the playlist
     if let Some(playlist_id) = body.playlist_id {
         // try to parse the video ID from the response JSON
@@ -356,32 +376,14 @@ async fn upload_video_handler(
         }
     }
 
-    match upload(
-        &state.http_client,
-        &path,
-        content_length,
-        &upload_url,
-        content_type,
-        &access_token,
+    (
+        StatusCode::OK,
+        axum::Json(json!(UploadVideoTaskOutput {
+            cursor: None,
+            summary: vec!["video uploaded".to_string()],
+        })),
     )
-    .await
-    {
-        Ok(_) => (
-            StatusCode::OK,
-            axum::Json(json!(UploadVideoTaskOutput {
-                cursor: None,
-                summary: vec!["video uploaded".to_string()],
-            })),
-        )
-            .into_response(),
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(json!({ "error": e })),
-            )
-                .into_response();
-        }
-    }
+        .into_response()
 }
 
 #[derive(Debug)]
@@ -451,7 +453,7 @@ async fn get_login_handler(State(state): State<AppState>) -> impl IntoResponse {
         .append_pair("response_type", "code")
         .append_pair("access_type", "offline")
         .append_pair("incude_granted_scopes", "true")
-        .append_pair("scope", "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly")
+        .append_pair("scope", "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube")
         .finish();
 
     let url: String = url.into();
@@ -637,7 +639,7 @@ async fn get_refresh_token(state: &AppState, refresh_token: &str) -> Result<Auth
 }
 
 enum UploadInnerStatus {
-    Success,
+    Success(reqwest::Response),
     TemporaryFailure,
     PermanentFailure,
 }
@@ -691,7 +693,7 @@ async fn upload_inner(
     };
 
     if response.status().is_success() {
-        UploadInnerStatus::Success
+        UploadInnerStatus::Success(response)
     } else if vec![500, 502, 503, 504].contains(&response.status().as_u16()) {
         UploadInnerStatus::TemporaryFailure
     } else {
@@ -700,7 +702,7 @@ async fn upload_inner(
 }
 
 enum UploadStatus {
-    Success,
+    Success(reqwest::Response),
     TemporaryFailure { start_byte: u64, wait_time_ms: u64 },
     PermanentFailure,
 }
@@ -709,7 +711,7 @@ const MAX_ATTEMPTS: u8 = 10;
 const BASE_WAIT_TIME: u64 = 1000;
 
 #[instrument]
-async fn upload_status(
+async fn get_upload_status(
     http_client: &reqwest::Client,
     file_size: u64,
     upload_url: &str,
@@ -740,7 +742,7 @@ async fn upload_status(
     };
 
     if response.status().is_success() {
-        UploadStatus::Success
+        UploadStatus::Success(response)
     } else if response.status().as_u16() == 308 {
         let range = match response
             .headers()
@@ -813,7 +815,7 @@ async fn upload(
     upload_url: &str,
     content_type: &str,
     access_token: &Secret<String>,
-) -> Result<(), String> {
+) -> Result<reqwest::Response, String> {
     let mut attempt = 0;
     let mut start_byte = 0;
 
@@ -829,11 +831,12 @@ async fn upload(
         )
         .await
         {
-            UploadInnerStatus::Success => break,
+            UploadInnerStatus::Success(response) => return Ok(response),
             UploadInnerStatus::TemporaryFailure => {
-                match upload_status(http_client, file_size, upload_url, access_token, attempt).await
+                match get_upload_status(http_client, file_size, upload_url, access_token, attempt)
+                    .await
                 {
-                    UploadStatus::Success => break,
+                    UploadStatus::Success(response) => return Ok(response),
                     UploadStatus::TemporaryFailure {
                         start_byte: new_start_byte,
                         wait_time_ms,
@@ -855,6 +858,4 @@ async fn upload(
             }
         }
     }
-
-    Ok(())
 }
