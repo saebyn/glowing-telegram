@@ -215,6 +215,12 @@ async fn upload_video_handler(
         .append_pair("notifySubscribers", &body.notify_subscribers.to_string())
         .finish();
 
+    let recording_date_iso8601 = body
+        .recording_date
+        .map(|dt| dt.into_naive())
+        .flatten()
+        .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
+
     let response = match state
         .http_client
         .post(url)
@@ -241,7 +247,7 @@ async fn upload_video_handler(
                 "license": "creativeCommon"
             },
             "contentDetails": {
-                "recordingDate": body.recording_date.map(|d| d.to_string())
+                "recordingDate": recording_date_iso8601
             }
         }))
         .send()
