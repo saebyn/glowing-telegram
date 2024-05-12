@@ -14,13 +14,20 @@ pub struct EpisodeSimpleView {
     pub render_uri: Option<String>,
     pub series_id: Option<String>,
     pub order_index: i32,
+    pub playlist_id: Option<String>,
     pub is_published: bool,
 
     pub stream_date: Option<String>,
 }
 
-impl From<(Episode, Option<chrono::NaiveDateTime>)> for EpisodeSimpleView {
-    fn from((episode, stream_date): (Episode, Option<chrono::NaiveDateTime>)) -> Self {
+impl From<(Episode, Option<chrono::NaiveDateTime>, Option<String>)> for EpisodeSimpleView {
+    fn from(
+        (episode, stream_date, playlist_id): (
+            Episode,
+            Option<chrono::NaiveDateTime>,
+            Option<String>,
+        ),
+    ) -> Self {
         EpisodeSimpleView {
             id: episode.id.to_string(),
             title: episode.title,
@@ -30,6 +37,7 @@ impl From<(Episode, Option<chrono::NaiveDateTime>)> for EpisodeSimpleView {
 
             series_id: episode.series_id.map(|id| id.to_string()),
             order_index: episode.order_index,
+            playlist_id: playlist_id,
             is_published: episode.is_published,
 
             render_uri: episode.render_uri,
@@ -50,6 +58,7 @@ impl From<Episode> for EpisodeSimpleView {
 
             series_id: episode.series_id.map(|id| id.to_string()),
             order_index: episode.order_index,
+            playlist_id: None,
             is_published: episode.is_published,
 
             render_uri: episode.render_uri,

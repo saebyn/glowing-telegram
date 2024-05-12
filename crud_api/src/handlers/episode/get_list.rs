@@ -67,7 +67,7 @@ pub async fn handler(
     let order: Box<dyn BoxableExpression<episodes, diesel::pg::Pg, SqlType = NotSelectable>> =
         create_order_expression!(sort, id, title, series_id, is_published, order_index);
 
-    let results: Vec<(Episode, Option<chrono::NaiveDateTime>)> = match episodes
+    let results: Vec<(Episode, Option<chrono::NaiveDateTime>, Option<String>)> = match episodes
         .limit(range.count)
         .offset(range.start)
         .order_by(order)
@@ -76,9 +76,12 @@ pub async fn handler(
             diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Timestamp>>(
                 "(SELECT stream_date FROM streams WHERE streams.id = episodes.stream_id)",
             ),
+            diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>(
+                "(SELECT playlist_id FROM series WHERE series.id = episodes.series_id)",
+            ),
         ))
         .filter(predicate)
-        .load::<(Episode, Option<chrono::NaiveDateTime>)>(&mut db.connection)
+        .load::<(Episode, Option<chrono::NaiveDateTime>, Option<String>)>(&mut db.connection)
         .await
     {
         Ok(results) => results,
