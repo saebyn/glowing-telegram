@@ -25,6 +25,7 @@ diesel::table! {
         thumbnail_url -> Nullable<Varchar>,
         created_at -> Timestamptz,
         updated_at -> Nullable<Timestamptz>,
+        playlist_id -> Nullable<Text>,
     }
 }
 

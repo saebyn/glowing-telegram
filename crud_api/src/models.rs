@@ -88,6 +88,7 @@ pub struct Series {
     pub thumbnail_url: Option<String>,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: Option<chrono::NaiveDateTime>,
+    pub playlist_id: Option<String>,
 }
 
 #[derive(Queryable)]

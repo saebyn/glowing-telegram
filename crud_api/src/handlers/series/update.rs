@@ -1,7 +1,6 @@
 use axum::extract::Path;
 use axum::response::IntoResponse;
 use axum::Json;
-use diesel::data_types::PgInterval;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use serde_json::json;
@@ -13,7 +12,6 @@ use common_api_lib::db::DbConnection;
 
 use super::structs::SeriesDetailView;
 use super::structs::UpdateSeriesRequest;
-use crate::handlers::utils::parse_duration;
 use crate::models::Series;
 use crate::schema::{self, series};
 
@@ -23,6 +21,7 @@ pub struct UpdateSeriesChangeset {
     pub title: Option<String>,
     pub description: Option<String>,
     pub thumbnail_url: Option<String>,
+    pub playlist_id: Option<String>,
 }
 
 #[instrument]
@@ -41,6 +40,7 @@ pub async fn handler(
                 title: body.title,
                 description: body.description,
                 thumbnail_url: body.thumbnail_url,
+                playlist_id: body.playlist_id,
             })
             .get_result(&mut db.connection)
             .await;

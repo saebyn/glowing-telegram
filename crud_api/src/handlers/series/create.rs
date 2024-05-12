@@ -25,6 +25,7 @@ pub async fn handler(
             title.eq(body.title),
             description.eq(body.description.unwrap_or("".to_string())),
             thumbnail_url.eq(body.thumbnail_url.unwrap_or("".to_string())),
+            playlist_id.eq(body.playlist_id.unwrap_or("".to_string())),
         ))
         .get_result::<Series>(&mut db.connection)
         .await

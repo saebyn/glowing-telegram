@@ -6,7 +6,6 @@ use diesel::expression::expression_types::NotSelectable;
 use diesel::BoolExpressionMethods;
 use diesel::BoxableExpression;
 use diesel::ExpressionMethods;
-use diesel::JoinOnDsl;
 use diesel::NullableExpressionMethods;
 use diesel::PgTextExpressionMethods;
 use diesel::QueryDsl;
