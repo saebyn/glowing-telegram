@@ -1,4 +1,4 @@
-import { Create, SimpleForm, CreateProps } from "react-admin";
+import { Create, SimpleForm, CreateProps, TextInput } from "react-admin";
 import TitleInput from "../../TitleInput";
 import DescriptionInput from "../../DescriptionInput";
 
@@ -7,6 +7,9 @@ const SeriesCreate = (props: CreateProps) => (
     <SimpleForm>
       <TitleInput source="title" required />
       <DescriptionInput source="description" />
+
+      <TextInput source="thumbnail_url" />
+      <TextInput source="playlist_id" />
     </SimpleForm>
   </Create>
 );
