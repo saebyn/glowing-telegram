@@ -3,6 +3,7 @@
 # Base stage
 ################################################################################
 ARG RUST_VERSION
+ARG DEBIAN_VERSION
 FROM rust:${RUST_VERSION:-latest} AS base
 
 ARG SERVICE_NAME
@@ -68,7 +69,7 @@ RUN cargo build --release
 ################################################################################
 # Final stage
 ################################################################################
-FROM debian:bookworm-slim AS runtime
+FROM debian:${DEBIAN_VERSION:-latest} AS runtime
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \

@@ -45,6 +45,9 @@ const UploadEpisodeToYoutubeButton = () => {
         tags: [],
         notify_subscribers: false,
         task_title: `Upload ${episode.title} to Youtube`,
+        recording_date: episode.stream_date,
+        playlist_id: episode.playlist_id,
+        playlist_position: episode.order_index,
       }))
     );
     setOpen(true);

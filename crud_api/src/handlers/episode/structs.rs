@@ -14,27 +14,40 @@ pub struct EpisodeSimpleView {
     pub render_uri: Option<String>,
     pub series_id: Option<String>,
     pub order_index: i32,
+    pub playlist_id: Option<String>,
     pub is_published: bool,
 
     pub stream_date: Option<String>,
 }
 
-impl From<(Episode, Option<chrono::NaiveDateTime>)> for EpisodeSimpleView {
-    fn from((episode, stream_date): (Episode, Option<chrono::NaiveDateTime>)) -> Self {
+impl From<(Episode, Option<chrono::NaiveDateTime>, Option<String>)> for EpisodeSimpleView {
+    fn from(
+        (episode, stream_date, playlist_id): (
+            Episode,
+            Option<chrono::NaiveDateTime>,
+            Option<String>,
+        ),
+    ) -> Self {
         EpisodeSimpleView {
             id: episode.id.to_string(),
             title: episode.title,
             description: episode.description,
-            created_at: episode.created_at.to_string(),
-            updated_at: episode.updated_at.map(|dt| dt.to_string()),
+            created_at: episode
+                .created_at
+                .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                .to_string(),
+            updated_at: episode
+                .updated_at
+                .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()),
 
             series_id: episode.series_id.map(|id| id.to_string()),
             order_index: episode.order_index,
+            playlist_id: playlist_id,
             is_published: episode.is_published,
 
             render_uri: episode.render_uri,
 
-            stream_date: stream_date.map(|dt| dt.to_string()),
+            stream_date: stream_date.map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()),
         }
     }
 }
@@ -45,11 +58,17 @@ impl From<Episode> for EpisodeSimpleView {
             id: episode.id.to_string(),
             title: episode.title,
             description: episode.description,
-            created_at: episode.created_at.to_string(),
-            updated_at: episode.updated_at.map(|dt| dt.to_string()),
+            created_at: episode
+                .created_at
+                .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                .to_string(),
+            updated_at: episode
+                .updated_at
+                .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()),
 
             series_id: episode.series_id.map(|id| id.to_string()),
             order_index: episode.order_index,
+            playlist_id: None,
             is_published: episode.is_published,
 
             render_uri: episode.render_uri,

@@ -10,6 +10,7 @@ const SeriesEdit = (props: EditProps) => (
       <DescriptionInput source="description" />
 
       <TextInput source="thumbnail_url" />
+      <TextInput source="playlist_id" />
     </SimpleForm>
   </Edit>
 );
