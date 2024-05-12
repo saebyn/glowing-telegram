@@ -32,8 +32,13 @@ impl From<(Episode, Option<chrono::NaiveDateTime>, Option<String>)> for EpisodeS
             id: episode.id.to_string(),
             title: episode.title,
             description: episode.description,
-            created_at: episode.created_at.to_string(),
-            updated_at: episode.updated_at.map(|dt| dt.to_string()),
+            created_at: episode
+                .created_at
+                .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                .to_string(),
+            updated_at: episode
+                .updated_at
+                .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()),
 
             series_id: episode.series_id.map(|id| id.to_string()),
             order_index: episode.order_index,
@@ -42,7 +47,7 @@ impl From<(Episode, Option<chrono::NaiveDateTime>, Option<String>)> for EpisodeS
 
             render_uri: episode.render_uri,
 
-            stream_date: stream_date.map(|dt| dt.to_string()),
+            stream_date: stream_date.map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()),
         }
     }
 }
@@ -53,8 +58,13 @@ impl From<Episode> for EpisodeSimpleView {
             id: episode.id.to_string(),
             title: episode.title,
             description: episode.description,
-            created_at: episode.created_at.to_string(),
-            updated_at: episode.updated_at.map(|dt| dt.to_string()),
+            created_at: episode
+                .created_at
+                .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                .to_string(),
+            updated_at: episode
+                .updated_at
+                .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()),
 
             series_id: episode.series_id.map(|id| id.to_string()),
             order_index: episode.order_index,
