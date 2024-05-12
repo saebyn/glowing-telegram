@@ -99,6 +99,21 @@ const DensityLine: FC<DensityLineProps> = ({
     );
   }
 
+  // if there is a gap between the end of the last period and the end of the timeline, add a pair of color stops to transition to the end of the timeline
+  if (data.length > 0 && data[data.length - 1].end < end) {
+    const startPosition =
+      ((data[data.length - 1].end - start) / (end - start)) * 100;
+    const endPosition = 100;
+    colorStops.push(
+      `${`rgba(${color[0]}, ${color[1]}, ${color[2]}, 0)`} ${
+        startPosition + transitionMargin / 2
+      }%`,
+      `${`rgba(${color[0]}, ${color[1]}, ${color[2]}, 0)`} ${
+        endPosition - transitionMargin / 2
+      }%`
+    );
+  }
+
   return (
     <div
       style={{

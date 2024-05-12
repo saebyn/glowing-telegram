@@ -42,7 +42,8 @@ const TimelineView = ({ className }: TimelineViewProps) => {
       start: segment.start,
       end: segment.end,
     }))
-    .slice(1, -1);
+    // Filter out zeroish-length segments
+    .filter((segment) =>  segment.end - segment.start > 0.1);
 
   const [segments, setSegments] = useState<Segment[]>(initialSegments);
 
