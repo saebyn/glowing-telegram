@@ -22,7 +22,7 @@ pub struct NextTask {
     pub payload: serde_json::Value,
     pub data_key: String,
     pub title: String,
-    pub next_task: Option<NextTask>,
+    pub next_task: Option<Box<NextTask>>,
 }
 
 impl From<HashMap<String, String>> for Task {
@@ -195,7 +195,7 @@ pub fn push_task(
 
 pub fn get_next_task_id(con: &mut redis::Connection) -> Result<u64, redis::RedisError> {
     let next_task_id: u64 = con
-        .incr("task:next_id")
+        .incr("task:next_id", 1)
         .expect("Failed to get next task id");
 
     Ok(next_task_id)
