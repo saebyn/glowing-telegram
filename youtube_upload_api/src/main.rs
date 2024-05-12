@@ -102,6 +102,9 @@ struct YoutubeUploadRequest {
     category: u8,
     render_uri: String,
     thumbnail_uri: Option<String>,
+    recording_date: Option<iso8601::DateTime>,
+    playlist_id: Option<String>,
+    playlist_position: Option<u32>,
     notify_subscribers: bool,
 
     task_title: String,
@@ -115,6 +118,9 @@ struct YoutubeUploadTaskPayload {
     category: u8,
     render_uri: String,
     thumbnail_uri: Option<String>,
+    recording_date: Option<iso8601::DateTime>,
+    playlist_id: Option<String>,
+    playlist_position: Option<u32>,
     notify_subscribers: bool,
 }
 
@@ -140,6 +146,9 @@ async fn upload_start_task_handler(
                 category: body.category,
                 render_uri: body.render_uri,
                 thumbnail_uri: body.thumbnail_uri,
+                recording_date: body.recording_date,
+                playlist_id: body.playlist_id,
+                playlist_position: body.playlist_position,
                 notify_subscribers: body.notify_subscribers,
             }),
             data_key: "summary".to_string(),
@@ -222,6 +231,8 @@ async fn upload_video_handler(
                 "description": body.description,
                 "tags": body.tags,
                 "categoryId": body.category,
+                "defaultLanguage": "en-US",
+                "defaultAudioLanguage": "en-US",
             },
             "status": {
                 "privacyStatus": "private",
@@ -229,6 +240,9 @@ async fn upload_video_handler(
                 "selfDeclaredMadeForKids": false,
                 "license": "creativeCommon"
             },
+            "contentDetails": {
+                "recordingDate": body.recording_date.map(|d| d.to_string())
+            }
         }))
         .send()
         .await
@@ -258,7 +272,7 @@ async fn upload_video_handler(
         .get("Location")
         .and_then(|v| v.to_str().ok())
     {
-        Some(upload_url) => upload_url,
+        Some(upload_url) => upload_url.to_string(),
         None => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -268,11 +282,79 @@ async fn upload_video_handler(
         }
     };
 
+    // if the body contains a playlist_id, add the video to the playlist
+    if let Some(playlist_id) = body.playlist_id {
+        // try to parse the video ID from the response JSON
+        let video_id = match response.json::<serde_json::Value>().await {
+            Ok(contents) => {
+                match contents["id"].clone() {
+                    serde_json::Value::String(video_id) => video_id,
+                    _ => {
+                        tracing::error!("video ID not found in response from Youtube API");
+                        return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(json!({ "error": "video ID not found in response from Youtube API" })),
+                    )
+                        .into_response();
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!("failed to parse response from Youtube API: {:?}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(json!({ "error": "failed to parse response from Youtube API" })),
+                )
+                    .into_response();
+            }
+        };
+
+        let response = match state
+            .http_client
+            .post("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet")
+            .header("Content-Type", "application/json")
+            .header(
+                "Authorization",
+                format!("Bearer {}", access_token.expose_secret()),
+            )
+            .json(&json!({
+                "snippet": {
+                    "playlistId": playlist_id,
+                    "position": body.playlist_position.unwrap_or(0),
+                    "resourceId": {
+                        "videoId": video_id
+                    }
+                }
+            }))
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(e) => {
+                tracing::error!("failed to send request to Youtube API: {:?}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(json!({ "error": "failed to send request to Youtube API" })),
+                )
+                    .into_response();
+            }
+        };
+
+        if !response.status().is_success() {
+            tracing::error!("response: {:?}", response);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": "failed to add video to playlist" })),
+            )
+                .into_response();
+        }
+    }
+
     match upload(
         &state.http_client,
         &path,
         content_length,
-        upload_url,
+        &upload_url,
         content_type,
         &access_token,
     )
@@ -336,12 +418,19 @@ impl FromRequestParts<AppState> for AccessToken {
         match access_token {
             Ok(access_token) => Ok(AccessToken(Secret::new(access_token))),
             Err(_) => {
-                tracing::error!("failed to get access token from Redis");
+                let tokens = match update_refresh_token(state).await {
+                    Ok(tokens) => tokens,
+                    Err(_) => {
+                        tracing::error!("failed to update refresh token");
 
-                Err((
-                    StatusCode::UNAUTHORIZED,
-                    Json(json!({ "error": "unauthorized" })),
-                ))
+                        return Err((
+                            StatusCode::UNAUTHORIZED,
+                            Json(json!({ "error": "need to login to YouTube" })),
+                        ));
+                    }
+                };
+
+                Ok(AccessToken(tokens.access_token))
             }
         }
     }
