@@ -235,6 +235,8 @@ async fn upload_video_handler(
         }
     };
 
+    tracing::info!("upload_url: {}", upload_url);
+
     // upload the video to Youtube
     let response = match upload(
         &state.http_client,
@@ -286,7 +288,12 @@ async fn upload_video_handler(
         let result =
             add_video_to_playlist(&state, &access_token, &playlist_id, &video_id, &body).await;
         if let Err(e) = result {
-            return e;
+            tracing::error!("failed to add video to playlist: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": "failed to add video to playlist" })),
+            )
+                .into_response();
         }
     }
 
@@ -792,8 +799,9 @@ async fn add_video_to_playlist(
         .json(&json!({
             "snippet": {
                 "playlistId": playlist_id,
-                "position": body.playlist_position.unwrap_or(0),
+                "position": body.playlist_position.unwrap_or(1) - 1,
                 "resourceId": {
+                    "kind": "youtube#video",
                     "videoId": video_id
                 }
             }
