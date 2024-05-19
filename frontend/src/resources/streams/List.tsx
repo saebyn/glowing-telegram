@@ -14,6 +14,8 @@ import {
   LoadingIndicator,
   SearchInput,
   NullableBooleanInput,
+  ReferenceInput,
+  SelectInput,
   DateInput,
 } from "react-admin";
 import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
@@ -41,6 +43,10 @@ const StreamsFilter = (props: any) => (
     <NullableBooleanInput source="has_episodes" label="Episodes" />
 
     <DateInput source="stream_date__gte" label="Stream Date After" />
+
+    <ReferenceInput source="series_id" reference="series">
+      <SelectInput optionText="title" />
+    </ReferenceInput>
   </Filter>
 );
 

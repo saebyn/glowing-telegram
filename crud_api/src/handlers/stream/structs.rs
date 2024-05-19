@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
     handlers::utils::{dt_to_string, parse_duration_to_string},
@@ -17,6 +18,7 @@ pub struct CreateStreamRequest {
     pub stream_platform: Option<String>,
     pub duration: Option<String>,
     pub stream_date: Option<String>,
+    pub series_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,6 +39,8 @@ pub struct UpdateStreamRequest {
     pub silence_detection_task_url: Option<String>,
     // TODO - this should be a Vec<Segment>
     pub silence_segments: Option<serde_json::Value>,
+
+    pub series_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -64,6 +68,8 @@ pub struct StreamDetailView {
     pub stream_platform: Option<String>,
     pub duration: String,
     pub stream_date: String,
+
+    pub series_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -189,6 +195,8 @@ impl From<(Stream, Vec<VideoClip>)> for StreamDetailView {
             stream_platform: stream.stream_platform,
             duration: parse_duration_to_string(stream.duration),
             stream_date: dt_to_string(stream.stream_date),
+
+            series_id: stream.series_id.map(|id| id.to_string()),
         }
     }
 }

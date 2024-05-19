@@ -43,7 +43,7 @@ const TimelineView = ({ className }: TimelineViewProps) => {
       end: segment.end,
     }))
     // Filter out zeroish-length segments
-    .filter((segment) =>  segment.end - segment.start > 0.1);
+    .filter((segment) => segment.end - segment.start > 0.1);
 
   const [segments, setSegments] = useState<Segment[]>(initialSegments);
 
@@ -139,6 +139,7 @@ const BulkCreateEpisodesButton = ({
       "episodes",
       segments.map((segment, index) => ({
         stream_id: record.id,
+        series_id: record.series_id,
         title: `${record.title} - Episode ${index + 1}`,
         tracks: [
           {
