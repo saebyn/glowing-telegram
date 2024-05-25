@@ -41,7 +41,11 @@ const EpisodeEdit = () => (
       <TitleInput source="title" />
 
       <ReferenceInput source="series_id" reference="series">
-        <SelectInput optionText="title" />
+        <SelectInput
+          optionText={(record) =>
+            `${record.title} (${record.max_episode_order_index})`
+          }
+        />
       </ReferenceInput>
 
       <NumberInput source="order_index" />
