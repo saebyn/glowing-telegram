@@ -11,9 +11,9 @@ import {
   BooleanField,
   ReferenceInput,
   SearchInput,
-  BooleanInput,
   FilterButton,
   TextInput,
+  NullableBooleanInput,
 } from "react-admin";
 import TriggerRenderFileScanButton from "./TriggerRenderFileScanButton";
 import UploadEpisodeToYoutubeButton from "./UploadEpisodeToYoutubeButton";
@@ -45,7 +45,7 @@ const episodeFilters = [
   // eslint-disable-next-line react/jsx-key
   <TextInput source="stream_name" />,
   // eslint-disable-next-line react/jsx-key
-  <BooleanInput source="is_published" />,
+  <NullableBooleanInput source="is_published" />,
 ];
 
 const EpisodeList = (props: ListProps) => (
