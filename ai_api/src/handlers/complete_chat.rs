@@ -33,12 +33,12 @@ pub async fn handler(
                     _ => Role::User,
                 };
 
-                return ChatMessage {
+                ChatMessage {
                     content: ChatMessageContent::Text(m.content.clone()),
                     role,
                     name: None,
                     ..Default::default()
-                };
+                }
             })
             .collect(),
         ..Default::default()

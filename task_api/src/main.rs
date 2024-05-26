@@ -4,8 +4,6 @@ use axum::extract::{Path, State};
 use axum::http::header;
 use axum::Json;
 use axum::{http::StatusCode, response::IntoResponse, routing::get};
-use common_api_lib;
-use dotenvy;
 use redis::Commands;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
