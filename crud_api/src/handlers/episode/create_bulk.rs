@@ -31,6 +31,8 @@ pub async fn handler(
                         thumbnail_url.eq::<Option<String>>(episode.thumbnail_url.clone()),
                         stream_id.eq(episode.stream_id),
                         tracks.eq(json!(episode.tracks)),
+                        series_id.eq(episode.series_id),
+                        order_index.eq(episode.order_index.unwrap_or(0)),
                     )
                 })
                 .collect::<Vec<_>>(),
