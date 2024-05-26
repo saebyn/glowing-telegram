@@ -68,6 +68,7 @@ services:
       - ./openai_key.txt:/openai_key
     environment:
       OPENAI_KEY_PATH: /openai_key
+      OPENAI_MODEL: gpt-4o
       <<: *backend-variables
 
     healthcheck:
