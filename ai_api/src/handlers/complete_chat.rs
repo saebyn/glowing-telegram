@@ -15,7 +15,7 @@ pub async fn handler(
     let client = Client::new(state.openai_key());
 
     let parameters = ChatCompletionParameters {
-        model: "gpt-4-turbo".to_string(),
+        model: state.openai_model(),
         messages: payload
             .iter()
             .map(|m| {
