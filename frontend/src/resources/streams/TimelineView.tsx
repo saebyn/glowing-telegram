@@ -1,20 +1,13 @@
 import { useState } from "react";
-import {
-  Button,
-  useDataProvider,
-  useNotify,
-  useRecordContext,
-} from "react-admin";
-import { useMutation } from "react-query";
-import {
-  convertSecondsToISODuration,
-  parseIntoSeconds,
-} from "../../isoDuration";
+import { useRecordContext } from "react-admin";
+import { parseIntoSeconds } from "../../isoDuration";
 
-import Timeline, { DataStreamDataElement } from "../../Timeline/StreamTimeline";
+import Timeline from "../../Timeline/StreamTimeline";
 
 import { styled } from "@mui/material/styles";
 import { Segment } from "../../Timeline/SegmentSelector";
+import { DataStreamDataElement } from "../../types";
+import BulkCreateEpisodesButton from "../../BulkEpisodeCreateButton";
 
 interface TimelineViewProps {
   className?: string;
@@ -118,53 +111,3 @@ function periodsBetweenSegments(
 
   return periods;
 }
-
-const BulkCreateEpisodesButton = ({
-  label,
-  segments,
-}: {
-  label: string;
-  segments: DataStreamDataElement[];
-}) => {
-  const record = useRecordContext();
-  const notify = useNotify();
-  const dataProvider = useDataProvider();
-
-  const { mutate, isLoading } = useMutation<
-    string | null,
-    unknown,
-    DataStreamDataElement[]
-  >((segments) => {
-    return dataProvider.bulkCreate(
-      "episodes",
-      segments.map((segment, index) => ({
-        stream_id: record.id,
-        series_id: record.series_id,
-        title: `${record.title} - Episode ${index + 1}`,
-        tracks: [
-          {
-            start: convertSecondsToISODuration(segment.start),
-            end: convertSecondsToISODuration(segment.end),
-          },
-        ],
-      }))
-    );
-  });
-
-  const bulkCreateEpisodes = () => {
-    mutate(segments, {
-      onSuccess: () => {
-        // tell the user that the episodes were created
-        notify("Episodes created");
-      },
-    });
-  };
-
-  return (
-    <Button
-      disabled={isLoading}
-      label={`Start ${label}`}
-      onClick={bulkCreateEpisodes}
-    />
-  );
-};
