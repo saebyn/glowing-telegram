@@ -3,6 +3,7 @@ import {
   useNotify,
   useDataProvider,
   Button,
+  useReference,
 } from "react-admin";
 import { useMutation } from "react-query";
 import { convertSecondsToISODuration } from "./isoDuration";
@@ -15,21 +16,34 @@ const BulkCreateEpisodesButton = ({
   label: string;
   segments: DataStreamDataElement[];
 }) => {
-  const record = useRecordContext();
+  const streamRecord = useRecordContext();
   const notify = useNotify();
   const dataProvider = useDataProvider();
 
-  const { mutate, isLoading } = useMutation<
+  const {
+    referenceRecord: series,
+    isLoading: isLoadingSeries,
+    error: errorSeries,
+  } = useReference({ reference: "series", id: streamRecord.series_id });
+
+  const { mutate, isLoading, error } = useMutation<
     string | null,
-    unknown,
+    any,
     DataStreamDataElement[]
   >((segments) => {
+    if (isLoadingSeries) {
+      return;
+    }
+
+    const baseEpIndex = (series?.max_episode_order_index || 0) + 1;
+
     return dataProvider.bulkCreate(
       "episodes",
       segments.map((segment, index) => ({
-        stream_id: record.id,
-        series_id: record.series_id,
-        title: `${record.title} - Episode ${index + 1}`,
+        stream_id: streamRecord.id,
+        series_id: streamRecord.series_id,
+        order_index: baseEpIndex + index,
+        title: `${streamRecord.title} - Episode ${baseEpIndex + index}`,
         tracks: [
           {
             start: convertSecondsToISODuration(segment.start),
@@ -49,9 +63,17 @@ const BulkCreateEpisodesButton = ({
     });
   };
 
+  if (errorSeries) {
+    return <div>{errorSeries}</div>;
+  }
+
+  if (error) {
+    return <div>{error}</div>;
+  }
+
   return (
     <Button
-      disabled={isLoading}
+      disabled={isLoading || isLoadingSeries}
       label={`Start ${label}`}
       onClick={bulkCreateEpisodes}
     />
