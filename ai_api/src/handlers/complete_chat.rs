@@ -1,7 +1,10 @@
 use axum::extract::State;
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use openai_dive::v1::api::Client;
-use openai_dive::v1::resources::chat_completion::{ChatCompletionParameters, ChatMessage, Role};
+use openai_dive::v1::resources::chat::{
+    ChatCompletionParameters, ChatCompletionResponseFormat, ChatCompletionResponseFormatType,
+    ChatMessage, ChatMessageContent, Role,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::state::AppState;
@@ -16,6 +19,9 @@ pub async fn handler(
 
     let parameters = ChatCompletionParameters {
         model: state.openai_model(),
+        response_format: Some(ChatCompletionResponseFormat {
+            r#type: ChatCompletionResponseFormatType::JsonObject,
+        }),
         messages: payload
             .iter()
             .map(|m| {
@@ -28,9 +34,10 @@ pub async fn handler(
                 };
 
                 return ChatMessage {
-                    content: m.content.clone(),
-                    role: role,
+                    content: ChatMessageContent::Text(m.content.clone()),
+                    role,
                     name: None,
+                    ..Default::default()
                 };
             })
             .collect(),
@@ -48,7 +55,10 @@ pub async fn handler(
 
     // take the first choice and convert it into a `SimpleChatMessage`
     let message = SimpleChatMessage {
-        content: response.choices[0].message.content.clone(),
+        content: match &response.choices[0].message.content {
+            ChatMessageContent::Text(text) => text.to_string(),
+            _ => "No text content".to_string(),
+        },
         role: response.choices[0].message.role.to_string().to_lowercase(),
     };
 
