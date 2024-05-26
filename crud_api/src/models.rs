@@ -21,6 +21,7 @@ pub struct Stream {
     pub stream_platform: Option<String>,
     pub duration: diesel::pg::data_types::PgInterval,
     pub stream_date: chrono::NaiveDateTime,
+    pub series_id: Option<Uuid>,
 }
 
 // then use it for this table model
@@ -88,6 +89,7 @@ pub struct Series {
     pub thumbnail_url: Option<String>,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: Option<chrono::NaiveDateTime>,
+    pub playlist_id: Option<String>,
 }
 
 #[derive(Queryable)]

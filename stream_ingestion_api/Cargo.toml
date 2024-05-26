@@ -11,6 +11,6 @@ axum = "0.7.5"
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.68"
-iso8601 = { version = "0.6.1", features = ["serde"] }
+iso8601 = { version = "0.6.1", features = ["serde", "chrono"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 tracing = { version = "0.1.40" }

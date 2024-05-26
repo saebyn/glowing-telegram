@@ -62,7 +62,7 @@ function ChatDialog({
   const chatMessages = messages.slice(chatMessageStartIndex);
 
   const handleClear = () => {
-    setMessages((messesages) => messesages.slice(0, chatMessageStartIndex));
+    setMessages(() => baseMessages);
   };
 
   return (

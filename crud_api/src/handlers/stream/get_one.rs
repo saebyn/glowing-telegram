@@ -44,9 +44,7 @@ pub async fn handler(
 
     match result {
         Ok(result) => {
-            let result = StreamDetailView::from((result, video_clips));
-
-            let stream_view = StreamDetailView::from(result);
+            let stream_view = StreamDetailView::from((result, video_clips));
 
             (
                 [(header::CONTENT_TYPE, "application/json")],
