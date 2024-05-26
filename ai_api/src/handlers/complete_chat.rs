@@ -2,7 +2,8 @@ use axum::extract::State;
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use openai_dive::v1::api::Client;
 use openai_dive::v1::resources::chat::{
-    ChatCompletionParameters, ChatMessage, ChatMessageContent, Role,
+    ChatCompletionParameters, ChatCompletionResponseFormat, ChatCompletionResponseFormatType,
+    ChatMessage, ChatMessageContent, Role,
 };
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +19,9 @@ pub async fn handler(
 
     let parameters = ChatCompletionParameters {
         model: state.openai_model(),
+        response_format: Some(ChatCompletionResponseFormat {
+            r#type: ChatCompletionResponseFormatType::JsonObject,
+        }),
         messages: payload
             .iter()
             .map(|m| {
