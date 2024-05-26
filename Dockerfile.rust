@@ -39,12 +39,13 @@ RUN cargo chef prepare --recipe-path recipe.json
 ################################################################################
 FROM chef AS builder
 
-COPY common_api_lib /app/common_api_lib
-COPY task_worker /app/task_worker
 
 WORKDIR /app/${SERVICE_NAME}
 
 COPY --from=planner /app/${SERVICE_NAME}/recipe.json recipe.json
+
+COPY common_api_lib /app/common_api_lib
+COPY task_worker /app/task_worker
 
 # Build dependencies. This is the caching Docker layer
 RUN cargo chef cook --release --recipe-path recipe.json

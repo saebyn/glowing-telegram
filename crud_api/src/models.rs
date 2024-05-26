@@ -21,6 +21,7 @@ pub struct Stream {
     pub stream_platform: Option<String>,
     pub duration: diesel::pg::data_types::PgInterval,
     pub stream_date: chrono::NaiveDateTime,
+    pub series_id: Option<Uuid>,
 }
 
 // then use it for this table model

@@ -35,6 +35,8 @@ pub struct SeriesSimpleView {
     pub title: String,
     pub created_at: String,
     pub updated_at: Option<String>,
+
+    pub max_episode_order_index: Option<i32>,
 }
 
 impl From<Series> for SeriesSimpleView {
@@ -45,6 +47,22 @@ impl From<Series> for SeriesSimpleView {
 
             created_at: series.created_at.to_string(),
             updated_at: series.updated_at.map(|dt| dt.to_string()),
+
+            max_episode_order_index: None,
+        }
+    }
+}
+
+impl From<(Series, i32)> for SeriesSimpleView {
+    fn from((series, max_episode_order_index): (Series, i32)) -> Self {
+        SeriesSimpleView {
+            id: series.id.to_string(),
+            title: series.title.to_string(),
+
+            created_at: series.created_at.to_string(),
+            updated_at: series.updated_at.map(|dt| dt.to_string()),
+
+            max_episode_order_index: Some(max_episode_order_index),
         }
     }
 }

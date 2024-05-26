@@ -1,4 +1,10 @@
-import { TextInput, TabbedForm, SelectInput, DateTimeInput } from "react-admin";
+import {
+  TextInput,
+  TabbedForm,
+  SelectInput,
+  DateTimeInput,
+  ReferenceInput,
+} from "react-admin";
 
 import StreamVideoClipsInput from "./StreamVideoClipsInput";
 import StreamTranscriptInput from "./StreamTranscriptInput";
@@ -14,9 +20,14 @@ const StreamEdit = (props: EditProps) => (
     <TabbedForm>
       <TabbedForm.Tab label="summary">
         <TitleInput source="title" required />
+
+        <ReferenceInput source="series_id" reference="series">
+          <SelectInput optionText="title" />
+        </ReferenceInput>
+
         <DescriptionInput source="description" />
 
-        <TextInput source="thumbnail" fullWidth />
+        <TextInput source="thumbnail" fullWidth parse={(value) => value} />
 
         <SelectInput
           source="stream_platform"

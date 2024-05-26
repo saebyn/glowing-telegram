@@ -3,12 +3,7 @@ import SegmentSelector, { Segment } from "./SegmentSelector";
 import DensityLine from "./DensityLine";
 import { formatDuration } from "../isoDuration";
 import Button from "@mui/material/Button";
-
-export interface DataStreamDataElement {
-  start: number;
-  end: number;
-  density?: number;
-}
+import { DataStreamDataElement } from "../types";
 
 interface StreamTimelineProps {
   start: number;

@@ -52,3 +52,9 @@ export interface ChatMessage {
   content: string;
   role: "system" | "user" | "assistant" | "function";
 }
+
+export interface DataStreamDataElement {
+  start: number;
+  end: number;
+  density?: number;
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo, useCallback, useMemo } from "react";
 import {
   Button,
   useRecordContext,
@@ -14,7 +14,7 @@ import { formatDuration, parseIntoSeconds } from "../../isoDuration";
 import AsyncResultLoader from "./AsyncResultLoader";
 import { TranscriptSegment } from "../../types";
 
-const ScanButton = ({ label }: { label: string }) => {
+const ScanButton = memo(function ScanButton({ label }: { label: string }) {
   const record = useRecordContext();
   const refresh = useRefresh();
   const dataProvider = useDataProvider();
@@ -54,7 +54,7 @@ Description: ${record.description}
       onClick={queueTranscription}
     />
   );
-};
+});
 
 export const TaskStatus = ({
   taskStatus,
@@ -92,16 +92,21 @@ const StreamTranscriptInput = ({
     field: { value },
   } = useInput({ source });
 
-  const transcriptSegments: TranscriptSegment[] = value || [];
+  const transcriptSegments: TranscriptSegment[] = useMemo(
+    () => value || [],
+    [value]
+  );
 
-  const onSave = (index: number, buffer: string) => {
-    const newSegments = [...transcriptSegments];
-    newSegments[index].text = buffer;
-    formContext.setValue(source, newSegments, {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
-  };
+  const onSave = useCallback(
+    (index: number, buffer: string) => {
+      transcriptSegments[index].text = buffer;
+      formContext.setValue(source, transcriptSegments, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    },
+    [formContext, source, transcriptSegments]
+  );
 
   return (
     <div className={className}>
@@ -124,60 +129,62 @@ const StreamTranscriptInput = ({
   );
 };
 
-const StreamTranscriptSegmentInput = ({
-  segment,
-  index,
-  editing,
-  setEditing,
-  onSave,
-}: {
-  segment: TranscriptSegment;
-  index: number;
-  editing: null | number;
-  setEditing: (_index: null | number) => void;
-  onSave: (_index: number, _text: string) => void;
-}) => {
-  const [buffer, setBuffer] = useState<null | string>(null);
+const StreamTranscriptSegmentInput = memo(
+  function StreamTranscriptSegmentInput({
+    segment,
+    index,
+    editing,
+    setEditing,
+    onSave,
+  }: {
+    segment: TranscriptSegment;
+    index: number;
+    editing: null | number;
+    setEditing: (_index: null | number) => void;
+    onSave: (_index: number, _text: string) => void;
+  }) {
+    const [buffer, setBuffer] = useState<null | string>(null);
 
-  const segmentStart = parseIntoSeconds(segment.start);
-  const segmentEnd = parseIntoSeconds(segment.end);
+    const segmentStart = parseIntoSeconds(segment.start);
+    const segmentEnd = parseIntoSeconds(segment.end);
 
-  return (
-    <div
-      key={segment.start}
-      className={LabeledClasses.segment}
-      onClick={() => {
-        setEditing(index);
-      }}
-    >
-      {index === editing ? (
-        <TextField
-          multiline={true}
-          value={buffer || segment.text}
-          onChange={(e) => {
-            setBuffer(e.target.value);
-          }}
-          onBlur={() => {
-            setEditing(null);
-            if (buffer) {
-              onSave(index, buffer);
-              setBuffer(null);
-            }
-          }}
-        />
-      ) : (
-        <span className={LabeledClasses.segmentText}>{segment.text}</span>
-      )}
+    return (
+      <div
+        key={segment.start}
+        className={LabeledClasses.segment}
+        onClick={() => {
+          setEditing(index);
+        }}
+      >
+        {index === editing ? (
+          <TextField
+            multiline={true}
+            value={buffer || segment.text}
+            onChange={(e) => {
+              setBuffer(e.target.value);
+            }}
+            onBlur={() => {
+              setEditing(null);
+              if (buffer) {
+                onSave(index, buffer);
+                setBuffer(null);
+              }
+            }}
+          />
+        ) : (
+          <span className={LabeledClasses.segmentText}>{segment.text}</span>
+        )}
 
-      <span className={LabeledClasses.segmentStart}>
-        {formatDuration(segmentStart)}
-      </span>
-      <span className={LabeledClasses.segmentEnd}>
-        {formatDuration(segmentEnd)}
-      </span>
-    </div>
-  );
-};
+        <span className={LabeledClasses.segmentStart}>
+          {formatDuration(segmentStart)}
+        </span>
+        <span className={LabeledClasses.segmentEnd}>
+          {formatDuration(segmentEnd)}
+        </span>
+      </div>
+    );
+  }
+);
 
 const PREFIX = "StreamTranscriptInput";
 
