@@ -1,5 +1,6 @@
 %{
   "cowlib": {:hex, :cowlib, "2.13.0", "db8f7505d8332d98ef50a3ef34b34c1afddec7506e4ee4dd4a3a266285d282ca", [:make, :rebar3], [], "hexpm", "e1e1284dc3fc030a64b1ad0d8382ae7e99da46c3246b815318a4b848873800a4"},
+  "dotenvy": {:hex, :dotenvy, "0.8.0", "777486ad485668317c56afc53a7cbcd74f43e4e34588ba8e95a73e15a360050e", [:mix], [], "hexpm", "1f535066282388cbd109743d337ac46ff0708195780d4b5778bb83491ab1b654"},
   "glock": {:hex, :glock, "0.1.1", "033e354644dbddb6f1324b10cc80e54783696fc269ce42c624a7ffa5c9e0c27a", [:mix], [{:cowlib, "~> 2.7", [hex: :cowlib, repo: "hexpm", optional: false]}, {:gun, "~> 1.3.3", [hex: :gun, repo: "hexpm", optional: false]}], "hexpm", "f371a939a9f7112ac5f6849172bb3a34436e9074912125dbfda00d54db968e66"},
   "gun": {:hex, :gun, "2.1.0", "b4e4cbbf3026d21981c447e9e7ca856766046eff693720ba43114d7f5de36e87", [:make, :rebar3], [{:cowlib, "2.13.0", [hex: :cowlib, repo: "hexpm", optional: false]}], "hexpm", "52fc7fc246bfc3b00e01aea1c2854c70a366348574ab50c57dfe796d24a0101d"},
   "jason": {:hex, :jason, "1.4.1", "af1504e35f629ddcdd6addb3513c3853991f694921b1b9368b0bd32beb9f1b63", [:mix], [{:decimal, "~> 1.0 or ~> 2.0", [hex: :decimal, repo: "hexpm", optional: true]}], "hexpm", "fbb01ecdfd565b56261302f7e1fcc27c4fb8f32d56eab74db621fc154604a7a1"},

@@ -24,3 +24,6 @@ twitch_bot-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Environment variable files
+.env

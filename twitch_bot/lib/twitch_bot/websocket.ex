@@ -6,10 +6,12 @@ defmodule TwitchBot.Websocket do
   @twitch_websocket_url "wss://irc-ws.chat.twitch.tv"
 
   def start_link(opts \\ []) do
+    config = Application.get_env(:twitch_bot, __MODULE__)
+
     state = %{
-      :username => System.get_env("TWITCH_USERNAME", "saebyn"),
-      :channel => System.get_env("TWITCH_CHANNEL", "saebyn"),
-      :token => System.get_env("TWITCH_TOKEN")
+      :username => config[:username],
+      :channel => config[:channel],
+      :token => config[:token]
     }
 
     # add module name to the opts to name the process
@@ -52,6 +54,8 @@ defmodule TwitchBot.Websocket do
       Logger.info("Joined channel")
 
       WebSockex.send_frame(pid, {:text, "PRIVMSG ##{state[:channel]} :Hello from the bot!"})
+
+      Logger.info("Sent message")
     end)
 
     {:ok, state}
@@ -68,11 +72,13 @@ defmodule TwitchBot.Websocket do
     case MessageParser.parse_message(msg) do
       {:ok, message} ->
         Logger.info("Message: #{inspect(message)}")
-
-      {:unknown, _} ->
-        nil
     end
 
+    {:ok, state}
+  end
+
+  def handle_frame(other, state) do
+    Logger.info("Received other frame: #{inspect(other)}")
     {:ok, state}
   end
 
