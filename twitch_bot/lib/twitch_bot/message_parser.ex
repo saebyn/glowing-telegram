@@ -1,34 +1,48 @@
 defmodule TwitchBot.MessageParser do
+  @spec parse_message(String.t()) :: {:ok, TwitchBot.Message.t()}
   def parse_message(message) do
-    {message,
-     %{
-       :type => :unknown,
-       :message => message
+    message =
+      {message,
+       %{
+         :type => :unknown,
+         :message => message
+       }}
+      |> parse_tags()
+      |> parse_author()
+      |> parse_type()
+      |> parse_channel()
+      |> parse_message_text()
+      |> elem(1)
+
+    {:ok,
+     %TwitchBot.Message{
+       author: message[:author],
+       message: message[:message],
+       type: message[:type],
+       tags: message[:tags],
+       channel: message[:channel]
      }}
-    |> parse_tags()
-    |> parse_author()
-    |> parse_type()
-    |> parse_channel()
-    |> elem(1)
   end
 
   defp parse_tags({message, message_map}) do
-    case Regex.scan(~r/@([^ ]*)/, message) do
-      [] ->
+    case Regex.run(~r/@([^ ]*)/, message) do
+      nil ->
         {message, message_map}
 
-      [tags] ->
-        tags
-        |> List.first()
-        |> String.split(";")
-        |> Enum.reduce(%{}, fn tag, acc ->
-          [key, value] = String.split(tag, "=")
-          Map.put(acc, String.to_atom(key), value)
-        end)
-        |> then(fn tags ->
-          Map.put(message_map, :tags, tags)
-        end)
-        |> Map.put(:message, String.replace(message, ~r/@([^ ]*)/, ""))
+      [_head | [tags | _rest]] ->
+        message_map =
+          tags
+          |> String.split(";")
+          |> Enum.reduce(%{}, fn tag, acc ->
+            [key, value] = String.split(tag, "=")
+            key = String.replace(key, ~r/-/, "_")
+            Map.put(acc, String.to_atom(key), value)
+          end)
+          |> then(fn tags ->
+            Map.put(message_map, :tags, tags)
+          end)
+
+        {String.replace(message, ~r/@([^ ]*)/, ""), message_map}
     end
   end
 
@@ -38,8 +52,10 @@ defmodule TwitchBot.MessageParser do
         {message, message_map}
 
       [[_, author]] ->
-        Map.put(message_map, :author, author)
-        |> Map.put(:message, String.replace(message, ~r/:(.*)!/, ""))
+        {
+          String.replace(message, ~r/:(.*)!/, ""),
+          Map.put(message_map, :author, author)
+        }
     end
   end
 
@@ -49,8 +65,10 @@ defmodule TwitchBot.MessageParser do
         {message, message_map}
 
       _ ->
-        Map.put(message_map, :type, :privmsg)
-        |> Map.put(:message, String.replace(message, ~r/PRIVMSG/, ""))
+        {
+          String.replace(message, ~r/PRIVMSG/, ""),
+          Map.put(message_map, :type, :privmsg)
+        }
     end
   end
 
@@ -60,8 +78,20 @@ defmodule TwitchBot.MessageParser do
         {message, message_map}
 
       [[_, channel]] ->
-        Map.put(message_map, :channel, channel)
-        |> Map.put(:message, String.replace(message, ~r/#([^ ]*)/, ""))
+        {String.replace(message, ~r/#([^ ]*)/, ""), Map.put(message_map, :channel, channel)}
     end
+  end
+
+  defp parse_message_text({message, message_map}) do
+    {message,
+     Map.put(
+       message_map,
+       :message,
+       # remove everything before the first colon
+       message
+       |> String.split(":", parts: 2)
+       |> List.last()
+       |> String.trim()
+     )}
   end
 end
