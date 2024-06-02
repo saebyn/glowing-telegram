@@ -21,7 +21,6 @@ const SeriesEdit = (props: EditProps) => (
 
       <BooleanInput source="notify_subscribers" />
       <YouTubeCategoryInput source="category" />
-      {/* editable array of strings as chips */}
       <ArrayInput source="tags">
         <SimpleFormIterator>
           <TextInput source="" />
