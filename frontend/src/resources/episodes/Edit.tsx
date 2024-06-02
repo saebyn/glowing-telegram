@@ -6,6 +6,7 @@ import {
   SimpleFormIterator,
   SelectInput,
   TopToolbar,
+  TextInput,
   NumberInput,
   PrevNextButtons,
   useRecordContext,
@@ -25,6 +26,7 @@ import Edit from "../../Edit";
 import ChatButton from "../../ChatButton";
 import { Episode, TranscriptSegment } from "../../types";
 import { parseIntoSeconds } from "../../isoDuration";
+import YouTubeCategoryInput from "../../YouTubeCategoryInput";
 
 const EditActions = () => (
   <TopToolbar>
@@ -68,6 +70,15 @@ const EpisodeEdit = () => (
       <ReferenceInput source="stream_id" reference="streams">
         <SelectInput optionText="title" />
       </ReferenceInput>
+
+      <BooleanInput source="notify_subscribers" />
+      <YouTubeCategoryInput source="category" />
+      {/* editable array of strings as chips */}
+      <ArrayInput source="tags">
+        <SimpleFormIterator>
+          <TextInput source="" />
+        </SimpleFormIterator>
+      </ArrayInput>
     </SimpleForm>
   </Edit>
 );
