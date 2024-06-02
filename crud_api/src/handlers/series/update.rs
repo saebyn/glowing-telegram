@@ -12,17 +12,9 @@ use common_api_lib::db::DbConnection;
 
 use super::structs::SeriesDetailView;
 use super::structs::UpdateSeriesRequest;
+use crate::handlers::series::structs::UpdateSeriesChangeset;
 use crate::models::Series;
-use crate::schema::{self, series};
-
-#[derive(Debug, AsChangeset)]
-#[diesel(table_name = series)]
-pub struct UpdateSeriesChangeset {
-    pub title: Option<String>,
-    pub description: Option<String>,
-    pub thumbnail_url: Option<String>,
-    pub playlist_id: Option<String>,
-}
+use crate::schema;
 
 #[instrument]
 pub async fn handler(
@@ -36,12 +28,7 @@ pub async fn handler(
 
     let result: Result<Series, diesel::result::Error> =
         diesel::update(series.filter(id.eq(record_id)))
-            .set(&UpdateSeriesChangeset {
-                title: body.title,
-                description: body.description,
-                thumbnail_url: body.thumbnail_url,
-                playlist_id: body.playlist_id,
-            })
+            .set(UpdateSeriesChangeset::from(body))
             .get_result(&mut db.connection)
             .await;
 

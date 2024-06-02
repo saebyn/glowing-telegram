@@ -50,6 +50,9 @@ const BulkCreateEpisodesButton = ({
             end: convertSecondsToISODuration(segment.end),
           },
         ],
+        notify_subscribers: series?.notify_subscribers,
+        category: series?.category,
+        tags: series?.tags,
       }))
     );
   });

@@ -14,6 +14,9 @@ diesel::table! {
         order_index -> Int4,
         render_uri -> Nullable<Text>,
         is_published -> Bool,
+        notify_subscribers -> Bool,
+        category -> Int2,
+        tags -> Array<Nullable<Text>>,
     }
 }
 
@@ -26,6 +29,9 @@ diesel::table! {
         created_at -> Timestamptz,
         updated_at -> Nullable<Timestamptz>,
         playlist_id -> Nullable<Text>,
+        notify_subscribers -> Bool,
+        category -> Int2,
+        tags -> Array<Nullable<Text>>,
     }
 }
 

@@ -26,6 +26,9 @@ pub async fn handler(
             description.eq(body.description.unwrap_or("".to_string())),
             thumbnail_url.eq(body.thumbnail_url.unwrap_or("".to_string())),
             playlist_id.eq(body.playlist_id.unwrap_or("".to_string())),
+            notify_subscribers.eq(body.notify_subscribers.unwrap_or(false)),
+            category.eq(body.category.unwrap_or(20)),
+            tags.eq(body.tags.unwrap_or(vec![])),
         ))
         .get_result::<Series>(&mut db.connection)
         .await
