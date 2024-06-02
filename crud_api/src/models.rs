@@ -77,6 +77,9 @@ pub struct Episode {
     pub order_index: i32,
     pub render_uri: Option<String>,
     pub is_published: bool,
+    pub notify_subscribers: bool,
+    pub category: i16,
+    pub tags: Vec<Option<String>>,
 }
 
 #[derive(Queryable, Selectable, Debug)]
@@ -90,6 +93,9 @@ pub struct Series {
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: Option<chrono::NaiveDateTime>,
     pub playlist_id: Option<String>,
+    pub notify_subscribers: bool,
+    pub category: i16,
+    pub tags: Vec<Option<String>>,
 }
 
 #[derive(Queryable)]

@@ -1,7 +1,8 @@
+use diesel::AsChangeset;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::models::Episode;
+use crate::{models::Episode, schema::episodes};
 
 #[derive(Debug, Serialize)]
 pub struct EpisodeSimpleView {
@@ -95,6 +96,10 @@ pub struct EpisodeDetailView {
     pub is_published: bool,
 
     pub tracks: Vec<Track>,
+
+    pub notify_subscribers: bool,
+    pub category: i16,
+    pub tags: Vec<Option<String>>,
 }
 
 impl From<Episode> for EpisodeDetailView {
@@ -115,6 +120,10 @@ impl From<Episode> for EpisodeDetailView {
             is_published: episode.is_published,
 
             tracks: serde_json::from_value(episode.tracks).unwrap_or(vec![]),
+
+            notify_subscribers: episode.notify_subscribers,
+            category: episode.category,
+            tags: episode.tags,
         }
     }
 }
@@ -136,6 +145,10 @@ pub struct CreateEpisodeRequest {
     pub order_index: Option<i32>,
 
     pub tracks: Vec<Track>,
+
+    pub notify_subscribers: Option<bool>,
+    pub category: Option<i16>,
+    pub tags: Option<Vec<Option<String>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -154,4 +167,55 @@ pub struct UpdateEpisodeRequest {
     pub series_id: Option<Uuid>,
     pub order_index: Option<i32>,
     pub is_published: Option<bool>,
+    pub notify_subscribers: Option<bool>,
+    pub category: Option<i16>,
+    pub tags: Option<Vec<Option<String>>>,
+}
+
+#[derive(Debug, AsChangeset)]
+#[diesel(table_name = episodes)]
+pub struct UpdateEpisodeChangeset {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub stream_id: Option<Uuid>,
+    pub render_uri: Option<String>,
+    pub tracks: Option<serde_json::Value>,
+    pub thumbnail_url: Option<String>,
+    pub series_id: Option<Uuid>,
+    pub order_index: Option<i32>,
+    pub is_published: Option<bool>,
+    pub notify_subscribers: Option<bool>,
+    pub category: Option<i16>,
+    pub tags: Option<Vec<Option<String>>>,
+}
+
+impl From<UpdateEpisodeRequest> for UpdateEpisodeChangeset {
+    fn from(body: UpdateEpisodeRequest) -> Self {
+        let tracks_json = match body.tracks {
+            Some(actual_tracks) => match serde_json::to_value(actual_tracks) {
+                Ok(value) => Some(value),
+                Err(e) => {
+                    tracing::error!("Error serializing tracks: {}", e);
+                    None
+                }
+            },
+
+            None => None,
+        };
+
+        UpdateEpisodeChangeset {
+            title: body.title,
+            description: body.description,
+            stream_id: body.stream_id,
+            render_uri: body.render_uri,
+            tracks: tracks_json,
+            thumbnail_url: body.thumbnail_url,
+            series_id: body.series_id,
+            order_index: body.order_index,
+            is_published: body.is_published,
+            notify_subscribers: body.notify_subscribers,
+            category: body.category,
+            tags: body.tags,
+        }
+    }
 }
