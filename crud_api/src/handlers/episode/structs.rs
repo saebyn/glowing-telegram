@@ -19,6 +19,10 @@ pub struct EpisodeSimpleView {
     pub is_published: bool,
 
     pub stream_date: Option<String>,
+
+    pub notify_subscribers: bool,
+    pub category: i16,
+    pub tags: Vec<Option<String>>,
 }
 
 impl From<(Episode, Option<chrono::NaiveDateTime>, Option<String>)> for EpisodeSimpleView {
@@ -49,6 +53,10 @@ impl From<(Episode, Option<chrono::NaiveDateTime>, Option<String>)> for EpisodeS
             render_uri: episode.render_uri,
 
             stream_date: stream_date.map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()),
+
+            notify_subscribers: episode.notify_subscribers,
+            category: episode.category,
+            tags: episode.tags,
         }
     }
 }
@@ -75,6 +83,10 @@ impl From<Episode> for EpisodeSimpleView {
             render_uri: episode.render_uri,
 
             stream_date: None,
+
+            notify_subscribers: episode.notify_subscribers,
+            category: episode.category,
+            tags: episode.tags,
         }
     }
 }

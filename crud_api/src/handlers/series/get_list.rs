@@ -71,7 +71,7 @@ pub async fn handler(
             series::all_columns(),
             // largest episode order index
             diesel::dsl::sql::<diesel::sql_types::Int4>(
-                "(SELECT MAX(order_index) FROM episodes WHERE episodes.series_id = series.id)",
+                "(SELECT COALESCE(MAX(order_index), 0) FROM episodes WHERE episodes.series_id = series.id)",
             ),
         ))
         .filter(predicate)
