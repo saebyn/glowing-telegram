@@ -19,7 +19,8 @@ async fn main() {
         let mut task = pop_task(&mut con, &queue_name);
 
         // update the status to processing
-        update_task_status(&mut con, &task, TaskStatus::Processing);
+        update_task_status(&mut con, &task, TaskStatus::Processing)
+            .expect("Failed to update task status");
 
         // loop while the cursor is not Null
         loop {
@@ -32,7 +33,8 @@ async fn main() {
 
             // if the response is not 200, then update the status to failed and break
             if !response.status().is_success() {
-                update_task_status(&mut con, &task, TaskStatus::Failed);
+                update_task_status(&mut con, &task, TaskStatus::Failed)
+                    .expect("Failed to update task status");
 
                 break;
             }
@@ -68,7 +70,8 @@ async fn main() {
         println!("Finished task: {}", task.key);
 
         // update the status to complete
-        update_task_status(&mut con, &task, TaskStatus::Complete);
+        update_task_status(&mut con, &task, TaskStatus::Complete)
+            .expect("Failed to update task status");
 
         // remove the task from redis
         remove_task_from_temp_queue(&mut con, &task);
