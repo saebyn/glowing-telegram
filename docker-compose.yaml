@@ -1,4 +1,3 @@
-version: "3"
 name: video_processing_project
 
 x-backend-variables: &backend-variables
@@ -181,6 +180,8 @@ services:
         - DEBIAN_VERSION=bookworm-slim
         - RUST_VERSION=1.78
     restart: always
+    depends_on:
+      - redis
     environment:
       <<: *backend-variables
       REDIS_URL: redis://redis:6379
@@ -200,6 +201,8 @@ services:
         - DEBIAN_VERSION=bookworm-slim
         - RUST_VERSION=1.78
     restart: always
+    depends_on:
+      - redis
     environment:
       <<: *backend-variables
       REDIS_URL: redis://redis:6379
