@@ -270,6 +270,16 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl
 
 #[instrument]
 async fn handle_socket(mut socket: WebSocket, redis: redis::Client) {
+    // send a ping (unsupported by some browsers) just to kick things off and get a response
+    if socket.send(Message::Ping(vec![])).await.is_ok() {
+        println!("Pinged client...");
+    } else {
+        println!("Could not send ping client!");
+        // no Error here since the only thing we can do is to close the connection.
+        // If we can not send messages, there is no way to salvage the statemachine anyway.
+        return;
+    }
+
     let mut con = match redis.get_connection() {
         Ok(con) => con,
         Err(e) => {
