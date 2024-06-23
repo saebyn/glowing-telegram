@@ -14,6 +14,7 @@ import Button from "@mui/material/Button";
 import { LoadingIndicator } from "react-admin";
 import useTasks from "./useTasks";
 import { useRef } from "react";
+import Notifications from "./Notifications";
 
 const containerStyles = {
   minWidth: 250,
@@ -118,6 +119,8 @@ const TasksDrawerList = () => {
       <Typography variant="subtitle1">
         {tasks ? `${tasks.length} tasks` : "Loading tasks..."}
       </Typography>
+
+      <Notifications />
 
       <Button onClick={backToTop}>Back to top</Button>
     </Box>

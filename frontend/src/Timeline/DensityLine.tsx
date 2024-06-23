@@ -59,7 +59,7 @@ const DensityLine: FC<DensityLineProps> = ({
 
   // Create the gradient color stops
   const colorStops = [];
-  let previousPeriodEnd = start;
+  const previousPeriodEnd = start;
 
   for (const period of data) {
     // Skip periods that are outside the timeline

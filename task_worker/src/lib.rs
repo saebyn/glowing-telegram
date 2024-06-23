@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use redis::{Commands, ConnectionLike};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Task {
@@ -32,7 +33,7 @@ impl From<HashMap<String, String>> for Task {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum TaskStatus {
     Queued,
     Processing,
@@ -119,19 +120,75 @@ pub fn create_task(
     }
 }
 
-// TODO return a Result
-pub fn update_task_status(con: &mut redis::Connection, task: &Task, status: TaskStatus) {
-    let _: () = con
-        .hset(task.key.clone(), "status", status.as_str())
-        .expect("Failed to update task status");
+pub fn publish_task_status(
+    con: &mut redis::Connection,
+    task: &Task,
+    previous_status: TaskStatus,
+) -> Result<(), &'static str> {
+    let data = json!({
+       "task": task,
+       "previous_status": previous_status.as_str(),
+       "new_status": task.status.as_str(),
+       "event": "task_status_change",
+    });
 
-    let _: () = con
-        .hset(
-            task.key.clone(),
-            "last_updated",
-            chrono::Utc::now().to_rfc3339(),
+    let message = match serde_json::to_string(&data) {
+        Ok(message) => message,
+        Err(e) => {
+            tracing::error!("Failed to serialize task status message: {}", e);
+            return Err("Failed to serialize task status message");
+        }
+    };
+
+    con.publish("task", message).map_err(|_| {
+        tracing::error!("Failed to publish task status message");
+        "Failed to publish task status message"
+    })
+}
+
+pub fn update_task_status(
+    con: &mut redis::Connection,
+    task: &Task,
+    new_task_status: TaskStatus,
+) -> Result<(), &'static str> {
+    match con.hset::<_, &str, &str, ()>(task.key.clone(), "status", new_task_status.as_str()) {
+        Ok(_) => (),
+        Err(e) => {
+            tracing::error!("Failed to update task status: {}", e);
+            return Err("Failed to update task status");
+        }
+    };
+
+    match con.hset::<_, &str, &str, ()>(
+        task.key.clone(),
+        "last_updated",
+        chrono::Utc::now().to_rfc3339().as_str(),
+    ) {
+        Ok(_) => (),
+        Err(e) => {
+            tracing::error!("Failed to update task last_updated: {}", e);
+            return Err("Failed to update task last_updated");
+        }
+    };
+
+    if task.status != new_task_status {
+        publish_task_status(
+            con,
+            &Task {
+                key: task.key.clone(),
+                id: task.id,
+                title: task.title.clone(),
+                url: task.url.clone(),
+                payload: task.payload.clone(),
+                data_key: task.data_key.clone(),
+                status: new_task_status,
+                last_updated: chrono::Utc::now().to_rfc3339(),
+            },
+            task.status.clone(),
         )
-        .expect("Failed to update task last_updated");
+    } else {
+        Ok(())
+    }
 }
 
 // TODO return a Result

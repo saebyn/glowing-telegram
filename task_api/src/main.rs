@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
 use axum::extract::{Path, State};
+
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::http::header;
 use axum::Json;
 use axum::{http::StatusCode, response::IntoResponse, routing::get};
@@ -30,6 +32,7 @@ async fn main() -> Result<(), axum::BoxError> {
                     .put(update_handler)
                     .delete(delete_handler),
             )
+            .route("/tasks/ws", get(ws_handler))
     })
     .await
 }
@@ -258,4 +261,50 @@ async fn delete_handler() -> impl IntoResponse {
     // TODO delete the record from redis
     // TODO return the right status code
     (StatusCode::OK, axum::Json(json!({}))).into_response()
+}
+
+#[instrument]
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state.redis))
+}
+
+#[instrument]
+async fn handle_socket(mut socket: WebSocket, redis: redis::Client) {
+    // send a ping (unsupported by some browsers) just to kick things off and get a response
+    if socket.send(Message::Ping(vec![])).await.is_ok() {
+        println!("Pinged client...");
+    } else {
+        println!("Could not send ping client!");
+        // no Error here since the only thing we can do is to close the connection.
+        // If we can not send messages, there is no way to salvage the statemachine anyway.
+        return;
+    }
+
+    let mut con = match redis.get_connection() {
+        Ok(con) => con,
+        Err(e) => {
+            tracing::error!("Failed to get redis connection: {}", e);
+            return;
+        }
+    };
+
+    let mut pubsub = con.as_pubsub();
+
+    // subscribe to the task channel
+    pubsub.subscribe("task").unwrap();
+
+    // listen for messages on the task channel
+    loop {
+        let msg = pubsub.get_message().unwrap();
+        let payload: String = msg.get_payload().unwrap();
+        println!("Received: {}", payload);
+
+        // send the message to the client
+        if socket.send(Message::Text(payload.clone())).await.is_ok() {
+            println!("Sent: {}", payload);
+        } else {
+            println!("Could not send message!");
+            return;
+        }
+    }
 }
