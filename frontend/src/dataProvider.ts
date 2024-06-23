@@ -1,16 +1,21 @@
 import simpleRestDataProvider from "ra-data-simple-rest";
-import { GetListParams, combineDataProviders } from "react-admin";
+import { DataProvider, GetListParams, combineDataProviders } from "react-admin";
 import { ChatMessage, YoutubeUploadTaskPayload } from "./types";
+import GTWebSocket, { Callback as WebSocketCallback } from "./websocket";
 
 const baseUrl = `${import.meta.env.VITE_API_URL || "http://localhost:3000"}`;
 
 const crudDataProvider = simpleRestDataProvider(`${baseUrl}/records`);
 
-const twitchVideosDataProvider: any = {
+const twitchVideosDataProvider = {
   cursorPage: 1,
   cursor: "",
 
-  async getList(_resource: String, params: GetListParams) {
+  async getList(
+    this: { cursorPage: number; cursor: string },
+    _resource: string,
+    params: GetListParams
+  ) {
     const page = params.pagination?.page || 1;
     let cursor = "";
 
@@ -37,7 +42,7 @@ const twitchVideosDataProvider: any = {
       },
     };
   },
-};
+} as unknown as DataProvider;
 
 const baseDataProvider = combineDataProviders((resource) => {
   switch (resource) {
@@ -154,6 +159,12 @@ export const dataProvider = {
     return fetch(taskUrl).then((res) => res.json());
   },
 
+  async subscribeToTaskStatus(
+    callback: WebSocketCallback
+  ): Promise<() => void> {
+    return GTWebSocket.getInstance(baseUrl).subscribe(callback);
+  },
+
   async bulkCreate<T>(resource: string, data: T[]) {
     const res = await fetch(`${baseUrl}/records/${resource}`, {
       method: "PUT",
@@ -179,7 +190,7 @@ export const dataProvider = {
     });
   },
 
-  async importStreams(streams: any[]) {
+  async importStreams(streams: unknown[]) {
     return fetch(`${baseUrl}/records/streams`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

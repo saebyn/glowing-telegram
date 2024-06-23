@@ -58,3 +58,10 @@ export interface DataStreamDataElement {
   end: number;
   density?: number;
 }
+
+export type TaskStatus =
+  | "queued"
+  | "processing"
+  | "complete"
+  | "failed"
+  | "invalid";
