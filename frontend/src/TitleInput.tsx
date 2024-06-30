@@ -7,6 +7,7 @@
  */
 import * as React from "react";
 import { TextInput } from "react-admin";
+import { validateTitle } from "./validators";
 
 // Derive the Props type from the TextInput component
 type Props = React.ComponentProps<typeof TextInput>;
@@ -19,6 +20,7 @@ const muiInputProps = {};
 
 const TitleInput = (props: Props) => (
   <TextInput
+    validate={validateTitle}
     {...props}
     label="Title"
     inputProps={inputProps}

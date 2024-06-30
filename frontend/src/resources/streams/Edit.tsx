@@ -17,7 +17,7 @@ import TimelineView from "./TimelineView";
 
 const StreamEdit = (props: EditProps) => (
   <Edit {...props}>
-    <TabbedForm>
+    <TabbedForm reValidateMode="onBlur" mode="onBlur">
       <TabbedForm.Tab label="summary">
         <TitleInput source="title" required />
 

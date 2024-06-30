@@ -9,6 +9,19 @@ import {
 } from "react-admin";
 import { useFormContext } from "react-hook-form";
 import { useMutation } from "react-query";
+import TitleInput from "../../TitleInput";
+import {
+  validateAudioBitrate,
+  validateAudioTrackCount,
+  validateContentType,
+  validateFilename,
+  validateFrameRate,
+  validateHeight,
+  validateWidth,
+  validateVideoBitrate,
+  validateSize,
+  validateUri,
+} from "../../validators";
 
 interface Clip {
   uri: string;
@@ -112,19 +125,22 @@ const StreamVideoClipsInput = (props: any) => {
   return (
     <ArrayInput {...props}>
       <FormIterator inline>
-        <TextInput source="title" required />
-        <TextInput source="uri" required />
-        <TextInput source="duration" required />
-        <TextInput source="start_time" required />
-        <TextInput source="audio_bitrate" />
-        <TextInput source="audio_track_count" />
-        <TextInput source="content_type" />
-        <TextInput source="filename" required />
-        <TextInput source="frame_rate" />
-        <TextInput source="height" />
-        <TextInput source="width" />
-        <TextInput source="video_bitrate" />
-        <TextInput source="size" />
+        <TitleInput source="title" />
+        <TextInput source="uri" validate={validateUri} />
+        <TextInput source="duration" />
+        <TextInput source="start_time" />
+        <TextInput source="audio_bitrate" validate={validateAudioBitrate} />
+        <TextInput
+          source="audio_track_count"
+          validate={validateAudioTrackCount}
+        />
+        <TextInput source="content_type" validate={validateContentType} />
+        <TextInput source="filename" validate={validateFilename} />
+        <TextInput source="frame_rate" validate={validateFrameRate} />
+        <TextInput source="height" validate={validateHeight} />
+        <TextInput source="width" validate={validateWidth} />
+        <TextInput source="video_bitrate" validate={validateVideoBitrate} />
+        <TextInput source="size" validate={validateSize} />
         <DateTimeInput source="last_modified" />
       </FormIterator>
     </ArrayInput>
