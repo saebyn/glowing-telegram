@@ -1,6 +1,11 @@
 use redis::Commands;
 
-use task_worker::{pop_task, remove_task_from_temp_queue, update_task_status, TaskStatus};
+use task_worker::{
+    pop_task, queue_task, remove_task_from_temp_queue, update_task_status, TaskStatus,
+};
+
+const DEFAULT_RETRY_DELAY: chrono::TimeDelta = chrono::Duration::minutes(1);
+const NO_TASK_READY_DELAY: std::time::Duration = std::time::Duration::from_secs(60);
 
 #[tokio::main]
 async fn main() {
@@ -16,7 +21,14 @@ async fn main() {
     let queue_name = dotenvy::var("QUEUE_NAME").expect("QUEUE_NAME must be set");
 
     loop {
-        let mut task = pop_task(&mut con, &queue_name);
+        /*
+         * Take a task from the queue and then while the target url returns a
+         * cursor, store the data from the data_key into the task data as a
+         * json string of an array and call the target url with the cursor
+         * until the cursor is null.
+         */
+        let mut task =
+            pop_task(&mut con, &queue_name, NO_TASK_READY_DELAY).expect("Failed to pop task");
 
         // update the status to processing
         update_task_status(&mut con, &task, TaskStatus::Processing)
@@ -30,6 +42,43 @@ async fn main() {
                 .send()
                 .await
                 .expect("Failed to get response from url");
+
+            // if the repsonse is a 503 Service Unavailable, then mark the
+            // task as queued again, add a retry timestamp, and break
+            if response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
+                update_task_status(&mut con, &task, TaskStatus::Queued)
+                    .expect("Failed to update task status");
+
+                // add retry timestamp to the task payload
+                let run_after = response
+                    .headers()
+                    .get("Retry-After")
+                    .map(|header| header.to_str().unwrap_or(""))
+                    .unwrap_or("");
+
+                task.run_after = match run_after.parse::<u64>() {
+                    Ok(timestamp) => chrono::DateTime::from_timestamp(
+                        chrono::Utc::now().timestamp() + timestamp as i64,
+                        0,
+                    )
+                    .expect("Failed to create timestamp"),
+                    Err(_) => match run_after.parse::<chrono::DateTime<chrono::Utc>>() {
+                        Ok(timestamp) => timestamp,
+                        Err(e) => {
+                            tracing::info!("Failed to parse Retry-After header: {}", e);
+                            chrono::Utc::now() + DEFAULT_RETRY_DELAY
+                        }
+                    },
+                };
+
+                // put the task id in the main queue
+                queue_task(&mut con, &queue_name, &task).expect("Failed to add task to queue");
+
+                // remove the task from the temp queue
+                remove_task_from_temp_queue(&mut con, &queue_name, &task);
+
+                break;
+            }
 
             // if the response is not 200, then update the status to failed and break
             if !response.status().is_success() {
@@ -56,6 +105,7 @@ async fn main() {
             let data_str = serde_json::to_string(&data).expect("Failed to serialize data as json");
 
             let task_data_key = format!("task:data:{}", task.id);
+            // TODO move this to a function called save_task_data
             let _: () = con
                 .rpush(&task_data_key, data_str)
                 .expect("Failed to save task data");
@@ -74,6 +124,6 @@ async fn main() {
             .expect("Failed to update task status");
 
         // remove the task from redis
-        remove_task_from_temp_queue(&mut con, &task);
+        remove_task_from_temp_queue(&mut con, &queue_name, &task);
     }
 }

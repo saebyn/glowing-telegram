@@ -23,6 +23,8 @@ use url::Url;
 const ACCESS_TOKEN_KEY: &str = "youtube:access_token";
 const REFRESH_TOKEN_KEY: &str = "youtube:refresh_token";
 
+const YOUTUBE_API_QUOTA_RETRY_AFTER: u64 = 24 /* hours */ * 60 /* minutes */ * 60 /* seconds */;
+
 mod structs;
 
 use crate::structs::{AppState, YoutubeUploadRequest, YoutubeUploadTaskPayload};
@@ -207,11 +209,36 @@ async fn upload_video_handler(
 
     // if the response is not successful, return an error response
     if !response.status().is_success() {
-        tracing::error!(
-            "response: {:?} {:?}",
-            response.status(),
-            response.text().await
-        );
+        tracing::error!("response: {:?}", response.status());
+
+        // find if there was a quota error
+        let error_body = match response.json::<serde_json::Value>().await {
+            Ok(error_body) => error_body,
+            Err(_) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(json!({ "error": "failed to upload video" })),
+                )
+                    .into_response();
+            }
+        };
+
+        if error_body["error"]["errors"][0]["reason"] == "quotaExceeded" {
+            // return a 503 Service Unavailable response and include a Retry-After header
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                [
+                    (
+                        header::RETRY_AFTER,
+                        YOUTUBE_API_QUOTA_RETRY_AFTER.to_string(),
+                    ),
+                    (header::CONTENT_TYPE, "application/json".to_string()),
+                ],
+                axum::Json(json!({ "error": "quota exceeded" })),
+            )
+                .into_response();
+        }
+
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({ "error": "failed to upload video" })),
@@ -822,6 +849,7 @@ async fn add_video_to_playlist(
 
     if !response.status().is_success() {
         tracing::error!("response: {:?}", response);
+
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({ "error": "failed to add video to playlist" })),

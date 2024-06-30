@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::instrument;
 
-use task_worker::{create_task, generate_task_data_key, generate_task_key, Task, TaskStatus};
+use task_worker::{create_task, get_task, get_task_data, queue_task, Task, TaskStatus};
 
 #[derive(Clone, Debug)]
 struct AppState {
@@ -102,7 +102,6 @@ async fn create_handler(
     State(state): State<AppState>,
     Json(body): Json<CreateTaskInput>,
 ) -> impl IntoResponse {
-    // TODO move this to an axum extractor???
     let mut con = match state.redis.get_connection() {
         Ok(con) => con,
         Err(e) => {
@@ -151,12 +150,11 @@ async fn create_handler(
     };
 
     // add the task key to the queue
-    match con.lpush::<&std::string::String, &std::string::String, ()>(&queue_name, &task.key) {
+    match queue_task(&mut con, &queue_name, &task) {
         Ok(_) => {
             tracing::info!("Added task to queue: {}", queue_name);
         }
-        Err(e) => {
-            tracing::error!("Failed to add task to queue: {}", e);
+        Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
         }
     };
@@ -195,51 +193,28 @@ async fn get_one_handler(
     };
 
     // get the record from redis
-    let key = generate_task_key(record_id);
-
-    let status: String = match con.hget(&key, "status") {
-        Ok(status) => status,
+    let task = match get_task(&mut con, record_id) {
+        Ok(task) => task,
         Err(e) => {
             tracing::error!("Failed to get task record: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
         }
     };
 
-    let status: TaskStatus = status.into();
-
-    // get the last_updated field from redis
-    let last_updated: String = match con.hget(&key, "last_updated") {
-        Ok(last_updated) => last_updated,
-        Err(e) => {
-            tracing::error!("Failed to get last_updated field: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
-        }
-    };
-
-    // get the data list from redis if it exists
-    let data_key = generate_task_data_key(record_id);
-
-    let data: Vec<String> = match con.lrange(&data_key, 0, -1) {
+    let data = match get_task_data(&mut con, record_id) {
         Ok(data) => data,
         Err(e) => {
-            tracing::error!("Failed to get data list: {}", e);
+            tracing::error!("Failed to get task data: {}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({}))).into_response();
         }
     };
-
-    // parse the JSON list in each item in the data list
-    let data: Vec<serde_json::Value> = data
-        .iter()
-        .map(|item| serde_json::from_str::<Vec<serde_json::Value>>(item).unwrap_or(vec![]))
-        .flatten()
-        .collect();
 
     // return the record
     let record = TaskOutput {
         id: record_id.to_string(),
 
-        status,
-        last_updated,
+        status: task.status,
+        last_updated: task.last_updated.to_rfc3339(),
 
         data,
     };
