@@ -2,16 +2,22 @@ import { useGetList, useStore } from "react-admin";
 
 interface Task {
   id: number;
-  last_updated: string;
+  last_updated: number;
 }
 
 const useTasks = () => {
   const [hideViewed, setHideViewed] = useStore("hideViewedTasks", false);
 
-  const [lastViewedTaskTimestamp, setLastViewedTaskTimestamp] = useStore(
+  const [rawLastViewedTaskTimestamp, setRawLastViewedTaskTimestamp] = useStore(
     "lastViewedTaskTimestamp",
     ""
   );
+
+  const lastViewedTaskTimestamp = new Date(rawLastViewedTaskTimestamp);
+
+  const setLastViewedTaskTimestamp = (timestamp: Date) => {
+    setRawLastViewedTaskTimestamp(timestamp.toISOString());
+  };
 
   const { data: tasks, refetch, isLoading } = useGetList<Task>("tasks");
 
@@ -21,7 +27,7 @@ const useTasks = () => {
 
   const handleMarkAllViewed = () => {
     if (tasks && tasks.length > 0) {
-      setLastViewedTaskTimestamp(tasks[0].last_updated);
+      setLastViewedTaskTimestamp(new Date(tasks[0].last_updated));
     }
   };
 
@@ -29,18 +35,20 @@ const useTasks = () => {
     if (tasks) {
       const task = tasks.find((t) => t.id === taskId);
       if (task) {
-        setLastViewedTaskTimestamp(task.last_updated);
+        setLastViewedTaskTimestamp(new Date(task.last_updated));
       }
     }
   };
 
   const allViewed = tasks
-    ? tasks.every((task) => task.last_updated <= lastViewedTaskTimestamp)
+    ? tasks.every(
+        (task) => new Date(task.last_updated) <= lastViewedTaskTimestamp
+      )
     : false;
 
   const filteredTasks = (tasks || [])
-    .filter((task: any) =>
-      hideViewed ? task.last_updated > lastViewedTaskTimestamp : true
+    .filter((task: Task) =>
+      hideViewed ? new Date(task.last_updated) > lastViewedTaskTimestamp : true
     )
     /**
      * Sort tasks by last_updated timestamp in descending order.
