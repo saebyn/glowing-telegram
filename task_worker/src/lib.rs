@@ -248,10 +248,15 @@ pub fn pop_task(
 
     let task_key = loop {
         // Pop the highest priority task key from the queue
-        let (task_key, score): (String, f64) = match con.bzpopmin(queue_name, 0.0) {
-            Ok((task_key, score)) => (task_key, score),
-            Err(_) => return Err("Failed to pop task from queue"),
-        };
+        let (task_key, score): (String, f64) =
+            match con.bzpopmin::<&str, (String, String, String)>(queue_name, 0.0) {
+                Ok((_, task_key, score)) => (task_key, score.parse().unwrap()),
+
+                Err(e) => {
+                    tracing::error!("Failed to pop task from queue: {}", e);
+                    return Err("Failed to pop task from queue");
+                }
+            };
 
         // Check if the task's run_after timestamp is in the future
         let run_after = match chrono::DateTime::from_timestamp(score as i64, 0) {
