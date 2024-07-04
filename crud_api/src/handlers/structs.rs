@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde_json;
-use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Range {

@@ -43,7 +43,7 @@ export function findMediaClipCursorEnd(
     return {
       clipIndex: clips.indexOf(clip),
       time: 0,
-      duration: clip.end - time,
+      duration: Math.min(time, clip.end) - clip.start,
     };
   }
 
@@ -51,7 +51,7 @@ export function findMediaClipCursorEnd(
 }
 
 export function findMediaClipCursors(
-  _clips: ConvertedCut[],
+  clips: ConvertedCut[],
   start: MediaClipCursor,
   end: MediaClipCursor
 ): MediaClipCursor[] {
@@ -61,7 +61,7 @@ export function findMediaClipCursors(
     cursors.push({
       clipIndex: i,
       time: 0,
-      duration: end.duration,
+      duration: clips[i].end - clips[i].start,
     });
   }
 

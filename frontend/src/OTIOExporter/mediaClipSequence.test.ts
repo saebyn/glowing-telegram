@@ -37,7 +37,7 @@ describe("mediaClipSequence", () => {
 
       expect(findMediaClipCursorEnd(mediaClips, 300)).toMatchObject({
         clipIndex: 1,
-        duration: 0,
+        duration: 100,
         time: 0,
       });
     });
@@ -51,7 +51,7 @@ describe("mediaClipSequence", () => {
 
       expect(findMediaClipCursorEnd(mediaClips, 400)).toMatchObject({
         clipIndex: 2,
-        duration: 0,
+        duration: 100,
         time: 0,
       });
     });
@@ -72,7 +72,7 @@ describe("mediaClipSequence", () => {
       expect(end).not.toBe(null);
 
       expect(findMediaClipCursors(mediaClips, start!, end!)).toMatchObject([
-        { clipIndex: 1, duration: 50, time: 0 },
+        { clipIndex: 1, duration: 200, time: 0 },
       ]);
     });
   });

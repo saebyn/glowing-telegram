@@ -13,6 +13,10 @@ diesel::table! {
         series_id -> Nullable<Uuid>,
         order_index -> Int4,
         render_uri -> Nullable<Text>,
+        is_published -> Bool,
+        notify_subscribers -> Bool,
+        category -> Int2,
+        tags -> Array<Nullable<Text>>,
     }
 }
 
@@ -24,6 +28,10 @@ diesel::table! {
         thumbnail_url -> Nullable<Varchar>,
         created_at -> Timestamptz,
         updated_at -> Nullable<Timestamptz>,
+        playlist_id -> Nullable<Text>,
+        notify_subscribers -> Bool,
+        category -> Int2,
+        tags -> Array<Nullable<Text>>,
     }
 }
 
@@ -47,6 +55,7 @@ diesel::table! {
         stream_platform -> Nullable<Varchar>,
         duration -> Interval,
         stream_date -> Timestamptz,
+        series_id -> Nullable<Uuid>,
     }
 }
 
@@ -104,6 +113,7 @@ diesel::table! {
 
 diesel::joinable!(episodes -> series (series_id));
 diesel::joinable!(episodes -> streams (stream_id));
+diesel::joinable!(streams -> series (series_id));
 diesel::joinable!(topic_episodes -> episodes (episode_id));
 diesel::joinable!(topic_episodes -> topics (topic_id));
 diesel::joinable!(topic_series -> series (series_id));

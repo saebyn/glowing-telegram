@@ -75,21 +75,21 @@ macro_rules! create_list_handler {
             let order: Box<dyn BoxableExpression<$table, diesel::pg::Pg, SqlType = NotSelectable>> =
                 create_order_expression!(sort, $($field),*);
 
-                let ids_filter: Box<dyn BoxableExpression<$table,
-                diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> = match filter["id"].is_array() {
-                    true => {
-                        let ids = filter["id"]
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .map(|oid| oid.as_str().unwrap())
-                            .map(|oid| Uuid::parse_str(oid).unwrap())
-                            .collect::<Vec<uuid::Uuid>>();
+            let ids_filter: Box<dyn BoxableExpression<$table,
+            diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> = match filter["id"].is_array() {
+                true => {
+                    let ids = filter["id"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|oid| oid.as_str().unwrap())
+                        .map(|oid| Uuid::parse_str(oid).unwrap())
+                        .collect::<Vec<uuid::Uuid>>();
 
-                        Box::new(id.eq_any(ids))
-                    }
-                    false => Box::new(id.ne(Uuid::nil())),
-                };
+                    Box::new(id.eq_any(ids))
+                }
+                false => Box::new(id.ne(Uuid::nil())),
+            };
 
 
             let results: Vec<$struct> = match $table

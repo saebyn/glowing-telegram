@@ -34,6 +34,8 @@ pub struct UpdateStreamChangeset {
     pub silence_detection_task_url: Option<String>,
     // TODO - this should be a Option<Vec<Segment>>
     pub silence_segments: Option<serde_json::Value>,
+
+    pub series_id: Option<Uuid>,
 }
 
 impl UpdateStreamChangeset {
@@ -47,6 +49,7 @@ impl UpdateStreamChangeset {
             && self.transcription_segments.is_none()
             && self.silence_detection_task_url.is_none()
             && self.silence_segments.is_none()
+            && self.series_id.is_none()
     }
 }
 
@@ -192,6 +195,7 @@ pub async fn handler(
         transcription_segments: body.transcription_segments,
         silence_detection_task_url: body.silence_detection_task_url,
         silence_segments: body.silence_segments,
+        series_id: body.series_id,
     };
 
     let result: Result<Stream, diesel::result::Error> = if !changeset.is_empty() {

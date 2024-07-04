@@ -13,7 +13,7 @@ use dotenvy;
 use redact::Secret;
 use redis;
 use reqwest;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use tokio::io::AsyncSeekExt;
 use tracing::instrument;
@@ -23,27 +23,11 @@ use url::Url;
 const ACCESS_TOKEN_KEY: &str = "youtube:access_token";
 const REFRESH_TOKEN_KEY: &str = "youtube:refresh_token";
 
-// The state of the application.
-#[derive(Clone, Debug)]
-struct AppState {
-    redis: redis::Client,
+const YOUTUBE_API_QUOTA_RETRY_AFTER: u64 = 24 /* hours */ * 60 /* minutes */ * 60 /* seconds */;
 
-    render_storage_path: String,
+mod structs;
 
-    youtube_auth_uri: String,
-    youtube_token_uri: String,
-    youtube_client_id: String,
-    youtube_client_secret: Secret<String>,
-
-    redirect_url: String,
-
-    task_api_url: String,
-    task_api_external_url: String,
-
-    this_api_base_url: String,
-
-    http_client: reqwest::Client,
-}
+use crate::structs::{AppState, YoutubeUploadRequest, YoutubeUploadTaskPayload};
 
 #[tokio::main]
 async fn main() -> Result<(), axum::BoxError> {
@@ -94,30 +78,6 @@ async fn main() -> Result<(), axum::BoxError> {
     .await
 }
 
-#[derive(Serialize, Debug, Deserialize)]
-struct YoutubeUploadRequest {
-    title: String,
-    description: String,
-    tags: Vec<String>,
-    category: u8,
-    render_uri: String,
-    thumbnail_uri: Option<String>,
-    notify_subscribers: bool,
-
-    task_title: String,
-}
-
-#[derive(Serialize, Debug, Deserialize)]
-struct YoutubeUploadTaskPayload {
-    title: String,
-    description: String,
-    tags: Vec<String>,
-    category: u8,
-    render_uri: String,
-    thumbnail_uri: Option<String>,
-    notify_subscribers: bool,
-}
-
 #[instrument]
 async fn upload_start_task_handler(
     State(state): State<AppState>,
@@ -130,20 +90,7 @@ async fn upload_start_task_handler(
             task_api_url: state.task_api_url.clone(),
             task_api_external_url: state.task_api_external_url.clone(),
         },
-        task::TaskRequest {
-            url: format!("{}/upload/task", state.this_api_base_url),
-            title: body.task_title,
-            payload: json!(YoutubeUploadTaskPayload {
-                title: body.title,
-                description: body.description,
-                tags: body.tags,
-                category: body.category,
-                render_uri: body.render_uri,
-                thumbnail_uri: body.thumbnail_uri,
-                notify_subscribers: body.notify_subscribers,
-            }),
-            data_key: "summary".to_string(),
-        },
+        YoutubeUploadRequest::to_task_request(&body, &state),
     )
     .await
     {
@@ -173,15 +120,16 @@ async fn upload_video_handler(
     Json(body): Json<YoutubeUploadTaskPayload>,
 ) -> impl IntoResponse {
     // extract filename from uri
-    let uri = body.render_uri;
+    let uri = body.render_uri.clone();
     let filename = match uri.split(&['/', ':'][..]).last() {
         Some(filename) => filename,
         None => return (StatusCode::BAD_REQUEST, "invalid uri").into_response(),
     };
 
+    // get the full path to the file on disk
     let path = format!("{}/{}", state.render_storage_path, filename);
 
-    // TODO: get the content type
+    // get the length of the file in bytes for the Content-Length header
     let content_length = match tokio::fs::metadata(&path).await {
         Ok(metadata) => metadata.len(),
         Err(e) => {
@@ -194,18 +142,26 @@ async fn upload_video_handler(
         }
     };
 
-    let content_type = "video/mp4";
-
     // get the upload URL
     let mut url = Url::parse("https://www.googleapis.com/upload/youtube/v3/videos")
         .expect("failed to parse URL");
 
+    // add query parameters to the URL
     url.query_pairs_mut()
         .append_pair("uploadType", "resumable")
-        .append_pair("part", "snippet,status,contentDetails")
+        .append_pair("part", "snippet,status,recordingDetails")
         .append_pair("notifySubscribers", &body.notify_subscribers.to_string())
         .finish();
 
+    // convert the recording date to an ISO8601 string
+    let recording_date_iso8601 = body
+        .recording_date
+        .clone()
+        .map(|dt| dt.into_naive())
+        .flatten()
+        .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
+
+    // send the request to the Youtube API
     let response = match state
         .http_client
         .post(url)
@@ -215,13 +171,15 @@ async fn upload_video_handler(
             format!("Bearer {}", access_token.expose_secret()),
         )
         .header("X-Upload-Content-Length", content_length.to_string())
-        .header("X-Upload-Content-Type", content_type)
+        .header("X-Upload-Content-Type", &body.mime_type)
         .json(&json!({
             "snippet": {
-                "title": body.title,
-                "description": body.description,
-                "tags": body.tags,
+                "title": body.title.clone(),
+                "description": body.description.clone(),
+                "tags": body.tags.clone(),
                 "categoryId": body.category,
+                "defaultLanguage": "en-US",
+                "defaultAudioLanguage": "en-US",
             },
             "status": {
                 "privacyStatus": "private",
@@ -229,11 +187,16 @@ async fn upload_video_handler(
                 "selfDeclaredMadeForKids": false,
                 "license": "creativeCommon"
             },
+            "recordingDetails": {
+                "recordingDate": recording_date_iso8601
+            }
         }))
         .send()
         .await
     {
+        // if the request was successful, return the response
         Ok(response) => response,
+        // if the request failed due to a network error, return an error response
         Err(e) => {
             tracing::error!("failed to send request to Youtube API: {:?}", e);
             return (
@@ -244,8 +207,38 @@ async fn upload_video_handler(
         }
     };
 
+    // if the response is not successful, return an error response
     if !response.status().is_success() {
-        tracing::error!("response: {:?}", response);
+        tracing::error!("response: {:?}", response.status());
+
+        // find if there was a quota error
+        let error_body = match response.json::<serde_json::Value>().await {
+            Ok(error_body) => error_body,
+            Err(_) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(json!({ "error": "failed to upload video" })),
+                )
+                    .into_response();
+            }
+        };
+
+        if error_body["error"]["errors"][0]["reason"] == "quotaExceeded" {
+            // return a 503 Service Unavailable response and include a Retry-After header
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                [
+                    (
+                        header::RETRY_AFTER,
+                        YOUTUBE_API_QUOTA_RETRY_AFTER.to_string(),
+                    ),
+                    (header::CONTENT_TYPE, "application/json".to_string()),
+                ],
+                axum::Json(json!({ "error": "quota exceeded" })),
+            )
+                .into_response();
+        }
+
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             axum::Json(json!({ "error": "failed to upload video" })),
@@ -253,12 +246,13 @@ async fn upload_video_handler(
             .into_response();
     }
 
+    // get the upload URL from the Location header
     let upload_url = match response
         .headers()
         .get("Location")
         .and_then(|v| v.to_str().ok())
     {
-        Some(upload_url) => upload_url,
+        Some(upload_url) => upload_url.to_string(),
         None => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -268,24 +262,20 @@ async fn upload_video_handler(
         }
     };
 
-    match upload(
+    tracing::info!("upload_url: {}", upload_url);
+
+    // upload the video to Youtube
+    let response = match upload(
         &state.http_client,
         &path,
         content_length,
-        upload_url,
-        content_type,
+        &upload_url,
+        &body.mime_type.clone(),
         &access_token,
     )
     .await
     {
-        Ok(_) => (
-            StatusCode::OK,
-            axum::Json(json!(UploadVideoTaskOutput {
-                cursor: None,
-                summary: vec!["video uploaded".to_string()],
-            })),
-        )
-            .into_response(),
+        Ok(response) => response,
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -293,7 +283,55 @@ async fn upload_video_handler(
             )
                 .into_response();
         }
+    };
+
+    // if the body contains a playlist_id, add the video to the playlist
+    if let Some(playlist_id) = body.playlist_id.clone() {
+        // try to parse the video ID from the response JSON
+        let video_id = match response.json::<serde_json::Value>().await {
+            Ok(contents) => {
+                match contents["id"].clone() {
+                    serde_json::Value::String(video_id) => video_id,
+                    _ => {
+                        tracing::error!("video ID not found in response from Youtube API");
+                        return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(json!({ "error": "video ID not found in response from Youtube API" })),
+                    )
+                        .into_response();
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!("failed to parse response from Youtube API: {:?}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(json!({ "error": "failed to parse response from Youtube API" })),
+                )
+                    .into_response();
+            }
+        };
+
+        let result =
+            add_video_to_playlist(&state, &access_token, &playlist_id, &video_id, &body).await;
+        if let Err(e) = result {
+            tracing::error!("failed to add video to playlist: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": "failed to add video to playlist" })),
+            )
+                .into_response();
+        }
     }
+
+    (
+        StatusCode::OK,
+        axum::Json(json!(UploadVideoTaskOutput {
+            cursor: None,
+            summary: vec!["video uploaded".to_string()],
+        })),
+    )
+        .into_response()
 }
 
 #[derive(Debug)]
@@ -336,12 +374,19 @@ impl FromRequestParts<AppState> for AccessToken {
         match access_token {
             Ok(access_token) => Ok(AccessToken(Secret::new(access_token))),
             Err(_) => {
-                tracing::error!("failed to get access token from Redis");
+                let tokens = match update_refresh_token(state).await {
+                    Ok(tokens) => tokens,
+                    Err(_) => {
+                        tracing::error!("failed to update refresh token");
 
-                Err((
-                    StatusCode::UNAUTHORIZED,
-                    Json(json!({ "error": "unauthorized" })),
-                ))
+                        return Err((
+                            StatusCode::UNAUTHORIZED,
+                            Json(json!({ "error": "need to login to YouTube" })),
+                        ));
+                    }
+                };
+
+                Ok(AccessToken(tokens.access_token))
             }
         }
     }
@@ -356,7 +401,7 @@ async fn get_login_handler(State(state): State<AppState>) -> impl IntoResponse {
         .append_pair("response_type", "code")
         .append_pair("access_type", "offline")
         .append_pair("incude_granted_scopes", "true")
-        .append_pair("scope", "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly")
+        .append_pair("scope", "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube")
         .finish();
 
     let url: String = url.into();
@@ -542,7 +587,7 @@ async fn get_refresh_token(state: &AppState, refresh_token: &str) -> Result<Auth
 }
 
 enum UploadInnerStatus {
-    Success,
+    Success(reqwest::Response),
     TemporaryFailure,
     PermanentFailure,
 }
@@ -596,7 +641,7 @@ async fn upload_inner(
     };
 
     if response.status().is_success() {
-        UploadInnerStatus::Success
+        UploadInnerStatus::Success(response)
     } else if vec![500, 502, 503, 504].contains(&response.status().as_u16()) {
         UploadInnerStatus::TemporaryFailure
     } else {
@@ -605,7 +650,7 @@ async fn upload_inner(
 }
 
 enum UploadStatus {
-    Success,
+    Success(reqwest::Response),
     TemporaryFailure { start_byte: u64, wait_time_ms: u64 },
     PermanentFailure,
 }
@@ -614,7 +659,7 @@ const MAX_ATTEMPTS: u8 = 10;
 const BASE_WAIT_TIME: u64 = 1000;
 
 #[instrument]
-async fn upload_status(
+async fn get_upload_status(
     http_client: &reqwest::Client,
     file_size: u64,
     upload_url: &str,
@@ -645,7 +690,7 @@ async fn upload_status(
     };
 
     if response.status().is_success() {
-        UploadStatus::Success
+        UploadStatus::Success(response)
     } else if response.status().as_u16() == 308 {
         let range = match response
             .headers()
@@ -718,7 +763,7 @@ async fn upload(
     upload_url: &str,
     content_type: &str,
     access_token: &Secret<String>,
-) -> Result<(), String> {
+) -> Result<reqwest::Response, String> {
     let mut attempt = 0;
     let mut start_byte = 0;
 
@@ -734,11 +779,12 @@ async fn upload(
         )
         .await
         {
-            UploadInnerStatus::Success => break,
+            UploadInnerStatus::Success(response) => return Ok(response),
             UploadInnerStatus::TemporaryFailure => {
-                match upload_status(http_client, file_size, upload_url, access_token, attempt).await
+                match get_upload_status(http_client, file_size, upload_url, access_token, attempt)
+                    .await
                 {
-                    UploadStatus::Success => break,
+                    UploadStatus::Success(response) => return Ok(response),
                     UploadStatus::TemporaryFailure {
                         start_byte: new_start_byte,
                         wait_time_ms,
@@ -759,6 +805,56 @@ async fn upload(
                 return Err("failed to upload video".to_string());
             }
         }
+    }
+}
+
+async fn add_video_to_playlist(
+    state: &AppState,
+    access_token: &Secret<String>,
+    playlist_id: &str,
+    video_id: &str,
+    body: &YoutubeUploadTaskPayload,
+) -> Result<(), axum::http::Response<axum::body::Body>> {
+    let response = match state
+        .http_client
+        .post("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet")
+        .header("Content-Type", "application/json")
+        .header(
+            "Authorization",
+            format!("Bearer {}", access_token.expose_secret()),
+        )
+        .json(&json!({
+            "snippet": {
+                "playlistId": playlist_id,
+                "position": body.playlist_position.unwrap_or(1) - 1,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": video_id
+                }
+            }
+        }))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("failed to send request to Youtube API: {:?}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": "failed to send request to Youtube API" })),
+            )
+                .into_response());
+        }
+    };
+
+    if !response.status().is_success() {
+        tracing::error!("response: {:?}", response);
+
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({ "error": "failed to add video to playlist" })),
+        )
+            .into_response());
     }
 
     Ok(())

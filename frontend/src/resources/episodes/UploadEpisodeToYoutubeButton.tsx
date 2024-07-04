@@ -41,10 +41,13 @@ const UploadEpisodeToYoutubeButton = () => {
         title: episode.title,
         description: episode.description,
         render_uri: episode.render_uri,
-        category: 20,
-        tags: [],
-        notify_subscribers: false,
+        category: episode.category,
+        tags: episode.tags || [],
+        notify_subscribers: episode.notify_subscribers,
         task_title: `Upload ${episode.title} to Youtube`,
+        recording_date: episode.stream_date,
+        playlist_id: episode.playlist_id,
+        playlist_position: episode.order_index,
       }))
     );
     setOpen(true);
@@ -72,18 +75,7 @@ const UploadEpisodeToYoutubeButton = () => {
             </TableHead>
             <TableBody>
               {episodes.map((episode) => (
-                <TableRow
-                  key={episode.title}
-                  color={episode.render_uri ? "success" : "error"}
-                >
-                  <TableCell>{episode.title}</TableCell>
-                  <TableCell>{episode.render_uri ? "Yes" : "No"}</TableCell>
-                  <TableCell>{episode.category}</TableCell>
-                  <TableCell>{episode.tags.join(", ")}</TableCell>
-                  <TableCell>
-                    {episode.notify_subscribers ? "Yes" : "No"}
-                  </TableCell>
-                </TableRow>
+                <EpisodeRow key={episode.title} episode={episode}></EpisodeRow>
               ))}
             </TableBody>
           </Table>
@@ -102,3 +94,19 @@ const UploadEpisodeToYoutubeButton = () => {
 };
 
 export default UploadEpisodeToYoutubeButton;
+
+const EpisodeRow = ({ episode }: { episode: YoutubeUploadTaskPayload }) => {
+  const { title, render_uri, category, tags, notify_subscribers } = episode;
+
+  const tagsString = (tags || []).join(", ");
+
+  return (
+    <TableRow>
+      <TableCell>{title}</TableCell>
+      <TableCell>{render_uri ? "Yes" : "No"}</TableCell>
+      <TableCell>{category}</TableCell>
+      <TableCell>{tagsString}</TableCell>
+      <TableCell>{notify_subscribers ? "Yes" : "No"}</TableCell>
+    </TableRow>
+  );
+};

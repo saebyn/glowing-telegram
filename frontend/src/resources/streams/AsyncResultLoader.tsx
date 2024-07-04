@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import {
   Button,
   useRecordContext,
@@ -13,7 +13,7 @@ interface Task<T> {
   id: string;
   data: T[];
 }
-export default function AsyncResultLoader<T>({
+export default memo(function AsyncResultLoader<T>({
   source,
   taskUrlFieldName,
 }: {
@@ -71,4 +71,4 @@ export default function AsyncResultLoader<T>({
       <Button disabled={!dataReady} label={`Load results`} onClick={loadData} />
     </>
   );
-}
+});

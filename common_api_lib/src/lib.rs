@@ -9,7 +9,6 @@ use tower_http::cors::CorsLayer;
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{compression::CompressionLayer, propagate_header::PropagateHeaderLayer};
-use tracing;
 use tracing::instrument;
 use tracing_subscriber::prelude::*;
 

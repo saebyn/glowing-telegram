@@ -1,7 +1,6 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json};
 use common_api_lib::structs::Segment;
 use common_api_lib::{self, media::get_video_duration};
-use dotenvy;
 use reqwest::header;
 use serde::{Deserialize, Serialize};
 use serde_json::json;

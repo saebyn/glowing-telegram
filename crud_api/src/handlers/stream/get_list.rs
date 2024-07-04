@@ -6,6 +6,7 @@ use diesel::expression::expression_types::NotSelectable;
 use diesel::BoolExpressionMethods;
 use diesel::BoxableExpression;
 use diesel::ExpressionMethods;
+use diesel::NullableExpressionMethods;
 use diesel::PgTextExpressionMethods;
 use diesel::QueryDsl;
 use diesel::Table;
@@ -201,6 +202,20 @@ fn create_predicate(
         None => Box::new(id.ne(Uuid::nil())),
     };
 
+    // series_id
+    let series_id_filter: Box<
+        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+    > = match filter["series_id"].as_str() {
+        Some(series_id_value) => match Uuid::parse_str(series_id_value) {
+            Ok(series_id_value) => Box::new(series_id.assume_not_null().eq(series_id_value)),
+            Err(e) => {
+                tracing::error!("Error parsing series_id: {}", e);
+                return Box::new(id.ne(Uuid::nil()));
+            }
+        },
+        None => Box::new(id.ne(Uuid::nil())),
+    };
+
     Box::new(
         id_filter
             .and(title_filter)
@@ -208,6 +223,7 @@ fn create_predicate(
             .and(has_transcription_filter)
             .and(has_silence_detection_filter)
             .and(has_episodes_filter)
-            .and(stream_date_gte_filter),
+            .and(stream_date_gte_filter)
+            .and(series_id_filter),
     )
 }

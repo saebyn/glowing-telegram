@@ -1,6 +1,6 @@
 import { Create, SimpleForm, CreateProps, TextInput } from "react-admin";
 
-const StreamCreate = (props: CreateProps) => (
+const VideoClipCreate = (props: CreateProps) => (
   <Create {...props} title="Create a Video Clip">
     <SimpleForm>
       <TextInput source="title" required />
@@ -8,4 +8,4 @@ const StreamCreate = (props: CreateProps) => (
   </Create>
 );
 
-export default StreamCreate;
+export default VideoClipCreate;

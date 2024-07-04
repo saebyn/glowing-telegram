@@ -1,6 +1,6 @@
 import { Datagrid, DateField, List, TextField, ListProps } from "react-admin";
 
-const StreamList = (props: ListProps) => (
+const VideoClipList = (props: ListProps) => (
   <List {...props}>
     <Datagrid rowClick="edit">
       <TextField source="title" />
@@ -10,4 +10,4 @@ const StreamList = (props: ListProps) => (
   </List>
 );
 
-export default StreamList;
+export default VideoClipList;

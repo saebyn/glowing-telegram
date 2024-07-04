@@ -6,9 +6,12 @@ import {
   SimpleFormIterator,
   SelectInput,
   TopToolbar,
+  TextInput,
+  NumberInput,
   PrevNextButtons,
   useRecordContext,
   useGetOne,
+  BooleanInput,
 } from "react-admin";
 
 import { useFormContext } from "react-hook-form";
@@ -23,6 +26,7 @@ import Edit from "../../Edit";
 import ChatButton from "../../ChatButton";
 import { Episode, TranscriptSegment } from "../../types";
 import { parseIntoSeconds } from "../../isoDuration";
+import YouTubeCategoryInput from "../../YouTubeCategoryInput";
 
 const EditActions = () => (
   <TopToolbar>
@@ -37,6 +41,19 @@ const EpisodeEdit = () => (
   <Edit actions={<EditActions />}>
     <SimpleForm>
       <TitleInput source="title" />
+
+      <ReferenceInput source="series_id" reference="series">
+        <SelectInput
+          optionText={(record) =>
+            `${record.title} (${record.max_episode_order_index})`
+          }
+        />
+      </ReferenceInput>
+
+      <NumberInput source="order_index" />
+
+      <BooleanInput source="is_published" />
+
       <DescriptionInput source="description" />
 
       <EpisodeDescriptionChatButton />
@@ -53,6 +70,14 @@ const EpisodeEdit = () => (
       <ReferenceInput source="stream_id" reference="streams">
         <SelectInput optionText="title" />
       </ReferenceInput>
+
+      <BooleanInput source="notify_subscribers" />
+      <YouTubeCategoryInput source="category" />
+      <ArrayInput source="tags">
+        <SimpleFormIterator>
+          <TextInput source="" />
+        </SimpleFormIterator>
+      </ArrayInput>
     </SimpleForm>
   </Edit>
 );

@@ -1,4 +1,10 @@
-import { TextInput, TabbedForm, SelectInput, DateTimeInput } from "react-admin";
+import {
+  TextInput,
+  TabbedForm,
+  SelectInput,
+  DateTimeInput,
+  ReferenceInput,
+} from "react-admin";
 
 import StreamVideoClipsInput from "./StreamVideoClipsInput";
 import StreamTranscriptInput from "./StreamTranscriptInput";
@@ -7,15 +13,21 @@ import DescriptionInput from "../../DescriptionInput";
 import TitleInput from "../../TitleInput";
 import { DurationInput } from "../../DurationInput";
 import Edit, { EditProps } from "../../Edit";
+import TimelineView from "./TimelineView";
 
 const StreamEdit = (props: EditProps) => (
   <Edit {...props}>
     <TabbedForm>
       <TabbedForm.Tab label="summary">
         <TitleInput source="title" required />
+
+        <ReferenceInput source="series_id" reference="series">
+          <SelectInput optionText="title" />
+        </ReferenceInput>
+
         <DescriptionInput source="description" />
 
-        <TextInput source="thumbnail" fullWidth />
+        <TextInput source="thumbnail" fullWidth parse={(value) => value} />
 
         <SelectInput
           source="stream_platform"
@@ -56,6 +68,10 @@ const StreamEdit = (props: EditProps) => (
           source="silence_segments"
           taskUrlFieldName="silence_detection_task_url"
         />
+      </TabbedForm.Tab>
+
+      <TabbedForm.Tab label="timeline">
+        <TimelineView />
       </TabbedForm.Tab>
     </TabbedForm>
   </Edit>

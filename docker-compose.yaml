@@ -1,4 +1,3 @@
-version: "3"
 name: video_processing_project
 
 x-backend-variables: &backend-variables
@@ -61,11 +60,14 @@ services:
       dockerfile: Dockerfile.rust
       args:
         - SERVICE_NAME=ai_api
+        - DEBIAN_VERSION=bookworm-slim
+        - RUST_VERSION=1.78
     restart: always
     volumes:
       - ./openai_key.txt:/openai_key
     environment:
       OPENAI_KEY_PATH: /openai_key
+      OPENAI_MODEL: gpt-4o
       <<: *backend-variables
 
     healthcheck:
@@ -80,6 +82,8 @@ services:
       dockerfile: Dockerfile.rust
       args:
         - SERVICE_NAME=crud_api
+        - DEBIAN_VERSION=bookworm-slim
+        - RUST_VERSION=1.78
     restart: always
     depends_on:
       - db
@@ -98,6 +102,8 @@ services:
       dockerfile: Dockerfile.rust
       args:
         - SERVICE_NAME=stream_ingestion_api
+        - DEBIAN_VERSION=bookworm-slim
+        - RUST_VERSION=1.78
     restart: always
     environment:
       VIDEO_STORAGE_PATH: /obs
@@ -118,6 +124,8 @@ services:
       dockerfile: Dockerfile.rust
       args:
         - SERVICE_NAME=silence_detection_api
+        - DEBIAN_VERSION=bookworm-slim
+        - RUST_VERSION=1.78
     restart: always
     environment:
       VIDEO_STORAGE_PATH: /obs
@@ -139,6 +147,8 @@ services:
       dockerfile: Dockerfile.rust
       args:
         - SERVICE_NAME=transcription_api
+        - DEBIAN_VERSION=bookworm-slim
+        - RUST_VERSION=1.78
     restart: always
     environment:
       VIDEO_STORAGE_PATH: /obs
@@ -167,7 +177,11 @@ services:
       dockerfile: Dockerfile.rust
       args:
         - SERVICE_NAME=task_api
+        - DEBIAN_VERSION=bookworm-slim
+        - RUST_VERSION=1.78
     restart: always
+    depends_on:
+      - redis
     environment:
       <<: *backend-variables
       REDIS_URL: redis://redis:6379
@@ -184,7 +198,11 @@ services:
       dockerfile: Dockerfile.rust
       args:
         - SERVICE_NAME=task_worker
+        - DEBIAN_VERSION=bookworm-slim
+        - RUST_VERSION=1.78
     restart: always
+    depends_on:
+      - redis
     environment:
       <<: *backend-variables
       REDIS_URL: redis://redis:6379
@@ -199,6 +217,8 @@ services:
       dockerfile: Dockerfile.rust
       args:
         - SERVICE_NAME=twitch_api
+        - DEBIAN_VERSION=bookworm-slim
+        - RUST_VERSION=1.78
     restart: always
     volumes:
       - ./twitch_key.txt:/twitch_client_secret
@@ -221,6 +241,8 @@ services:
       dockerfile: Dockerfile.rust
       args:
         - SERVICE_NAME=youtube_upload_api
+        - DEBIAN_VERSION=bookworm-slim
+        - RUST_VERSION=1.78
     restart: always
     environment:
       <<: *backend-variables

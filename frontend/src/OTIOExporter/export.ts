@@ -22,15 +22,61 @@ function filename(path: string): string {
   return parts[parts.length - 1];
 }
 
-function internalToOTIO(children: InternalTrack[]): string {
-  const startTransition = {
+interface OTIOTransition {
+  OTIO_SCHEMA: "Transition.1";
+  metadata: {
+    Resolve_OTIO: {
+      Effects: {
+        "Effect Name": string;
+        Enabled: boolean;
+        Name: string;
+        Parameters: {
+          "Default Parameter Value": Float;
+          "Key Frames": Record<
+            string,
+            { Value: Float; "Variant Type": string }
+          >;
+          "Parameter ID": string;
+          "Parameter Value": Float;
+          "Variant Type": string;
+          maxValue: Float;
+          minValue: Float;
+        }[];
+        Type: number;
+      };
+      "Transition Type": string;
+    };
+  };
+  name: string;
+  in_offset: {
+    OTIO_SCHEMA: "RationalTime.1";
+    rate: Float;
+    value: Float;
+  };
+  out_offset: {
+    OTIO_SCHEMA: "RationalTime.1";
+    rate: Float;
+    value: Float;
+  };
+  transition_type: string;
+}
+
+/**
+ * Creates a transition clip.
+ */
+function createTransition(
+  effectName: string,
+  start: number,
+  end: number
+): OTIOTransition {
+  return {
     OTIO_SCHEMA: "Transition.1",
     metadata: {
       Resolve_OTIO: {
         Effects: {
-          "Effect Name": "Hexagon Iris",
+          "Effect Name": effectName,
           Enabled: true,
-          Name: "Hexagon Iris",
+          Name: effectName,
           Parameters: [
             {
               "Default Parameter Value": new Float(0),
@@ -53,22 +99,152 @@ function internalToOTIO(children: InternalTrack[]): string {
           ],
           Type: 46,
         },
-        "Transition Type": "Hexagon Iris",
+        "Transition Type": effectName,
       },
     },
-    name: "Hexagon Iris",
+    name: effectName,
     in_offset: {
       OTIO_SCHEMA: "RationalTime.1",
       rate: new Float(60),
-      value: new Float(0),
+      value: new Float(start),
     },
     out_offset: {
       OTIO_SCHEMA: "RationalTime.1",
       rate: new Float(60),
-      value: new Float(20.0),
+      value: new Float(end),
     },
     transition_type: "Custom_Transition",
   };
+}
+
+interface OTIOClip {
+  OTIO_SCHEMA: "Clip.2";
+  metadata: {
+    Resolve_OTIO: {};
+  };
+  name: string;
+  source_range: {
+    OTIO_SCHEMA: "TimeRange.1";
+    duration: {
+      OTIO_SCHEMA: "RationalTime.1";
+      rate: Float;
+      value: Float;
+    };
+    start_time: {
+      OTIO_SCHEMA: "RationalTime.1";
+      rate: Float;
+      value: Float;
+    };
+  };
+  effects: any[];
+  markers: any[];
+  enabled: boolean;
+  media_references: {
+    DEFAULT_MEDIA: {
+      OTIO_SCHEMA: "ExternalReference.1";
+      metadata: {};
+      name: string;
+      available_range: {
+        OTIO_SCHEMA: "TimeRange.1";
+        duration: {
+          OTIO_SCHEMA: "RationalTime.1";
+          rate: Float;
+          value: Float;
+        };
+        start_time: {
+          OTIO_SCHEMA: "RationalTime.1";
+          rate: Float;
+          value: Float;
+        };
+      };
+      available_image_bounds: null;
+      target_url: string;
+    };
+  };
+  active_media_reference_key: string;
+}
+
+/**
+ * Creates an OTIO clip.
+ *
+ * @param name           The name of the clip.
+ * @param sourcePath     The path to the source media file.
+ * @param start          The start time of the clip.
+ * @param duration       The duration of the clip.
+ * @param mediaStart     The start time of the media.
+ * @param mediaDuration  The duration of the media.
+ * @returns              The OTIO clip.
+ */
+function createOTIOClip(
+  name: string,
+  sourcePath: string,
+  start: number,
+  duration: number,
+  mediaStart: number,
+  mediaDuration: number
+): OTIOClip {
+  return {
+    OTIO_SCHEMA: "Clip.2",
+    metadata: {
+      Resolve_OTIO: {},
+    },
+    name: name,
+    source_range: {
+      OTIO_SCHEMA: "TimeRange.1",
+      duration: {
+        OTIO_SCHEMA: "RationalTime.1",
+        rate: new Float(60),
+        value: new Float(duration),
+      },
+      start_time: {
+        OTIO_SCHEMA: "RationalTime.1",
+        rate: new Float(60),
+        value: new Float(start),
+      },
+    },
+    effects: [],
+    markers: [],
+    enabled: true,
+    media_references: {
+      DEFAULT_MEDIA: {
+        OTIO_SCHEMA: "ExternalReference.1",
+        metadata: {},
+        name: "outro.mov",
+        available_range: {
+          OTIO_SCHEMA: "TimeRange.1",
+          duration: {
+            OTIO_SCHEMA: "RationalTime.1",
+            rate: new Float(60),
+            value: new Float(mediaDuration),
+          },
+          start_time: {
+            OTIO_SCHEMA: "RationalTime.1",
+            rate: new Float(60),
+            value: new Float(mediaStart),
+          },
+        },
+        available_image_bounds: null,
+        target_url: sourcePath,
+      },
+    },
+    active_media_reference_key: "DEFAULT_MEDIA",
+  };
+}
+
+/**
+ * Converts the provided internal track data to an OTIO string.
+ *
+ * @param children The internal track data to convert.
+ * @returns         The OTIO string.
+ *
+ */
+function internalToOTIO(children: InternalTrack[]): string {
+  const startTransition = createTransition("Hexagon Iris", 0, 20);
+
+  const totalMediaDurationFrames = children.reduce(
+    (acc, track) => acc + track.durationFrames,
+    0
+  );
 
   const videoSubTracks = children.map((track) => {
     // find the video clip that contains the start of the track
@@ -187,7 +363,7 @@ function internalToOTIO(children: InternalTrack[]): string {
         Locked: false,
       },
     },
-    name: "Video 2",
+    name: "Overlay",
     source_range: null,
     effects: [],
     markers: [],
@@ -198,7 +374,7 @@ function internalToOTIO(children: InternalTrack[]): string {
         metadata: {
           Resolve_OTIO: {},
         },
-        name: "Solid Color",
+        name: "Start buffer",
         source_range: {
           OTIO_SCHEMA: "TimeRange.1",
           duration: {
@@ -418,7 +594,10 @@ function internalToOTIO(children: InternalTrack[]): string {
           duration: {
             OTIO_SCHEMA: "RationalTime.1",
             rate: new Float(60),
-            value: new Float(186387.0),
+            value: new Float(
+              // media duration - (start buffer + live on twitch + gap + like reminder) - outro transition
+              totalMediaDurationFrames - (1910 + 106 + 1816 + 300) - 194
+            ),
           },
           start_time: {
             OTIO_SCHEMA: "RationalTime.1",
@@ -476,52 +655,7 @@ function internalToOTIO(children: InternalTrack[]): string {
         },
         transition_type: "SMPTE_Dissolve",
       },
-      {
-        OTIO_SCHEMA: "Clip.2",
-        metadata: {
-          Resolve_OTIO: {},
-        },
-        name: "outro.mov",
-        source_range: {
-          OTIO_SCHEMA: "TimeRange.1",
-          duration: {
-            OTIO_SCHEMA: "RationalTime.1",
-            rate: new Float(60),
-            value: new Float(1400.0),
-          },
-          start_time: {
-            OTIO_SCHEMA: "RationalTime.1",
-            rate: new Float(60),
-            value: new Float(400),
-          },
-        },
-        effects: [],
-        markers: [],
-        enabled: true,
-        media_references: {
-          DEFAULT_MEDIA: {
-            OTIO_SCHEMA: "ExternalReference.1",
-            metadata: {},
-            name: "outro.mov",
-            available_range: {
-              OTIO_SCHEMA: "TimeRange.1",
-              duration: {
-                OTIO_SCHEMA: "RationalTime.1",
-                rate: new Float(60),
-                value: new Float(1800.0),
-              },
-              start_time: {
-                OTIO_SCHEMA: "RationalTime.1",
-                rate: new Float(60),
-                value: new Float(0),
-              },
-            },
-            available_image_bounds: null,
-            target_url: "F:\\Art\\outro.mov",
-          },
-        },
-        active_media_reference_key: "DEFAULT_MEDIA",
-      },
+      createOTIOClip("outro.mov", "F:\\Art\\outro.mov", 400, 1400, 0, 1800),
     ],
     kind: "Video",
   };
