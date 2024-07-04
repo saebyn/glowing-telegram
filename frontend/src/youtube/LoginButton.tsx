@@ -13,7 +13,11 @@ export const YoutubeLoginButton: React.FC = () => {
 
   const goToYoutubeLogin = React.useCallback(() => {
     dataProvider.youtubeLogin().then((url: string) => {
-      window.location.href = url;
+      window.open(
+        url,
+        "_blank",
+        "noopener,noreferrer,popup,toolbar=0,width=600,height=600"
+      );
     });
   }, [dataProvider]);
 

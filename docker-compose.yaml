@@ -47,6 +47,7 @@ services:
       NODE_ENV: development
       # From end user perspective
       VITE_API_URL: http://localhost:8080/api
+      VITE_YOUTUBE_AUTH_URI: ${YOUTUBE_AUTH_URI}
     healthcheck:
       # node:18-alpine does not have curl installed
       test: ["CMD", "wget", "-q", "--spider", "--tries=1", "http://localhost:3000"]
@@ -246,7 +247,7 @@ services:
     restart: always
     environment:
       <<: *backend-variables
-      YOUTUBE_AUTH_URI: ${YOUTUBE_AUTH_URI}
+      YOUTUBE_AUTH_URI: http://localhost:8080/youtubeLogin
       YOUTUBE_TOKEN_URI: ${YOUTUBE_TOKEN_URI}
       YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
       YOUTUBE_CLIENT_SECRET_PATH: /youtube_client_secret

@@ -29,12 +29,10 @@ export const YoutubeLoginPage: React.FC = () => {
     dataProvider
       .youtubeCallback(code)
       .then(() => {
-        notify("Logged in with Youtube", {
+        notify("Logged in with Youtube. You can close this window now.", {
           type: "info",
           messageArgs: { smart_count: 1 },
         });
-
-        redirect("/");
       })
       .catch(() => {
         notify("Failed to log in with Youtube", {
