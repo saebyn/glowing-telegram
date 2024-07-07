@@ -1,14 +1,16 @@
 [workspace]
 resolver = "2"
 
-members = [
-  "ai_api",
-  #"audio_extraction_api",
-  "crud_api",
-  #"media_archive_api",
-  "silence_detection_api",
-  "stream_ingestion_api",
-  "task_api",
-  "task_worker",
-  "transcription_api", "twitch_api", "youtube_upload_api",
-]
+members = ["api", "task_worker"]
+
+[workspace.lints.clippy]
+# Lint groups
+# These have a priority of -1 to ensure that individual
+# Lints override them, if present.
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+style = { level = "warn", priority = -1 }
