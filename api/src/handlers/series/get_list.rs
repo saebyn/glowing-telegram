@@ -54,14 +54,16 @@ pub async fn handler(
         Ok(total) => total,
         Err(e) => {
             tracing::error!("Error getting total count: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                .into_response();
         }
     };
 
     let predicate = create_predicate(&filter);
 
-    let order: Box<dyn BoxableExpression<series, diesel::pg::Pg, SqlType = NotSelectable>> =
-        create_order_expression!(sort, id, title);
+    let order: Box<
+        dyn BoxableExpression<series, diesel::pg::Pg, SqlType = NotSelectable>,
+    > = create_order_expression!(sort, title);
 
     let results: Vec<(Series, i32)> = match series
         .limit(range.count)
@@ -110,11 +112,21 @@ pub async fn handler(
 
 fn create_predicate(
     filter: &serde_json::Value,
-) -> Box<dyn BoxableExpression<series, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> {
+) -> Box<
+    dyn BoxableExpression<
+        series,
+        diesel::pg::Pg,
+        SqlType = diesel::sql_types::Bool,
+    >,
+> {
     use crate::schema::series::dsl::*;
 
     let id_filter: Box<
-        dyn BoxableExpression<series, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            series,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["id"].is_array() {
         true => {
             let ids = filter["id"]

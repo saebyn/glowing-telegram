@@ -57,14 +57,20 @@ pub async fn handler(
         Ok(total) => total,
         Err(e) => {
             tracing::error!("Error getting total count: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                .into_response();
         }
     };
 
     let predicate = create_predicate(&filter);
 
-    let order: Box<dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = NotSelectable>> =
-        create_order_expression!(sort, id, title, stream_date, prefix);
+    let order: Box<
+        dyn BoxableExpression<
+            streams,
+            diesel::pg::Pg,
+            SqlType = NotSelectable,
+        >,
+    > = create_order_expression!(sort, title, stream_date, prefix);
 
     let results: Vec<(Stream, i64, i64)> = match streams
         .limit(range.count)
@@ -117,11 +123,21 @@ pub async fn handler(
 
 fn create_predicate(
     filter: &serde_json::Value,
-) -> Box<dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> {
+) -> Box<
+    dyn BoxableExpression<
+        streams,
+        diesel::pg::Pg,
+        SqlType = diesel::sql_types::Bool,
+    >,
+> {
     use crate::schema::streams::dsl::*;
 
     let id_filter: Box<
-        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            streams,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["id"].is_array() {
         true => {
             let ids = filter["id"]
@@ -138,7 +154,11 @@ fn create_predicate(
     };
 
     let title_filter: Box<
-        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            streams,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["q"].as_str() {
         Some(q) => Box::new(title.ilike(format!("%{}%", q))),
         None => Box::new(id.ne(Uuid::nil())),
@@ -157,7 +177,11 @@ fn create_predicate(
     };
 
     let has_transcription_filter: Box<
-        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            streams,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["has_transcription"].as_bool() {
         Some(true) => Box::new(transcription_segments.is_not_null()),
         Some(false) => Box::new(transcription_segments.is_null()),
@@ -165,7 +189,11 @@ fn create_predicate(
     };
 
     let has_silence_detection_filter: Box<
-        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            streams,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["has_silence_detection"].as_bool() {
         Some(true) => Box::new(silence_segments.is_not_null()),
         Some(false) => Box::new(silence_segments.is_null()),
@@ -186,13 +214,22 @@ fn create_predicate(
 
     // stream_date__gte
     let stream_date_gte_filter: Box<
-        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            streams,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["stream_date__gte"].as_str() {
         Some(stream_date_gte) => {
-            match chrono::NaiveDate::parse_from_str(stream_date_gte, "%Y-%m-%d") {
-                Ok(stream_date_gte) => Box::new(stream_date.ge(
-                    stream_date_gte.and_time(chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()),
-                )),
+            match chrono::NaiveDate::parse_from_str(
+                stream_date_gte,
+                "%Y-%m-%d",
+            ) {
+                Ok(stream_date_gte) => {
+                    Box::new(stream_date.ge(stream_date_gte.and_time(
+                        chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
+                    )))
+                }
                 Err(e) => {
                     tracing::error!("Error parsing stream_date__gte: {}", e);
                     return Box::new(id.ne(Uuid::nil()));
@@ -204,10 +241,16 @@ fn create_predicate(
 
     // series_id
     let series_id_filter: Box<
-        dyn BoxableExpression<streams, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            streams,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["series_id"].as_str() {
         Some(series_id_value) => match Uuid::parse_str(series_id_value) {
-            Ok(series_id_value) => Box::new(series_id.assume_not_null().eq(series_id_value)),
+            Ok(series_id_value) => {
+                Box::new(series_id.assume_not_null().eq(series_id_value))
+            }
             Err(e) => {
                 tracing::error!("Error parsing series_id: {}", e);
                 return Box::new(id.ne(Uuid::nil()));

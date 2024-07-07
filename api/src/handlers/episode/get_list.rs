@@ -58,14 +58,26 @@ pub async fn handler(
         Ok(total) => total,
         Err(e) => {
             tracing::error!("Error getting total count: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                .into_response();
         }
     };
 
     let predicate = create_predicate(&filter);
 
-    let order: Box<dyn BoxableExpression<episodes, diesel::pg::Pg, SqlType = NotSelectable>> =
-        create_order_expression!(sort, id, title, series_id, is_published, order_index);
+    let order: Box<
+        dyn BoxableExpression<
+            episodes,
+            diesel::pg::Pg,
+            SqlType = NotSelectable,
+        >,
+    > = create_order_expression!(
+        sort,
+        title,
+        series_id,
+        is_published,
+        order_index
+    );
 
     let results: Vec<(Episode, Option<chrono::NaiveDateTime>, Option<String>)> = match episodes
         .limit(range.count)
@@ -116,11 +128,21 @@ pub async fn handler(
 
 fn create_predicate(
     filter: &serde_json::Value,
-) -> Box<dyn BoxableExpression<episodes, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> {
+) -> Box<
+    dyn BoxableExpression<
+        episodes,
+        diesel::pg::Pg,
+        SqlType = diesel::sql_types::Bool,
+    >,
+> {
     use crate::schema::episodes::dsl::*;
 
     let id_filter: Box<
-        dyn BoxableExpression<episodes, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            episodes,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["id"].is_array() {
         true => {
             let ids = filter["id"]
@@ -137,14 +159,22 @@ fn create_predicate(
     };
 
     let title_filter: Box<
-        dyn BoxableExpression<episodes, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            episodes,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["title"].as_str() {
         Some(q) => Box::new(title.ilike(format!("%{}%", q))),
         None => Box::new(id.ne(Uuid::nil())),
     };
 
     let is_published_filter: Box<
-        dyn BoxableExpression<episodes, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            episodes,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["is_published"].as_bool() {
         Some(true) => Box::new(is_published.eq(true)),
         Some(false) => Box::new(is_published.eq(false)),
@@ -152,7 +182,11 @@ fn create_predicate(
     };
 
     let series_id_filter: Box<
-        dyn BoxableExpression<episodes, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            episodes,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["series_id"].as_str() {
         Some(q) => match Uuid::parse_str(q) {
             Ok(q) => Box::new(series_id.assume_not_null().eq(q)),
@@ -163,7 +197,11 @@ fn create_predicate(
     };
 
     let stream_id_filter: Box<
-        dyn BoxableExpression<episodes, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            episodes,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["stream_id"].as_str() {
         Some(q) => match Uuid::parse_str(q) {
             Ok(q) => Box::new(stream_id.assume_not_null().eq(q)),
@@ -174,7 +212,11 @@ fn create_predicate(
     };
 
     let stream_name_filter: Box<
-        dyn BoxableExpression<episodes, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            episodes,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["stream_name"].as_str() {
         Some(q) => Box::new(
             stream_id.assume_not_null().eq_any(

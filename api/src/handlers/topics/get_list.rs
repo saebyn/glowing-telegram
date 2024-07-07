@@ -57,14 +57,16 @@ pub async fn handler(
         Ok(total) => total,
         Err(e) => {
             tracing::error!("Error getting total count: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                .into_response();
         }
     };
 
     let predicate = create_predicate(&filter);
 
-    let order: Box<dyn BoxableExpression<topics, diesel::pg::Pg, SqlType = NotSelectable>> =
-        create_order_expression!(sort, id, title);
+    let order: Box<
+        dyn BoxableExpression<topics, diesel::pg::Pg, SqlType = NotSelectable>,
+    > = create_order_expression!(sort, title);
 
     let results: Vec<Topic> = match topics
         .limit(range.count)
@@ -78,7 +80,8 @@ pub async fn handler(
         Ok(results) => results,
         Err(e) => {
             tracing::error!("Error getting results: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                .into_response();
         }
     };
 
@@ -107,11 +110,21 @@ pub async fn handler(
 
 fn create_predicate(
     filter: &serde_json::Value,
-) -> Box<dyn BoxableExpression<topics, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>> {
+) -> Box<
+    dyn BoxableExpression<
+        topics,
+        diesel::pg::Pg,
+        SqlType = diesel::sql_types::Bool,
+    >,
+> {
     use crate::schema::topics::dsl::*;
 
     let id_filter: Box<
-        dyn BoxableExpression<topics, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            topics,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["id"].is_array() {
         true => {
             let ids = filter["id"]
@@ -128,7 +141,11 @@ fn create_predicate(
     };
 
     let title_filter: Box<
-        dyn BoxableExpression<topics, diesel::pg::Pg, SqlType = diesel::sql_types::Bool>,
+        dyn BoxableExpression<
+            topics,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
     > = match filter["q"].as_str() {
         Some(q) => Box::new(title.ilike(format!("%{}%", q))),
         None => Box::new(title.ne("")),
