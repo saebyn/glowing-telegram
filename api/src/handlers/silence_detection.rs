@@ -18,7 +18,7 @@ struct Cursor {
 }
 
 #[derive(Deserialize, Debug)]
-struct DetectSegmentInput {
+pub struct DetectSegmentInput {
     uris: Vec<String>,
     track: u8,
     cursor: Option<Cursor>,
@@ -189,7 +189,7 @@ pub async fn detect_segment(
 }
 
 #[derive(Deserialize, Debug)]
-struct DetectInput {
+pub struct DetectInput {
     task_title: String,
 
     uris: Vec<String>,

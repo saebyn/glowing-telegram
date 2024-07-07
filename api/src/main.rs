@@ -131,6 +131,14 @@ async fn main() -> Result<(), axum::BoxError> {
             post(handlers::transcription::detect),
         )
         .route(
+            "/silence_detection/detect/segment",
+            post(handlers::silence_detection::detect_segment),
+        )
+        .route(
+            "/silence_detection/detect",
+            post(handlers::silence_detection::detect),
+        )
+        .route(
             "/twitch/login",
             get(handlers::twitch::get_login_handler)
                 .post(handlers::twitch::post_login_handler),
