@@ -25,14 +25,7 @@ services:
       retries: 5
     depends_on:
       - frontend
-      - ai_api
-      - crud_api
-      - stream_ingestion_api
-      - silence_detection_api
-      - transcription_api
-      - task_api
-      - twitch_api
-      - youtube_api
+      - api
 
   # run our frontend in dev mode with hot module reloading for vite
   frontend:
@@ -55,34 +48,12 @@ services:
       timeout: 30s
       retries: 5
 
-  ai_api:
+  api:
     build:
       context: .
       dockerfile: Dockerfile.rust
       args:
-        - SERVICE_NAME=ai_api
-        - DEBIAN_VERSION=bookworm-slim
-        - RUST_VERSION=1.78
-    restart: always
-    volumes:
-      - ./openai_key.txt:/openai_key
-    environment:
-      OPENAI_KEY_PATH: /openai_key
-      OPENAI_MODEL: gpt-4o
-      <<: *backend-variables
-
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  crud_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.rust
-      args:
-        - SERVICE_NAME=crud_api
+        - SERVICE_NAME=api
         - DEBIAN_VERSION=bookworm-slim
         - RUST_VERSION=1.78
     restart: always
@@ -90,25 +61,25 @@ services:
       - db
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/video_processing_project
-      <<: *backend-variables
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  stream_ingestion_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.rust
-      args:
-        - SERVICE_NAME=stream_ingestion_api
-        - DEBIAN_VERSION=bookworm-slim
-        - RUST_VERSION=1.78
-    restart: always
-    environment:
       VIDEO_STORAGE_PATH: /obs
+      NOISE: 0.004
+      DURATION: 2.0
+      THIS_API_BASE_URL: http://api:3000/
       RENDERED_EPISODE_STORAGE_PATH: /renders
+      MODEL_PATH: /model
+      REDIS_URL: redis://redis:6379
+      QUEUE_NAME: task_queue
+      TWITCH_USER_ID: ${TWITCH_USER_ID}
+      TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
+      TWITCH_CLIENT_SECRET_PATH: /twitch_client_secret
+      TWITCH_REDIRECT_URL: http://localhost:8080/twitch/callback
+      YOUTUBE_AUTH_URI: http://localhost:8080/youtubeLogin
+      YOUTUBE_TOKEN_URI: ${YOUTUBE_TOKEN_URI}
+      YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
+      YOUTUBE_CLIENT_SECRET_PATH: /youtube_client_secret
+      YOUTUBE_REDIRECT_URL: http://localhost:8080/youtube/callback
+      OPENAI_KEY_PATH: /openai_key
+      OPENAI_MODEL: gpt-4o
       <<: *backend-variables
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
@@ -118,51 +89,9 @@ services:
     volumes:
       - obs:/obs
       - renders:/renders
-
-  silence_detection_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.rust
-      args:
-        - SERVICE_NAME=silence_detection_api
-        - DEBIAN_VERSION=bookworm-slim
-        - RUST_VERSION=1.78
-    restart: always
-    environment:
-      VIDEO_STORAGE_PATH: /obs
-      NOISE: 0.004
-      DURATION: 2.0
-      THIS_API_BASE_URL: http://silence_detection_api:3000
-      <<: *backend-variables
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    volumes:
-      - obs:/obs
-
-  transcription_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.rust
-      args:
-        - SERVICE_NAME=transcription_api
-        - DEBIAN_VERSION=bookworm-slim
-        - RUST_VERSION=1.78
-    restart: always
-    environment:
-      VIDEO_STORAGE_PATH: /obs
-      MODEL_PATH: /model
-      THIS_API_BASE_URL: http://transcription_api:3000
-      <<: *backend-variables
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    volumes:
-      - obs:/obs
+      - ./youtube_key.txt:/youtube_client_secret
+      - ./twitch_key.txt:/twitch_client_secret
+      - ./openai_key.txt:/openai_key
       - model:/model
     deploy:
       resources:
@@ -171,27 +100,6 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-
-  task_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.rust
-      args:
-        - SERVICE_NAME=task_api
-        - DEBIAN_VERSION=bookworm-slim
-        - RUST_VERSION=1.78
-    restart: always
-    depends_on:
-      - redis
-    environment:
-      <<: *backend-variables
-      REDIS_URL: redis://redis:6379
-      QUEUE_NAME: task_queue
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
 
   task_worker:
     build:
@@ -211,58 +119,6 @@ services:
     deploy:
       mode: replicated
       replicas: 2
-
-  twitch_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.rust
-      args:
-        - SERVICE_NAME=twitch_api
-        - DEBIAN_VERSION=bookworm-slim
-        - RUST_VERSION=1.78
-    restart: always
-    volumes:
-      - ./twitch_key.txt:/twitch_client_secret
-    environment:
-      <<: *backend-variables
-      TWITCH_USER_ID: ${TWITCH_USER_ID}
-      TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
-      TWITCH_CLIENT_SECRET_PATH: /twitch_client_secret
-      REDIRECT_URL: http://localhost:8080/twitch/callback
-      REDIS_URL: redis://redis:6379
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  youtube_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.rust
-      args:
-        - SERVICE_NAME=youtube_upload_api
-        - DEBIAN_VERSION=bookworm-slim
-        - RUST_VERSION=1.78
-    restart: always
-    environment:
-      <<: *backend-variables
-      YOUTUBE_AUTH_URI: http://localhost:8080/youtubeLogin
-      YOUTUBE_TOKEN_URI: ${YOUTUBE_TOKEN_URI}
-      YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
-      YOUTUBE_CLIENT_SECRET_PATH: /youtube_client_secret
-      THIS_API_BASE_URL: http://youtube_api:3000
-      REDIRECT_URL: http://localhost:8080/youtube/callback
-      REDIS_URL: redis://redis:6379
-      RENDER_STORAGE_PATH: /renders
-    volumes:
-      - ./youtube_key.txt:/youtube_client_secret
-      - renders:/renders
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
 
   db:
     image: postgres:15-alpine
