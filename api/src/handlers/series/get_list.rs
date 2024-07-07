@@ -87,7 +87,7 @@ pub async fn handler(
 
     let prepared_results = results
         .into_iter()
-        .map(|record| SeriesSimpleView::from(record))
+        .map(SeriesSimpleView::from)
         .collect::<Vec<SeriesSimpleView>>();
 
     let pagination_info = format!(

@@ -38,20 +38,11 @@ pub async fn handler(
 
     tracing::info!("update_video_clip");
 
-    let duration_value = match body.duration {
-        Some(duration_value) => Some(parse_duration(Some(duration_value))),
-        None => None,
-    };
+    let duration_value = body.duration.map(|duration_value| parse_duration(Some(duration_value)));
 
-    let start_time_value = match body.start_time {
-        Some(start_time_value) => Some(parse_duration(Some(start_time_value))),
-        None => None,
-    };
+    let start_time_value = body.start_time.map(|start_time_value| parse_duration(Some(start_time_value)));
 
-    let stream_id_value = match body.stream_id {
-        Some(other_id) => Some(uuid::Uuid::parse_str(&other_id).unwrap_or(uuid::Uuid::nil())),
-        None => None,
-    };
+    let stream_id_value = body.stream_id.map(|other_id| uuid::Uuid::parse_str(&other_id).unwrap_or(uuid::Uuid::nil()));
 
     let result: Result<VideoClip, diesel::result::Error> =
         diesel::update(video_clips.filter(id.eq(record_id)))

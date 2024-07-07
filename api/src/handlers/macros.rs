@@ -29,7 +29,7 @@ macro_rules! create_list_handler {
             DbConnection(mut db): DbConnection<'_>,
             Query(params): Query<ListParams>,
         ) -> impl IntoResponse {
-            use crate::create_order_expression;
+            use $crate::create_order_expression;
             use uuid::Uuid;
             use schema::$table::dsl::*;
             tracing::info!("get_{}_list", stringify!($table));

@@ -81,7 +81,7 @@ impl From<(VideoClipInlineView, uuid::Uuid)> for VideoClipInsertable {
         let start_time = parse_duration(Some(clip.start_time));
 
         VideoClipInsertable {
-            id: clip.id.map_or(None, |id| uuid::Uuid::try_parse(&id).ok()),
+            id: clip.id.and_then(|id| uuid::Uuid::try_parse(&id).ok()),
             title: clip.title,
             description: "".to_string(),
             uri: clip.uri,
@@ -97,7 +97,7 @@ impl From<(VideoClipInlineView, uuid::Uuid)> for VideoClipInsertable {
             width: clip.width,
             video_bitrate: clip.video_bitrate,
             size: clip.size,
-            last_modified: clip.last_modified.map_or(None, |last_modified| {
+            last_modified: clip.last_modified.and_then(|last_modified| {
                 iso8601::datetime(&last_modified.to_string())
                     .map_or(None, |dt: iso8601::DateTime| dt.into_naive())
             }),
@@ -147,7 +147,7 @@ impl From<VideoClipInlineView> for VideoClipChangeset {
             width: clip.width,
             video_bitrate: clip.video_bitrate,
             size: clip.size,
-            last_modified: clip.last_modified.map_or(None, |last_modified| {
+            last_modified: clip.last_modified.and_then(|last_modified| {
                 iso8601::datetime(&last_modified.to_string())
                     .map_or(None, |dt: iso8601::DateTime| dt.into_naive())
             }),

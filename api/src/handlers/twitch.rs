@@ -73,7 +73,7 @@ impl FromRequestParts<AppState> for AccessToken {
 pub async fn get_login_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let scopes = vec!["chat:read"];
+    let scopes = ["chat:read"];
 
     let url = format!(
         "https://id.twitch.tv/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}",

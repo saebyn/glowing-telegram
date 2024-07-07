@@ -415,7 +415,7 @@ pub async fn probe(
         Ok(output) => Ok(output),
         Err(err) => {
             tracing::error!("Failed to parse ffprobe output: {}", err);
-            return Err("Failed to parse ffprobe output".into());
+            Err("Failed to parse ffprobe output".into())
         }
     }
 }

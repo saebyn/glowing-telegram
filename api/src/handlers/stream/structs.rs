@@ -100,7 +100,7 @@ impl From<Stream> for StreamSimpleView {
             duration: parse_duration_to_string(stream.duration),
             stream_date: dt_to_string(stream.stream_date),
             created_at: dt_to_string(stream.created_at),
-            updated_at: stream.updated_at.map(|dt| dt_to_string(dt)),
+            updated_at: stream.updated_at.map(dt_to_string),
             topic_ids: vec![],
             has_transcription: stream.transcription_task_url.is_some(),
             has_silence_detection: stream.silence_detection_task_url.is_some(),
@@ -120,7 +120,7 @@ impl From<(Stream, i64, i64)> for StreamSimpleView {
             duration: parse_duration_to_string(stream.duration),
             stream_date: dt_to_string(stream.stream_date),
             created_at: dt_to_string(stream.created_at),
-            updated_at: stream.updated_at.map(|dt| dt_to_string(dt)),
+            updated_at: stream.updated_at.map(dt_to_string),
             topic_ids: vec![],
             has_transcription: stream.transcription_segments.is_some(),
             has_silence_detection: stream.silence_segments.is_some(),
@@ -148,24 +148,24 @@ pub struct VideoClipInlineView {
     pub last_modified: Option<String>,
 }
 
-impl Into<VideoClipInlineView> for VideoClip {
-    fn into(self) -> VideoClipInlineView {
+impl From<VideoClip> for VideoClipInlineView {
+    fn from(val: VideoClip) -> Self {
         VideoClipInlineView {
-            id: Some(self.id.to_string()),
-            title: self.title.to_string(),
-            uri: self.uri.to_string(),
-            duration: parse_duration_to_string(self.duration),
-            start_time: parse_duration_to_string(self.start_time),
-            audio_bitrate: self.audio_bitrate,
-            audio_track_count: self.audio_track_count,
-            content_type: self.content_type.to_owned(),
-            filename: self.filename.to_owned(),
-            frame_rate: self.frame_rate,
-            height: self.height,
-            width: self.width,
-            video_bitrate: self.video_bitrate,
-            size: self.size,
-            last_modified: self.last_modified.map(|dt| dt_to_string(dt)),
+            id: Some(val.id.to_string()),
+            title: val.title.to_string(),
+            uri: val.uri.to_string(),
+            duration: parse_duration_to_string(val.duration),
+            start_time: parse_duration_to_string(val.start_time),
+            audio_bitrate: val.audio_bitrate,
+            audio_track_count: val.audio_track_count,
+            content_type: val.content_type.to_owned(),
+            filename: val.filename.to_owned(),
+            frame_rate: val.frame_rate,
+            height: val.height,
+            width: val.width,
+            video_bitrate: val.video_bitrate,
+            size: val.size,
+            last_modified: val.last_modified.map(dt_to_string),
         }
     }
 }
@@ -180,7 +180,7 @@ impl From<(Stream, Vec<VideoClip>)> for StreamDetailView {
 
             thumbnail: stream.thumbnail_url.to_string(),
             created_at: dt_to_string(stream.created_at),
-            updated_at: stream.updated_at.map(|dt| dt_to_string(dt)),
+            updated_at: stream.updated_at.map(dt_to_string),
             topic_ids: vec![],
 
             video_clips: video_clips.into_iter().map(|vc| vc.into()).collect(),

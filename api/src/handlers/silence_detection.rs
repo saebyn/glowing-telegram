@@ -33,7 +33,7 @@ struct DetectSegmentOutput {
     segments: Vec<Segment>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Segment {
     #[serde(deserialize_with = "crate::serde::deserialize_duration")]
     #[serde(serialize_with = "crate::serde::serialize_duration")]
@@ -81,7 +81,9 @@ pub async fn detect_segment(
     // extract filename from uri
     let filename = match uri.split(&['/', ':'][..]).last() {
         Some(filename) => filename,
-        None => return (StatusCode::BAD_REQUEST, "invalid uri").into_response(),
+        None => {
+            return (StatusCode::BAD_REQUEST, "invalid uri").into_response()
+        }
     };
 
     let path = format!("{}/{}", state.video_storage_path, filename);
@@ -115,7 +117,10 @@ pub async fn detect_segment(
         .await
     {
         Ok(output) => output,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response(),
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error")
+                .into_response()
+        }
     };
 
     let command_stderr = String::from_utf8_lossy(&command_output.stderr);
@@ -123,7 +128,8 @@ pub async fn detect_segment(
     // handle output status code
     if !command_output.status.success() {
         tracing::error!("ffmpeg error: {}", command_stderr);
-        return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response();
+        return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error")
+            .into_response();
     }
 
     // trace output
@@ -131,14 +137,18 @@ pub async fn detect_segment(
 
     // detect error in filter by looking for "Conversion failed!" in output
     if command_stderr.contains("Conversion failed!") {
-        return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error").into_response();
+        return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error")
+            .into_response();
     }
 
     let re = match Regex::new(
         r"silence_end: (?<end>\d+(\.\d+)?) \| silence_duration: (?<duration>\d+(\.\d+)?)",
     ) {
         Ok(re) => re,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "regex error").into_response(),
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "regex error")
+                .into_response()
+        }
     };
 
     let mut segments = Vec::new();
@@ -150,7 +160,8 @@ pub async fn detect_segment(
         let start = end - duration;
 
         segments.push(Segment {
-            start: std::time::Duration::from_secs_f64(start) + cursor.start_offset,
+            start: std::time::Duration::from_secs_f64(start)
+                + cursor.start_offset,
             end: std::time::Duration::from_secs_f64(end) + cursor.start_offset,
         });
     }

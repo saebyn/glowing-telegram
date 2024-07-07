@@ -67,10 +67,10 @@ pub async fn find_files(
 
     for entry in &mut entries {
         entry.metadata.start_time = cumulative_duration;
-        cumulative_duration = cumulative_duration + entry.metadata.duration;
+        cumulative_duration += entry.metadata.duration;
     }
 
-    axum::Json(json!(FindFilesResponse { entries: entries })).into_response()
+    axum::Json(json!(FindFilesResponse { entries })).into_response()
 }
 
 pub async fn find_rendered_episode_files(
@@ -171,7 +171,7 @@ async fn get_entries(base_path: &str, query: &FindFilesQuery) -> Vec<Entry> {
                 };
 
                 let metadata = Metadata {
-                    filename: format!("{}", file),
+                    filename: file.to_string(),
                     content_type: "video/mp4".to_string(),
                     size: metadata.len(),
                     last_modified: match metadata.modified() {

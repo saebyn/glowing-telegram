@@ -181,9 +181,7 @@ pub async fn upload_video_handler(
     // convert the recording date to an ISO8601 string
     let recording_date_iso8601 = body
         .recording_date
-        .clone()
-        .map(|dt| dt.into_naive())
-        .flatten()
+        .and_then(|dt| dt.into_naive())
         .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
 
     // send the request to the Youtube API
@@ -694,7 +692,7 @@ async fn upload_inner(
 
     if response.status().is_success() {
         UploadInnerStatus::Success(response)
-    } else if vec![500, 502, 503, 504].contains(&response.status().as_u16()) {
+    } else if [500, 502, 503, 504].contains(&response.status().as_u16()) {
         UploadInnerStatus::TemporaryFailure
     } else {
         UploadInnerStatus::PermanentFailure

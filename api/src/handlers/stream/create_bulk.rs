@@ -66,7 +66,7 @@ pub async fn handler(
 
     axum::Json(json!(records
         .into_iter()
-        .map(|record| StreamSimpleView::from(record))
+        .map(StreamSimpleView::from)
         .collect::<Vec<_>>()))
     .into_response()
 }
