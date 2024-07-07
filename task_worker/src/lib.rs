@@ -265,7 +265,7 @@ pub fn pop_task(
         };
         // If it is, put the task back in the queue, wait for some time and try again
         if run_after > chrono::Utc::now() {
-            let _: () = match con
+            match con
                 .zadd::<&str, f64, &std::string::String, ()>(queue_name, &task_key, score)
             {
                 Ok(_) => (),
@@ -283,7 +283,7 @@ pub fn pop_task(
     };
 
     // Move the task to the temp queue
-    let _: () = match con.lpush::<&str, &str, ()>(&temp_queue_name, &task_key) {
+    match con.lpush::<&str, &str, ()>(&temp_queue_name, &task_key) {
         Ok(_) => (),
         Err(_) => return Err("Failed to move task to temp queue"),
     };
@@ -361,8 +361,7 @@ pub fn get_task_data(
     // parse the JSON list in each item in the data list
     let data: Vec<serde_json::Value> = data
         .iter()
-        .map(|item| serde_json::from_str::<Vec<serde_json::Value>>(item).unwrap_or(vec![]))
-        .flatten()
+        .flat_map(|item| serde_json::from_str::<Vec<serde_json::Value>>(item).unwrap_or_default())
         .collect();
 
     Ok(data)

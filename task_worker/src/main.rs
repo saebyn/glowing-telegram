@@ -35,7 +35,7 @@ async fn main() {
 }
 
 #[instrument(skip(con))]
-async fn work(reqwest_client: &reqwest::Client, mut con: &mut redis::Connection, queue_name: &str) {
+async fn work(reqwest_client: &reqwest::Client, con: &mut redis::Connection, queue_name: &str) {
     /*
      * Take a task from the queue and then while the target url returns a
      * cursor, store the data from the data_key into the task data as a
@@ -43,10 +43,10 @@ async fn work(reqwest_client: &reqwest::Client, mut con: &mut redis::Connection,
      * until the cursor is null.
      */
     let mut task =
-        pop_task(&mut con, &queue_name, NO_TASK_READY_DELAY).expect("Failed to pop task");
+        pop_task(con, queue_name, NO_TASK_READY_DELAY).expect("Failed to pop task");
 
     // update the status to processing
-    update_task_status(&mut con, &task, TaskStatus::Processing)
+    update_task_status(con, &task, TaskStatus::Processing)
         .expect("Failed to update task status");
 
     // loop while the cursor is not Null
@@ -61,7 +61,7 @@ async fn work(reqwest_client: &reqwest::Client, mut con: &mut redis::Connection,
         // if the repsonse is a 503 Service Unavailable, then mark the
         // task as queued again, add a retry timestamp, and break
         if response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
-            update_task_status(&mut con, &task, TaskStatus::Queued)
+            update_task_status(con, &task, TaskStatus::Queued)
                 .expect("Failed to update task status");
 
             // add retry timestamp to the task payload
@@ -87,10 +87,10 @@ async fn work(reqwest_client: &reqwest::Client, mut con: &mut redis::Connection,
             };
 
             // put the task id in the main queue
-            queue_task(&mut con, &queue_name, &task).expect("Failed to add task to queue");
+            queue_task(con, queue_name, &task).expect("Failed to add task to queue");
 
             // remove the task from the temp queue
-            remove_task_from_temp_queue(&mut con, &queue_name, &task)
+            remove_task_from_temp_queue(con, queue_name, &task)
                 .expect("Failed to remove task from temp queue");
 
             break;
@@ -98,7 +98,7 @@ async fn work(reqwest_client: &reqwest::Client, mut con: &mut redis::Connection,
 
         // if the response is not 200, then update the status to failed and break
         if !response.status().is_success() {
-            update_task_status(&mut con, &task, TaskStatus::Failed)
+            update_task_status(con, &task, TaskStatus::Failed)
                 .expect("Failed to update task status");
 
             break;
@@ -136,10 +136,10 @@ async fn work(reqwest_client: &reqwest::Client, mut con: &mut redis::Connection,
     println!("Finished task: {}", task.key);
 
     // update the status to complete
-    update_task_status(&mut con, &task, TaskStatus::Complete)
+    update_task_status(con, &task, TaskStatus::Complete)
         .expect("Failed to update task status");
 
     // remove the task from redis
-    remove_task_from_temp_queue(&mut con, &queue_name, &task)
+    remove_task_from_temp_queue(con, queue_name, &task)
         .expect("Failed to remove task from temp queue");
 }
