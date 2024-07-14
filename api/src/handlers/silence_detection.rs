@@ -217,7 +217,10 @@ pub async fn detect(
             task_api_external_url: state.task_api_external_url.clone(),
         },
         task::TaskRequest {
-            url: format!("{}/detect/segment", state.this_api_base_url),
+            url: format!(
+                "{}/silence_detection/detect/segment",
+                state.this_api_base_url
+            ),
             title: body.task_title,
             payload: json!({
                 "uris": uris,

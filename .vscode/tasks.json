@@ -8,14 +8,7 @@
       "type": "pickString",
       "description": "The name of the service to run",
       "options": [
-        "ai_api",
-        "audio_extraction_api",
-        "crud_api",
-        "media_archive_api",
-        "silence_detection_api",
-        "stream_ingestion_api",
-        "task_api",
-        "transcription_api"
+        "api"
       ]
     },
     {
