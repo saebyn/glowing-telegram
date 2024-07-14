@@ -6,7 +6,7 @@ x-backend-variables: &backend-variables
   RUST_LOG: trace
   RUST_BACKTRACE: 1
   CORS_ALLOWED_ORIGINS: http://localhost:8080
-  TASK_API_URL: http://task_api:3000/tasks
+  TASK_API_URL: http://api:3000/tasks
   TASK_API_EXTERNAL_URL: http://localhost:8080/api/records/tasks
 
 services:
@@ -64,7 +64,7 @@ services:
       VIDEO_STORAGE_PATH: /obs
       NOISE: 0.004
       DURATION: 2.0
-      THIS_API_BASE_URL: http://api:3000/
+      THIS_API_BASE_URL: http://api:3000
       RENDERED_EPISODE_STORAGE_PATH: /renders
       MODEL_PATH: /model
       REDIS_URL: redis://redis:6379
@@ -118,7 +118,7 @@ services:
       QUEUE_NAME: task_queue
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 3
 
   db:
     image: postgres:15-alpine

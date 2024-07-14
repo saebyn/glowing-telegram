@@ -84,7 +84,10 @@ impl YoutubeUploadRequest {
         let payload = YoutubeUploadTaskPayload::from(self);
 
         TaskRequest {
-            url: format!("{}/upload/task", app_state.this_api_base_url),
+            url: format!(
+                "{}/youtube/upload/task",
+                app_state.this_api_base_url
+            ),
             title: self.task_title.clone(),
             payload: json!(payload),
             data_key: "summary".to_string(),

@@ -335,7 +335,7 @@ pub async fn detect(
     let response = match http_client
         .post(&state.task_api_url)
         .json(&json!({
-            "url": format!("{}/detect/segment", state.this_api_base_url),
+            "url": format!("{}/transcription/detect/segment", state.this_api_base_url),
             "title": body.task_title,
             "payload": json!({
                 "uris": uris,
