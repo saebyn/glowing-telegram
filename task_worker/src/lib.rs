@@ -40,26 +40,99 @@ pub struct Task {
 
     #[serde(with = "chrono::serde::ts_seconds")]
     pub run_after: chrono::DateTime<chrono::Utc>,
+
+    pub next_task: Option<TaskTemplate>,
 }
 
-impl From<HashMap<String, String>> for Task {
-    fn from(data: HashMap<String, String>) -> Self {
-        let id = data["id"].parse().expect("Failed to parse task id");
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TaskTemplate {
+    pub url: String,
+    pub payload: serde_json::Value,
+    pub data_key: String,
+    pub title: String,
+    pub next_task: Option<Box<TaskTemplate>>,
+}
 
-        Task {
-            key: generate_task_key(id),
+impl TryFrom<HashMap<String, String>> for TaskTemplate {
+    type Error = &'static str;
+
+    fn try_from(data: HashMap<String, String>) -> Result<Self, Self::Error> {
+        let url = data.get("url").ok_or("Failed to get url")?.clone();
+        let payload = match serde_json::from_str::<serde_json::Value>(
+            data.get("payload").ok_or("Failed to get payload")?,
+        ) {
+            Ok(payload) => payload,
+            Err(e) => {
+                return Err("Failed to parse payload");
+            }
+        };
+        let data_key = data
+            .get("data_key")
+            .ok_or("Failed to get data_key")?
+            .clone();
+        let title = data.get("title").ok_or("Failed to get title")?.clone();
+        let next_task = match data.get("next_task") {
+            None => None,
+            Some(next_task) => {
+                let next_task: HashMap<String, String> =
+                    match serde_json::from_str(next_task) {
+                        Ok(next_task) => next_task,
+                        Err(e) => {
+                            return Err("Failed to parse next_task");
+                        }
+                    };
+                Some(Box::new(TaskTemplate::try_from(next_task)?))
+            }
+        };
+
+        Ok(TaskTemplate {
+            url,
+            payload,
+            data_key,
+            title,
+            next_task,
+        })
+    }
+}
+
+impl TryFrom<HashMap<String, String>> for Task {
+    type Error = &'static str;
+
+    fn try_from(data: HashMap<String, String>) -> Result<Self, Self::Error> {
+        let id = data.get("id").ok_or("Failed to get id")?.parse().unwrap();
+        let key = generate_task_key(id);
+        let title = data.get("title").unwrap_or(&"".to_string()).clone();
+        let url = data.get("url").ok_or("Failed to get url")?.clone();
+        let payload = match serde_json::from_str::<serde_json::Value>(
+            data.get("payload").ok_or("Failed to get payload")?,
+        ) {
+            Ok(payload) => payload,
+            Err(e) => {
+                return Err("Failed to parse payload");
+            }
+        };
+        let data_key = data
+            .get("data_key")
+            .ok_or("Failed to get data_key")?
+            .clone();
+
+        Ok(Task {
+            key,
             id,
-            title: data.get("title").unwrap_or(&"".to_string()).clone(),
-            url: data["url"].clone(),
-            payload: serde_json::from_str(&data["payload"]).expect("Failed to parse payload"),
-            data_key: data["data_key"].clone(),
+            title,
+            url,
+            payload,
+            data_key,
             status: TaskStatus::from(data["status"].clone()),
             last_updated: match data.get("last_updated") {
                 None => chrono::Utc::now(),
                 Some(x) => match chrono::DateTime::parse_from_rfc3339(x) {
                     Ok(timestamp) => timestamp.with_timezone(&chrono::Utc),
                     Err(e) => {
-                        tracing::error!("Failed to parse last_updated timestamp: {}", e);
+                        tracing::error!(
+                            "Failed to parse last_updated timestamp: {}",
+                            e
+                        );
                         chrono::Utc::now()
                     }
                 },
@@ -69,12 +142,24 @@ impl From<HashMap<String, String>> for Task {
                 Some(x) => match chrono::DateTime::parse_from_rfc3339(x) {
                     Ok(timestamp) => timestamp.with_timezone(&chrono::Utc),
                     Err(e) => {
-                        tracing::error!("Failed to parse run_after timestamp: {}", e);
+                        tracing::error!(
+                            "Failed to parse run_after timestamp: {}",
+                            e
+                        );
                         chrono::Utc::now()
                     }
                 },
             },
-        }
+
+            next_task: match data.get("next_task") {
+                None => None,
+                Some(next_task) => {
+                    let next_task: HashMap<String, String> =
+                        serde_json::from_str(next_task).unwrap();
+                    Some(TaskTemplate::try_from(next_task).unwrap())
+                }
+            },
+        })
     }
 }
 
@@ -202,7 +287,11 @@ pub fn update_task_status(
     new_task_status: TaskStatus,
 ) -> Result<(), &'static str> {
     let now = chrono::Utc::now();
-    match con.hset::<_, &str, &str, ()>(task.key.clone(), "status", new_task_status.as_str()) {
+    match con.hset::<_, _, _, ()>(
+        task.key.clone(),
+        "status",
+        new_task_status.as_str(),
+    ) {
         Ok(_) => (),
         Err(e) => {
             tracing::error!("Failed to update task status: {}", e);
@@ -210,7 +299,11 @@ pub fn update_task_status(
         }
     };
 
-    match con.hset::<_, &str, &str, ()>(task.key.clone(), "last_updated", &now.to_rfc3339()) {
+    match con.hset::<_, _, _, ()>(
+        task.key.clone(),
+        "last_updated",
+        &now.to_rfc3339(),
+    ) {
         Ok(_) => (),
         Err(e) => {
             tracing::error!("Failed to update task last_updated: {}", e);
@@ -249,7 +342,9 @@ pub fn pop_task(
     let task_key = loop {
         // Pop the highest priority task key from the queue
         let (task_key, score): (String, f64) =
-            match con.bzpopmin::<&str, (String, String, String)>(queue_name, 0.0) {
+            match con
+                .bzpopmin::<&str, (String, String, String)>(queue_name, 0.0)
+            {
                 Ok((_, task_key, score)) => (task_key, score.parse().unwrap()),
 
                 Err(e) => {
@@ -259,15 +354,16 @@ pub fn pop_task(
             };
 
         // Check if the task's run_after timestamp is in the future
-        let run_after = match chrono::DateTime::from_timestamp(score as i64, 0) {
+        let run_after = match chrono::DateTime::from_timestamp(score as i64, 0)
+        {
             Some(timestamp) => timestamp,
             None => return Err("Failed to parse score as timestamp"),
         };
         // If it is, put the task back in the queue, wait for some time and try again
         if run_after > chrono::Utc::now() {
-            match con
-                .zadd::<&str, f64, &std::string::String, ()>(queue_name, &task_key, score)
-            {
+            match con.zadd::<&str, f64, &std::string::String, ()>(
+                queue_name, &task_key, score,
+            ) {
                 Ok(_) => (),
                 Err(_) => return Err("Failed to put task back in queue"),
             };
@@ -323,7 +419,9 @@ pub fn queue_task(
 ) -> Result<(), &'static str> {
     let score = task.run_after.timestamp() as f64;
 
-    match con.zadd::<&str, f64, &std::string::String, ()>(queue_name, &task.key, score) {
+    match con.zadd::<&str, f64, &std::string::String, ()>(
+        queue_name, &task.key, score,
+    ) {
         Ok(_) => Ok(()),
         Err(e) => {
             tracing::error!("Failed to add task to queue: {}", e);
@@ -333,7 +431,10 @@ pub fn queue_task(
     }
 }
 
-pub fn get_task(con: &mut redis::Connection, task_id: u64) -> Result<Task, &'static str> {
+pub fn get_task(
+    con: &mut redis::Connection,
+    task_id: u64,
+) -> Result<Task, &'static str> {
     let task_key = generate_task_key(task_id);
     let task_data: HashMap<String, String> = match con.hgetall(task_key) {
         Ok(task_data) => task_data,
@@ -361,7 +462,10 @@ pub fn get_task_data(
     // parse the JSON list in each item in the data list
     let data: Vec<serde_json::Value> = data
         .iter()
-        .flat_map(|item| serde_json::from_str::<Vec<serde_json::Value>>(item).unwrap_or_default())
+        .flat_map(|item| {
+            serde_json::from_str::<Vec<serde_json::Value>>(item)
+                .unwrap_or_default()
+        })
         .collect();
 
     Ok(data)
