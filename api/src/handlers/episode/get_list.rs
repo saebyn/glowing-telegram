@@ -65,6 +65,11 @@ pub async fn handler(
 
     let predicate = create_predicate(&filter);
 
+    let stream_date = diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Timestamp>>(
+        "(SELECT stream_date FROM streams WHERE streams.id = episodes.stream_id)",
+    );
+    let stream_date_clone = stream_date.clone();
+
     let order: Box<
         dyn BoxableExpression<
             episodes,
@@ -76,7 +81,8 @@ pub async fn handler(
         title,
         series_id,
         is_published,
-        order_index
+        order_index,
+        stream_date
     );
 
     let results: Vec<(Episode, Option<chrono::NaiveDateTime>, Option<String>)> = match episodes
@@ -85,9 +91,7 @@ pub async fn handler(
         .order_by(order)
         .select((
             episodes::all_columns(),
-            diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Timestamp>>(
-                "(SELECT stream_date FROM streams WHERE streams.id = episodes.stream_id)",
-            ),
+            stream_date_clone,
             diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>(
                 "(SELECT playlist_id FROM series WHERE series.id = episodes.series_id)",
             ),
