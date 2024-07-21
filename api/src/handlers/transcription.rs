@@ -71,7 +71,7 @@ pub async fn detect_segment(
         }
     };
 
-    let mut audio_extraction = match Command::new("ffmpeg")
+    let audio_extraction = match Command::new("ffmpeg")
         .arg("-hide_banner")
         .arg("-i")
         .arg(path)
@@ -99,13 +99,25 @@ pub async fn detect_segment(
         }
     };
 
-    let audio: Stdio = match audio_extraction.stdout.take().unwrap().try_into()
-    {
-        Ok(audio) => audio,
-        Err(e) => {
+    let audio = match audio_extraction.stdout {
+        Some(stdout) => {
+            let audio: Stdio = match stdout.try_into() {
+                Ok(audio) => audio,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(json!({ "error": e.to_string() })),
+                    )
+                        .into_response()
+                }
+            };
+
+            audio
+        }
+        None => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(json!({ "error": e.to_string() })),
+                axum::Json(json!({ "error": "no stdout" })),
             )
                 .into_response()
         }
@@ -244,20 +256,21 @@ pub async fn detect_segment(
         })
         .filter_map(|segment: Option<Segment>| segment)
         .fold(vec![vec![]], |mut segment_groups, segment| {
-            let last_segment_group = segment_groups.last_mut().unwrap();
+            if let Some(last_segment_group) = segment_groups.last_mut() {
+                // if the last segment group less than 30 seconds long, then add the segment to it
+                let last_segment_group_duration = last_segment_group
+                    .iter()
+                    .map(|segment: &Segment| segment.end - segment.start)
+                    .sum::<std::time::Duration>();
 
-            // if the last segment group less than 30 seconds long, then add the segment to it
-            let last_segment_group_duration = last_segment_group
-                .iter()
-                .map(|segment: &Segment| segment.end - segment.start)
-                .sum::<std::time::Duration>();
-
-            if last_segment_group_duration < std::time::Duration::from_secs(30)
-            {
-                last_segment_group.push(segment);
-            } else {
-                // otherwise, create a new segment group and add the segment to it
-                segment_groups.push(vec![segment]);
+                if last_segment_group_duration
+                    < std::time::Duration::from_secs(30)
+                {
+                    last_segment_group.push(segment);
+                } else {
+                    // otherwise, create a new segment group and add the segment to it
+                    segment_groups.push(vec![segment]);
+                }
             }
 
             segment_groups
@@ -266,9 +279,29 @@ pub async fn detect_segment(
         // combine the segment groups into individual segments
         .iter()
         .map(|segment_group| {
-            let start = segment_group.first().unwrap().start;
+            let start = match segment_group.first() {
+                Some(segment) => segment.start,
+                None => {
+                    tracing::warn!(
+                        "no segment in segment group: {:?}",
+                        segment_group
+                    );
 
-            let end = segment_group.last().unwrap().end;
+                    std::time::Duration::from_secs(0)
+                }
+            };
+
+            let end = match segment_group.last() {
+                Some(segment) => segment.end,
+                None => {
+                    tracing::warn!(
+                        "no segment in segment group: {:?}",
+                        segment_group
+                    );
+
+                    std::time::Duration::from_secs(0)
+                }
+            };
 
             let text = segment_group
                 .iter()
@@ -277,9 +310,20 @@ pub async fn detect_segment(
                 .join(" ")
                 .to_string();
 
-            Segment { start, end, text }
+            Ok(Segment { start, end, text })
         })
-        .collect::<Vec<Segment>>();
+        .collect::<Result<Vec<Segment>, ()>>();
+
+    let segments = match segments {
+        Ok(segments) => segments,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": e })),
+            )
+                .into_response();
+        }
+    };
 
     // if this was the last item in the list, then return None for the cursor
     // return the segments
