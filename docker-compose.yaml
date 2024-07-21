@@ -3,7 +3,7 @@ name: video_processing_project
 x-backend-variables: &backend-variables
   HOST: 0.0.0.0
   PORT: 3000
-  RUST_LOG: trace
+  RUST_LOG: debug
   RUST_BACKTRACE: 1
   CORS_ALLOWED_ORIGINS: http://localhost:8080
   TASK_API_URL: http://api:3000/tasks
