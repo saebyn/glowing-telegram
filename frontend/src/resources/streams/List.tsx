@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import {
   Datagrid,
   DateField,
@@ -6,7 +7,6 @@ import {
   NumberField,
   ListProps,
   CloneButton,
-  Filter,
   useListContext,
   BooleanField,
   Button,
@@ -17,10 +17,10 @@ import {
   ReferenceInput,
   SelectInput,
   DateInput,
+  ReferenceField,
 } from "react-admin";
 import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
 import { PickersDay } from "@mui/x-date-pickers/PickersDay";
-import ThumbnailField from "../../ThumbnailField";
 import Badge from "@mui/material/Badge";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -28,27 +28,26 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import MuiTextField from "@mui/material/TextField";
 import MuiButton from "@mui/material/Button";
-import React, { useState } from "react";
+import { FindFilesResponse } from "../../types";
 
-const StreamsFilter = (props: any) => (
-  <Filter {...props}>
-    <SearchInput source="q" alwaysOn />
+/* eslint-disable react/jsx-key */
+const streamsFilter = [
+  <SearchInput source="q" alwaysOn />,
 
-    <NullableBooleanInput source="has_transcription" label="Transcription" />
-    <NullableBooleanInput
-      source="has_silence_detection"
-      label="Silence Detection"
-    />
-    <NullableBooleanInput source="has_video_clips" label="Video Clips" />
-    <NullableBooleanInput source="has_episodes" label="Episodes" />
+  <NullableBooleanInput source="has_transcription" label="Transcription" />,
+  <NullableBooleanInput
+    source="has_silence_detection"
+    label="Silence Detection"
+  />,
+  <NullableBooleanInput source="has_video_clips" label="Video Clips" />,
+  <NullableBooleanInput source="has_episodes" label="Episodes" />,
 
-    <DateInput source="stream_date__gte" label="Stream Date After" />
+  <DateInput source="stream_date__gte" label="Stream Date After" />,
 
-    <ReferenceInput source="series_id" reference="series">
-      <SelectInput optionText="title" />
-    </ReferenceInput>
-  </Filter>
-);
+  <ReferenceInput source="series_id" reference="series">
+    <SelectInput optionText="title" />
+  </ReferenceInput>,
+];
 
 function getDateKey(date: Date): string {
   return `${date.getFullYear()}-${(date.getMonth() + 1)
@@ -146,7 +145,7 @@ const BulkSilenceDetectionButton = () => {
           duration,
           stream_id: stream.id,
         });
-      })
+      }),
     );
 
     setProcessing(false);
@@ -212,14 +211,16 @@ const BulkScanForClipsButton = () => {
         const { data: stream } = await dataProvider.getOne("streams", {
           id: streamId,
         });
-        const clips = await dataProvider.getStreamClips(stream.prefix);
+        const clips: FindFilesResponse = await dataProvider.getStreamClips(
+          stream.prefix,
+        );
 
         await dataProvider.update("streams", {
           id: streamId,
           previousData: stream,
           data: {
-            video_clips: clips.entries.map((entry: any) => ({
-              title: entry.metadata.title || entry.metadata.filename,
+            video_clips: clips.entries.map((entry) => ({
+              title: entry.metadata.filename,
               uri: entry.uri,
               duration: entry.metadata.duration,
               start_time: entry.metadata.start_time,
@@ -240,7 +241,7 @@ const BulkScanForClipsButton = () => {
         onSelect([]);
 
         await refetch();
-      })
+      }),
     );
   };
 
@@ -255,11 +256,13 @@ const StreamBulkActions = () => (
 );
 
 const StreamList = (props: ListProps) => (
-  <List {...props} filters={<StreamsFilter />} aside={<CalendarView />}>
+  <List {...props} filters={streamsFilter} aside={<CalendarView />}>
     <Datagrid rowClick="edit" bulkActionButtons={<StreamBulkActions />}>
       <DateField source="stream_date" />
       <TextField source="title" />
-      <ThumbnailField source="thumbnail" width={100} height={100} />
+      <ReferenceField source="series_id" reference="series">
+        <TextField source="title" />
+      </ReferenceField>
       <NumberField source="video_clip_count" />
       <BooleanField source="has_transcription" />
       <BooleanField source="has_silence_detection" />

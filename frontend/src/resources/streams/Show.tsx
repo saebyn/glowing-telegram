@@ -6,6 +6,7 @@ import {
   SimpleShowLayout,
   TextField,
 } from "react-admin";
+import ThumbnailField from "../../ThumbnailField";
 
 const StreamShow = (props: ShowProps) => (
   <Show {...props}>
@@ -15,7 +16,7 @@ const StreamShow = (props: ShowProps) => (
       <TextField source="id" />
       <DateField source="prefix" />
       <TextField source="speech_audio_track" />
-      <TextField source="thumbnail" />
+      <ThumbnailField source="thumbnail" width={100} height={100} />
       <DateField source="title" />
       <ReferenceArrayField source="topic_ids" reference="topics">
         <TextField source="id" />
