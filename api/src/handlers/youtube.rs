@@ -91,6 +91,9 @@ impl YoutubeUploadRequest {
             title: self.task_title.clone(),
             payload: json!(payload),
             data_key: "summary".to_string(),
+
+            // TODO this should be a task template for the next task
+            next_task: None,
         }
     }
 }

@@ -7,7 +7,7 @@ use axum::http::header;
 use axum::Json;
 use axum::{http::StatusCode, response::IntoResponse};
 use redis::Commands;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use tracing::instrument;
 
@@ -16,6 +16,7 @@ use task_worker::{
 };
 
 use crate::state::AppState;
+use crate::task::TaskRequest;
 
 #[instrument]
 pub async fn get_list_handler(
@@ -50,8 +51,19 @@ pub async fn get_list_handler(
                 HashMap::new()
             }
         })
-        .map(|record| record.into())
-        .map(|record: Task| json!(record))
+        .flat_map(|record| record.try_into().ok())
+        .map(|record: Task| {
+            json!(
+                {
+                    "id": record.id,
+                    "title": record.title,
+                    "url": record.url,
+                    "status": record.status,
+                    "last_updated": record.last_updated.to_rfc3339(),
+                    "has_next_task": record.next_task.is_some(),
+                }
+            )
+        })
         .collect();
 
     let pagination_info = format!(
@@ -73,18 +85,10 @@ pub async fn get_list_handler(
         .into_response()
 }
 
-#[derive(Deserialize, Debug)]
-pub struct CreateTaskInput {
-    title: String,
-    url: String,
-    payload: serde_json::Value,
-    data_key: String,
-}
-
 #[instrument]
 pub async fn create_handler(
     State(state): State<AppState>,
-    Json(body): Json<CreateTaskInput>,
+    Json(body): Json<TaskRequest>,
 ) -> impl IntoResponse {
     let mut con = match state.redis.get_connection() {
         Ok(con) => con,
@@ -104,27 +108,15 @@ pub async fn create_handler(
         }
     };
 
-    // generate a unique id for the task by incrementing the task counter
-    let id: u64 = match con.incr("task:counter", 1) {
-        Ok(id) => {
-            tracing::info!("Generated task id: {}", id);
-            id
-        }
-        Err(e) => {
-            tracing::error!("Failed to generate task id: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({})))
-                .into_response();
-        }
-    };
-
     // create task record as a hash in redis with a unique id
     let task = match create_task(
         &mut con,
-        id,
         &body.title,
         &body.url,
         body.payload.clone(),
         &body.data_key,
+        body.next_task.clone(),
+        None,
     ) {
         Ok(task) => {
             tracing::info!("Created task record: {}", task.key);
@@ -152,7 +144,7 @@ pub async fn create_handler(
     (
         StatusCode::OK,
         axum::Json(json!({
-            "id": id.to_string(),
+            "id": task.id.to_string(),
             "url": body.url,
             "payload": body.payload,
         })),

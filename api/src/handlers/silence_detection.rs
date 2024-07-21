@@ -229,6 +229,8 @@ pub async fn detect(
                 "duration": body.duration,
             }),
             data_key: "segments".to_string(),
+
+            next_task: None,
         },
     )
     .await

@@ -25,10 +25,12 @@ use redis::{Commands, ConnectionLike};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Task {
+    // TODO consider removing this and calculating from id
     pub key: String,
     pub id: u64,
+    pub previous_task_id: Option<u64>,
     pub url: String,
     pub payload: serde_json::Value,
     pub data_key: String,
@@ -44,7 +46,7 @@ pub struct Task {
     pub next_task: Option<TaskTemplate>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TaskTemplate {
     pub url: String,
     pub payload: serde_json::Value,
@@ -52,6 +54,8 @@ pub struct TaskTemplate {
     pub title: String,
     pub next_task: Option<Box<TaskTemplate>>,
 }
+
+const TASK_COUNTER_KEY: &str = "task:counter";
 
 impl TryFrom<HashMap<String, String>> for TaskTemplate {
     type Error = &'static str;
@@ -63,6 +67,7 @@ impl TryFrom<HashMap<String, String>> for TaskTemplate {
         ) {
             Ok(payload) => payload,
             Err(e) => {
+                tracing::error!("Failed to parse payload: {}", e);
                 return Err("Failed to parse payload");
             }
         };
@@ -71,13 +76,19 @@ impl TryFrom<HashMap<String, String>> for TaskTemplate {
             .ok_or("Failed to get data_key")?
             .clone();
         let title = data.get("title").ok_or("Failed to get title")?.clone();
-        let next_task = match data.get("next_task") {
+
+        let next_task = match data.get("next_task").map(|x| x.as_str()) {
             None => None,
+            Some("null") => None,
             Some(next_task) => {
                 let next_task: HashMap<String, String> =
                     match serde_json::from_str(next_task) {
                         Ok(next_task) => next_task,
                         Err(e) => {
+                            tracing::error!(
+                                "Failed to parse next_task: {}",
+                                e
+                            );
                             return Err("Failed to parse next_task");
                         }
                     };
@@ -95,6 +106,42 @@ impl TryFrom<HashMap<String, String>> for TaskTemplate {
     }
 }
 
+impl TryFrom<&Task> for redis::Cmd {
+    type Error = &'static str;
+
+    fn try_from(task: &Task) -> Result<Self, Self::Error> {
+        let next_task = match serde_json::to_string(&task.next_task) {
+            Ok(next_task) => next_task,
+            Err(e) => {
+                tracing::error!("Failed to serialize next_task: {}", e);
+                return Err("Failed to serialize next_task");
+            }
+        };
+
+        Ok(redis::cmd("HMSET")
+            .arg(&task.key)
+            .arg("id")
+            .arg(task.id)
+            .arg("title")
+            .arg(&task.title)
+            .arg("status")
+            .arg(task.status.as_str())
+            .arg("url")
+            .arg(&task.url)
+            .arg("payload")
+            .arg(&task.payload.to_string())
+            .arg("data_key")
+            .arg(&task.data_key)
+            .arg("last_updated")
+            .arg(&task.last_updated.to_rfc3339())
+            .arg("run_after")
+            .arg(&task.run_after.to_rfc3339())
+            .arg("next_task")
+            .arg(next_task)
+            .to_owned())
+    }
+}
+
 impl TryFrom<HashMap<String, String>> for Task {
     type Error = &'static str;
 
@@ -107,7 +154,7 @@ impl TryFrom<HashMap<String, String>> for Task {
             data.get("payload").ok_or("Failed to get payload")?,
         ) {
             Ok(payload) => payload,
-            Err(e) => {
+            Err(_) => {
                 return Err("Failed to parse payload");
             }
         };
@@ -115,6 +162,17 @@ impl TryFrom<HashMap<String, String>> for Task {
             .get("data_key")
             .ok_or("Failed to get data_key")?
             .clone();
+
+        let previous_task_id = match data.get("previous_task_id") {
+            None => None,
+            Some(previous_task_id) => match previous_task_id.parse::<u64>() {
+                Ok(previous_task_id) => Some(previous_task_id),
+                Err(e) => {
+                    tracing::error!("Failed to parse previous_task_id: {}", e);
+                    None
+                }
+            },
+        };
 
         Ok(Task {
             key,
@@ -154,11 +212,14 @@ impl TryFrom<HashMap<String, String>> for Task {
             next_task: match data.get("next_task") {
                 None => None,
                 Some(next_task) => {
-                    let next_task: HashMap<String, String> =
-                        serde_json::from_str(next_task).unwrap();
-                    Some(TaskTemplate::try_from(next_task).unwrap())
+                    match serde_json::from_str::<TaskTemplate>(next_task) {
+                        Err(_) => None,
+                        Ok(next_task) => Some(next_task),
+                    }
                 }
             },
+
+            previous_task_id,
         })
     }
 }
@@ -210,48 +271,49 @@ fn generate_temp_queue_name(queue_name: &str) -> String {
 
 pub fn create_task(
     con: &mut redis::Connection,
-    id: u64,
     title: &str,
     url: &str,
     payload: serde_json::Value,
     data_key: &str,
-) -> Result<Task, redis::RedisError> {
+    next_task: Option<TaskTemplate>,
+    previous_task_id: Option<u64>,
+) -> Result<Task, &'static str> {
+    // generate a unique id for the task by incrementing the task counter
+    let id: u64 = match con.incr(TASK_COUNTER_KEY, 1) {
+        Ok(id) => {
+            tracing::info!("Generated task id: {}", id);
+            id
+        }
+        Err(e) => {
+            tracing::error!("Failed to generate task id: {}", e);
+            return Err("Failed to generate task id");
+        }
+    };
+
     let key = generate_task_key(id);
 
     let now = chrono::Utc::now();
 
-    match con.req_command(
-        redis::cmd("HMSET")
-            .arg(&key)
-            .arg("id")
-            .arg(id)
-            .arg("title")
-            .arg(title)
-            .arg("status")
-            .arg(TaskStatus::Queued.as_str())
-            .arg("url")
-            .arg(url)
-            .arg("payload")
-            .arg(&payload.to_string())
-            .arg("data_key")
-            .arg(data_key)
-            .arg("last_updated")
-            .arg(&now.to_rfc3339())
-            .arg("run_after")
-            .arg(&now.to_rfc3339()),
-    ) {
-        Ok(_) => Ok(Task {
-            key,
-            id,
-            title: title.to_string(),
-            url: url.to_string(),
-            payload,
-            data_key: data_key.to_string(),
-            status: TaskStatus::Queued,
-            last_updated: now,
-            run_after: now,
-        }),
-        Err(e) => Err(e),
+    let task = Task {
+        key,
+        id,
+        title: title.to_string(),
+        url: url.to_string(),
+        payload,
+        data_key: data_key.to_string(),
+        status: TaskStatus::Queued,
+        last_updated: now,
+        run_after: now,
+        next_task,
+        previous_task_id,
+    };
+
+    match con.req_command(&TryFrom::try_from(&task)?) {
+        Ok(_) => Ok(task),
+        Err(e) => {
+            tracing::error!("Failed to create task: {}", e);
+            Err("Failed to create task")
+        }
     }
 }
 
@@ -324,6 +386,8 @@ pub fn update_task_status(
                 status: new_task_status,
                 last_updated: now,
                 run_after: task.run_after,
+                next_task: task.next_task.clone(),
+                previous_task_id: task.previous_task_id,
             },
             task.status.clone(),
         )
@@ -389,7 +453,7 @@ pub fn pop_task(
         Err(_) => return Err("Failed to get task data"),
     };
 
-    Ok(Task::from(task_data))
+    Task::try_from(task_data)
 }
 
 pub fn remove_task_from_temp_queue(
@@ -412,6 +476,12 @@ pub fn remove_task_from_temp_queue(
     }
 }
 
+/**
+ * Add a task to the queue
+ *
+ * The task must already exist in Redis before it can be added to the queue.
+ * This is done via the `create_task` function.
+ */
 pub fn queue_task(
     con: &mut redis::Connection,
     queue_name: &str,
@@ -441,7 +511,7 @@ pub fn get_task(
         Err(_) => return Err("Failed to get task data"),
     };
 
-    Ok(Task::from(task_data))
+    Task::try_from(task_data)
 }
 
 pub fn get_task_data(
@@ -469,4 +539,53 @@ pub fn get_task_data(
         .collect();
 
     Ok(data)
+}
+
+pub fn build_task_payload(
+    con: &mut redis::Connection,
+    task: &Task,
+) -> serde_json::Value {
+    let mut payload = task.payload.clone();
+
+    // if task.previous_task_id is set, get the data from the previous task
+    // by retrieving the data_key from the previous task and getting the data
+    if let Some(previous_task_id) = task.previous_task_id {
+        let data = match get_task_data(con, previous_task_id) {
+            Ok(data) => data,
+            Err(_) => {
+                tracing::error!("Failed to get data from previous task");
+                return payload;
+            }
+        };
+
+        payload["@previous_task_data"] = serde_json::Value::Array(data);
+    }
+
+    payload
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_task_key() {
+        let id = 1;
+        let key = generate_task_key(id);
+        assert_eq!(key, "task:item:1");
+    }
+
+    #[test]
+    fn test_generate_task_data_key() {
+        let id = 1;
+        let key = generate_task_data_key(id);
+        assert_eq!(key, "task:data:1");
+    }
+
+    #[test]
+    fn test_generate_temp_queue_name() {
+        let queue_name = "test";
+        let temp_queue_name = generate_temp_queue_name(queue_name);
+        assert_eq!(temp_queue_name, "test:temp");
+    }
 }

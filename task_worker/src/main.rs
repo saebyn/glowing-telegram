@@ -3,8 +3,8 @@ use tracing::instrument;
 use tracing_subscriber::prelude::*;
 
 use task_worker::{
-    pop_task, queue_task, remove_task_from_temp_queue, update_task_status,
-    TaskStatus,
+    build_task_payload, create_task, pop_task, queue_task,
+    remove_task_from_temp_queue, update_task_status, TaskStatus,
 };
 
 const DEFAULT_RETRY_DELAY: chrono::TimeDelta = chrono::Duration::minutes(1);
@@ -42,6 +42,15 @@ async fn main() {
     }
 }
 
+/**
+ * Work function that takes a task from the queue and then while the target url
+ * returns a cursor, store the data from the data_key into the task data as a
+ * json string of an array and call the target url with the cursor until the
+ * cursor is null.
+ *
+ * If the task has a next_task key, then add the next task to the queue
+ * once the current task is complete.
+ */
 #[instrument(skip(con))]
 async fn work(
     reqwest_client: &reqwest::Client,
@@ -67,7 +76,7 @@ async fn work(
 
         let response = reqwest_client
             .post(&task.url)
-            .json(&task.payload)
+            .json(&build_task_payload(con, &task))
             .send()
             .await
             .expect("Failed to get response from url");
@@ -162,7 +171,24 @@ async fn work(
     update_task_status(con, &task, TaskStatus::Complete)
         .expect("Failed to update task status");
 
-    // remove the task from redis
+    // if the task has a next_task key, then add the next task to the queue
+    if let Some(ref next_task_template) = task.next_task {
+        let next_task = create_task(
+            con,
+            &next_task_template.title,
+            &next_task_template.url,
+            next_task_template.payload.clone(),
+            &next_task_template.data_key,
+            next_task_template.next_task.clone().map(|b| *b),
+            Some(task.id),
+        )
+        .expect("Failed to create next task");
+
+        queue_task(con, queue_name, &next_task)
+            .expect("Failed to add next task to queue");
+    }
+
+    // remove the task from the working queue
     remove_task_from_temp_queue(con, queue_name, &task)
         .expect("Failed to remove task from temp queue");
 }

@@ -1,11 +1,14 @@
 use serde::{Deserialize, Serialize};
+use task_worker::TaskTemplate;
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequest {
     pub url: String,
     pub payload: serde_json::Value,
     pub title: String,
     pub data_key: String,
+
+    pub next_task: Option<TaskTemplate>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -19,7 +22,10 @@ pub struct Context {
     pub task_api_external_url: String,
 }
 
-pub async fn start(context: Context, task_request: TaskRequest) -> Result<String, String> {
+pub async fn start(
+    context: Context,
+    task_request: TaskRequest,
+) -> Result<String, String> {
     let response = match context
         .http_client
         .post(&context.task_api_url)
