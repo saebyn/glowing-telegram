@@ -1,9 +1,9 @@
 import Box from "@mui/material/Box";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem/ListItem";
-import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
-import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemAvatar from "@mui/material/ListItemAvatar";
+import Avatar from "@mui/material/Avatar";
 import Typography from "@mui/material/Typography";
 import Switch from "@mui/material/Switch";
 import ProcessingIcon from "@mui/icons-material/Loop";
@@ -13,8 +13,13 @@ import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import Button from "@mui/material/Button";
 import { LoadingIndicator } from "react-admin";
 import useTasks from "./useTasks";
-import { useRef } from "react";
+import { FC, useRef } from "react";
 import Notifications from "./Notifications";
+import { TaskSummary } from "../types";
+import IconButton from "@mui/material/IconButton";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import useTheme from "@mui/material/styles/useTheme";
+import Badge from "@mui/material/Badge";
 
 const containerStyles = {
   minWidth: 250,
@@ -28,31 +33,74 @@ const statusIcons = {
   queued: <HourglassEmptyIcon />,
 } as const;
 
-const Task = ({
+interface TaskProps {
+  task: TaskSummary;
+  lastViewedTaskTimestamp: Date;
+  markViewed: (id: number) => void;
+}
+
+const Task: FC<TaskProps> = ({
   task,
 
   lastViewedTaskTimestamp,
   markViewed,
-}: any) => {
+}) => {
+  const theme = useTheme();
+
   const timestamp = task.last_updated
     ? new Date(task.last_updated).toLocaleString()
     : "unknown";
 
+  const newSinceLastView =
+    new Date(task.last_updated) > lastViewedTaskTimestamp;
+
   return (
-    <ListItemButton
+    <ListItem
       key={task.id}
-      selected={task.last_updated > lastViewedTaskTimestamp}
-      onClick={() => markViewed(task.id)}
+      sx={{
+        backgroundColor: newSinceLastView ? theme.palette.action.selected : "",
+      }}
+      secondaryAction={
+        <IconButton
+          edge="end"
+          aria-label="mark viewed"
+          onClick={() => markViewed(task.id)}
+        >
+          <VisibilityIcon />
+        </IconButton>
+      }
     >
-      <ListItemIcon>
-        {statusIcons[task.status as keyof typeof statusIcons] ||
-          statusIcons.queued}
-      </ListItemIcon>
+      <ListItemAvatar>
+        <Badge
+          color="secondary"
+          variant="dot"
+          invisible={!task.has_next_task}
+          overlap="circular"
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        >
+          <Avatar alt={task.status} variant="rounded">
+            {statusIcons[task.status as keyof typeof statusIcons] ||
+              statusIcons.queued}
+          </Avatar>
+        </Badge>
+      </ListItemAvatar>
       <ListItemText
         primary={task.title || task.id}
-        secondary={`${task.status} (${task.id}) @ ${timestamp}`}
+        secondary={
+          <>
+            <Typography variant="body2" color="text.primary">
+              {timestamp}
+            </Typography>
+
+            {task.has_next_task && (
+              <Typography variant="caption">
+                More tasks will start when this one finishes
+              </Typography>
+            )}
+          </>
+        }
       />
-    </ListItemButton>
+    </ListItem>
   );
 };
 

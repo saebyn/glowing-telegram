@@ -78,6 +78,7 @@ pub struct StreamSimpleView {
     pub title: String,
     pub prefix: String,
     pub thumbnail: String,
+    pub series_id: Option<String>,
     pub video_clip_count: i64,
     pub duration: String,
     pub stream_date: String,
@@ -96,27 +97,8 @@ impl From<Stream> for StreamSimpleView {
             title: stream.title.to_string(),
             prefix: stream.prefix.to_string(),
             thumbnail: stream.thumbnail_url.to_string(),
+            series_id: stream.series_id.map(|id| id.to_string()),
             video_clip_count: 0,
-            duration: parse_duration_to_string(stream.duration),
-            stream_date: dt_to_string(stream.stream_date),
-            created_at: dt_to_string(stream.created_at),
-            updated_at: stream.updated_at.map(dt_to_string),
-            topic_ids: vec![],
-            has_transcription: stream.transcription_task_url.is_some(),
-            has_silence_detection: stream.silence_detection_task_url.is_some(),
-            has_episodes: false,
-        }
-    }
-}
-
-impl From<(Stream, i64, i64)> for StreamSimpleView {
-    fn from((stream, video_clip_count, ep_count): (Stream, i64, i64)) -> Self {
-        StreamSimpleView {
-            id: stream.id.to_string(),
-            title: stream.title.to_string(),
-            prefix: stream.prefix.to_string(),
-            thumbnail: stream.thumbnail_url.to_string(),
-            video_clip_count,
             duration: parse_duration_to_string(stream.duration),
             stream_date: dt_to_string(stream.stream_date),
             created_at: dt_to_string(stream.created_at),
@@ -124,7 +106,20 @@ impl From<(Stream, i64, i64)> for StreamSimpleView {
             topic_ids: vec![],
             has_transcription: stream.transcription_segments.is_some(),
             has_silence_detection: stream.silence_segments.is_some(),
-            has_episodes: ep_count > 0,
+            has_episodes: false,
+        }
+    }
+}
+
+impl From<(Stream, i64, i64)> for StreamSimpleView {
+    fn from((stream, video_clip_count, ep_count): (Stream, i64, i64)) -> Self {
+        let has_episodes = ep_count > 0;
+        let base = StreamSimpleView::from(stream);
+
+        StreamSimpleView {
+            video_clip_count,
+            has_episodes,
+            ..base
         }
     }
 }

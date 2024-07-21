@@ -48,6 +48,16 @@ export interface YoutubeUploadTaskPayload {
   task_title: string;
 }
 
+export interface TaskSummary {
+  id: number;
+  url: string;
+  title: string;
+  status: TaskStatus;
+  last_updated: number;
+
+  has_next_task: boolean;
+}
+
 export interface ChatMessage {
   content: string;
   role: "system" | "user" | "assistant" | "function";
@@ -65,3 +75,28 @@ export type TaskStatus =
   | "complete"
   | "failed"
   | "invalid";
+
+interface Metadata {
+  filename: string;
+  content_type: string;
+  size: number;
+  last_modified: string;
+
+  duration: string;
+  start_time: string;
+  width: number | null;
+  height: number | null;
+  frame_rate: number | null;
+  video_bitrate: number | null;
+  audio_bitrate: number | null;
+  audio_track_count: number | null;
+}
+
+interface FileEntry {
+  metadata: Metadata;
+  uri: string;
+}
+
+export interface FindFilesResponse {
+  entries: FileEntry[];
+}
