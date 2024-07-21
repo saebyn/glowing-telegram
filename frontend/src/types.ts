@@ -48,6 +48,16 @@ export interface YoutubeUploadTaskPayload {
   task_title: string;
 }
 
+export interface TaskSummary {
+  id: number;
+  url: string;
+  title: string;
+  status: TaskStatus;
+  last_updated: number;
+
+  has_next_task: boolean;
+}
+
 export interface ChatMessage {
   content: string;
   role: "system" | "user" | "assistant" | "function";
