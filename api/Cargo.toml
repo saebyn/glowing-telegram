@@ -34,7 +34,7 @@ tower-http = { version = "0.5.2", features = [
 ] }
 openai_dive = "0.5.2"
 bb8 = "0.8"
-reqwest = { version = "0.12.4", features = [
+reqwest = { version = "0.12.5", features = [
   "json",
   "rustls-tls",
   "trust-dns",
