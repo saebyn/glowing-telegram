@@ -29,7 +29,7 @@ services:
 
   # run our frontend in dev mode with hot module reloading for vite
   frontend:
-    image: node:18-alpine
+    image: amd64/node:18-alpine
     command: sh -c "npm ci && npm run dev"
     working_dir: /app
     restart: always
