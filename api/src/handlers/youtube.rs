@@ -16,6 +16,7 @@ use serde_json::json;
 use tokio::io::AsyncSeekExt;
 use tracing::instrument;
 use url::Url;
+use validator::Validate;
 
 // Redis key constants
 const ACCESS_TOKEN_KEY: &str = "youtube:access_token";
@@ -43,9 +44,11 @@ pub struct YoutubeUploadRequest {
     task_title: String,
 }
 
-#[derive(Serialize, Debug, Deserialize)]
+#[derive(Serialize, Debug, Deserialize, Validate)]
 pub struct YoutubeUploadTaskPayload {
+    #[validate(length(min = 1, max = 100))]
     pub title: String,
+    #[validate(length(min = 1, max = 5000))]
     pub description: String,
     pub language: String,
     pub mime_type: String,
@@ -238,7 +241,7 @@ pub async fn upload_video_handler(
 
     // if the response is not successful, return an error response
     if !response.status().is_success() {
-        tracing::error!("response: {:?}", response.status());
+        tracing::error!("response status: {:?}", response.status());
 
         // find if there was a quota error
         let error_body = match response.json::<serde_json::Value>().await {
@@ -267,6 +270,8 @@ pub async fn upload_video_handler(
             )
                 .into_response();
         }
+
+        tracing::error!("response: {:?}", error_body);
 
         return (
             StatusCode::INTERNAL_SERVER_ERROR,

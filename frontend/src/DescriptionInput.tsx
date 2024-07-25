@@ -7,7 +7,7 @@
  */
 
 import * as React from "react";
-import { TextInput } from "react-admin";
+import { maxLength, TextInput } from "react-admin";
 
 // Derive the Props type from the TextInput component
 type Props = React.ComponentProps<typeof TextInput>;
@@ -18,6 +18,8 @@ const inputProps = {
 
 const muiInputProps = {};
 
+const descriptionValidators = [maxLength(5000)];
+
 const DescriptionInput = (props: Props) => (
   <TextInput
     {...props}
@@ -26,6 +28,9 @@ const DescriptionInput = (props: Props) => (
     InputProps={muiInputProps}
     fullWidth
     multiline
+    rows={4}
+    validate={descriptionValidators}
+    resettable
   />
 );
 

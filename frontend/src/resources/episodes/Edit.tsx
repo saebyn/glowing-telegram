@@ -39,7 +39,7 @@ const EditActions = () => (
 
 const EpisodeEdit = () => (
   <Edit actions={<EditActions />}>
-    <SimpleForm>
+    <SimpleForm mode="onBlur" reValidateMode="onBlur">
       <TitleInput source="title" />
 
       <ReferenceInput source="series_id" reference="series">
@@ -93,7 +93,7 @@ const EpisodeDescriptionChatButton = () => {
     },
     {
       enabled: !!record?.stream_id,
-    }
+    },
   );
 
   if (!record) {
@@ -150,7 +150,7 @@ const EpisodeDescriptionChatButton = () => {
 
   const transcript = transcriptionSegments
     .filter((segment: TranscriptSegment) =>
-      transcriptSegmentOverlaps(segment, record)
+      transcriptSegmentOverlaps(segment, record),
     )
     .map((segment: TranscriptSegment) => {
       if (episodeStart === null) {
@@ -184,7 +184,7 @@ ${json.chapters
     }`;
   })
   .join("\n")}
-    `
+    `,
     );
   };
 
@@ -200,7 +200,7 @@ ${json.chapters
 
 function transcriptSegmentOverlaps(
   segment: TranscriptSegment,
-  record: Episode
+  record: Episode,
 ): boolean {
   if (!record.tracks || record.tracks.length === 0) {
     return false;
