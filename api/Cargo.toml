@@ -46,3 +46,4 @@ redis = { version = "0.25.3", features = ["aio", "json", "tokio-comp"] }
 task_worker = { path = "../task_worker" }
 tempfile = "3.9.0"
 url = "2.5.0"
+validator = { version = "0.12", features = ["derive"] }

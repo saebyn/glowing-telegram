@@ -6,7 +6,7 @@
  * TextInput component from react-admin.
  */
 import * as React from "react";
-import { TextInput } from "react-admin";
+import { maxLength, minLength, required, TextInput } from "react-admin";
 
 // Derive the Props type from the TextInput component
 type Props = React.ComponentProps<typeof TextInput>;
@@ -17,6 +17,8 @@ const inputProps = {
 
 const muiInputProps = {};
 
+const titleValidators = [required(), minLength(1), maxLength(100)];
+
 const TitleInput = (props: Props) => (
   <TextInput
     {...props}
@@ -24,6 +26,8 @@ const TitleInput = (props: Props) => (
     inputProps={inputProps}
     InputProps={muiInputProps}
     fullWidth
+    validate={titleValidators}
+    resettable
   />
 );
 
