@@ -58,7 +58,7 @@ pub async fn get_list_handler(
                     "id": record.id,
                     "title": record.title,
                     "url": record.url,
-                    "status": record.status,
+                    "status": record.status.as_str(),
                     "last_updated": record.last_updated.to_rfc3339(),
                     "has_next_task": record.next_task.is_some(),
                 }

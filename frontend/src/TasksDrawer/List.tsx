@@ -15,23 +15,33 @@ import { LoadingIndicator } from "react-admin";
 import useTasks from "./useTasks";
 import { FC, useRef } from "react";
 import Notifications from "./Notifications";
-import { TaskSummary } from "../types";
+import { TaskStatus, TaskSummary } from "../types";
 import IconButton from "@mui/material/IconButton";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import useTheme from "@mui/material/styles/useTheme";
 import Badge from "@mui/material/Badge";
+import { green, orange, red, blue } from "@mui/material/colors";
 
 const containerStyles = {
   minWidth: 250,
   padding: "2em",
 };
 
-const statusIcons = {
-  processing: <ProcessingIcon />,
-  complete: <DoneIcon />,
-  failed: <ErrorIcon />,
-  queued: <HourglassEmptyIcon />,
-} as const;
+const statusIcons: Record<TaskStatus, JSX.Element> = {
+  processing: <ProcessingIcon titleAccess="Processing" />,
+  complete: <DoneIcon titleAccess="Complete" />,
+  failed: <ErrorIcon titleAccess="Failed" />,
+  queued: <HourglassEmptyIcon titleAccess="Queued" />,
+  invalid: <ErrorIcon titleAccess="Invalid" />,
+};
+
+const statusColors: Record<TaskStatus, string> = {
+  processing: orange[500],
+  complete: green[500],
+  failed: red[500],
+  queued: blue[500],
+  invalid: red[500],
+};
 
 interface TaskProps {
   task: TaskSummary;
@@ -78,9 +88,12 @@ const Task: FC<TaskProps> = ({
           overlap="circular"
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         >
-          <Avatar alt={task.status} variant="rounded">
-            {statusIcons[task.status as keyof typeof statusIcons] ||
-              statusIcons.queued}
+          <Avatar
+            alt={task.status}
+            variant="rounded"
+            sx={{ bgcolor: statusColors[task.status] }}
+          >
+            {statusIcons[task.status]}
           </Avatar>
         </Badge>
       </ListItemAvatar>
