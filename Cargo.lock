@@ -280,6 +280,9 @@ name = "bytes"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "514de17de45fdb8dc022b1a7975556c53c86f9f0aa5f534b98977b171857c2c9"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "cc"
@@ -1123,9 +1126,9 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "openai_dive"
-version = "0.5.2"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98c93bf882430365daf501d12578358247e8138f2ba7b03f616986287f2b63cc"
+checksum = "9c57e705980338e31f36e41b1dc42c8fd506caa3de7a247624a68f2ead9bc25d"
 dependencies = [
  "bytes",
  "derive_builder",
