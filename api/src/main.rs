@@ -16,6 +16,7 @@ use tower_http::{
 use tracing::instrument;
 use tracing_subscriber::prelude::*;
 
+mod config;
 mod db;
 mod ffprobe;
 mod handlers;
