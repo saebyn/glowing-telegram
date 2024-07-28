@@ -118,6 +118,8 @@ impl TryFrom<&Task> for redis::Cmd {
             }
         };
 
+        let previous_task_id = json!(task.previous_task_id).to_string();
+
         Ok(redis::cmd("HMSET")
             .arg(&task.key)
             .arg("id")
@@ -138,6 +140,8 @@ impl TryFrom<&Task> for redis::Cmd {
             .arg(&task.run_after.to_rfc3339())
             .arg("next_task")
             .arg(next_task)
+            .arg("previous_task_id")
+            .arg(previous_task_id)
             .to_owned())
     }
 }
@@ -558,7 +562,7 @@ pub fn build_task_payload(
             }
         };
 
-        payload["@previous_task_data"] = serde_json::Value::Array(data);
+        payload["@previous_task_data"] = json!(data);
     }
 
     payload

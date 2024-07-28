@@ -157,6 +157,10 @@ async fn main() -> Result<(), axum::BoxError> {
             "/youtube/upload/task",
             post(handlers::youtube::upload_video_handler),
         )
+        .route(
+            "/youtube/playlist/add/task",
+            post(handlers::youtube::add_to_playlist_task_handler),
+        )
         .layer(Extension(pool))
     })
     .await

@@ -1,4 +1,5 @@
 use axum::extract::{FromRequestParts, State};
+use task_worker::TaskTemplate;
 
 use crate::state::AppState;
 use crate::task::{self, TaskRequest};
@@ -24,10 +25,12 @@ const REFRESH_TOKEN_KEY: &str = "youtube:refresh_token";
 
 const YOUTUBE_API_QUOTA_RETRY_AFTER: u64 = 24 /* hours */ * 60 /* minutes */ * 60 /* seconds */;
 
-#[derive(Serialize, Debug, Deserialize)]
+#[derive(Serialize, Debug, Deserialize, Validate)]
 pub struct YoutubeUploadRequest {
-    title: String,
-    description: String,
+    #[validate(length(min = 1, max = 100))]
+    pub title: String,
+    #[validate(length(min = 1, max = 5000))]
+    pub description: String,
     #[serde(default = "default_language")]
     language: String,
     tags: Vec<String>,
@@ -57,9 +60,20 @@ pub struct YoutubeUploadTaskPayload {
     pub render_uri: String,
     pub thumbnail_uri: Option<String>,
     pub recording_date: Option<iso8601::DateTime>,
-    pub playlist_id: Option<String>,
-    pub playlist_position: Option<u32>,
     pub notify_subscribers: bool,
+}
+
+#[derive(Serialize, Debug, Deserialize)]
+pub struct YoutubeUploadResponse {
+    video_id: String,
+}
+
+#[derive(Serialize, Debug, Deserialize)]
+pub struct YoutubePlaylistAddTaskPayload {
+    playlist_id: String,
+    playlist_position: Option<u32>,
+    #[serde(rename = "@previous_task_data")]
+    previous_task_data: Vec<YoutubeUploadResponse>,
 }
 
 impl From<&YoutubeUploadRequest> for YoutubeUploadTaskPayload {
@@ -74,8 +88,6 @@ impl From<&YoutubeUploadRequest> for YoutubeUploadTaskPayload {
             render_uri: request.render_uri.clone(),
             thumbnail_uri: request.thumbnail_uri.clone(),
             recording_date: request.recording_date,
-            playlist_id: request.playlist_id.clone(),
-            playlist_position: request.playlist_position,
             notify_subscribers: request.notify_subscribers,
         }
     }
@@ -84,19 +96,31 @@ impl From<&YoutubeUploadRequest> for YoutubeUploadTaskPayload {
 // Create a way to transform a YoutubeUploadRequest and an AppState into a TaskRequest, but TaskRequest is not defined in this file.
 impl YoutubeUploadRequest {
     pub fn to_task_request(&self, app_state: &AppState) -> TaskRequest {
-        let payload = YoutubeUploadTaskPayload::from(self);
-
         TaskRequest {
             url: format!(
                 "{}/youtube/upload/task",
                 app_state.this_api_base_url
             ),
             title: self.task_title.clone(),
-            payload: json!(payload),
+            payload: json!(YoutubeUploadTaskPayload::from(self)),
             data_key: "summary".to_string(),
 
-            // TODO this should be a task template for the next task
-            next_task: None,
+            next_task: self.playlist_id.clone().map(|playlist_id| {
+                TaskTemplate {
+                    url: format!(
+                        "{}/youtube/playlist/add/task",
+                        app_state.this_api_base_url
+                    ),
+                    title: "Add video to playlist".to_string(),
+                    payload: json!(YoutubePlaylistAddTaskPayload {
+                        playlist_id,
+                        playlist_position: self.playlist_position,
+                        previous_task_data: vec![]
+                    }),
+                    data_key: "summary".to_string(),
+                    next_task: None,
+                }
+            }),
         }
     }
 }
@@ -141,7 +165,7 @@ pub async fn upload_start_task_handler(
 #[derive(Serialize, Debug)]
 struct UploadVideoTaskOutput {
     cursor: Option<()>,
-    summary: Vec<String>,
+    summary: serde_json::Value,
 }
 
 #[instrument]
@@ -318,65 +342,82 @@ pub async fn upload_video_handler(
                 .into_response();
         }
     };
-
-    // if the body contains a playlist_id, add the video to the playlist
-    if let Some(playlist_id) = body.playlist_id.clone() {
-        // try to parse the video ID from the response JSON
-        let video_id = match response.json::<serde_json::Value>().await {
-            Ok(contents) => match contents["id"].clone() {
-                serde_json::Value::String(video_id) => video_id,
-                _ => {
-                    tracing::error!(
-                        "video ID not found in response from Youtube API"
-                    );
-                    return (
+    // try to parse the video ID from the response JSON
+    let video_id = match response.json::<serde_json::Value>().await {
+        Ok(contents) => match contents["id"].clone() {
+            serde_json::Value::String(video_id) => video_id,
+            _ => {
+                tracing::error!(
+                    "video ID not found in response from Youtube API"
+                );
+                return (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         axum::Json(json!({ "error": "video ID not found in response from Youtube API" })),
                     )
                         .into_response();
-                }
-            },
-            Err(e) => {
-                tracing::error!(
-                    "failed to parse response from Youtube API: {:?}",
-                    e
-                );
-                return (
+            }
+        },
+        Err(e) => {
+            tracing::error!(
+                "failed to parse response from Youtube API: {:?}",
+                e
+            );
+            return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     axum::Json(json!({ "error": "failed to parse response from Youtube API" })),
                 )
                     .into_response();
-            }
-        };
-
-        let result = add_video_to_playlist(
-            &state,
-            &access_token,
-            &playlist_id,
-            &video_id,
-            &body,
-        )
-        .await;
-        if let Err(e) = result {
-            tracing::error!("failed to add video to playlist: {:?}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(
-                    json!({ "error": "failed to add video to playlist" }),
-                ),
-            )
-                .into_response();
         }
-    }
+    };
 
     (
         StatusCode::OK,
         axum::Json(json!(UploadVideoTaskOutput {
             cursor: None,
-            summary: vec!["video uploaded".to_string()],
+            summary: json!({
+                "video_id": video_id,
+            }),
         })),
     )
         .into_response()
+}
+
+#[instrument]
+pub async fn add_to_playlist_task_handler(
+    State(state): State<AppState>,
+    AccessToken(access_token): AccessToken,
+    Json(body): Json<YoutubePlaylistAddTaskPayload>,
+) -> impl IntoResponse {
+    let video_id = match body.previous_task_data.first() {
+        Some(response) => response.video_id.clone(),
+        None => {
+            tracing::error!("video ID not found");
+            return (
+                StatusCode::BAD_REQUEST,
+                axum::Json(json!({ "error": "video ID not found" })),
+            )
+                .into_response();
+        }
+    };
+
+    let result = add_video_to_playlist(
+        &state,
+        &access_token,
+        &body.playlist_id,
+        &video_id,
+        body.playlist_position,
+    )
+    .await;
+    if let Err(e) = result {
+        tracing::error!("failed to add video to playlist: {:?}", e);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({ "error": "failed to add video to playlist" })),
+        )
+            .into_response();
+    }
+
+    (StatusCode::OK, axum::Json(json!({}))).into_response()
 }
 
 #[derive(Debug)]
@@ -888,7 +929,7 @@ async fn add_video_to_playlist(
     access_token: &Secret<String>,
     playlist_id: &str,
     video_id: &str,
-    body: &YoutubeUploadTaskPayload,
+    playlist_position: Option<u32>,
 ) -> Result<(), axum::http::Response<axum::body::Body>> {
     let response = match state
         .http_client
@@ -903,7 +944,7 @@ async fn add_video_to_playlist(
         .json(&json!({
             "snippet": {
                 "playlistId": playlist_id,
-                "position": body.playlist_position.unwrap_or(1) - 1,
+                "position": playlist_position.unwrap_or(1) - 1,
                 "resourceId": {
                     "kind": "youtube#video",
                     "videoId": video_id
