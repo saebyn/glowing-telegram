@@ -9,7 +9,7 @@ edition = "2021"
 axum = { version = "0.7.5", features = ["ws"] }
 tokio = { version = "1.39", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.120"
+serde_json = "1.0.121"
 tracing = { version = "0.1.40" }
 diesel = { version = "2.1.4", features = [
   "chrono",
@@ -17,7 +17,7 @@ diesel = { version = "2.1.4", features = [
   "postgres_backend",
   "serde_json",
 ] }
-diesel-async = { version = "0.4.1", features = ["postgres", "bb8"] }
+diesel-async = { version = "0.5.0", features = ["postgres", "bb8"] }
 chrono = { version = "0.4.38", features = ["serde"] }
 uuid = { version = "1.10.0", features = ["serde"] }
 iso8601 = { version = "0.6.1", features = ["serde", "chrono"] }
@@ -32,7 +32,7 @@ tower-http = { version = "0.5.2", features = [
   "request-id",
   "propagate-header",
 ] }
-openai_dive = "0.5.4"
+openai_dive = "0.5.5"
 bb8 = "0.8"
 reqwest = { version = "0.12.4", features = [
   "json",
@@ -46,4 +46,4 @@ redis = { version = "0.25.3", features = ["aio", "json", "tokio-comp"] }
 task_worker = { path = "../task_worker" }
 tempfile = "3.9.0"
 url = "2.5.2"
-validator = { version = "0.12", features = ["derive"] }
+validator = { version = "0.18", features = ["derive"] }
