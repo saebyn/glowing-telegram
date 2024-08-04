@@ -169,13 +169,19 @@ impl TryFrom<HashMap<String, String>> for Task {
 
         let previous_task_id = match data.get("previous_task_id") {
             None => None,
-            Some(previous_task_id) => match previous_task_id.parse::<u64>() {
+            Some(previous_task_id) => {
+                if previous_task_id == "null" {
+                    None
+                } else {
+                    match previous_task_id.parse::<u64>() {
                 Ok(previous_task_id) => Some(previous_task_id),
                 Err(e) => {
-                    tracing::error!("Failed to parse previous_task_id: {}", e);
+                            tracing::error!("Failed to parse previous_task_id: {}. Value was {}", e, previous_task_id);
                     None
                 }
-            },
+                    }
+                }
+            }
         };
 
         Ok(Task {
