@@ -539,15 +539,30 @@ pub fn get_task_data(
         }
     };
 
-    // parse the JSON list in each item in the data list
+
+    let data = combine_data(data)?;
+
+
+    Ok(data)
+/**
+ * Combine a list of JSON strings representing arrays into a single array
+ */
+fn combine_data(
+    data: Vec<String>,
+) -> Result<Vec<serde_json::Value>, &'static str> {
     let data: Vec<serde_json::Value> = data
         .iter()
-        .flat_map(|item| {
-            serde_json::from_str::<Vec<serde_json::Value>>(item)
-                .unwrap_or_default()
+        .map(|item| serde_json::from_str::<Vec<serde_json::Value>>(item))
+        .try_fold(vec![], |mut acc, item| {
+            item.map(|item| {
+                acc.extend(item);
+                acc
+            })
         })
-        .collect();
-
+        .map_err(|e| {
+            tracing::error!("Failed to parse data list: {}", e);
+            "Failed to parse data list"
+        })?;
     Ok(data)
 }
 
@@ -568,7 +583,8 @@ pub fn build_task_payload(
             }
         };
 
-        payload["@previous_task_data"] = json!(data);
+        payload["@previous_task_data"] = data.into();
+
     }
 
     payload
@@ -597,5 +613,19 @@ mod tests {
         let queue_name = "test";
         let temp_queue_name = generate_temp_queue_name(queue_name);
         assert_eq!(temp_queue_name, "test:temp");
+    }
+
+    #[test]
+    fn test_combine_data_success() {
+        let data = vec!["[1, 2, 3]".to_string(), "[4, 5, 6]".to_string()];
+        let data = combine_data(data).unwrap();
+        assert_eq!(data, vec![1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn test_combine_data_failure_not_array() {
+        let data = vec!["\"test\"".to_string()];
+        let data = combine_data(data);
+        assert_eq!(data, Err("Failed to parse data list"));
     }
 }
