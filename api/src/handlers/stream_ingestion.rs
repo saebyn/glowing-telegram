@@ -139,15 +139,10 @@ async fn get_entries(base_path: &str, query: &FindFilesQuery) -> Vec<Entry> {
                         let audio_stream = probe
                             .streams
                             .iter()
-                            .find(|stream| stream.codec_type == "audio");
+                            .filter(|stream| stream.codec_type == "audio");
 
                         let video_stream = match video_stream {
                             Some(video_stream) => video_stream,
-                            None => continue,
-                        };
-
-                        let audio_stream = match audio_stream {
-                            Some(audio_stream) => audio_stream,
                             None => continue,
                         };
 
@@ -157,17 +152,24 @@ async fn get_entries(base_path: &str, query: &FindFilesQuery) -> Vec<Entry> {
                             .filter(|stream| stream.codec_type == "audio")
                             .count();
 
+                        let audio_stream_sample_rate = audio_stream
+                            .map(|stream| stream.sample_rate.unwrap_or(0))
+                            .next();
+
                         (
                             video_stream.width,
                             video_stream.height,
                             probe.format.duration,
                             video_stream.avg_frame_rate.clone(),
                             probe.format.bit_rate,
-                            audio_stream.sample_rate,
+                            audio_stream_sample_rate,
                             Some(audio_stream_count as u32),
                         )
                     }
-                    Err(_) => (None, None, None, None, None, None, None),
+                    Err(e) => {
+                        tracing::error!("find_files: ffprobe error: {:?}", e);
+                        (None, None, None, None, None, None, None)
+                    }
                 };
 
                 let metadata = Metadata {
@@ -176,7 +178,13 @@ async fn get_entries(base_path: &str, query: &FindFilesQuery) -> Vec<Entry> {
                     size: metadata.len(),
                     last_modified: match metadata.modified() {
                         Ok(last_modified) => last_modified.into(),
-                        Err(_) => continue,
+                        Err(e) => {
+                            tracing::error!(
+                                "find_files: failed to get last_modified: {:?}",
+                                e
+                            );
+                            chrono::Utc::now()
+                        }
                     },
                     start_time: chrono::Duration::zero(),
                     duration: chrono::Duration::try_milliseconds(
@@ -189,6 +197,7 @@ async fn get_entries(base_path: &str, query: &FindFilesQuery) -> Vec<Entry> {
                     frame_rate: frame_rate.map(|frame_rate| {
                         let mut parts = frame_rate.split('/');
 
+                        // TODO handle errors
                         let numerator =
                             parts.next().unwrap().parse::<f32>().unwrap();
                         let denominator =
