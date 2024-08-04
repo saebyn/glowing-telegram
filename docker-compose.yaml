@@ -55,7 +55,7 @@ services:
       args:
         - SERVICE_NAME=api
         - DEBIAN_VERSION=bookworm-slim
-        - RUST_VERSION=1.78
+        - RUST_VERSION=1.80
     restart: always
     depends_on:
       - db
@@ -108,7 +108,7 @@ services:
       args:
         - SERVICE_NAME=task_worker
         - DEBIAN_VERSION=bookworm-slim
-        - RUST_VERSION=1.78
+        - RUST_VERSION=1.80
     restart: always
     depends_on:
       - redis

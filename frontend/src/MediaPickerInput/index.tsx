@@ -1,6 +1,6 @@
 import { FC } from "react";
 import { Loading, useDataProvider, useInput } from "react-admin";
-import { useQuery } from "react-query";
+import { useQuery } from "@tanstack/react-query";
 import MediaPicker, { MediaEntry } from "./MediaPicker";
 
 const MediaPickerInput: FC<any> = (props) => {
@@ -10,7 +10,7 @@ const MediaPickerInput: FC<any> = (props) => {
 
   const dataProvider = useDataProvider();
   const { data, isLoading, error } = useQuery(["getRenderedEpisodeFiles"], () =>
-    dataProvider.getRenderedEpisodeFiles()
+    dataProvider.getRenderedEpisodeFiles(),
   );
 
   if (isLoading) return <Loading />;

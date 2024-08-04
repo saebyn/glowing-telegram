@@ -42,6 +42,13 @@ async fn main() {
     }
 }
 
+#[derive(PartialEq)]
+enum WorkLoopResult {
+    Complete,
+    Requeued,
+    Failed,
+}
+
 /**
  * Work function that takes a task from the queue and then while the target url
  * returns a cursor, store the data from the data_key into the task data as a
@@ -71,7 +78,7 @@ async fn work(
         .expect("Failed to update task status");
 
     // loop while the cursor is not Null
-    loop {
+    let status = loop {
         tracing::info!("Starting task: {}", task.key);
 
         let response = reqwest_client
@@ -120,11 +127,7 @@ async fn work(
             queue_task(con, queue_name, &task)
                 .expect("Failed to add task to queue");
 
-            // remove the task from the temp queue
-            remove_task_from_temp_queue(con, queue_name, &task)
-                .expect("Failed to remove task from temp queue");
-
-            break;
+            break WorkLoopResult::Requeued;
         }
 
         // if the response is not 200, then update the status to failed and break
@@ -132,7 +135,7 @@ async fn work(
             update_task_status(con, &task, TaskStatus::Failed)
                 .expect("Failed to update task status");
 
-            break;
+            break WorkLoopResult::Failed;
         }
 
         let response = response
@@ -159,33 +162,35 @@ async fn work(
             .expect("Failed to save task data");
 
         if cursor.is_null() {
-            break;
+            break WorkLoopResult::Complete;
         }
 
         task.payload["cursor"] = cursor.clone();
-    }
+    };
 
-    tracing::info!("Finished task: {}", task.key);
+    if status == WorkLoopResult::Complete {
+        tracing::info!("Finished task: {}", task.key);
 
-    // update the status to complete
-    update_task_status(con, &task, TaskStatus::Complete)
-        .expect("Failed to update task status");
+        // update the status to complete
+        update_task_status(con, &task, TaskStatus::Complete)
+            .expect("Failed to update task status");
 
-    // if the task has a next_task key, then add the next task to the queue
-    if let Some(ref next_task_template) = task.next_task {
-        let next_task = create_task(
-            con,
-            &next_task_template.title,
-            &next_task_template.url,
-            next_task_template.payload.clone(),
-            &next_task_template.data_key,
-            next_task_template.next_task.clone().map(|b| *b),
-            Some(task.id),
-        )
-        .expect("Failed to create next task");
+        // if the task has a next_task key, then add the next task to the queue
+        if let Some(ref next_task_template) = task.next_task {
+            let next_task = create_task(
+                con,
+                &next_task_template.title,
+                &next_task_template.url,
+                next_task_template.payload.clone(),
+                &next_task_template.data_key,
+                next_task_template.next_task.clone().map(|b| *b),
+                Some(task.id),
+            )
+            .expect("Failed to create next task");
 
-        queue_task(con, queue_name, &next_task)
-            .expect("Failed to add next task to queue");
+            queue_task(con, queue_name, &next_task)
+                .expect("Failed to add next task to queue");
+        }
     }
 
     // remove the task from the working queue
