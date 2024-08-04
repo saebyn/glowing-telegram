@@ -409,12 +409,7 @@ pub async fn add_to_playlist_task_handler(
     )
     .await;
     if let Err(e) = result {
-        tracing::error!("failed to add video to playlist: {:?}", e);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(json!({ "error": "failed to add video to playlist" })),
-        )
-            .into_response();
+        return e;
     }
 
     (StatusCode::OK, axum::Json(json!({}))).into_response()
@@ -966,7 +961,11 @@ async fn add_video_to_playlist(
     };
 
     if !response.status().is_success() {
-        tracing::error!("response: {:?}", response);
+        tracing::error!(
+            "response: {:?} {:?}",
+            response.status(),
+            response.text().await
+        );
 
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
