@@ -8,8 +8,8 @@ on:
     types: [opened, reopened, synchronize]
 
 env:
-  CARGO_TERM_COLOR: always
-  RUST_CHANNEL: 1.80
+  CARGO_TERM_COLOR: "always"
+  RUST_CHANNEL: "1.80"
 
 jobs:
   rust_build:
