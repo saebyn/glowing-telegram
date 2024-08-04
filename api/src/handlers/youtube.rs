@@ -374,9 +374,9 @@ pub async fn upload_video_handler(
         StatusCode::OK,
         axum::Json(json!(UploadVideoTaskOutput {
             cursor: None,
-            summary: json!({
+            summary: json!([{
                 "video_id": video_id,
-            }),
+            }]),
         })),
     )
         .into_response()
