@@ -1,10 +1,10 @@
 import { Button, useDataProvider, useNotify, useRefresh } from "react-admin";
-import { useMutation } from "react-query";
+import { useMutation } from "@tanstack/react-query";
 
 const TriggerRenderFileScanButton = () => {
   const dataProvider = useDataProvider();
   const { mutate, isLoading } = useMutation(() =>
-    dataProvider.scanRenderFiles()
+    dataProvider.scanRenderFiles(),
   );
   const notify = useNotify();
   const refresh = useRefresh();

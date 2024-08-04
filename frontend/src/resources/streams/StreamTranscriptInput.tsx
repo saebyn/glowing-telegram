@@ -7,7 +7,7 @@ import {
   useInput,
 } from "react-admin";
 import { useFormContext } from "react-hook-form";
-import { useMutation } from "react-query";
+import { useMutation } from "@tanstack/react-query";
 import { styled } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
 import { formatDuration, parseIntoSeconds } from "../../isoDuration";
@@ -36,7 +36,7 @@ Description: ${record.description}
       language: "en",
 
       stream_id: record.id,
-    })
+    }),
   );
 
   const queueTranscription = () => {
@@ -94,7 +94,7 @@ const StreamTranscriptInput = ({
 
   const transcriptSegments: TranscriptSegment[] = useMemo(
     () => value || [],
-    [value]
+    [value],
   );
 
   const onSave = useCallback(
@@ -105,7 +105,7 @@ const StreamTranscriptInput = ({
         shouldDirty: true,
       });
     },
-    [formContext, source, transcriptSegments]
+    [formContext, source, transcriptSegments],
   );
 
   return (
@@ -183,7 +183,7 @@ const StreamTranscriptSegmentInput = memo(
         </span>
       </div>
     );
-  }
+  },
 );
 
 const PREFIX = "StreamTranscriptInput";

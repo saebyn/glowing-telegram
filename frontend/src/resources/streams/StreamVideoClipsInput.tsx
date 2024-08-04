@@ -8,7 +8,7 @@ import {
   TextInput,
 } from "react-admin";
 import { useFormContext } from "react-hook-form";
-import { useMutation } from "react-query";
+import { useMutation } from "@tanstack/react-query";
 
 interface Clip {
   uri: string;
@@ -57,7 +57,7 @@ const ScanButton = (props: any) => {
   const dataProvider = useDataProvider();
 
   const { mutate, isLoading } = useMutation<FindClipsResponse>(() =>
-    dataProvider.getStreamClips(record.prefix)
+    dataProvider.getStreamClips(record.prefix),
   );
 
   const prefix = record && record.prefix;

@@ -5,7 +5,7 @@ import {
   Button,
   useReference,
 } from "react-admin";
-import { useMutation } from "react-query";
+import { useMutation } from "@tanstack/react-query";
 import { convertSecondsToISODuration } from "./isoDuration";
 import { DataStreamDataElement } from "./types";
 
@@ -53,7 +53,7 @@ const BulkCreateEpisodesButton = ({
         notify_subscribers: series?.notify_subscribers,
         category: series?.category,
         tags: series?.tags,
-      }))
+      })),
     );
   });
 

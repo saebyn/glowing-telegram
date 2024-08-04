@@ -7,7 +7,7 @@ import {
   ArrayInput,
   SimpleFormIterator,
 } from "react-admin";
-import { useMutation } from "react-query";
+import { useMutation } from "@tanstack/react-query";
 import { styled } from "@mui/material/styles";
 import AsyncResultLoader from "./AsyncResultLoader";
 import { DurationInput } from "../../DurationInput";
@@ -29,7 +29,7 @@ const ScanButton = ({ label }: { label: string }) => {
       track,
       duration,
       stream_id: record.id,
-    })
+    }),
   );
 
   const queueSilenceDetection = () => {
