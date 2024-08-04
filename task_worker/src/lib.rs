@@ -174,11 +174,11 @@ impl TryFrom<HashMap<String, String>> for Task {
                     None
                 } else {
                     match previous_task_id.parse::<u64>() {
-                Ok(previous_task_id) => Some(previous_task_id),
-                Err(e) => {
+                        Ok(previous_task_id) => Some(previous_task_id),
+                        Err(e) => {
                             tracing::error!("Failed to parse previous_task_id: {}. Value was {}", e, previous_task_id);
-                    None
-                }
+                            None
+                        }
                     }
                 }
             }
@@ -539,11 +539,11 @@ pub fn get_task_data(
         }
     };
 
-
     let data = combine_data(data)?;
 
-
     Ok(data)
+}
+
 /**
  * Combine a list of JSON strings representing arrays into a single array
  */
@@ -584,7 +584,6 @@ pub fn build_task_payload(
         };
 
         payload["@previous_task_data"] = data.into();
-
     }
 
     payload
