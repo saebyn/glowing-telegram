@@ -44,6 +44,6 @@ reqwest = { version = "0.12.4", features = [
 regex = "1.10.5"
 redis = { version = "0.25.3", features = ["aio", "json", "tokio-comp"] }
 task_worker = { path = "../task_worker" }
-tempfile = "3.9.0"
+tempfile = "3.11.0"
 url = "2.5.2"
 validator = { version = "0.18", features = ["derive"] }
