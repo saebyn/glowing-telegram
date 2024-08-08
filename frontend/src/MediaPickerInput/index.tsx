@@ -1,17 +1,18 @@
 import { FC } from "react";
-import { Loading, useDataProvider, useInput } from "react-admin";
+import { InputProps, Loading, useDataProvider, useInput } from "react-admin";
 import { useQuery } from "@tanstack/react-query";
 import MediaPicker, { MediaEntry } from "./MediaPicker";
 
-const MediaPickerInput: FC<any> = (props) => {
+const MediaPickerInput: FC<InputProps> = (props) => {
   const {
     field: { value, onChange },
   } = useInput(props);
 
   const dataProvider = useDataProvider();
-  const { data, isLoading, error } = useQuery(["getRenderedEpisodeFiles"], () =>
-    dataProvider.getRenderedEpisodeFiles(),
-  );
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["getRenderedEpisodeFiles"],
+    queryFn: () => dataProvider.getRenderedEpisodeFiles(),
+  });
 
   if (isLoading) return <Loading />;
   if (error)

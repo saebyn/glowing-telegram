@@ -1,4 +1,4 @@
-import { FC, useState } from "react";
+import { FC, ReactElement, useState } from "react";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
@@ -29,7 +29,7 @@ interface MediaPickerProps {
   entries: MediaEntry[];
   onChoose: (_entry: MediaEntry) => void;
   value: string | null;
-  label?: string;
+  label?: string | ReactElement | false;
 }
 
 const MediaPicker: FC<MediaPickerProps> = ({

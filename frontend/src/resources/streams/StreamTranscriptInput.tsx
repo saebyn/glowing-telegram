@@ -19,25 +19,27 @@ const ScanButton = memo(function ScanButton({ label }: { label: string }) {
   const refresh = useRefresh();
   const dataProvider = useDataProvider();
 
-  const { mutate, isLoading } = useMutation<string | null>(() =>
-    dataProvider.queueStreamTranscription({
-      task_title: `Transcription for ${record.title}`,
-      uris: record.video_clips.map((clip: any) => clip.uri),
-      track: 2,
-      initial_prompt: `
+  const { mutate, isPending } = useMutation<string | null>({
+    mutationKey: ["queueStreamTranscription", record?.id],
+    mutationFn: () =>
+      dataProvider.queueStreamTranscription({
+        task_title: `Transcription for ${record?.title}`,
+        uris: record?.video_clips.map((clip: any) => clip.uri),
+        track: 2,
+        initial_prompt: `
 ---
-Date: ${record.prefix}
-Title: ${record.title} on twitch.tv/saebyn
-Description: ${record.description}
+Date: ${record?.prefix}
+Title: ${record?.title} on twitch.tv/saebyn
+Description: ${record?.description}
 ---
 
 
 `,
-      language: "en",
+        language: "en",
 
-      stream_id: record.id,
-    }),
-  );
+        stream_id: record?.id,
+      }),
+  });
 
   const queueTranscription = () => {
     mutate(void 0, {
@@ -49,7 +51,7 @@ Description: ${record.description}
 
   return (
     <Button
-      disabled={isLoading}
+      disabled={isPending}
       label={`Start ${label}`}
       onClick={queueTranscription}
     />

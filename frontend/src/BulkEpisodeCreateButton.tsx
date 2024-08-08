@@ -24,37 +24,40 @@ const BulkCreateEpisodesButton = ({
     referenceRecord: series,
     isLoading: isLoadingSeries,
     error: errorSeries,
-  } = useReference({ reference: "series", id: streamRecord.series_id });
+  } = useReference({ reference: "series", id: streamRecord?.series_id });
 
-  const { mutate, isLoading, error } = useMutation<
+  const { mutate, isPending, error } = useMutation<
     string | null,
-    any,
+    Error,
     DataStreamDataElement[]
-  >((segments) => {
-    if (isLoadingSeries) {
-      return;
-    }
+  >({
+    mutationKey: ["bulkCreateEpisodes", streamRecord?.id],
+    mutationFn: (segments) => {
+      if (isLoadingSeries) {
+        return;
+      }
 
-    const baseEpIndex = (series?.max_episode_order_index || 0) + 1;
+      const baseEpIndex = (series?.max_episode_order_index || 0) + 1;
 
-    return dataProvider.bulkCreate(
-      "episodes",
-      segments.map((segment, index) => ({
-        stream_id: streamRecord.id,
-        series_id: streamRecord.series_id,
-        order_index: baseEpIndex + index,
-        title: `${streamRecord.title} - Episode ${baseEpIndex + index}`,
-        tracks: [
-          {
-            start: convertSecondsToISODuration(segment.start),
-            end: convertSecondsToISODuration(segment.end),
-          },
-        ],
-        notify_subscribers: series?.notify_subscribers,
-        category: series?.category,
-        tags: series?.tags,
-      })),
-    );
+      return dataProvider.bulkCreate(
+        "episodes",
+        segments.map((segment, index) => ({
+          stream_id: streamRecord?.id,
+          series_id: streamRecord?.series_id,
+          order_index: baseEpIndex + index,
+          title: `${streamRecord?.title} - Episode ${baseEpIndex + index}`,
+          tracks: [
+            {
+              start: convertSecondsToISODuration(segment.start),
+              end: convertSecondsToISODuration(segment.end),
+            },
+          ],
+          notify_subscribers: series?.notify_subscribers,
+          category: series?.category,
+          tags: series?.tags,
+        })),
+      );
+    },
   });
 
   const bulkCreateEpisodes = () => {
@@ -71,12 +74,12 @@ const BulkCreateEpisodesButton = ({
   }
 
   if (error) {
-    return <div>{error}</div>;
+    return <div>{error.toString()}</div>;
   }
 
   return (
     <Button
-      disabled={isLoading || isLoadingSeries}
+      disabled={isPending || isLoadingSeries}
       label={`Start ${label}`}
       onClick={bulkCreateEpisodes}
     />

@@ -56,9 +56,10 @@ const ScanButton = (props: any) => {
 
   const dataProvider = useDataProvider();
 
-  const { mutate, isLoading } = useMutation<FindClipsResponse>(() =>
-    dataProvider.getStreamClips(record.prefix),
-  );
+  const { mutate, isPending } = useMutation<FindClipsResponse>({
+    mutationKey: ["getStreamClips", record?.prefix],
+    mutationFn: () => dataProvider.getStreamClips(record?.prefix),
+  });
 
   const prefix = record && record.prefix;
   const scanForClips = () => {
@@ -91,7 +92,7 @@ const ScanButton = (props: any) => {
 
   return (
     <Button
-      disabled={!prefix || isLoading}
+      disabled={!prefix || isPending}
       label="Scan for Clips"
       onClick={scanForClips}
     />
