@@ -22,15 +22,17 @@ const ScanButton = ({ label }: { label: string }) => {
   const [track, setTrack] = useState(2);
   const [duration, setDuration] = useState(30);
 
-  const { mutate, isLoading } = useMutation<string | null>(() =>
-    dataProvider.queueStreamSilenceDetection({
-      task_title: `Silence Detection for ${record.title}`,
-      uris: record.video_clips.map((clip: any) => clip.uri),
-      track,
-      duration,
-      stream_id: record.id,
-    }),
-  );
+  const { mutate, isPending } = useMutation<string | null>({
+    mutationKey: ["queueStreamSilenceDetection", record?.id],
+    mutationFn: () =>
+      dataProvider.queueStreamSilenceDetection({
+        task_title: `Silence Detection for ${record?.title}`,
+        uris: record?.video_clips.map((clip: any) => clip.uri),
+        track,
+        duration,
+        stream_id: record?.id,
+      }),
+  });
 
   const queueSilenceDetection = () => {
     mutate(void 0, {
@@ -43,7 +45,7 @@ const ScanButton = ({ label }: { label: string }) => {
   return (
     <>
       <Button
-        disabled={isLoading}
+        disabled={isPending}
         label={`Start ${label}`}
         onClick={queueSilenceDetection}
       />
