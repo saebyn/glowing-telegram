@@ -12,6 +12,11 @@ updates:
       - "/task_worker/"
     schedule:
       interval: "weekly"
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
   - package-ecosystem: "npm" # See documentation for possible values
     directory: "/frontend/" # Location of package manifests
     schedule:
