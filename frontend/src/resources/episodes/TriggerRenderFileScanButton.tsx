@@ -3,9 +3,10 @@ import { useMutation } from "@tanstack/react-query";
 
 const TriggerRenderFileScanButton = () => {
   const dataProvider = useDataProvider();
-  const { mutate, isLoading } = useMutation(() =>
-    dataProvider.scanRenderFiles(),
-  );
+  const { mutate, isPending } = useMutation({
+    mutationKey: ["scanRenderFiles"],
+    mutationFn: () => dataProvider.scanRenderFiles(),
+  });
   const notify = useNotify();
   const refresh = useRefresh();
 
@@ -27,7 +28,7 @@ const TriggerRenderFileScanButton = () => {
   };
 
   return (
-    <Button label="Scan Files" onClick={handleClick} disabled={isLoading} />
+    <Button label="Scan Files" onClick={handleClick} disabled={isPending} />
   );
 };
 

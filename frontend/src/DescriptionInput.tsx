@@ -28,7 +28,8 @@ const DescriptionInput = (props: Props) => (
     InputProps={muiInputProps}
     fullWidth
     multiline
-    rows={4}
+    minRows={4}
+    maxRows={16}
     validate={descriptionValidators}
     resettable
   />

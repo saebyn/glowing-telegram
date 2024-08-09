@@ -104,30 +104,17 @@ const EpisodeDescriptionChatButton = () => {
     return null;
   }
 
-  const job = `I summarize the provided video transcript into a title and description of the video to optimize for finding this video on youtube. I also provide a list of keywords that are relevant to the video. I always provide a link to the twitch channel, and a link to the YouTube playlist if I have it. I take the timestamps and details from  the transcript and add create YouTube chapters for the video with offsets in seconds, ordered
-  by the start time each chapter appears in the video.
-  My response is a well-formed JSON object that includes the title, description, keywords, and chapters. It should look like this:
+  const job = `I summarize the provided video transcript into a title and description of the video to optimize for finding this video on youtube.
+  My response is a well-formed JSON object that includes the title and description. It should look like this:
 
   {
     "title": "Title of the video",
-    "description": "Description of the video content \n\n On as many lines as needed.",
-    "keywords": ["keyword1", "keyword2"],
-    "chapters": [
-      {
-        "start": 0,
-        "title": "Chapter 1"
-      },
-      {
-        "start": 60,
-        "title": "Chapter 2"
-      }
-    ]
+    "description": "Description of the video content \n\n On as many lines as needed."
   }
   `;
 
   const context = `
-    I need help summarizing the video transcript into a title and description for the video. 
-    I also need a list of keywords that are relevant to the video.
+    I need help summarizing the video transcript into a title and description for the video. I would prefer the text to be written in the first person. I would like the title to be a maximum of 100 characters and the description to be a maximum of 5000 characters. I would like the description to be broken up into paragraphs and formatted for readability.
 
     The tentative title of the video is "${record.title}".
     The stream was recorded on ${stream.stream_date}.
@@ -135,7 +122,6 @@ const EpisodeDescriptionChatButton = () => {
     The base description is:
     "${record.description}"
 
-    My twitch channel is: https://www.twitch.tv/saebyn
 
     Here is the transcript:
   `;
@@ -167,25 +153,7 @@ const EpisodeDescriptionChatButton = () => {
     const json = JSON.parse(content);
 
     setValue("title", json.title);
-    setValue(
-      "description",
-      `
-${json.description}
-
-${record.description}
-
-Keywords: ${json.keywords.join(", ")}
-
-Timestamps:
-${json.chapters
-  .map((chapter: any) => {
-    return `${formatYoutubeChapterTimestampsFromSeconds(chapter.start)} ${
-      chapter.title
-    }`;
-  })
-  .join("\n")}
-    `,
-    );
+    setValue("description", json.description);
   };
 
   return (
