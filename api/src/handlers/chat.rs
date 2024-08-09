@@ -3,8 +3,8 @@ use axum::{http::StatusCode, response::IntoResponse, Json};
 use openai_dive::v1::api::Client;
 use openai_dive::v1::error::APIError;
 use openai_dive::v1::resources::chat::{
-    ChatCompletionParameters, ChatCompletionResponse, ChatCompletionResponseFormat,
-    ChatCompletionResponseFormatType, ChatMessage, ChatMessageContent, Role,
+    ChatCompletionParameters, ChatCompletionResponse,
+    ChatCompletionResponseFormat, ChatMessage, ChatMessageContent, Role,
 };
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +28,8 @@ pub async fn handler(
             tracing::error!("Failed to complete chat: {:?}", e);
             match e {
                 APIError::InvalidRequestError(message) => {
-                    return (StatusCode::BAD_REQUEST, Json(message)).into_response();
+                    return (StatusCode::BAD_REQUEST, Json(message))
+                        .into_response();
                 }
                 _ => {
                     return (
@@ -59,12 +60,13 @@ pub struct SimpleChatMessage {
     role: String,
 }
 
-fn build_parameters(messages: &[SimpleChatMessage], model: &str) -> ChatCompletionParameters {
+fn build_parameters(
+    messages: &[SimpleChatMessage],
+    model: &str,
+) -> ChatCompletionParameters {
     ChatCompletionParameters {
         model: model.to_string(),
-        response_format: Some(ChatCompletionResponseFormat {
-            r#type: ChatCompletionResponseFormatType::JsonObject,
-        }),
+        response_format: Some(ChatCompletionResponseFormat::JsonObject),
         messages: messages
             .iter()
             .map(|m| {
