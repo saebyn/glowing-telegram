@@ -1,8 +1,8 @@
-import { Create, SimpleForm } from "react-admin";
+import { Create, CreateProps, SimpleForm } from "react-admin";
 import TitleInput from "../../TitleInput";
 import DescriptionInput from "../../DescriptionInput";
 
-const TopicCreate = (props: any) => (
+const TopicCreate = (props: CreateProps) => (
   <Create {...props}>
     <SimpleForm>
       <TitleInput source="title" />

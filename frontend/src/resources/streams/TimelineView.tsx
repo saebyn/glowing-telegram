@@ -17,10 +17,10 @@ const TimelineView = ({ className }: TimelineViewProps) => {
   const record = useRecordContext();
 
   const start = 0;
-  const end = parseIntoSeconds(record.duration);
+  const end = parseIntoSeconds(record?.duration);
 
   const silenceDetectionSegments: DataStreamDataElement[] =
-    record.silence_segments?.map((segment: any) => ({
+    record?.silence_segments?.map((segment: any) => ({
       start: parseIntoSeconds(segment.start),
       end: parseIntoSeconds(segment.end),
       density: 1,
@@ -28,7 +28,7 @@ const TimelineView = ({ className }: TimelineViewProps) => {
 
   const initialSegments: Segment[] = periodsBetweenSegments(
     silenceDetectionSegments,
-    end - start
+    end - start,
   )
     .map((segment, index) => ({
       id: index,
@@ -40,7 +40,7 @@ const TimelineView = ({ className }: TimelineViewProps) => {
 
   const [segments, setSegments] = useState<Segment[]>(initialSegments);
 
-  const handleUpdateSegments = (segments: any) => {
+  const handleUpdateSegments = (segments: Segment[]) => {
     setSegments(segments);
   };
 
@@ -92,7 +92,7 @@ export default styled(TimelineView)({
 
 function periodsBetweenSegments(
   segments: DataStreamDataElement[],
-  totalDuration: number
+  totalDuration: number,
 ): DataStreamDataElement[] {
   const periods: DataStreamDataElement[] = [];
 
