@@ -1,6 +1,6 @@
-import { List, Datagrid, TextField } from "react-admin";
+import { List, Datagrid, TextField, ListProps } from "react-admin";
 
-const TopicList = (props: any) => (
+const TopicList = (props: ListProps) => (
   <List {...props}>
     <Datagrid>
       <TextField source="title" />

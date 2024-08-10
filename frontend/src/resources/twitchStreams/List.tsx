@@ -26,23 +26,45 @@ const StreamPanel = () => (
   </SimpleShowLayout>
 );
 
+interface TwitchStreamData {
+  id: string;
+  title: string;
+  duration: string;
+  thumbnail_url: string;
+  stream_id: string;
+  created_at: string;
+}
+
 const BulkActionButtons = () => {
   const refresh = useRefresh();
   const notify = useNotify();
   const dataProvider = useDataProvider();
-  const { selectedIds, data } = useListContext();
+  const { selectedIds, data } = useListContext<TwitchStreamData>();
   const unselectAll = useUnselectAll("twitchStreams");
 
   const handleImport = () => {
+    if (!selectedIds.length) {
+      return;
+    }
+
+    if (data === undefined) {
+      return;
+    }
+
     // Notify the user that the import started
     notify("Importing streams");
 
     // get the selected records
     const selectedRecords = data
-      .filter((record: any) => selectedIds.includes(record.id))
-      .map(({ title, duration, thumbnail_url, stream_id, created_at }: any) => {
+      .filter((record) => selectedIds.includes(record.id))
+      .map(({ title, duration, thumbnail_url, stream_id, created_at }) => {
         // convert the duration in the format "HHhMMmSSs" to the ISO 8601 format
         const durationParts = duration.match(/(\d+)h(\d+)m(\d+)s/);
+
+        if (!durationParts) {
+          throw new Error(`Invalid duration format: ${duration}`);
+        }
+
         const durationISO = `PT${durationParts[1]}H${durationParts[2]}M${durationParts[3]}S`;
 
         const createdAt = new Date(created_at);
