@@ -38,6 +38,7 @@ export interface Stream {
 }
 
 export interface YoutubeUploadTaskPayload {
+  episode_id: string;
   title: string;
   description: string;
   tags: string[];

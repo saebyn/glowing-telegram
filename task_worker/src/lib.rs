@@ -26,6 +26,56 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PayloadTransform {
+    pub destination_key: String,
+    pub source_key: String,
+}
+
+fn serialize_method<S>(
+    method: &reqwest::Method,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(method.as_str())
+}
+
+fn deserialize_method<'de, D>(
+    deserializer: D,
+) -> Result<reqwest::Method, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let method_str = String::deserialize(deserializer)?;
+    reqwest::Method::from_bytes(method_str.as_bytes())
+        .map_err(serde::de::Error::custom)
+}
+
+fn default_http_method() -> reqwest::Method {
+    reqwest::Method::POST
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TaskRequest {
+    pub url: String,
+    pub payload: serde_json::Value,
+    pub title: String,
+    pub data_key: String,
+
+    pub next_task: Option<TaskTemplate>,
+
+    #[serde(
+        serialize_with = "serialize_method",
+        deserialize_with = "deserialize_method",
+        default = "default_http_method"
+    )]
+    pub http_method: reqwest::Method,
+
+    pub payload_transformer: Option<Vec<PayloadTransform>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Task {
     // TODO consider removing this and calculating from id
     pub key: String,
@@ -44,6 +94,15 @@ pub struct Task {
     pub run_after: chrono::DateTime<chrono::Utc>,
 
     pub next_task: Option<TaskTemplate>,
+
+    #[serde(
+        serialize_with = "serialize_method",
+        deserialize_with = "deserialize_method",
+        default = "default_http_method"
+    )]
+    pub http_method: reqwest::Method,
+
+    pub payload_transformer: Option<Vec<PayloadTransform>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -53,6 +112,14 @@ pub struct TaskTemplate {
     pub data_key: String,
     pub title: String,
     pub next_task: Option<Box<TaskTemplate>>,
+
+    #[serde(
+        serialize_with = "serialize_method",
+        deserialize_with = "deserialize_method"
+    )]
+    pub http_method: reqwest::Method,
+
+    pub payload_transformer: Option<Vec<PayloadTransform>>,
 }
 
 const TASK_COUNTER_KEY: &str = "task:counter";
@@ -96,14 +163,59 @@ impl TryFrom<HashMap<String, String>> for TaskTemplate {
             }
         };
 
+        let http_method = deserialize_http_method(&data);
+
+        let payload_transformer = deserialize_payload_transformer(&data);
+
         Ok(TaskTemplate {
             url,
             payload,
             data_key,
             title,
             next_task,
+
+            http_method,
+            payload_transformer,
         })
     }
+}
+
+fn deserialize_http_method(data: &HashMap<String, String>) -> reqwest::Method {
+    match data.get("http_method") {
+        None => reqwest::Method::POST,
+        Some(http_method) => {
+            match reqwest::Method::from_bytes(http_method.as_bytes()) {
+                Ok(http_method) => http_method,
+                Err(e) => {
+                    tracing::error!("Failed to parse http_method: {}", e);
+                    reqwest::Method::POST
+                }
+            }
+        }
+    }
+}
+
+fn deserialize_payload_transformer(
+    data: &HashMap<String, String>,
+) -> Option<Vec<PayloadTransform>> {
+    let payload_transformer = match data.get("payload_transformer") {
+        None => None,
+        Some(payload_transformer) => {
+            match serde_json::from_str::<Vec<PayloadTransform>>(
+                payload_transformer,
+            ) {
+                Ok(payload_transformer) => Some(payload_transformer),
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to parse payload_transformer: {}",
+                        e
+                    );
+                    None
+                }
+            }
+        }
+    };
+    payload_transformer
 }
 
 impl TryFrom<&Task> for redis::Cmd {
@@ -229,6 +341,9 @@ impl TryFrom<HashMap<String, String>> for Task {
                 }
             },
 
+            http_method: deserialize_http_method(&data),
+            payload_transformer: deserialize_payload_transformer(&data),
+
             previous_task_id,
         })
     }
@@ -287,6 +402,8 @@ pub fn create_task(
     data_key: &str,
     next_task: Option<TaskTemplate>,
     previous_task_id: Option<u64>,
+    http_method: reqwest::Method,
+    payload_transformer: Option<Vec<PayloadTransform>>,
 ) -> Result<Task, &'static str> {
     // generate a unique id for the task by incrementing the task counter
     let id: u64 = match con.incr(TASK_COUNTER_KEY, 1) {
@@ -316,6 +433,8 @@ pub fn create_task(
         run_after: now,
         next_task,
         previous_task_id,
+        http_method,
+        payload_transformer,
     };
 
     match con.req_command(&TryFrom::try_from(&task)?) {
@@ -384,23 +503,12 @@ pub fn update_task_status(
     };
 
     if task.status != new_task_status {
-        publish_task_status(
-            con,
-            &Task {
-                key: task.key.clone(),
-                id: task.id,
-                title: task.title.clone(),
-                url: task.url.clone(),
-                payload: task.payload.clone(),
-                data_key: task.data_key.clone(),
-                status: new_task_status,
-                last_updated: now,
-                run_after: task.run_after,
-                next_task: task.next_task.clone(),
-                previous_task_id: task.previous_task_id,
-            },
-            task.status.clone(),
-        )
+        let mut task = task.clone();
+
+        task.status = new_task_status;
+        task.last_updated = now;
+
+        publish_task_status(con, &task, task.status.clone())
     } else {
         Ok(())
     }
@@ -586,7 +694,26 @@ pub fn build_task_payload(
         payload["@previous_task_data"] = data.into();
     }
 
-    payload
+    // apply payload transformers
+    if let Some(payload_transformer) = &task.payload_transformer {
+        apply_payload_transformers(&payload, payload_transformer)
+    } else {
+        payload
+    }
+}
+
+fn apply_payload_transformers(
+    payload: &serde_json::Value,
+    payload_transformer: &Vec<PayloadTransform>,
+) -> serde_json::Value {
+    let mut transformed_payload = json!({});
+
+    for transformer in payload_transformer {
+        transformed_payload[&transformer.destination_key] =
+            payload[&transformer.source_key].clone();
+    }
+
+    transformed_payload
 }
 
 #[cfg(test)]

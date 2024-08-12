@@ -25,7 +25,7 @@ const UploadEpisodeToYoutubeButton = () => {
     await Promise.all(
       episodes
         .filter((episode: any) => episode.render_uri)
-        .map(dataProvider.uploadEpisodeToYoutube)
+        .map(dataProvider.uploadEpisodeToYoutube),
     );
 
     setOpen(false);
@@ -38,6 +38,7 @@ const UploadEpisodeToYoutubeButton = () => {
 
     setEpisodes(
       data.map((episode: any) => ({
+        episode_id: episode.id,
         title: episode.title,
         description: episode.description,
         render_uri: episode.render_uri,
@@ -48,7 +49,7 @@ const UploadEpisodeToYoutubeButton = () => {
         recording_date: episode.stream_date,
         playlist_id: episode.playlist_id,
         playlist_position: episode.order_index,
-      }))
+      })),
     );
     setOpen(true);
   };

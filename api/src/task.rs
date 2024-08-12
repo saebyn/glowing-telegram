@@ -1,15 +1,5 @@
-use serde::{Deserialize, Serialize};
-use task_worker::TaskTemplate;
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct TaskRequest {
-    pub url: String,
-    pub payload: serde_json::Value,
-    pub title: String,
-    pub data_key: String,
-
-    pub next_task: Option<TaskTemplate>,
-}
+use serde::Deserialize;
+use task_worker::TaskRequest;
 
 #[derive(Deserialize, Debug)]
 struct TaskResponse {

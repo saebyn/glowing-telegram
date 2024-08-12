@@ -1,5 +1,6 @@
-use diesel::AsChangeset;
+use diesel::{AsChangeset, Insertable};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::{models::Episode, schema::episodes};
@@ -115,6 +116,7 @@ pub struct EpisodeDetailView {
     pub notify_subscribers: bool,
     pub category: i16,
     pub tags: Vec<Option<String>>,
+    pub youtube_video_id: Option<String>,
 }
 
 impl From<Episode> for EpisodeDetailView {
@@ -139,11 +141,12 @@ impl From<Episode> for EpisodeDetailView {
             notify_subscribers: episode.notify_subscribers,
             category: episode.category,
             tags: episode.tags,
+            youtube_video_id: episode.youtube_video_id,
         }
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Track {
     start: iso8601::Duration,
     end: iso8601::Duration,
@@ -164,6 +167,45 @@ pub struct CreateEpisodeRequest {
     pub notify_subscribers: Option<bool>,
     pub category: Option<i16>,
     pub tags: Option<Vec<Option<String>>>,
+    pub youtube_video_id: Option<String>,
+}
+
+#[derive(Debug, Insertable)]
+#[diesel(table_name = episodes)]
+pub struct CreateEpisodeInsertable {
+    pub title: String,
+    pub description: String,
+    pub thumbnail_url: Option<String>,
+    pub stream_id: Uuid,
+    pub series_id: Option<Uuid>,
+    pub order_index: i32,
+    pub tracks: serde_json::Value,
+    pub notify_subscribers: bool,
+    pub category: i16,
+    pub tags: Vec<Option<String>>,
+    pub youtube_video_id: Option<String>,
+}
+
+impl From<&CreateEpisodeRequest> for CreateEpisodeInsertable {
+    fn from(body: &CreateEpisodeRequest) -> Self {
+        CreateEpisodeInsertable {
+            title: body.title.clone(),
+            description: match &body.description {
+                Some(description) => description.clone(),
+                None => "".to_string(),
+            },
+            thumbnail_url: body.thumbnail_url.clone(),
+            stream_id: body.stream_id,
+            series_id: body.series_id,
+            order_index: body.order_index.unwrap_or(0),
+            tracks: serde_json::to_value(body.tracks.clone())
+                .unwrap_or(json!([])),
+            notify_subscribers: body.notify_subscribers.unwrap_or(false),
+            category: body.category.unwrap_or(20),
+            tags: body.tags.clone().unwrap_or_default(),
+            youtube_video_id: body.youtube_video_id.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -185,6 +227,7 @@ pub struct UpdateEpisodeRequest {
     pub notify_subscribers: Option<bool>,
     pub category: Option<i16>,
     pub tags: Option<Vec<Option<String>>>,
+    pub youtube_video_id: Option<String>,
 }
 
 #[derive(Debug, AsChangeset)]
@@ -202,6 +245,7 @@ pub struct UpdateEpisodeChangeset {
     pub notify_subscribers: Option<bool>,
     pub category: Option<i16>,
     pub tags: Option<Vec<Option<String>>>,
+    pub youtube_video_id: Option<String>,
 }
 
 impl From<UpdateEpisodeRequest> for UpdateEpisodeChangeset {
@@ -231,6 +275,7 @@ impl From<UpdateEpisodeRequest> for UpdateEpisodeChangeset {
             notify_subscribers: body.notify_subscribers,
             category: body.category,
             tags: body.tags,
+            youtube_video_id: body.youtube_video_id,
         }
     }
 }

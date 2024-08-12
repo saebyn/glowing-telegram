@@ -82,7 +82,7 @@ async fn work(
         tracing::info!("Starting task: {}", task.key);
 
         let response = reqwest_client
-            .post(&task.url)
+            .request(task.http_method.clone(), &task.url)
             .json(&build_task_payload(con, &task))
             .send()
             .await
@@ -185,6 +185,8 @@ async fn work(
                 &next_task_template.data_key,
                 next_task_template.next_task.clone().map(|b| *b),
                 Some(task.id),
+                next_task_template.http_method.clone(),
+                next_task_template.payload_transformer.clone(),
             )
             .expect("Failed to create next task");
 

@@ -8,6 +8,7 @@ use axum::{
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use task_worker::TaskRequest;
 use tokio::process::Command;
 use tracing::instrument;
 
@@ -216,7 +217,7 @@ pub async fn detect(
             task_api_url: state.task_api_url.clone(),
             task_api_external_url: state.task_api_external_url.clone(),
         },
-        task::TaskRequest {
+        TaskRequest {
             url: format!(
                 "{}/silence_detection/detect/segment",
                 state.this_api_base_url
@@ -231,6 +232,9 @@ pub async fn detect(
             data_key: "segments".to_string(),
 
             next_task: None,
+
+            http_method: reqwest::Method::POST,
+            payload_transformer: None,
         },
     )
     .await

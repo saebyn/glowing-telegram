@@ -292,6 +292,7 @@ where
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct FFProbeStream {
     pub index: u32,
     pub codec_name: Option<String>,
@@ -336,6 +337,7 @@ pub struct FFProbeStream {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct FFProbeDisposition {
     pub default: u32,
     pub dub: u32,
@@ -357,12 +359,14 @@ pub struct FFProbeDisposition {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct FFProbeTags {
     #[serde(rename = "DURATION")]
     pub duration: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct FFProbeFormat {
     pub filename: String,
     pub nb_streams: u32,
