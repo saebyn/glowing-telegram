@@ -232,12 +232,30 @@ fn create_predicate(
         None => Box::new(id.ne(Uuid::nil())),
     };
 
+    let youtube_video_id_filter: Box<
+        dyn BoxableExpression<
+            episodes,
+            diesel::pg::Pg,
+            SqlType = diesel::sql_types::Bool,
+        >,
+    > = match filter["has_youtube_video_id"].as_bool() {
+        Some(q) => {
+            if q {
+                Box::new(youtube_video_id.is_not_null())
+            } else {
+                Box::new(youtube_video_id.is_null())
+            }
+        }
+        None => Box::new(id.ne(Uuid::nil())),
+    };
+
     Box::new(
         id_filter
             .and(title_filter)
             .and(is_published_filter)
             .and(series_id_filter)
             .and(stream_id_filter)
-            .and(stream_name_filter),
+            .and(stream_name_filter)
+            .and(youtube_video_id_filter),
     )
 }

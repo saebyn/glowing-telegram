@@ -1,8 +1,8 @@
 use axum::extract::{FromRequestParts, State};
-use task_worker::TaskTemplate;
+use task_worker::{PayloadTransform, TaskRequest, TaskTemplate};
 
 use crate::state::AppState;
-use crate::task::{self, TaskRequest};
+use crate::task::{self};
 use axum::http::request::Parts;
 use axum::{async_trait, Json};
 use axum::{
@@ -27,6 +27,7 @@ const YOUTUBE_API_QUOTA_RETRY_AFTER: u64 = 24 /* hours */ * 60 /* minutes */ * 6
 
 #[derive(Serialize, Debug, Deserialize, Validate)]
 pub struct YoutubeUploadRequest {
+    episode_id: String,
     #[validate(length(min = 1, max = 100))]
     pub title: String,
     #[validate(length(min = 1, max = 5000))]
@@ -96,6 +97,46 @@ impl From<&YoutubeUploadRequest> for YoutubeUploadTaskPayload {
 // Create a way to transform a YoutubeUploadRequest and an AppState into a TaskRequest, but TaskRequest is not defined in this file.
 impl YoutubeUploadRequest {
     pub fn to_task_request(&self, app_state: &AppState) -> TaskRequest {
+        let sync_video_id_task = TaskTemplate {
+            title: "Save video ID".to_string(),
+            payload: json!(YoutubeUploadTaskPayload::from(self)),
+            data_key: "summary".to_string(),
+            next_task: None,
+
+            http_method: reqwest::Method::PUT,
+            url: format!(
+                "{}/records/episodes/{}",
+                app_state.this_api_base_url, self.episode_id
+            ),
+
+            payload_transformer: Some(vec![PayloadTransform {
+                source_key: "@previous_task_data".to_string(),
+                destination_key: "youtube_video_id".to_string(),
+            }]),
+        };
+
+        let after_upload_task = match &self.playlist_id {
+            None => sync_video_id_task,
+
+            Some(playlist_id) => TaskTemplate {
+                url: format!(
+                    "{}/youtube/playlist/add/task",
+                    app_state.this_api_base_url
+                ),
+                title: "Add video to playlist".to_string(),
+                payload: json!(YoutubePlaylistAddTaskPayload {
+                    playlist_id: playlist_id.to_string(),
+                    playlist_position: self.playlist_position,
+                    previous_task_data: vec![]
+                }),
+                data_key: "summary".to_string(),
+                next_task: Some(Box::new(sync_video_id_task)),
+
+                http_method: reqwest::Method::POST,
+                payload_transformer: None,
+            },
+        };
+
         TaskRequest {
             url: format!(
                 "{}/youtube/upload/task",
@@ -103,24 +144,11 @@ impl YoutubeUploadRequest {
             ),
             title: self.task_title.clone(),
             payload: json!(YoutubeUploadTaskPayload::from(self)),
+            http_method: reqwest::Method::POST,
+            payload_transformer: None,
             data_key: "summary".to_string(),
 
-            next_task: self.playlist_id.clone().map(|playlist_id| {
-                TaskTemplate {
-                    url: format!(
-                        "{}/youtube/playlist/add/task",
-                        app_state.this_api_base_url
-                    ),
-                    title: "Add video to playlist".to_string(),
-                    payload: json!(YoutubePlaylistAddTaskPayload {
-                        playlist_id,
-                        playlist_position: self.playlist_position,
-                        previous_task_data: vec![]
-                    }),
-                    data_key: "summary".to_string(),
-                    next_task: None,
-                }
-            }),
+            next_task: Some(after_upload_task),
         }
     }
 }
@@ -412,7 +440,16 @@ pub async fn add_to_playlist_task_handler(
         return e;
     }
 
-    (StatusCode::OK, axum::Json(json!({}))).into_response()
+    (
+        StatusCode::OK,
+        axum::Json(json!(UploadVideoTaskOutput {
+            cursor: None,
+            summary: json!([{
+                "video_id": video_id,
+            }]),
+        })),
+    )
+        .into_response()
 }
 
 #[derive(Debug)]

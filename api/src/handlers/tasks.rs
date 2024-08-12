@@ -12,11 +12,11 @@ use serde_json::json;
 use tracing::instrument;
 
 use task_worker::{
-    create_task, get_task, get_task_data, queue_task, Task, TaskStatus,
+    create_task, get_task, get_task_data, queue_task, Task, TaskRequest,
+    TaskStatus,
 };
 
 use crate::state::AppState;
-use crate::task::TaskRequest;
 
 #[instrument]
 pub async fn get_list_handler(
@@ -117,6 +117,8 @@ pub async fn create_handler(
         &body.data_key,
         body.next_task.clone(),
         None,
+        body.http_method.clone(),
+        body.payload_transformer.clone(),
     ) {
         Ok(task) => {
             tracing::info!("Created task record: {}", task.key);

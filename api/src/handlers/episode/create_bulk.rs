@@ -1,12 +1,13 @@
 use axum::extract::Json;
 use axum::response::IntoResponse;
-use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use serde_json::json;
 use tracing;
 use tracing::instrument;
 
-use crate::db::DbConnection;
+use crate::{
+    db::DbConnection, handlers::episode::structs::CreateEpisodeInsertable,
+};
 
 use super::structs::{BulkCreateEpisodeRequest, EpisodeSimpleView};
 use crate::models::Episode;
@@ -24,18 +25,8 @@ pub async fn handler(
         .values(
             body.records
                 .iter()
-                .map(|episode| {
-                    (
-                        title.eq(&episode.title),
-                        description.eq(episode.description.clone().unwrap_or("".to_string())),
-                        thumbnail_url.eq::<Option<String>>(episode.thumbnail_url.clone()),
-                        stream_id.eq(episode.stream_id),
-                        tracks.eq(json!(episode.tracks)),
-                        series_id.eq(episode.series_id),
-                        order_index.eq(episode.order_index.unwrap_or(0)),
-                    )
-                })
-                .collect::<Vec<_>>(),
+                .map(|episode| episode.into())
+                .collect::<Vec<CreateEpisodeInsertable>>(),
         )
         .get_results::<Episode>(&mut db.connection)
         .await
@@ -43,7 +34,8 @@ pub async fn handler(
         Ok(records) => records,
         Err(e) => {
             tracing::error!("Error inserting records: {}", e);
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                .into_response();
         }
     };
 
