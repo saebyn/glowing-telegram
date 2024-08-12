@@ -80,6 +80,7 @@ pub struct Episode {
     pub notify_subscribers: bool,
     pub category: i16,
     pub tags: Vec<Option<String>>,
+    pub youtube_video_id: Option<String>,
 }
 
 #[derive(Queryable, Selectable, Debug)]

@@ -17,6 +17,7 @@ diesel::table! {
         notify_subscribers -> Bool,
         category -> Int2,
         tags -> Array<Nullable<Text>>,
+        youtube_video_id -> Nullable<Text>,
     }
 }
 
