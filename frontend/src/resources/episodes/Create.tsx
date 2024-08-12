@@ -8,6 +8,7 @@ import {
   SimpleFormIterator,
   ReferenceInput,
   SelectInput,
+  NumberInput,
 } from "react-admin";
 import { DurationInput } from "../../DurationInput";
 import YouTubeCategoryInput from "../../YouTubeCategoryInput";
@@ -22,6 +23,13 @@ const EpisodeCreate = (props: CreateProps) => (
       <ReferenceInput source="series_id" reference="series">
         <SelectInput optionText="title" />
       </ReferenceInput>
+
+      <NumberInput source="order_index" />
+
+      <TextInput source="youtube_video_id" />
+
+      <BooleanInput source="is_published" />
+
       <BooleanInput source="notify_subscribers" />
       <YouTubeCategoryInput source="category" />
       <ArrayInput source="tags">

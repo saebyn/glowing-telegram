@@ -52,6 +52,8 @@ const EpisodeEdit = () => (
 
       <NumberInput source="order_index" />
 
+      <TextInput source="youtube_video_id" />
+
       <BooleanInput source="is_published" />
 
       <DescriptionInput source="description" />
@@ -191,14 +193,6 @@ function transcriptSegmentOverlaps(
   }
 
   return false;
-}
-
-function formatYoutubeChapterTimestampsFromSeconds(seconds: number): string {
-  const hours = String(Math.floor(seconds / 3600)).padStart(2, "0");
-  const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
-  const remainingSeconds = String(Math.floor(seconds % 60)).padStart(2, "0");
-
-  return `${hours}:${minutes}:${remainingSeconds}`;
 }
 
 export default EpisodeEdit;

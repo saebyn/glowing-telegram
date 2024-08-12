@@ -14,12 +14,13 @@ import {
   FilterButton,
   TextInput,
   NullableBooleanInput,
+  ListActionsProps,
 } from "react-admin";
 import TriggerRenderFileScanButton from "./TriggerRenderFileScanButton";
 import UploadEpisodeToYoutubeButton from "./UploadEpisodeToYoutubeButton";
 import { BulkExportButton } from "../../OTIOExporter/Exporter";
 
-const ListActions = (props: any) => (
+const ListActions = (props: ListActionsProps) => (
   <TopToolbar {...props}>
     <FilterButton />
     <CreateButton />
@@ -44,6 +45,8 @@ const episodeFilters = [
   <ReferenceInput source="stream_id" reference="streams" />,
   // eslint-disable-next-line react/jsx-key
   <TextInput source="stream_name" />,
+  // eslint-disable-next-line react/jsx-key
+  <NullableBooleanInput source="has_youtube_video_id" />,
   // eslint-disable-next-line react/jsx-key
   <NullableBooleanInput source="is_published" />,
 ];
