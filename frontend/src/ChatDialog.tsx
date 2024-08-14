@@ -121,8 +121,8 @@ function ChatDialog({
             {loading
               ? "Sending..."
               : messages.length === chatMessageStartIndex
-              ? "Start"
-              : "Send"}
+                ? "Start"
+                : "Send"}
           </Button>
 
           <Button color="secondary" onClick={onClose}>
@@ -147,7 +147,6 @@ const ChatMessageView = ({
   message: ChatMessage;
   disabled?: boolean;
   onChange?: (_content: string) => void;
-  [key: string]: any;
 }) => {
   const [expanded, setExpanded] = useState<boolean>(false);
 
@@ -169,7 +168,7 @@ const ChatMessageView = ({
       <Collapse in={expanded} timeout="auto" unmountOnExit>
         <CardContent>
           <Typography variant="caption">
-            <pre>{message.content}</pre>
+            <pre style={{ whiteSpace: "pre-wrap" }}>{message.content}</pre>
           </Typography>
         </CardContent>
       </Collapse>

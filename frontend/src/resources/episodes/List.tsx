@@ -8,7 +8,6 @@ import {
   TopToolbar,
   ReferenceField,
   NumberField,
-  BooleanField,
   ReferenceInput,
   SearchInput,
   FilterButton,
@@ -59,10 +58,8 @@ const EpisodeList = (props: ListProps) => (
         <TextField source="title" />
       </ReferenceField>
       <NumberField source="order_index" />
-      <BooleanField source="is_published" />
+
       <DateField source="stream_date" />
-      <DateField source="created_at" />
-      <DateField source="updated_at" />
     </Datagrid>
   </List>
 );

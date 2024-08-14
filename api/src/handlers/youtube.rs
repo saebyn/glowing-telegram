@@ -776,10 +776,18 @@ async fn upload_inner(
 
     if response.status().is_success() {
         UploadInnerStatus::Success(response)
-    } else if [500, 502, 503, 504].contains(&response.status().as_u16()) {
-        UploadInnerStatus::TemporaryFailure
     } else {
-        UploadInnerStatus::PermanentFailure
+        let status_code = response.status().as_u16();
+        tracing::error!(
+            "Youtube API error response: {:?} {:?}",
+            response.status(),
+            response.text().await
+        );
+        if [500, 502, 503, 504].contains(&status_code) {
+            UploadInnerStatus::TemporaryFailure
+        } else {
+            UploadInnerStatus::PermanentFailure
+        }
     }
 }
 
