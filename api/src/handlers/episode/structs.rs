@@ -18,6 +18,7 @@ pub struct EpisodeSimpleView {
     pub order_index: i32,
     pub playlist_id: Option<String>,
     pub is_published: bool,
+    pub has_youtube_video: bool,
 
     pub stream_date: Option<String>,
 
@@ -54,6 +55,7 @@ impl From<(Episode, Option<chrono::NaiveDateTime>, Option<String>)>
             is_published: episode.is_published,
 
             render_uri: episode.render_uri,
+            has_youtube_video: episode.youtube_video_id.is_some(),
 
             stream_date: stream_date
                 .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()),
@@ -85,6 +87,7 @@ impl From<Episode> for EpisodeSimpleView {
             is_published: episode.is_published,
 
             render_uri: episode.render_uri,
+            has_youtube_video: episode.youtube_video_id.is_some(),
 
             stream_date: None,
 

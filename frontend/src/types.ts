@@ -34,7 +34,17 @@ export interface VideoClip {
 export interface Stream {
   transcription_segments?: TranscriptSegment[];
 
+  series_id: string | null;
+
   video_clips: VideoClip[];
+}
+
+export interface Series {
+  created_at: string;
+  id: string;
+  title: string;
+  updated_at?: string;
+  max_episode_order_index: number;
 }
 
 export interface YoutubeUploadTaskPayload {
