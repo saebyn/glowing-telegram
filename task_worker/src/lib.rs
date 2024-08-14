@@ -201,16 +201,20 @@ fn deserialize_payload_transformer(
     let payload_transformer = match data.get("payload_transformer") {
         None => None,
         Some(payload_transformer) => {
-            match serde_json::from_str::<Vec<PayloadTransform>>(
-                payload_transformer,
-            ) {
-                Ok(payload_transformer) => Some(payload_transformer),
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to parse payload_transformer: {}",
-                        e
-                    );
-                    None
+            if payload_transformer == "null" {
+                None
+            } else {
+                match serde_json::from_str::<Vec<PayloadTransform>>(
+                    payload_transformer,
+                ) {
+                    Ok(payload_transformer) => Some(payload_transformer),
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to parse payload_transformer: {}",
+                            e
+                        );
+                        None
+                    }
                 }
             }
         }
@@ -254,6 +258,10 @@ impl TryFrom<&Task> for redis::Cmd {
             .arg(next_task)
             .arg("previous_task_id")
             .arg(previous_task_id)
+            .arg("http_method")
+            .arg(task.http_method.as_str())
+            .arg("payload_transformer")
+            .arg(serde_json::to_string(&task.payload_transformer).unwrap())
             .to_owned())
     }
 }
