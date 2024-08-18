@@ -14,3 +14,4 @@ reqwest = { version = "0.12.5", features = ["json", "rustls-tls"] }
 serde = { version = "1.0.206", features = ["derive"] }
 serde_json = "1.0.124"
 chrono = { version = "0.4.37", features = ["serde"] }
+jsonpath-rust = "0.7.0"
