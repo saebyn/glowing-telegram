@@ -19,16 +19,24 @@
  * The task worker will also publish a message to the task channel whenever the
  * status of a task changes.
  */
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
+use jsonpath_rust::JsonPath;
 use redis::{Commands, ConnectionLike};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+/**
+ * A payload transformer is a struct that contains a destination key and a
+ * source JSONPath.
+ *
+ * The source JSONPath is used to extract a value from the payload and assign it
+ * to the destination key in the transformed payload.
+ */
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PayloadTransform {
     pub destination_key: String,
-    pub source_key: String,
+    pub source_jsonpath: String,
 }
 
 fn serialize_method<S>(
@@ -119,6 +127,10 @@ pub struct TaskTemplate {
     )]
     pub http_method: reqwest::Method,
 
+    /**
+     * A list of payload transformers to apply to the payload before sending
+     * the request.
+     */
     pub payload_transformer: Option<Vec<PayloadTransform>>,
 }
 
@@ -717,8 +729,12 @@ fn apply_payload_transformers(
     let mut transformed_payload = json!({});
 
     for transformer in payload_transformer {
-        transformed_payload[&transformer.destination_key] =
-            payload[&transformer.source_key].clone();
+        let path = JsonPath::from_str(transformer.source_jsonpath.as_str())
+            .expect("Failed to parse JSONPath");
+
+        let value = path.find(payload);
+
+        transformed_payload[&transformer.destination_key] = value.clone();
     }
 
     transformed_payload

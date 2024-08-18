@@ -83,6 +83,8 @@ async fn work(
 
         let response = reqwest_client
             .request(task.http_method.clone(), &task.url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
             .json(&build_task_payload(con, &task))
             .send()
             .await

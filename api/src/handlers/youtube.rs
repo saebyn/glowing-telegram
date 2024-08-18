@@ -110,7 +110,7 @@ impl YoutubeUploadRequest {
             ),
 
             payload_transformer: Some(vec![PayloadTransform {
-                source_key: "@previous_task_data".to_string(),
+                source_jsonpath: "$['@previous_task_data'][0]".to_string(),
                 destination_key: "youtube_video_id".to_string(),
             }]),
         };
