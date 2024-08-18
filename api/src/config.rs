@@ -6,7 +6,7 @@ use redact::Secret;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
-    // `OPENAI_KEY_PATH` is the name of the environment variable
+    // `OPENAI_KEY_FILE` is the name of the environment variable
     pub openai_key: Secret<String>,
 
     pub openai_model: String,
@@ -23,7 +23,7 @@ pub struct Config {
 
     pub twitch_client_id: String,
 
-    // `TWITCH_CLIENT_SECRET_PATH` is the name of the environment variable
+    // `TWITCH_CLIENT_SECRET_FILE` is the name of the environment variable
     pub twitch_client_secret: Secret<String>,
 
     pub twitch_user_id: String,
@@ -33,7 +33,7 @@ pub struct Config {
     pub youtube_token_uri: String,
     pub youtube_client_id: String,
 
-    // `YOUTUBE_CLIENT_SECRET_PATH` is the name of the environment variable
+    // `YOUTUBE_CLIENT_SECRET_FILE` is the name of the environment variable
     pub youtube_client_secret: Secret<String>,
     pub youtube_redirect_url: String,
 
@@ -43,9 +43,7 @@ pub struct Config {
 }
 
 pub fn load_config() -> Result<Config, figment::Error> {
-    let figment = Figment::new()
-        .merge(FileAdapter::wrap(Env::raw()))
-        .join(("openai_model", "gpt-4o"))
-        .join(("http_client_agent", "glowing-telegram-api/0.1"));
+    let figment = Figment::new().merge(FileAdapter::wrap(Env::raw()));
+
     figment.extract()
 }

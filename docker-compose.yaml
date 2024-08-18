@@ -8,6 +8,7 @@ x-backend-variables: &backend-variables
   CORS_ALLOWED_ORIGINS: http://localhost:8080
   TASK_API_URL: http://api:3000/tasks
   TASK_API_EXTERNAL_URL: http://localhost:8080/api/records/tasks
+  HTTP_CLIENT_AGENT: "glowing-telegram-api/0.1"
 
 services:
   proxy:
@@ -60,26 +61,26 @@ services:
     depends_on:
       - db
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/video_processing_project
-      VIDEO_STORAGE_PATH: /obs
-      NOISE: 0.004
-      DURATION: 2.0
-      THIS_API_BASE_URL: http://api:3000
-      RENDERED_EPISODE_STORAGE_PATH: /renders
+      DATABASE_URL: "postgres://postgres:postgres@db:5432/video_processing_project"
+      VIDEO_STORAGE_PATH: "/obs"
+      NOISE: "0.004"
+      DURATION: "2.0"
+      THIS_API_BASE_URL: "http://api:3000"
+      RENDERED_EPISODE_STORAGE_PATH: "/renders"
       MODEL_PATH: /model
       REDIS_URL: redis://redis:6379
       QUEUE_NAME: task_queue
-      TWITCH_USER_ID: ${TWITCH_USER_ID}
+      TWITCH_USER_ID: \"${TWITCH_USER_ID}\"
       TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
-      TWITCH_CLIENT_SECRET_PATH: /twitch_client_secret
+      TWITCH_CLIENT_SECRET_FILE: "/twitch_client_secret"
       TWITCH_REDIRECT_URL: http://localhost:8080/twitch/callback
       YOUTUBE_AUTH_URI: http://localhost:8080/youtubeLogin
       YOUTUBE_TOKEN_URI: ${YOUTUBE_TOKEN_URI}
       YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
-      YOUTUBE_CLIENT_SECRET_PATH: /youtube_client_secret
-      YOUTUBE_REDIRECT_URL: http://localhost:8080/youtube/callback
-      OPENAI_KEY_PATH: /openai_key
-      OPENAI_MODEL: gpt-4o
+      YOUTUBE_CLIENT_SECRET_FILE: "/youtube_client_secret"
+      YOUTUBE_REDIRECT_URL: "http://localhost:8080/youtube/callback"
+      OPENAI_KEY_FILE: "/openai_key"
+      OPENAI_MODEL: "gpt-4o"
       <<: *backend-variables
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
