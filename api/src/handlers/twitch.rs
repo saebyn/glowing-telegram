@@ -30,18 +30,21 @@ impl FromRequestParts<AppState> for AccessToken {
         _parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let mut con =
-            match state.redis.get_multiplexed_async_connection().await {
-                Ok(con) => con,
-                Err(_) => {
-                    tracing::error!("failed to get redis connection");
+        let mut con = match state
+            .redis_client
+            .get_multiplexed_async_connection()
+            .await
+        {
+            Ok(con) => con,
+            Err(_) => {
+                tracing::error!("failed to get redis connection");
 
-                    return Err((
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({ "error": "internal server error" })),
-                    ));
-                }
-            };
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": "internal server error" })),
+                ));
+            }
+        };
 
         let access_token: Result<String, redis::RedisError> =
             redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
@@ -105,7 +108,7 @@ pub async fn post_login_handler(
     } = get_token(&state, code).await;
 
     let mut con = state
-        .redis
+        .redis_client
         .get_multiplexed_async_connection()
         .await
         .expect("failed to get redis connection");
@@ -327,7 +330,7 @@ pub async fn do_refresh_token(
 #[instrument]
 pub async fn update_refresh_token(state: &AppState) -> Option<AuthTokens> {
     let mut con = state
-        .redis
+        .redis_client
         .get_multiplexed_async_connection()
         .await
         .expect("failed to get redis connection");
@@ -341,7 +344,7 @@ pub async fn update_refresh_token(state: &AppState) -> Option<AuthTokens> {
     let tokens = do_refresh_token(state, refresh_token).await;
 
     let mut con = state
-        .redis
+        .redis_client
         .get_multiplexed_async_connection()
         .await
         .expect("failed to get redis connection");

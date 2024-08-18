@@ -5,7 +5,7 @@ pub struct AppState {
     pub config: config::Config,
 
     pub http_client: reqwest::Client,
-    pub redis: redis::Client,
+    pub redis_client: redis::Client,
 }
 
 impl AppState {
@@ -16,7 +16,7 @@ impl AppState {
         Self {
             config,
 
-            redis: redis::Client::open(redis_url)
+            redis_client: redis::Client::open(redis_url)
                 .expect("failed to open redis client"),
 
             http_client: reqwest::Client::builder()

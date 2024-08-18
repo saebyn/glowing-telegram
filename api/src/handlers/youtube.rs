@@ -477,18 +477,21 @@ impl FromRequestParts<AppState> for AccessToken {
         _parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let mut con =
-            match state.redis.get_multiplexed_async_connection().await {
-                Ok(con) => con,
-                Err(_) => {
-                    tracing::error!("failed to get redis connection");
+        let mut con = match state
+            .redis_client
+            .get_multiplexed_async_connection()
+            .await
+        {
+            Ok(con) => con,
+            Err(_) => {
+                tracing::error!("failed to get redis connection");
 
-                    return Err((
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({ "error": "internal server error" })),
-                    ));
-                }
-            };
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": "internal server error" })),
+                ));
+            }
+        };
 
         let access_token: Result<String, _> =
             redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
@@ -561,7 +564,7 @@ pub async fn post_login_handler(
     };
 
     let mut con = state
-        .redis
+        .redis_client
         .get_multiplexed_async_connection()
         .await
         .expect("failed to get redis connection");
@@ -593,14 +596,15 @@ pub async fn post_login_handler(
  * from the Youtube API.
  */
 async fn update_refresh_token(state: &AppState) -> Result<AuthTokens, ()> {
-    let mut con = match state.redis.get_multiplexed_async_connection().await {
-        Ok(con) => con,
-        Err(_) => {
-            tracing::error!("failed to get redis connection");
+    let mut con =
+        match state.redis_client.get_multiplexed_async_connection().await {
+            Ok(con) => con,
+            Err(_) => {
+                tracing::error!("failed to get redis connection");
 
-            return Err(());
-        }
-    };
+                return Err(());
+            }
+        };
 
     let refresh_token: Result<String, _> =
         redis::AsyncCommands::get(&mut con, REFRESH_TOKEN_KEY).await;
