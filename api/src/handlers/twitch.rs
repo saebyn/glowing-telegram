@@ -30,18 +30,21 @@ impl FromRequestParts<AppState> for AccessToken {
         _parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let mut con =
-            match state.redis.get_multiplexed_async_connection().await {
-                Ok(con) => con,
-                Err(_) => {
-                    tracing::error!("failed to get redis connection");
+        let mut con = match state
+            .redis_client
+            .get_multiplexed_async_connection()
+            .await
+        {
+            Ok(con) => con,
+            Err(_) => {
+                tracing::error!("failed to get redis connection");
 
-                    return Err((
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({ "error": "internal server error" })),
-                    ));
-                }
-            };
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": "internal server error" })),
+                ));
+            }
+        };
 
         let access_token: Result<String, redis::RedisError> =
             redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
@@ -77,8 +80,8 @@ pub async fn get_login_handler(
 
     let url = format!(
         "https://id.twitch.tv/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}",
-        state.twitch_client_id,
-        state.twitch_redirect_url,
+        state.config.twitch_client_id,
+        state.config.twitch_redirect_url,
         scopes.join("+")
     );
 
@@ -105,7 +108,7 @@ pub async fn post_login_handler(
     } = get_token(&state, code).await;
 
     let mut con = state
-        .redis
+        .redis_client
         .get_multiplexed_async_connection()
         .await
         .expect("failed to get redis connection");
@@ -142,7 +145,7 @@ pub async fn list_videos_handler(
 ) -> impl IntoResponse {
     let url = format!(
         "https://api.twitch.tv/helix/videos?user_id={}&after={}",
-        state.twitch_user_id,
+        state.config.twitch_user_id,
         match params.after {
             Some(after) => after,
             None => "".to_string(),
@@ -156,7 +159,7 @@ pub async fn list_videos_handler(
             "Authorization",
             format!("Bearer {}", access_token.expose_secret()),
         )
-        .header("Client-Id", state.twitch_client_id.clone())
+        .header("Client-Id", state.config.twitch_client_id.clone())
         .send()
         .await;
 
@@ -187,7 +190,7 @@ pub async fn list_videos_handler(
                             tokens.access_token.expose_secret()
                         ),
                     )
-                    .header("Client-Id", state.twitch_client_id.clone())
+                    .header("Client-Id", state.config.twitch_client_id.clone())
                     .send()
                     .await;
 
@@ -248,11 +251,11 @@ pub async fn get_token(state: &AppState, code: &str) -> AuthTokens {
 
     // urlencoded form data
     let body = json!({
-      "client_id": state.twitch_client_id,
-      "client_secret": state.twitch_client_secret.expose_secret(),
+      "client_id": state.config.twitch_client_id,
+      "client_secret": state.config.twitch_client_secret.expose_secret(),
       "code": code,
       "grant_type": "authorization_code",
-      "redirect_uri": state.twitch_redirect_url,
+      "redirect_uri": state.config.twitch_redirect_url,
     });
 
     let response = state
@@ -291,8 +294,8 @@ pub async fn do_refresh_token(
 
     // urlencoded form data
     let body = json!({
-      "client_id": state.twitch_client_id,
-      "client_secret": state.twitch_client_secret.expose_secret(),
+      "client_id": state.config.twitch_client_id,
+      "client_secret": state.config.twitch_client_secret.expose_secret(),
       "refresh_token": refresh_token.expose_secret(),
       "grant_type": "refresh_token",
     });
@@ -327,7 +330,7 @@ pub async fn do_refresh_token(
 #[instrument]
 pub async fn update_refresh_token(state: &AppState) -> Option<AuthTokens> {
     let mut con = state
-        .redis
+        .redis_client
         .get_multiplexed_async_connection()
         .await
         .expect("failed to get redis connection");
@@ -341,7 +344,7 @@ pub async fn update_refresh_token(state: &AppState) -> Option<AuthTokens> {
     let tokens = do_refresh_token(state, refresh_token).await;
 
     let mut con = state
-        .redis
+        .redis_client
         .get_multiplexed_async_connection()
         .await
         .expect("failed to get redis connection");

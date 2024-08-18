@@ -57,7 +57,8 @@ pub async fn find_files(
 ) -> impl IntoResponse {
     tracing::info!("find_files: {:?}", query);
 
-    let mut entries = get_entries(&state.video_storage_path, &query).await;
+    let mut entries =
+        get_entries(&state.config.video_storage_path, &query).await;
 
     // sort by filename, ascending
     entries.sort_by(|a, b| a.metadata.filename.cmp(&b.metadata.filename));
@@ -77,7 +78,7 @@ pub async fn find_rendered_episode_files(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     let mut entries = get_entries(
-        &state.rendered_episode_storage_path,
+        &state.config.rendered_episode_storage_path,
         &FindFilesQuery {
             prefix: "".to_string(),
         },

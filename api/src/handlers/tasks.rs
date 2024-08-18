@@ -22,7 +22,7 @@ use crate::state::AppState;
 pub async fn get_list_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let mut con = match state.redis.get_connection() {
+    let mut con = match state.redis_client.get_connection() {
         Ok(con) => con,
         Err(e) => {
             tracing::error!("Failed to get redis connection: {}", e);
@@ -90,7 +90,7 @@ pub async fn create_handler(
     State(state): State<AppState>,
     Json(body): Json<TaskRequest>,
 ) -> impl IntoResponse {
-    let mut con = match state.redis.get_connection() {
+    let mut con = match state.redis_client.get_connection() {
         Ok(con) => con,
         Err(e) => {
             tracing::error!("Failed to get redis connection: {}", e);
@@ -167,7 +167,7 @@ pub async fn get_one_handler(
     Path(record_id): Path<u64>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let mut con = match state.redis.get_connection() {
+    let mut con = match state.redis_client.get_connection() {
         Ok(con) => con,
         Err(e) => {
             tracing::error!("Failed to get redis connection: {}", e);
@@ -229,7 +229,7 @@ pub async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state.redis))
+    ws.on_upgrade(move |socket| handle_socket(socket, state.redis_client))
 }
 
 #[instrument]

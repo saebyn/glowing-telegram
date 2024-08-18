@@ -16,6 +16,7 @@ use tower_http::{
 use tracing::instrument;
 use tracing_subscriber::prelude::*;
 
+mod config;
 mod db;
 mod ffprobe;
 mod handlers;
@@ -29,14 +30,9 @@ mod task;
 
 #[tokio::main]
 async fn main() -> Result<(), axum::BoxError> {
-    // get path to openai key from env var
-    let openai_key_path =
-        std::env::var("OPENAI_KEY_PATH").expect("OPENAI_KEY_PATH not set");
+    let config = config::load_config().expect("failed to load config");
 
-    let openai_model =
-        std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-4o".to_string());
-
-    let state = state::AppState::new(openai_key_path, openai_model);
+    let state = state::AppState::new(config);
 
     let pool = db::create_pool().await;
 
