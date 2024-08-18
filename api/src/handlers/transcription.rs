@@ -58,7 +58,7 @@ pub async fn detect_segment(
         }
     };
 
-    let path = format!("{}/{}", state.video_storage_path, filename);
+    let path = format!("{}/{}", state.config.video_storage_path, filename);
 
     let video_duration = match get_video_duration(&path).await {
         Ok(video_duration) => video_duration,
@@ -377,9 +377,9 @@ pub async fn detect(
     let http_client = state.http_client.clone();
 
     let response = match http_client
-        .post(&state.task_api_url)
+        .post(&state.config.task_api_url)
         .json(&json!({
-            "url": format!("{}/transcription/detect/segment", state.this_api_base_url),
+            "url": format!("{}/transcription/detect/segment", state.config.this_api_base_url),
             "title": body.task_title,
             "payload": json!({
                 "uris": uris,
@@ -429,7 +429,10 @@ pub async fn detect(
         StatusCode::ACCEPTED,
         [(
             header::LOCATION,
-            format!("{}/{}", state.task_api_external_url, response_body.id),
+            format!(
+                "{}/{}",
+                state.config.task_api_external_url, response_body.id
+            ),
         )],
     )
         .into_response()

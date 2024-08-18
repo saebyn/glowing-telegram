@@ -16,11 +16,12 @@ pub async fn handler(
     // as JSON into a list of `ChatMessage` type records
     Json(payload): Json<Vec<SimpleChatMessage>>,
 ) -> impl IntoResponse {
-    let client = Client::new(state.openai_key.expose_secret().to_string());
+    let client =
+        Client::new(state.config.openai_key.expose_secret().to_string());
 
     let response = match client
         .chat()
-        .create(build_parameters(&payload, &state.openai_model))
+        .create(build_parameters(&payload, &state.config.openai_model))
         .await
     {
         Ok(response) => response,

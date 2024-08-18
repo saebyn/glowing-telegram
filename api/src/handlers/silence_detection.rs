@@ -49,8 +49,8 @@ pub async fn detect_segment(
     State(state): State<AppState>,
     Json(body): Json<DetectSegmentInput>,
 ) -> impl IntoResponse {
-    let noise = body.noise.unwrap_or(state.noise);
-    let duration = body.duration.unwrap_or(state.duration);
+    let noise = body.noise.unwrap_or(state.config.noise);
+    let duration = body.duration.unwrap_or(state.config.duration);
 
     // if no uris are provided, return an empty list of segments
     if body.uris.is_empty() {
@@ -87,7 +87,7 @@ pub async fn detect_segment(
         }
     };
 
-    let path = format!("{}/{}", state.video_storage_path, filename);
+    let path = format!("{}/{}", state.config.video_storage_path, filename);
 
     let video_duration = match get_video_duration(&path).await {
         Ok(video_duration) => video_duration,
@@ -214,13 +214,13 @@ pub async fn detect(
     let task_url = match task::start(
         task::Context {
             http_client,
-            task_api_url: state.task_api_url.clone(),
-            task_api_external_url: state.task_api_external_url.clone(),
+            task_api_url: state.config.task_api_url.clone(),
+            task_api_external_url: state.config.task_api_external_url.clone(),
         },
         TaskRequest {
             url: format!(
                 "{}/silence_detection/detect/segment",
-                state.this_api_base_url
+                state.config.this_api_base_url
             ),
             title: body.task_title,
             payload: json!({

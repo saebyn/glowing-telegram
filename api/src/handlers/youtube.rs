@@ -106,7 +106,7 @@ impl YoutubeUploadRequest {
             http_method: reqwest::Method::PUT,
             url: format!(
                 "{}/records/episodes/{}",
-                app_state.this_api_base_url, self.episode_id
+                app_state.config.this_api_base_url, self.episode_id
             ),
 
             payload_transformer: Some(vec![PayloadTransform {
@@ -121,7 +121,7 @@ impl YoutubeUploadRequest {
             Some(playlist_id) => TaskTemplate {
                 url: format!(
                     "{}/youtube/playlist/add/task",
-                    app_state.this_api_base_url
+                    app_state.config.this_api_base_url
                 ),
                 title: "Add video to playlist".to_string(),
                 payload: json!(YoutubePlaylistAddTaskPayload {
@@ -140,7 +140,7 @@ impl YoutubeUploadRequest {
         TaskRequest {
             url: format!(
                 "{}/youtube/upload/task",
-                app_state.this_api_base_url
+                app_state.config.this_api_base_url
             ),
             title: self.task_title.clone(),
             payload: json!(YoutubeUploadTaskPayload::from(self)),
@@ -170,8 +170,8 @@ pub async fn upload_start_task_handler(
     let task_url = match task::start(
         task::Context {
             http_client: state.http_client.clone(),
-            task_api_url: state.task_api_url.clone(),
-            task_api_external_url: state.task_api_external_url.clone(),
+            task_api_url: state.config.task_api_url.clone(),
+            task_api_external_url: state.config.task_api_external_url.clone(),
         },
         YoutubeUploadRequest::to_task_request(&body, &state),
     )
@@ -212,7 +212,10 @@ pub async fn upload_video_handler(
     };
 
     // get the full path to the file on disk
-    let path = format!("{}/{}", state.rendered_episode_storage_path, filename);
+    let path = format!(
+        "{}/{}",
+        state.config.rendered_episode_storage_path, filename
+    );
 
     // get the length of the file in bytes for the Content-Length header
     let content_length = match tokio::fs::metadata(&path).await {
@@ -517,11 +520,11 @@ impl FromRequestParts<AppState> for AccessToken {
 pub async fn get_login_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let mut url =
-        Url::parse(&state.youtube_auth_uri).expect("failed to parse URL");
+    let mut url = Url::parse(&state.config.youtube_auth_uri)
+        .expect("failed to parse URL");
     url.query_pairs_mut()
-        .append_pair("client_id", &state.youtube_client_id)
-        .append_pair("redirect_uri", &state.youtube_redirect_url)
+        .append_pair("client_id", &state.config.youtube_client_id)
+        .append_pair("redirect_uri", &state.config.youtube_redirect_url)
         .append_pair("response_type", "code")
         .append_pair("access_type", "offline")
         .append_pair("incude_granted_scopes", "true")
@@ -622,14 +625,14 @@ async fn update_refresh_token(state: &AppState) -> Result<AuthTokens, ()> {
  * from the Youtube API.
  */
 async fn get_token(state: &AppState, code: &str) -> Result<AuthTokens, ()> {
-    let url = state.youtube_token_uri.clone();
+    let url = state.config.youtube_token_uri.clone();
 
     let body = json!({
-        "client_id": state.youtube_client_id,
-        "client_secret": state.youtube_client_secret.expose_secret(),
+        "client_id": state.config.youtube_client_id,
+        "client_secret": state.config.youtube_client_secret.expose_secret(),
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": state.youtube_redirect_url,
+        "redirect_uri": state.config.youtube_redirect_url,
     });
 
     let response = match state.http_client.post(url).json(&body).send().await {
@@ -680,8 +683,8 @@ async fn get_refresh_token(
     let url = "https://id.youtube.tv/oauth2/token";
 
     let body = json!({
-        "client_id": state.youtube_client_id,
-        "client_secret": state.youtube_client_secret.expose_secret(),
+        "client_id": state.config.youtube_client_id,
+        "client_secret": state.config.youtube_client_secret.expose_secret(),
         "refresh_token": refresh_token,
         "grant_type": "refresh_token",
     });
