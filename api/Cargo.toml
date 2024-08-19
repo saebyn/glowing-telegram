@@ -49,3 +49,4 @@ url = "2.5.2"
 validator = { version = "0.18", features = ["derive"] }
 figment = { version = "0.10.19", features = ["toml", "env"] }
 figment_file_provider_adapter = "0.1.1"
+oauth2 = { version = "4.0.0", features = ["reqwest", "rustls-tls"] }

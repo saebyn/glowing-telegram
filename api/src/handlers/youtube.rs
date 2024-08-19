@@ -1,6 +1,14 @@
 use axum::extract::{FromRequestParts, State};
 use task_worker::{PayloadTransform, TaskRequest, TaskTemplate};
 
+use oauth2::{basic::BasicClient, StandardRevocableToken, TokenResponse};
+use oauth2::{reqwest, PkceCodeVerifier};
+use oauth2::{
+    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
+    PkceCodeChallenge, RedirectUrl, RevocationUrl, Scope, TokenUrl,
+};
+
+use crate::config;
 use crate::state::AppState;
 use crate::task::{self};
 use axum::http::request::Parts;
@@ -519,24 +527,67 @@ impl FromRequestParts<AppState> for AccessToken {
     }
 }
 
+fn get_google_oauth_client(
+    config: &config::Config,
+) -> Result<BasicClient, oauth2::url::ParseError> {
+    Ok(BasicClient::new(
+        ClientId::new(config.youtube_client_id.clone()),
+        Some(ClientSecret::new(
+            config.youtube_client_secret.expose_secret().to_string(),
+        )),
+        AuthUrl::new(config.youtube_auth_uri.clone())?,
+        Some(TokenUrl::new(config.youtube_token_uri.clone())?),
+    )
+    .set_redirect_uri(RedirectUrl::new(config.youtube_redirect_url.clone())?))
+}
+
+#[derive(Serialize, Debug)]
+struct AuthRequest {
+    authorize_url: Url,
+    csrf_state: CsrfToken,
+    pkce_code_verifier: String,
+}
+
 #[instrument]
 pub async fn get_login_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let mut url = Url::parse(&state.config.youtube_auth_uri)
-        .expect("failed to parse URL");
-    url.query_pairs_mut()
-        .append_pair("client_id", &state.config.youtube_client_id)
-        .append_pair("redirect_uri", &state.config.youtube_redirect_url)
-        .append_pair("response_type", "code")
-        .append_pair("access_type", "offline")
-        .append_pair("incude_granted_scopes", "true")
-        .append_pair("scope", "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube")
-        .finish();
+    // using oauth2 crate
+    let client = match get_google_oauth_client(&state.config) {
+        Ok(client) => client,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR,).into_response(),
+    };
 
-    let url: String = url.into();
+    let (pkce_code_challenge, pkce_code_verifier) =
+        PkceCodeChallenge::new_random_sha256();
 
-    (StatusCode::OK, Json(json!({ "url": url })))
+    let (authorize_url, csrf_state) = client
+        .authorize_url(CsrfToken::new_random)
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/youtube.upload".to_string(),
+        ))
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/youtube.readonly".to_string(),
+        ))
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/youtube".to_string(),
+        ))
+        .set_pkce_challenge(pkce_code_challenge)
+        .url();
+
+    let response = AuthRequest {
+        authorize_url,
+        csrf_state,
+        pkce_code_verifier: pkce_code_verifier.secret().to_string(),
+    };
+
+    (StatusCode::OK, Json(json!(response))).into_response()
+}
+
+struct AuthCode {
+    code: AuthorizationCode,
+    state: CsrfToken,
+    pkce_code_verifier: PkceCodeVerifier,
 }
 
 /**
@@ -549,17 +600,22 @@ pub async fn get_login_handler(
 #[instrument]
 pub async fn post_login_handler(
     State(state): State<AppState>,
-    Json(body): Json<serde_json::Value>,
+    Json(body): Json<AuthCode>,
 ) -> impl IntoResponse {
-    let code = body["code"].as_str().expect("code not found in body");
+    let client = match get_google_oauth_client(&state.config) {
+        Ok(client) => client,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR,).into_response(),
+    };
 
-    let AuthTokens {
-        access_token,
-        refresh_token,
-    } = match get_token(&state, code).await {
-        Ok(tokens) => tokens,
+    let token_response = match client
+        .exchange_code(body.code)
+        .set_pkce_verifier(body.pkce_code_verifier)
+        .request_async(&state.http_client)
+        .await
+    {
+        Ok(token_response) => token_response,
         Err(_) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR,);
+            return (StatusCode::UNAUTHORIZED,).into_response();
         }
     };
 

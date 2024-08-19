@@ -21,6 +21,7 @@ impl AppState {
 
             http_client: reqwest::Client::builder()
                 .user_agent(http_client_agent)
+                .redirect(reqwest::redirect::Policy::none())
                 .connection_verbose(false)
                 .build()
                 .expect("failed to create http client"),
