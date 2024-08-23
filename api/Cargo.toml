@@ -11,7 +11,7 @@ tokio = { version = "1.39", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.124"
 tracing = { version = "0.1.40" }
-diesel = { version = "2.1.4", features = [
+diesel = { version = "2.2.3", features = [
   "chrono",
   "uuid",
   "postgres_backend",
