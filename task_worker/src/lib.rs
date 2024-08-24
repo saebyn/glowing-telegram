@@ -1,3 +1,6 @@
+use redis::{Commands, ConnectionLike};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 /**
  * Task functions
  *
@@ -19,12 +22,7 @@
  * The task worker will also publish a message to the task channel whenever the
  * status of a task changes.
  */
-use std::{collections::HashMap, str::FromStr};
-
-use jsonpath_rust::JsonPath;
-use redis::{Commands, ConnectionLike};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+use std::collections::HashMap;
 
 /**
  * A payload transformer is a struct that contains a destination key and a
@@ -36,7 +34,7 @@ use serde_json::json;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PayloadTransform {
     pub destination_key: String,
-    pub source_jsonpath: String,
+    pub source_pointer: String,
 }
 
 fn serialize_method<S>(
@@ -729,10 +727,10 @@ fn apply_payload_transformers(
     let mut transformed_payload = json!({});
 
     for transformer in payload_transformer {
-        let path = JsonPath::from_str(transformer.source_jsonpath.as_str())
-            .expect("Failed to parse JSONPath");
-
-        let value = path.find(payload);
+        let value = payload
+            .pointer(transformer.source_pointer.as_str())
+            .expect("Failed to get value from payload")
+            .clone();
 
         transformed_payload[&transformer.destination_key] = value.clone();
     }

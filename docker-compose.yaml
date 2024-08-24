@@ -70,7 +70,7 @@ services:
       MODEL_PATH: /model
       REDIS_URL: redis://redis:6379
       QUEUE_NAME: task_queue
-      TWITCH_USER_ID: \"${TWITCH_USER_ID}\"
+      TWITCH_USER_ID: "${TWITCH_USER_ID}"
       TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
       TWITCH_CLIENT_SECRET_FILE: "/twitch_client_secret"
       TWITCH_REDIRECT_URL: http://localhost:8080/twitch/callback
