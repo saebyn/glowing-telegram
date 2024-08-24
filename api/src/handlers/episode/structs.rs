@@ -216,7 +216,8 @@ pub struct BulkCreateEpisodeRequest {
     pub records: Vec<CreateEpisodeRequest>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
+#[serde(default)]
 pub struct UpdateEpisodeRequest {
     pub title: Option<String>,
     pub description: Option<String>,

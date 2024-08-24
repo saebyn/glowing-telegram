@@ -79,13 +79,22 @@ async fn work(
 
     // loop while the cursor is not Null
     let status = loop {
-        tracing::info!("Starting task: {}", task.key);
+        tracing::info!(
+            "Starting task: {}. URL: {}. Method: {}",
+            task.key,
+            task.url,
+            task.http_method
+        );
+
+        let task_payload = build_task_payload(con, &task);
+
+        tracing::debug!("Task payload: {:?}", task_payload);
 
         let response = reqwest_client
             .request(task.http_method.clone(), &task.url)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
-            .json(&build_task_payload(con, &task))
+            .json(&task_payload)
             .send()
             .await
             .expect("Failed to get response from url");
