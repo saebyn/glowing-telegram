@@ -14,7 +14,7 @@ const twitchVideosDataProvider = {
   async getList(
     this: { cursorPage: number; cursor: string },
     _resource: string,
-    params: GetListParams
+    params: GetListParams,
   ) {
     const page = params.pagination?.page || 1;
     let cursor = "";
@@ -70,6 +70,12 @@ interface SilenceDetectionAPIDetectInput {
   duration?: number;
 }
 
+export interface AuthorizationData {
+  authorize_url: string;
+  csrf_state: string;
+  pkce_code_verifier: string;
+}
+
 export const dataProvider = {
   ...baseDataProvider,
 
@@ -93,7 +99,7 @@ export const dataProvider = {
 
   async getRenderedEpisodeFiles() {
     return fetch(
-      `${baseUrl}/stream_ingestion/find_rendered_episode_files`
+      `${baseUrl}/stream_ingestion/find_rendered_episode_files`,
     ).then((res) => res.json());
   },
 
@@ -160,7 +166,7 @@ export const dataProvider = {
   },
 
   async subscribeToTaskStatus(
-    callback: WebSocketCallback
+    callback: WebSocketCallback,
   ): Promise<() => void> {
     return GTWebSocket.getInstance(baseUrl).subscribe(callback);
   },
@@ -199,18 +205,27 @@ export const dataProvider = {
   },
 
   // youtube functions
-  async youtubeLogin() {
+  async youtubeLogin(): Promise<AuthorizationData> {
     const result = await fetch(`${baseUrl}/youtube/login`);
-    const url = (await result.json()).url;
 
-    return url;
+    return result.json();
   },
 
-  async youtubeCallback(code: string) {
+  async youtubeCallback(
+    code: string,
+    state: string,
+    csrf_state: string,
+    pkce_code_verifier: string,
+  ) {
     await fetch(`${baseUrl}/youtube/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({
+        code,
+        state,
+        csrf_state,
+        pkce_code_verifier,
+      }),
     });
   },
 

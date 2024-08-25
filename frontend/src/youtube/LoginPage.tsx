@@ -26,8 +26,22 @@ export const YoutubeLoginPage: React.FC = () => {
       return;
     }
 
+    const state = search.get("state");
+
+    if (!state) {
+      notify("Failed to log in with Youtube", {
+        type: "warning",
+        messageArgs: { smart_count: 1 },
+      });
+      return;
+    }
+
+    // TODO: Don't pass this information through the frontend
+    const csrfState = localStorage.getItem("csrf_state")!;
+    const pkceCodeVerifier = localStorage.getItem("pkce_code_verifier")!;
+
     dataProvider
-      .youtubeCallback(code)
+      .youtubeCallback(code, state, csrfState, pkceCodeVerifier)
       .then(() => {
         notify("Logged in with Youtube. You can close this window now.", {
           type: "info",

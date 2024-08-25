@@ -22,6 +22,7 @@ mod ffprobe;
 mod handlers;
 mod media;
 pub mod models;
+mod oauth;
 pub mod schema;
 mod serde;
 mod state;

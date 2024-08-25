@@ -727,11 +727,18 @@ fn apply_payload_transformers(
     let mut transformed_payload = json!({});
 
     for transformer in payload_transformer {
-        let value = payload
-            .pointer(transformer.source_pointer.as_str())
-            .expect("Failed to get value from payload")
-            .clone();
-
+        let value = match payload.pointer(transformer.source_pointer.as_str())
+        {
+            Some(value) => value,
+            None => {
+                tracing::error!(
+                    "Failed to get value from payload using pointer: {} for pyload: {}",
+                    transformer.source_pointer,
+                    payload
+                );
+                continue;
+            }
+        };
         transformed_payload[&transformer.destination_key] = value.clone();
     }
 

@@ -1,27 +1,24 @@
-use axum::extract::{FromRequestParts, State};
+use axum::extract::State;
 use task_worker::{PayloadTransform, TaskRequest, TaskTemplate};
 
+use oauth2::PkceCodeVerifier;
+use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, Scope};
+
+use crate::oauth::youtube::{get_google_oauth_client, YouTubeAccessToken};
 use crate::state::AppState;
 use crate::task::{self};
-use axum::http::request::Parts;
-use axum::{async_trait, Json};
+use axum::Json;
 use axum::{
     http::{header, StatusCode},
     response::IntoResponse,
 };
 use redact::Secret;
-use redis;
-use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::io::AsyncSeekExt;
 use tracing::instrument;
 use url::Url;
 use validator::Validate;
-
-// Redis key constants
-const ACCESS_TOKEN_KEY: &str = "youtube:access_token";
-const REFRESH_TOKEN_KEY: &str = "youtube:refresh_token";
 
 const YOUTUBE_API_QUOTA_RETRY_AFTER: u64 = 24 /* hours */ * 60 /* minutes */ * 60 /* seconds */;
 
@@ -165,7 +162,7 @@ fn default_language() -> String {
 #[instrument]
 pub async fn upload_start_task_handler(
     State(state): State<AppState>,
-    AccessToken(access_token): AccessToken,
+    YouTubeAccessToken(access_token): YouTubeAccessToken,
     Json(body): Json<YoutubeUploadRequest>,
 ) -> impl IntoResponse {
     let task_url = match task::start(
@@ -200,7 +197,7 @@ struct UploadVideoTaskOutput {
 #[instrument]
 pub async fn upload_video_handler(
     State(state): State<AppState>,
-    AccessToken(access_token): AccessToken,
+    YouTubeAccessToken(access_token): YouTubeAccessToken,
     Json(body): Json<YoutubeUploadTaskPayload>,
 ) -> impl IntoResponse {
     // extract filename from uri
@@ -417,7 +414,7 @@ pub async fn upload_video_handler(
 #[instrument]
 pub async fn add_to_playlist_task_handler(
     State(state): State<AppState>,
-    AccessToken(access_token): AccessToken,
+    YouTubeAccessToken(access_token): YouTubeAccessToken,
     Json(body): Json<YoutubePlaylistAddTaskPayload>,
 ) -> impl IntoResponse {
     let video_id = match body.previous_task_data.first() {
@@ -456,88 +453,56 @@ pub async fn add_to_playlist_task_handler(
         .into_response()
 }
 
-#[derive(Debug)]
-pub struct AuthTokens {
-    access_token: Secret<String>,
-    refresh_token: Secret<String>,
-}
-
-/**
- * Extractor for the access token from Redis.
- *
- * This is a simple extractor that gets the access token from Redis
- * and injects it into the request's extensions.
- */
-pub struct AccessToken(Secret<String>);
-
-#[async_trait]
-impl FromRequestParts<AppState> for AccessToken {
-    type Rejection = (StatusCode, Json<serde_json::Value>);
-
-    async fn from_request_parts(
-        _parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        let mut con = match state
-            .redis_client
-            .get_multiplexed_async_connection()
-            .await
-        {
-            Ok(con) => con,
-            Err(_) => {
-                tracing::error!("failed to get redis connection");
-
-                return Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "error": "internal server error" })),
-                ));
-            }
-        };
-
-        let access_token: Result<String, _> =
-            redis::AsyncCommands::get(&mut con, ACCESS_TOKEN_KEY).await;
-
-        match access_token {
-            Ok(access_token) => Ok(AccessToken(Secret::new(access_token))),
-            Err(_) => {
-                let tokens = match update_refresh_token(state).await {
-                    Ok(tokens) => tokens,
-                    Err(_) => {
-                        tracing::error!("failed to update refresh token");
-
-                        return Err((
-                            StatusCode::UNAUTHORIZED,
-                            Json(
-                                json!({ "error": "need to login to YouTube" }),
-                            ),
-                        ));
-                    }
-                };
-
-                Ok(AccessToken(tokens.access_token))
-            }
-        }
-    }
+#[derive(Serialize, Debug)]
+struct AuthRequest {
+    authorize_url: Url,
+    csrf_state: CsrfToken,
+    pkce_code_verifier: String,
 }
 
 #[instrument]
 pub async fn get_login_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let mut url = Url::parse(&state.config.youtube_auth_uri)
-        .expect("failed to parse URL");
-    url.query_pairs_mut()
-        .append_pair("client_id", &state.config.youtube_client_id)
-        .append_pair("redirect_uri", &state.config.youtube_redirect_url)
-        .append_pair("response_type", "code")
-        .append_pair("access_type", "offline")
-        .append_pair("incude_granted_scopes", "true")
-        .append_pair("scope", "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube")
-        .finish();
+    let client = match get_google_oauth_client(&state.config) {
+        Ok(client) => client,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR,).into_response(),
+    };
 
-    let url: String = url.into();
+    let (pkce_code_challenge, pkce_code_verifier) =
+        PkceCodeChallenge::new_random_sha256();
 
-    (StatusCode::OK, Json(json!({ "url": url })))
+    let (authorize_url, csrf_state) = client
+        .authorize_url(CsrfToken::new_random)
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/youtube.upload".to_string(),
+        ))
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/youtube.readonly".to_string(),
+        ))
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/youtube".to_string(),
+        ))
+        .set_pkce_challenge(pkce_code_challenge)
+        .url();
+
+    // TODO store csrf_state and pkce_code_verifier in Redis
+
+    let response = AuthRequest {
+        authorize_url,
+        csrf_state,
+        pkce_code_verifier: pkce_code_verifier.secret().to_string(),
+    };
+
+    (StatusCode::OK, Json(json!(response))).into_response()
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AuthCode {
+    code: AuthorizationCode,
+    state: CsrfToken,
+    csrf_state: CsrfToken,
+    pkce_code_verifier: PkceCodeVerifier,
 }
 
 /**
@@ -550,182 +515,45 @@ pub async fn get_login_handler(
 #[instrument]
 pub async fn post_login_handler(
     State(state): State<AppState>,
-    Json(body): Json<serde_json::Value>,
+    Json(body): Json<AuthCode>,
 ) -> impl IntoResponse {
-    let code = body["code"].as_str().expect("code not found in body");
+    // TODO get CSRF state and PKCE code verifier from Redis
 
-    let AuthTokens {
-        access_token,
-        refresh_token,
-    } = match get_token(&state, code).await {
-        Ok(tokens) => tokens,
-        Err(_) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR,);
-        }
+    let oauth2_client = match get_google_oauth_client(&state.config) {
+        Ok(client) => client,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR,).into_response(),
     };
 
-    let mut con = state
-        .redis_client
-        .get_multiplexed_async_connection()
+    // check the CSRF state
+    if body.state.secret() != body.csrf_state.secret() {
+        return (StatusCode::UNAUTHORIZED,).into_response();
+    }
+
+    // exchange the code for an access token and refresh token
+    let token_response = match oauth2_client
+        .exchange_code(body.code)
+        .set_pkce_verifier(body.pkce_code_verifier)
+        .request_async(oauth2::reqwest::async_http_client)
         .await
-        .expect("failed to get redis connection");
+    {
+        Ok(token_response) => token_response,
+        Err(_) => {
+            return (StatusCode::UNAUTHORIZED,).into_response();
+        }
+    };
 
-    let _: () = redis::AsyncCommands::set(
-        &mut con,
-        REFRESH_TOKEN_KEY,
-        refresh_token.expose_secret(),
+    match crate::oauth::save_tokens_to_redis(
+        &state.redis_client,
+        token_response,
+        crate::oauth::youtube::TOKEN_KEYS,
     )
     .await
-    .expect("failed to set refresh token");
-
-    let _: () = redis::AsyncCommands::set(
-        &mut con,
-        ACCESS_TOKEN_KEY,
-        access_token.expose_secret(),
-    )
-    .await
-    .expect("failed to set access token");
-
-    (StatusCode::ACCEPTED,)
-}
-
-/**
- * Updates the refresh token in Redis.
- *
- * This function is called when the access token is not found in Redis.
- * It uses the refresh token to get a new access token and refresh token
- * from the Youtube API.
- */
-async fn update_refresh_token(state: &AppState) -> Result<AuthTokens, ()> {
-    let mut con =
-        match state.redis_client.get_multiplexed_async_connection().await {
-            Ok(con) => con,
-            Err(_) => {
-                tracing::error!("failed to get redis connection");
-
-                return Err(());
-            }
-        };
-
-    let refresh_token: Result<String, _> =
-        redis::AsyncCommands::get(&mut con, REFRESH_TOKEN_KEY).await;
-
-    let refresh_token = match refresh_token {
-        Ok(refresh_token) => refresh_token.to_string(),
-        Err(_) => {
-            tracing::error!("failed to get refresh token from Redis");
-
-            return Err(());
-        }
+    {
+        Ok(()) => (),
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR,).into_response(),
     };
 
-    get_refresh_token(state, &refresh_token).await
-}
-
-/**
- * Gets the access token and refresh token from the Youtube API.
- *
- * This function is called when the access token is not found in Redis.
- * It uses the refresh token to get a new access token and refresh token
- * from the Youtube API.
- */
-async fn get_token(state: &AppState, code: &str) -> Result<AuthTokens, ()> {
-    let url = state.config.youtube_token_uri.clone();
-
-    let body = json!({
-        "client_id": state.config.youtube_client_id,
-        "client_secret": state.config.youtube_client_secret.expose_secret(),
-        "code": code,
-        "grant_type": "authorization_code",
-        "redirect_uri": state.config.youtube_redirect_url,
-    });
-
-    let response = match state.http_client.post(url).json(&body).send().await {
-        Ok(response) => response,
-        Err(_) => {
-            tracing::error!("failed to send request to Youtube API");
-
-            return Err(());
-        }
-    };
-
-    let response = match response.json::<serde_json::Value>().await {
-        Ok(response) => response,
-        Err(_) => {
-            tracing::error!("failed to parse response from Youtube API");
-
-            return Err(());
-        }
-    };
-
-    Ok(AuthTokens {
-        access_token: Secret::new(
-            response["access_token"]
-                .as_str()
-                .expect("access_token not found")
-                .to_string(),
-        ),
-        refresh_token: Secret::new(
-            response["refresh_token"]
-                .as_str()
-                .expect("refresh_token not found")
-                .to_string(),
-        ),
-    })
-}
-
-/**
- * Gets the access token and refresh token from the Youtube API.
- *
- * This function is called when the access token is not found in Redis.
- * It uses the refresh token to get a new access token and refresh token
- * from the Youtube API.
- */
-async fn get_refresh_token(
-    state: &AppState,
-    refresh_token: &str,
-) -> Result<AuthTokens, ()> {
-    let url = "https://id.youtube.tv/oauth2/token";
-
-    let body = json!({
-        "client_id": state.config.youtube_client_id,
-        "client_secret": state.config.youtube_client_secret.expose_secret(),
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
-    });
-
-    let response = match state.http_client.post(url).json(&body).send().await {
-        Ok(response) => response,
-        Err(_) => {
-            tracing::error!("failed to send request to Youtube API");
-
-            return Err(());
-        }
-    };
-
-    let response = match response.json::<serde_json::Value>().await {
-        Ok(response) => response,
-        Err(_) => {
-            tracing::error!("failed to parse response from Youtube API");
-
-            return Err(());
-        }
-    };
-
-    Ok(AuthTokens {
-        access_token: Secret::new(
-            response["access_token"]
-                .as_str()
-                .expect("access_token not found")
-                .to_string(),
-        ),
-        refresh_token: Secret::new(
-            response["refresh_token"]
-                .as_str()
-                .expect("refresh_token not found")
-                .to_string(),
-        ),
-    })
+    (StatusCode::ACCEPTED,).into_response()
 }
 
 enum UploadInnerStatus {
