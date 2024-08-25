@@ -118,7 +118,8 @@ impl YoutubeUploadRequest {
             ),
 
             payload_transformer: Some(vec![PayloadTransform {
-                source_jsonpath: "$['@previous_task_data'][0]".to_string(),
+                source_pointer: "/@previous_task_data/0/youtube_video_id"
+                    .to_string(),
                 destination_key: "youtube_video_id".to_string(),
             }]),
         };
