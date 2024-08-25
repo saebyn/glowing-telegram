@@ -1,18 +1,13 @@
-use axum::extract::{FromRequestParts, State};
+use axum::extract::State;
 use task_worker::{PayloadTransform, TaskRequest, TaskTemplate};
 
-use oauth2::basic::BasicClient;
 use oauth2::PkceCodeVerifier;
-use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
-    PkceCodeChallenge, RedirectUrl, Scope, TokenUrl,
-};
+use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, Scope};
 
-use crate::config;
+use crate::oauth::youtube::{get_google_oauth_client, YouTubeAccessToken};
 use crate::state::AppState;
 use crate::task::{self};
-use axum::http::request::Parts;
-use axum::{async_trait, Json};
+use axum::Json;
 use axum::{
     http::{header, StatusCode},
     response::IntoResponse,
@@ -24,13 +19,6 @@ use tokio::io::AsyncSeekExt;
 use tracing::instrument;
 use url::Url;
 use validator::Validate;
-
-// Redis key constants
-const TOKEN_KEYS: crate::oauth::RedisTokenStorageKeys =
-    crate::oauth::RedisTokenStorageKeys {
-        access_token_key: "youtube:access_token",
-        refresh_token_key: "youtube:refresh_token",
-    };
 
 const YOUTUBE_API_QUOTA_RETRY_AFTER: u64 = 24 /* hours */ * 60 /* minutes */ * 60 /* seconds */;
 
@@ -174,7 +162,7 @@ fn default_language() -> String {
 #[instrument]
 pub async fn upload_start_task_handler(
     State(state): State<AppState>,
-    AccessToken(access_token): AccessToken,
+    YouTubeAccessToken(access_token): YouTubeAccessToken,
     Json(body): Json<YoutubeUploadRequest>,
 ) -> impl IntoResponse {
     let task_url = match task::start(
@@ -209,7 +197,7 @@ struct UploadVideoTaskOutput {
 #[instrument]
 pub async fn upload_video_handler(
     State(state): State<AppState>,
-    AccessToken(access_token): AccessToken,
+    YouTubeAccessToken(access_token): YouTubeAccessToken,
     Json(body): Json<YoutubeUploadTaskPayload>,
 ) -> impl IntoResponse {
     // extract filename from uri
@@ -426,7 +414,7 @@ pub async fn upload_video_handler(
 #[instrument]
 pub async fn add_to_playlist_task_handler(
     State(state): State<AppState>,
-    AccessToken(access_token): AccessToken,
+    YouTubeAccessToken(access_token): YouTubeAccessToken,
     Json(body): Json<YoutubePlaylistAddTaskPayload>,
 ) -> impl IntoResponse {
     let video_id = match body.previous_task_data.first() {
@@ -465,58 +453,6 @@ pub async fn add_to_playlist_task_handler(
         .into_response()
 }
 
-/**
- * Extractor for the access token from Redis.
- *
- * This is a simple extractor that gets the access token from Redis
- * and injects it into the request's extensions.
- */
-pub struct AccessToken(Secret<String>);
-
-#[async_trait]
-impl FromRequestParts<AppState> for AccessToken {
-    type Rejection = (StatusCode, Json<serde_json::Value>);
-
-    async fn from_request_parts(
-        _parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        let access_token = crate::oauth::get_access_token(
-            &state.redis_client,
-            &state.config,
-            get_google_oauth_client,
-            TOKEN_KEYS,
-        );
-
-        match access_token.await {
-            Ok(access_token) => Ok(AccessToken(access_token)),
-            Err(e) => {
-                tracing::error!("failed to get access token: {:?}", e);
-                Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    axum::Json(
-                        json!({ "error": "failed to get access token" }),
-                    ),
-                ))
-            }
-        }
-    }
-}
-
-fn get_google_oauth_client(
-    config: &config::Config,
-) -> Result<BasicClient, oauth2::url::ParseError> {
-    Ok(BasicClient::new(
-        ClientId::new(config.youtube_client_id.clone()),
-        Some(ClientSecret::new(
-            config.youtube_client_secret.expose_secret().to_string(),
-        )),
-        AuthUrl::new(config.youtube_auth_uri.clone())?,
-        Some(TokenUrl::new(config.youtube_token_uri.clone())?),
-    )
-    .set_redirect_uri(RedirectUrl::new(config.youtube_redirect_url.clone())?))
-}
-
 #[derive(Serialize, Debug)]
 struct AuthRequest {
     authorize_url: Url,
@@ -528,7 +464,6 @@ struct AuthRequest {
 pub async fn get_login_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    // using oauth2 crate
     let client = match get_google_oauth_client(&state.config) {
         Ok(client) => client,
         Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR,).into_response(),
@@ -550,6 +485,8 @@ pub async fn get_login_handler(
         ))
         .set_pkce_challenge(pkce_code_challenge)
         .url();
+
+    // TODO store csrf_state and pkce_code_verifier in Redis
 
     let response = AuthRequest {
         authorize_url,
@@ -580,6 +517,8 @@ pub async fn post_login_handler(
     State(state): State<AppState>,
     Json(body): Json<AuthCode>,
 ) -> impl IntoResponse {
+    // TODO get CSRF state and PKCE code verifier from Redis
+
     let oauth2_client = match get_google_oauth_client(&state.config) {
         Ok(client) => client,
         Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR,).into_response(),
@@ -606,7 +545,7 @@ pub async fn post_login_handler(
     match crate::oauth::save_tokens_to_redis(
         &state.redis_client,
         token_response,
-        TOKEN_KEYS,
+        crate::oauth::youtube::TOKEN_KEYS,
     )
     .await
     {

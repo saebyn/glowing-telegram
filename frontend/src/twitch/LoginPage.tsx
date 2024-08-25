@@ -13,6 +13,7 @@ export const TwitchLoginPage: React.FC = () => {
   const dataProvider = useDataProvider();
   const notify = useNotify();
   const redirect = useRedirect();
+  const prevCode = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     const search = new URLSearchParams(location.search);
@@ -25,6 +26,12 @@ export const TwitchLoginPage: React.FC = () => {
       });
       return;
     }
+
+    if (prevCode.current === code) {
+      return;
+    }
+
+    prevCode.current = code;
 
     dataProvider
       .twitchCallback(code)

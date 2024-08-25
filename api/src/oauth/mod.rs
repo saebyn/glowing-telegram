@@ -3,18 +3,20 @@ use redact::Secret;
 
 use crate::config::Config;
 
+pub mod twitch;
+pub mod youtube;
+
 pub struct RedisTokenStorageKeys<'a> {
     pub access_token_key: &'a str,
     pub refresh_token_key: &'a str,
 }
 
-pub async fn save_tokens_to_redis<EF, TT>(
+pub async fn save_tokens_to_redis<TT>(
     redis_client: &redis::Client,
-    token_response: oauth2::StandardTokenResponse<EF, TT>,
+    token_response: impl TokenResponse<TT>,
     keys: RedisTokenStorageKeys<'_>,
 ) -> Result<(), String>
 where
-    EF: oauth2::ExtraTokenFields,
     TT: oauth2::TokenType,
 {
     let access_token = token_response.access_token().secret().to_string();
@@ -78,11 +80,11 @@ where
     Ok(())
 }
 
-pub fn calculate_access_token_ttl<EF, TT>(
-    token_response: oauth2::StandardTokenResponse<EF, TT>,
+pub fn calculate_access_token_ttl<TR, TT>(
+    token_response: TR,
 ) -> std::time::Duration
 where
-    EF: oauth2::ExtraTokenFields,
+    TR: TokenResponse<TT>,
     TT: oauth2::TokenType,
 {
     (match token_response.expires_in() {
@@ -101,11 +103,19 @@ where
  * It uses the refresh token to get a new access token and refresh token
  * from the Youtube API.
  */
-pub async fn refresh_access_token(
+pub async fn refresh_access_token<TE, TR, TT, TIR, RT, TRE>(
     redis_client: &redis::Client,
-    oauth2_client: &oauth2::basic::BasicClient,
+    oauth2_client: &oauth2::Client<TE, TR, TT, TIR, RT, TRE>,
     keys: RedisTokenStorageKeys<'_>,
-) -> Result<Secret<String>, String> {
+) -> Result<Secret<String>, String>
+where
+    TE: oauth2::ErrorResponse + 'static,
+    TR: oauth2::TokenResponse<TT>,
+    TT: oauth2::TokenType,
+    TIR: oauth2::TokenIntrospectionResponse<TT>,
+    RT: oauth2::RevocableToken,
+    TRE: oauth2::ErrorResponse + 'static,
+{
     let mut con = match redis_client.get_multiplexed_async_connection().await {
         Ok(con) => con,
         Err(_) => {
@@ -168,14 +178,20 @@ pub async fn refresh_access_token(
     Ok(Secret::new(access_token))
 }
 
-pub async fn get_access_token<F, FE>(
+pub async fn get_access_token<F, FE, TE, TR, TT, TIR, RT, TRE>(
     redis_client: &redis::Client,
     config: &Config,
     oauth2_client_builder: F,
     keys: RedisTokenStorageKeys<'_>,
 ) -> Result<Secret<String>, String>
 where
-    F: FnOnce(&Config) -> Result<oauth2::basic::BasicClient, FE>,
+    F: FnOnce(&Config) -> Result<oauth2::Client<TE, TR, TT, TIR, RT, TRE>, FE>,
+    TE: oauth2::ErrorResponse + 'static,
+    TR: oauth2::TokenResponse<TT>,
+    TT: oauth2::TokenType,
+    TIR: oauth2::TokenIntrospectionResponse<TT>,
+    RT: oauth2::RevocableToken,
+    TRE: oauth2::ErrorResponse + 'static,
 {
     let mut con = match redis_client.get_multiplexed_async_connection().await {
         Ok(con) => con,
