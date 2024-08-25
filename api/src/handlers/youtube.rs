@@ -1,12 +1,12 @@
 use axum::extract::{FromRequestParts, State};
 use task_worker::{PayloadTransform, TaskRequest, TaskTemplate};
 
-use oauth2::{basic::BasicClient, StandardRevocableToken, TokenResponse};
-use oauth2::{reqwest, PkceCodeVerifier};
+use oauth2::basic::BasicClient;
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
-    PkceCodeChallenge, RedirectUrl, RevocationUrl, Scope, TokenUrl,
+    PkceCodeChallenge, RedirectUrl, RefreshToken, Scope, TokenUrl,
 };
+use oauth2::{PkceCodeVerifier, TokenResponse};
 
 use crate::config;
 use crate::state::AppState;
@@ -19,7 +19,6 @@ use axum::{
 };
 use redact::Secret;
 use redis;
-use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::io::AsyncSeekExt;
@@ -464,12 +463,6 @@ pub async fn add_to_playlist_task_handler(
         .into_response()
 }
 
-#[derive(Debug)]
-pub struct AuthTokens {
-    access_token: Secret<String>,
-    refresh_token: Secret<String>,
-}
-
 /**
  * Extractor for the access token from Redis.
  *
@@ -508,8 +501,8 @@ impl FromRequestParts<AppState> for AccessToken {
         match access_token {
             Ok(access_token) => Ok(AccessToken(Secret::new(access_token))),
             Err(_) => {
-                let tokens = match update_refresh_token(state).await {
-                    Ok(tokens) => tokens,
+                let access_token = match refresh_access_token(state).await {
+                    Ok(access_token) => access_token,
                     Err(_) => {
                         tracing::error!("failed to update refresh token");
 
@@ -522,7 +515,7 @@ impl FromRequestParts<AppState> for AccessToken {
                     }
                 };
 
-                Ok(AccessToken(tokens.access_token))
+                Ok(AccessToken(access_token))
             }
         }
     }
@@ -585,9 +578,11 @@ pub async fn get_login_handler(
     (StatusCode::OK, Json(json!(response))).into_response()
 }
 
-struct AuthCode {
+#[derive(Deserialize, Debug)]
+pub struct AuthCode {
     code: AuthorizationCode,
     state: CsrfToken,
+    csrf_state: CsrfToken,
     pkce_code_verifier: PkceCodeVerifier,
 }
 
@@ -603,15 +598,21 @@ pub async fn post_login_handler(
     State(state): State<AppState>,
     Json(body): Json<AuthCode>,
 ) -> impl IntoResponse {
-    let client = match get_google_oauth_client(&state.config) {
+    let oauth2_client = match get_google_oauth_client(&state.config) {
         Ok(client) => client,
         Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR,).into_response(),
     };
 
-    let token_response = match client
+    // check the CSRF state
+    if body.state.secret() != body.csrf_state.secret() {
+        return (StatusCode::UNAUTHORIZED,).into_response();
+    }
+
+    // exchange the code for an access token and refresh token
+    let token_response = match oauth2_client
         .exchange_code(body.code)
         .set_pkce_verifier(body.pkce_code_verifier)
-        .request_async(&state.http_client)
+        .request_async(oauth2::reqwest::async_http_client)
         .await
     {
         Ok(token_response) => token_response,
@@ -620,39 +621,81 @@ pub async fn post_login_handler(
         }
     };
 
-    let mut con = state
-        .redis_client
-        .get_multiplexed_async_connection()
+    let access_token = token_response.access_token().secret().to_string();
+    let refresh_token = token_response
+        .refresh_token()
+        .map(|t| t.secret().to_string());
+
+    let mut con =
+        match state.redis_client.get_multiplexed_async_connection().await {
+            Ok(con) => con,
+            Err(e) => {
+                tracing::error!(
+                    "failed to get redis connection for login: {:?}",
+                    e
+                );
+
+                return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
+            }
+        };
+
+    if let Some(refresh_token) = refresh_token {
+        match redis::AsyncCommands::set(
+            &mut con,
+            REFRESH_TOKEN_KEY,
+            refresh_token,
+        )
         .await
-        .expect("failed to get redis connection");
+        {
+            Ok(()) => (),
+            Err(e) => {
+                tracing::error!(
+                    "failed to set refresh token in Redis: {:?}",
+                    e
+                );
 
-    let _: () = redis::AsyncCommands::set(
-        &mut con,
-        REFRESH_TOKEN_KEY,
-        refresh_token.expose_secret(),
-    )
-    .await
-    .expect("failed to set refresh token");
+                return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
+            }
+        };
+    }
 
-    let _: () = redis::AsyncCommands::set(
+    let access_token_ttl = calculate_access_token_ttl(token_response);
+
+    let set_options = redis::SetOptions::default()
+        .with_expiration(redis::SetExpiry::EX(access_token_ttl.as_secs()));
+
+    match redis::AsyncCommands::set_options(
         &mut con,
         ACCESS_TOKEN_KEY,
-        access_token.expose_secret(),
+        access_token,
+        set_options,
     )
     .await
-    .expect("failed to set access token");
+    {
+        Ok(()) => (),
+        Err(e) => {
+            tracing::error!("failed to set access token in Redis: {:?}", e);
 
-    (StatusCode::ACCEPTED,)
+            return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
+        }
+    };
+
+    (StatusCode::ACCEPTED,).into_response()
 }
 
 /**
- * Updates the refresh token in Redis.
+ * Get new access token with the refresh token.
  *
  * This function is called when the access token is not found in Redis.
  * It uses the refresh token to get a new access token and refresh token
  * from the Youtube API.
  */
-async fn update_refresh_token(state: &AppState) -> Result<AuthTokens, ()> {
+async fn refresh_access_token(state: &AppState) -> Result<Secret<String>, ()> {
+    let oauth2_client = match get_google_oauth_client(&state.config) {
+        Ok(client) => client,
+        Err(_) => return Err(()),
+    };
+
     let mut con =
         match state.redis_client.get_multiplexed_async_connection().await {
             Ok(con) => con,
@@ -663,125 +706,68 @@ async fn update_refresh_token(state: &AppState) -> Result<AuthTokens, ()> {
             }
         };
 
-    let refresh_token: Result<String, _> =
-        redis::AsyncCommands::get(&mut con, REFRESH_TOKEN_KEY).await;
+    let refresh_token: String =
+        match redis::AsyncCommands::get(&mut con, REFRESH_TOKEN_KEY).await {
+            Ok(refresh_token) => refresh_token,
+            Err(_) => {
+                tracing::error!("failed to get refresh token from Redis");
 
-    let refresh_token = match refresh_token {
-        Ok(refresh_token) => refresh_token.to_string(),
+                return Err(());
+            }
+        };
+
+    let token_response = match oauth2_client
+        .exchange_refresh_token(&RefreshToken::new(refresh_token.to_string()))
+        .request_async(oauth2::reqwest::async_http_client)
+        .await
+    {
+        Ok(token_response) => token_response,
         Err(_) => {
-            tracing::error!("failed to get refresh token from Redis");
+            tracing::error!("failed to refresh access token");
 
             return Err(());
         }
     };
 
-    get_refresh_token(state, &refresh_token).await
+    let access_token = token_response.access_token().secret().to_string();
+    let access_token_ttl = calculate_access_token_ttl(token_response);
+
+    let set_options = redis::SetOptions::default()
+        .with_expiration(redis::SetExpiry::EX(access_token_ttl.as_secs()));
+
+    match redis::AsyncCommands::set_options(
+        &mut con,
+        ACCESS_TOKEN_KEY,
+        access_token.clone(),
+        set_options,
+    )
+    .await
+    {
+        Ok(()) => (),
+        Err(_) => {
+            tracing::error!("failed to set access token in Redis");
+
+            return Err(());
+        }
+    };
+
+    Ok(Secret::new(access_token))
 }
 
-/**
- * Gets the access token and refresh token from the Youtube API.
- *
- * This function is called when the access token is not found in Redis.
- * It uses the refresh token to get a new access token and refresh token
- * from the Youtube API.
- */
-async fn get_token(state: &AppState, code: &str) -> Result<AuthTokens, ()> {
-    let url = state.config.youtube_token_uri.clone();
-
-    let body = json!({
-        "client_id": state.config.youtube_client_id,
-        "client_secret": state.config.youtube_client_secret.expose_secret(),
-        "code": code,
-        "grant_type": "authorization_code",
-        "redirect_uri": state.config.youtube_redirect_url,
-    });
-
-    let response = match state.http_client.post(url).json(&body).send().await {
-        Ok(response) => response,
-        Err(_) => {
-            tracing::error!("failed to send request to Youtube API");
-
-            return Err(());
+fn calculate_access_token_ttl<EF, TT>(
+    token_response: oauth2::StandardTokenResponse<EF, TT>,
+) -> std::time::Duration
+where
+    EF: oauth2::ExtraTokenFields,
+    TT: oauth2::TokenType,
+{
+    (match token_response.expires_in() {
+        Some(duration) => duration,
+        None => {
+            tracing::debug!("access token duration not found in google oauth response, using 1 hour");
+            std::time::Duration::from_secs(3600)
         }
-    };
-
-    let response = match response.json::<serde_json::Value>().await {
-        Ok(response) => response,
-        Err(_) => {
-            tracing::error!("failed to parse response from Youtube API");
-
-            return Err(());
-        }
-    };
-
-    Ok(AuthTokens {
-        access_token: Secret::new(
-            response["access_token"]
-                .as_str()
-                .expect("access_token not found")
-                .to_string(),
-        ),
-        refresh_token: Secret::new(
-            response["refresh_token"]
-                .as_str()
-                .expect("refresh_token not found")
-                .to_string(),
-        ),
-    })
-}
-
-/**
- * Gets the access token and refresh token from the Youtube API.
- *
- * This function is called when the access token is not found in Redis.
- * It uses the refresh token to get a new access token and refresh token
- * from the Youtube API.
- */
-async fn get_refresh_token(
-    state: &AppState,
-    refresh_token: &str,
-) -> Result<AuthTokens, ()> {
-    let url = "https://id.youtube.tv/oauth2/token";
-
-    let body = json!({
-        "client_id": state.config.youtube_client_id,
-        "client_secret": state.config.youtube_client_secret.expose_secret(),
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
-    });
-
-    let response = match state.http_client.post(url).json(&body).send().await {
-        Ok(response) => response,
-        Err(_) => {
-            tracing::error!("failed to send request to Youtube API");
-
-            return Err(());
-        }
-    };
-
-    let response = match response.json::<serde_json::Value>().await {
-        Ok(response) => response,
-        Err(_) => {
-            tracing::error!("failed to parse response from Youtube API");
-
-            return Err(());
-        }
-    };
-
-    Ok(AuthTokens {
-        access_token: Secret::new(
-            response["access_token"]
-                .as_str()
-                .expect("access_token not found")
-                .to_string(),
-        ),
-        refresh_token: Secret::new(
-            response["refresh_token"]
-                .as_str()
-                .expect("refresh_token not found")
-                .to_string(),
-        ),
-    })
+    } - std::time::Duration::from_secs(5))
 }
 
 enum UploadInnerStatus {
