@@ -145,8 +145,8 @@ where
         .await
     {
         Ok(token_response) => token_response,
-        Err(_) => {
-            tracing::error!("failed to refresh access token");
+        Err(e) => {
+            tracing::error!("failed to refresh access token: {:?}", e);
 
             return Err("Failed to refresh access token".to_string());
         }
