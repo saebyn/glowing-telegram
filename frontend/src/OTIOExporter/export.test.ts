@@ -1,6 +1,6 @@
 import { expect, describe, it } from "vitest";
 
-import exportOTIO, { generateChildren } from "./export";
+import exportOTIO, { generateChildren, OTIOError } from "./export";
 import { InternalTrack, ConvertedEpisode } from "./types";
 import { Stream, Episode } from "../types";
 
@@ -322,5 +322,22 @@ describe("exportOTIO", () => {
     const actual = exportOTIO(episode, stream);
 
     expect(actual).toMatchFileSnapshot("__snapshots__/test1.otio");
+  });
+
+  it("should throw an OTIOError if generateChildren returns an empty array", () => {
+    const episode: Episode = {
+      title: "ConvertedEpisode 1",
+      description: "This is convertedepisode 1",
+      tracks: [
+        { start: "PT0S", end: "PT100S" },
+        { start: "PT200S", end: "PT300S" },
+      ],
+    };
+
+    const stream: Stream = {
+      video_clips: [],
+    };
+
+    expect(() => exportOTIO(episode, stream)).toThrowError(OTIOError);
   });
 });
