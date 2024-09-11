@@ -150,7 +150,7 @@ describe("generateChildren", () => {
     expect(result).toEqual([]);
   });
 
-  it("should return an empty array if the convertedepisode tracks are outside the video clips", () => {
+  it("should throw an OTIOError if the convertedepisode has tracks that are not covered by the video clips", () => {
     const convertedepisode: ConvertedEpisode = {
       title: "ConvertedEpisode 6",
       description: "This is convertedepisode 6",
@@ -168,9 +168,9 @@ describe("generateChildren", () => {
       ],
     };
 
-    const result = generateChildren(convertedepisode, stream);
-
-    expect(result).toEqual([]);
+    expect(() => generateChildren(convertedepisode, stream)).toThrowError(
+      OTIOError,
+    );
   });
 
   it('should work with "real" data', () => {
