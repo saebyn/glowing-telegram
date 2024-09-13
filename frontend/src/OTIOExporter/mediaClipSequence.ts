@@ -10,7 +10,7 @@ interface MediaClipCursor {
 
 export function findMediaClipCursorStart(
   clips: ConvertedCut[],
-  time: number
+  time: number,
 ): MediaClipCursor | null {
   const clip = clips.find((clip) => {
     if (time >= clip.start && time < clip.end) {
@@ -31,10 +31,13 @@ export function findMediaClipCursorStart(
 
 export function findMediaClipCursorEnd(
   clips: ConvertedCut[],
-  time: number
+  time: number,
 ): MediaClipCursor | null {
   const clip = clips.find((clip) => {
-    if (time > clip.start && time <= clip.end) {
+    const startsAfter = time > clip.start;
+    const endsBefore = time <= clip.end;
+    const isLastClip = clips.indexOf(clip) === clips.length - 1;
+    if (startsAfter && (endsBefore || isLastClip)) {
       return true;
     }
   });
@@ -53,7 +56,7 @@ export function findMediaClipCursorEnd(
 export function findMediaClipCursors(
   clips: ConvertedCut[],
   start: MediaClipCursor,
-  end: MediaClipCursor
+  end: MediaClipCursor,
 ): MediaClipCursor[] {
   const cursors = [];
 
@@ -74,7 +77,7 @@ export function sameMediaClip(a: MediaClipCursor, b: MediaClipCursor): boolean {
 
 export function convertMediaClipCursorToInternalTrack(
   videoClips: VideoClip[],
-  cursor: MediaClipCursor
+  cursor: MediaClipCursor,
 ): InternalTrack {
   const clip = videoClips[cursor.clipIndex];
   return {

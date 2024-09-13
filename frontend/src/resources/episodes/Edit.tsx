@@ -70,7 +70,11 @@ const EpisodeEdit = () => (
       </ArrayInput>
 
       <ReferenceInput source="stream_id" reference="streams">
-        <SelectInput optionText="title" />
+        <SelectInput
+          optionText={(record) =>
+            `${new Date(record.stream_date).toDateString()} (${record.title})`
+          }
+        />
       </ReferenceInput>
 
       <BooleanInput source="notify_subscribers" />
