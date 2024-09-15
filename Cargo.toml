@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["api", "task_worker"]
+members = ["api", "gt_ffmpeg", "task_worker", "video_ingestor"]
 
 [workspace.lints.clippy]
 # Lint groups

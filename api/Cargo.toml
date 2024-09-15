@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+gt_ffmpeg = { path = "../gt_ffmpeg" }
 axum = { version = "0.7.5", features = ["ws"] }
 tokio = { version = "1.39", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

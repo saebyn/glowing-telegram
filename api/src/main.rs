@@ -18,7 +18,6 @@ use tracing_subscriber::prelude::*;
 
 mod config;
 mod db;
-mod ffprobe;
 mod handlers;
 mod media;
 pub mod models;

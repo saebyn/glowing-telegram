@@ -1,10 +1,11 @@
+use std::process::Stdio;
+
 use crate::media::get_video_duration;
 use crate::structs::Segment;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use reqwest::header;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::process::Stdio;
 use tokio::process::Command;
 use tracing::{debug, instrument};
 
@@ -71,25 +72,22 @@ pub async fn detect_segment(
         }
     };
 
-    let audio_extraction = match Command::new("ffmpeg")
-        .arg("-hide_banner")
-        .arg("-i")
-        .arg(path)
-        .arg("-map")
-        .arg(format!("0:a:{}", body.track))
-        .arg("-acodec")
-        .arg("pcm_s16le")
-        .arg("-ac")
-        .arg("1")
-        .arg("-ar")
-        .arg("16000")
-        .arg("-f")
-        .arg("wav")
-        .arg("-")
-        .stdout(Stdio::piped())
-        .spawn()
-    {
-        Ok(process) => process,
+    let audio =
+        match gt_ffmpeg::audio_extraction::extract(&path, body.track as u32) {
+            Ok(stdout) => stdout,
+            Err(e) => {
+                tracing::error!("Failed to extract audio: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(json!({ "error": "no stdout" })),
+                )
+                    .into_response();
+            }
+        };
+
+    // make a temp dir for the transcription
+    let temp_dir = match tempfile::tempdir() {
+        Ok(temp_dir) => temp_dir,
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -99,33 +97,8 @@ pub async fn detect_segment(
         }
     };
 
-    let audio = match audio_extraction.stdout {
-        Some(stdout) => {
-            let audio: Stdio = match stdout.try_into() {
-                Ok(audio) => audio,
-                Err(e) => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        axum::Json(json!({ "error": e.to_string() })),
-                    )
-                        .into_response()
-                }
-            };
-
-            audio
-        }
-        None => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(json!({ "error": "no stdout" })),
-            )
-                .into_response()
-        }
-    };
-
-    // make a temp dir for the transcription
-    let temp_dir = match tempfile::tempdir() {
-        Ok(temp_dir) => temp_dir,
+    let audio: Stdio = match audio.try_into() {
+        Ok(audio) => audio,
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
