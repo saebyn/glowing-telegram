@@ -112,7 +112,7 @@ const FormIterator = ({ children, ...props }: any) => {
 const StreamVideoClipsInput = (props: any) => {
   return (
     <ArrayInput {...props}>
-      <FormIterator inline>
+      <FormIterator inline source={props.source}>
         <TextInput source="title" required />
         <TextInput source="uri" required />
         <TextInput source="duration" required />

@@ -22,19 +22,30 @@ function promptDownload(episode: any, stream: any) {
   // take the episode data and use the OTIOExporter to genrate the OTIO string
   // then create a blob object and create a download link
   // then click the link to download the file
-  const otioString = exporter(
-    {
-      title: episode.title,
-      description: episode.description,
-      tracks: episode.tracks.map((track: { start: string; end: string }) => ({
-        start: track.start,
-        end: track.end,
-      })),
-    },
-    {
-      video_clips: videoClips,
-    }
-  );
+  let otioString;
+  try {
+    otioString = exporter(
+      {
+        title: episode.title,
+        description: episode.description,
+        tracks: episode.tracks.map((track: { start: string; end: string }) => ({
+          start: track.start,
+          end: track.end,
+        })),
+      },
+      {
+        video_clips: videoClips,
+      },
+    );
+  } catch (e) {
+    console.error("Error exporting OTIO file", e, {
+      episode,
+      stream,
+    });
+
+    alert("Error exporting OTIO file. See console for details.");
+    return;
+  }
 
   const blob = new Blob([otioString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -58,7 +69,7 @@ export const ExportButton = () => {
     { id: episode?.stream_id },
     {
       enabled: !!episode,
-    }
+    },
   );
 
   if (!episode) {

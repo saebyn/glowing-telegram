@@ -11,6 +11,13 @@ import {
 } from "./mediaClipSequence";
 import { ConvertedCut, ConvertedEpisode, InternalTrack } from "./types";
 
+export class OTIOError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OTIOError";
+  }
+}
+
 /**
  * Extracts the filename from a path.
  * Should return the last part of the path, after the last '/' or '\'.
@@ -67,7 +74,7 @@ interface OTIOTransition {
 function createTransition(
   effectName: string,
   start: number,
-  end: number
+  end: number,
 ): OTIOTransition {
   return {
     OTIO_SCHEMA: "Transition.1",
@@ -181,7 +188,7 @@ function createOTIOClip(
   start: number,
   duration: number,
   mediaStart: number,
-  mediaDuration: number
+  mediaDuration: number,
 ): OTIOClip {
   return {
     OTIO_SCHEMA: "Clip.2",
@@ -239,11 +246,15 @@ function createOTIOClip(
  *
  */
 function internalToOTIO(children: InternalTrack[]): string {
+  if (children.length === 0) {
+    throw new OTIOError("No children to export");
+  }
+
   const startTransition = createTransition("Hexagon Iris", 0, 20);
 
   const totalMediaDurationFrames = children.reduce(
     (acc, track) => acc + track.durationFrames,
-    0
+    0,
   );
 
   const videoSubTracks = children.map((track) => {
@@ -596,7 +607,7 @@ function internalToOTIO(children: InternalTrack[]): string {
             rate: new Float(60),
             value: new Float(
               // media duration - (start buffer + live on twitch + gap + like reminder) - outro transition
-              totalMediaDurationFrames - (1910 + 106 + 1816 + 300) - 194
+              totalMediaDurationFrames - (1910 + 106 + 1816 + 300) - 194,
             ),
           },
           start_time: {
@@ -691,7 +702,7 @@ function internalToOTIO(children: InternalTrack[]): string {
 function convertStreamToCutSequence(stream: Stream): ConvertedCut[] {
   function fn(
     acc: { elapsed: number; clips: ConvertedCut[] },
-    clip: VideoClip
+    clip: VideoClip,
   ): { elapsed: number; clips: ConvertedCut[] } {
     return {
       clips: [
@@ -713,7 +724,7 @@ function convertStreamToCutSequence(stream: Stream): ConvertedCut[] {
 
 export function generateChildren(
   episode: ConvertedEpisode,
-  stream: Stream
+  stream: Stream,
 ): InternalTrack[] {
   if (episode.tracks.length === 0) {
     console.warn("No tracks to export");
@@ -732,8 +743,8 @@ export function generateChildren(
     const mediaEnd = findMediaClipCursorEnd(cutSequence, cut.end);
 
     if (!mediaStart || !mediaEnd) {
-      console.warn("Could not find media clips for cut", cut);
-      return [];
+      console.error("Could not find media clips for cut", cut);
+      throw new OTIOError("Could not find media clips for cut");
     }
 
     if (sameMediaClip(mediaStart, mediaEnd)) {
@@ -750,11 +761,11 @@ export function generateChildren(
     const mediaIntermediates = findMediaClipCursors(
       cutSequence,
       mediaStart,
-      mediaEnd
+      mediaEnd,
     );
 
     return [mediaStart, ...mediaIntermediates, mediaEnd].map((cursor) =>
-      convertMediaClipCursorToInternalTrack(stream.video_clips, cursor)
+      convertMediaClipCursorToInternalTrack(stream.video_clips, cursor),
     );
   });
 }
