@@ -72,3 +72,10 @@ video_archive = aws_native.s3.Bucket(
     },
     opts=pulumi.ResourceOptions(protect=True),
 )
+
+ecr_repository = aws_native.ecr.Repository(
+    "ecr-repository",
+    image_scanning_configuration={
+        "scan_on_push": True,
+    },
+)
