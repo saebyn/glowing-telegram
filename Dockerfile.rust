@@ -45,6 +45,7 @@ WORKDIR /app/${SERVICE_NAME}
 COPY --from=planner /app/${SERVICE_NAME}/recipe.json recipe.json
 
 COPY task_worker /app/task_worker
+COPY gt_ffmpeg /app/gt_ffmpeg
 
 # Build dependencies. This is the caching Docker layer
 RUN cargo chef cook --release --recipe-path recipe.json
