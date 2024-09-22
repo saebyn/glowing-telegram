@@ -5,7 +5,7 @@ use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_s3::{
     operation::get_object::GetObjectOutput, primitives::ByteStream,
 };
-use figment::Figment;
+use figment::{providers::Env, Figment};
 use gt_ffmpeg::{
     audio_extraction,
     ffprobe::{self, FFProbeOutput},
@@ -27,13 +27,15 @@ struct Config {
 }
 
 fn load_config() -> Result<Config, figment::Error> {
-    let figment = Figment::new();
+    let figment = Figment::new().merge(Env::raw());
 
     figment.extract()
 }
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+
     let region_provider =
         RegionProviderChain::default_provider().or_else("us-east-1");
     let aws_config = aws_config::defaults(BehaviorVersion::latest())
@@ -47,110 +49,31 @@ async fn main() {
     // Parse command line arguments
     let args: Vec<String> = env::args().collect();
 
-    let input_key = args[1].clone();
+    let input_key = args[2].clone();
+
+    tracing::info!("Processing video with key: {}", input_key);
 
     let temp_file_path =
         download_video(&aws_config, &config.input_bucket, &input_key).await;
 
     // In parallel, do audio extraction to a temp file, extract keyframes, use ffprobe to get metadata
-    let audio_extraction_task = {
-        let temp_file_path = temp_file_path.clone();
-        let s3_client = aws_sdk_s3::Client::new(&aws_config);
-        let input_key = input_key.clone();
-        let output_bucket = config.output_bucket.clone();
-        tokio::spawn(async move {
-            // Extract audio from the video file
-            let audio_temp_file_path =
-                std::env::temp_dir().join("audiofile").to_str().unwrap()[..]
-                    .to_string();
-            let audio = audio_extraction::extract(&temp_file_path, 1)
-                .expect("failed to extract audio");
-
-            save_stdio_to_file(audio, &audio_temp_file_path)
-                .await
-                .expect("failed to save audio to file");
-
-            let output_key = format!("{0}/{input_key}", config.audio_prefix);
-
-            // Upload the audio to an S3 bucket
-            s3_client
-                .put_object()
-                .bucket(output_bucket)
-                .key(output_key.as_str())
-                .body(
-                    ByteStream::from_path(audio_temp_file_path.clone())
-                        .await
-                        .unwrap(),
-                )
-                .send()
-                .await
-                .expect("failed to upload audio");
-
-            output_key.to_string()
-        })
-    };
-
-    let keyframes_extraction_task = {
-        let temp_file_path = temp_file_path.clone();
-        let input_key = input_key.clone();
-        let output_bucket = config.output_bucket.clone();
-        let s3_client = aws_sdk_s3::Client::new(&aws_config);
-        tokio::spawn(async move {
-            // Extract keyframes from the video file
-            let keyframe_fns =
-                keyframes_extraction::extract(&temp_file_path, 200, -1)
-                    .await
-                    .expect("failed to extract keyframes");
-
-            let mut keyframe_keys = Vec::new();
-
-            // Upload the keyframes to an S3 bucket
-            for keyframe_fn in keyframe_fns {
-                let keyframe_path = std::path::Path::new(&keyframe_fn);
-                let keyframe_basename = keyframe_path
-                    .file_name()
-                    .expect("failed to get keyframe filename")
-                    .to_str()
-                    .expect("failed to convert keyframe filename to string")
-                    .to_string();
-
-                let keyframe_key = format!(
-                    "{0}/{input_key}/{keyframe_basename}",
-                    config.keyframes_prefix
-                );
-
-                s3_client
-                    .put_object()
-                    .bucket(&output_bucket)
-                    .key(&keyframe_key)
-                    .body(ByteStream::from_path(keyframe_fn).await.unwrap())
-                    .send()
-                    .await
-                    .expect("failed to upload keyframe");
-
-                keyframe_keys.push(keyframe_key.clone())
-            }
-
-            // Return the S3 keys of the keyframes
-            keyframe_keys
-        })
-    };
-
-    let metadata_task = {
-        let temp_file_path = temp_file_path.clone();
-        tokio::spawn(async move {
-            // Use ffprobe to get metadata about the video file
-            ffprobe::probe(&temp_file_path)
-                .await
-                .expect("failed to get metadata")
-        })
-    };
-
     // Await the tasks to ensure they complete
     let (audio_result, keyframes_result, metadata_result) = tokio::join!(
-        audio_extraction_task,
-        keyframes_extraction_task,
-        metadata_task
+        do_audio_extraction_task(
+            &aws_config,
+            config.audio_prefix.clone(),
+            temp_file_path.clone(),
+            config.output_bucket.clone(),
+            input_key.clone()
+        ),
+        do_keyframes_extraction_task(
+            &aws_config,
+            config.keyframes_prefix.clone(),
+            temp_file_path.clone(),
+            config.output_bucket.clone(),
+            input_key.clone()
+        ),
+        do_metadata_task(temp_file_path.clone())
     );
 
     let audio_result = audio_result.expect("failed to extract audio");
@@ -171,7 +94,7 @@ async fn main() {
     .expect("failed to insert metadata into DynamoDB");
 }
 
-fn format_metadata(metadata: FFProbeOutput) -> AttributeValue {
+fn format_metadata(metadata: &FFProbeOutput) -> AttributeValue {
     let json_metadata: serde_json::Value = serde_json::json!(metadata);
 
     let mut formatted_metadata = HashMap::new();
@@ -280,7 +203,7 @@ async fn save_results_to_dynamodb(
         .put_item()
         .table_name(table_name)
         .item("key", AttributeValue::S(input_key.to_string()))
-        .item("metadata", format_metadata(metadata_result))
+        .item("metadata", format_metadata(&metadata_result))
         .item("audio", AttributeValue::S(audio_result.to_string()))
         .item(
             "keyframes",
@@ -295,4 +218,103 @@ async fn save_results_to_dynamodb(
         .await?;
 
     Ok(())
+}
+
+fn do_audio_extraction_task(
+    aws_config: &SdkConfig,
+    audio_prefix: String,
+    temp_file_path: String,
+    output_bucket: String,
+    input_key: String,
+) -> tokio::task::JoinHandle<String> {
+    let s3_client = aws_sdk_s3::Client::new(aws_config);
+
+    tokio::spawn(async move {
+        // Extract audio from the video file
+        let audio_temp_file_path =
+            std::env::temp_dir().join("audiofile").to_str().unwrap()[..]
+                .to_string();
+        let audio = audio_extraction::extract(&temp_file_path, 1)
+            .expect("failed to extract audio");
+
+        save_stdio_to_file(audio, &audio_temp_file_path)
+            .await
+            .expect("failed to save audio to file");
+
+        let output_key = format!("{audio_prefix}/{input_key}");
+
+        // Upload the audio to an S3 bucket
+        s3_client
+            .put_object()
+            .bucket(output_bucket)
+            .key(output_key.as_str())
+            .body(
+                ByteStream::from_path(audio_temp_file_path.clone())
+                    .await
+                    .unwrap(),
+            )
+            .send()
+            .await
+            .expect("failed to upload audio");
+
+        output_key.to_string()
+    })
+}
+
+fn do_metadata_task(
+    temp_file_path: String,
+) -> tokio::task::JoinHandle<FFProbeOutput> {
+    tokio::spawn(async move {
+        // Use ffprobe to get metadata about the video file
+        ffprobe::probe(&temp_file_path)
+            .await
+            .expect("failed to get metadata")
+    })
+}
+
+fn do_keyframes_extraction_task(
+    aws_config: &SdkConfig,
+    keyframes_prefix: String,
+    temp_file_path: String,
+    output_bucket: String,
+    input_key: String,
+) -> tokio::task::JoinHandle<Vec<String>> {
+    let s3_client = aws_sdk_s3::Client::new(aws_config);
+    tokio::spawn(async move {
+        // Extract keyframes from the video file
+        let keyframe_fns =
+            keyframes_extraction::extract(&temp_file_path, 200, -1)
+                .await
+                .expect("failed to extract keyframes");
+
+        let mut keyframe_keys = Vec::new();
+
+        // Upload the keyframes to an S3 bucket
+        for keyframe_fn in keyframe_fns {
+            let keyframe_path = std::path::Path::new(&keyframe_fn);
+            let keyframe_basename = keyframe_path
+                .file_name()
+                .expect("failed to get keyframe filename")
+                .to_str()
+                .expect("failed to convert keyframe filename to string")
+                .to_string();
+
+            let keyframe_key =
+                format!("{keyframes_prefix}/{input_key}/{keyframe_basename}");
+
+            s3_client
+                .put_object()
+                .bucket(&output_bucket)
+                .key(&keyframe_key)
+                .body(ByteStream::from_path(keyframe_fn).await.unwrap())
+                .send()
+                .await
+                .expect("failed to upload keyframe");
+
+            keyframe_keys.push(keyframe_key.clone());
+        }
+
+        // Return the S3 keys of the keyframes
+        keyframe_keys
+    })
 }
