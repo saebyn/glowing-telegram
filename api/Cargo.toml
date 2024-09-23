@@ -24,7 +24,7 @@ iso8601 = { version = "0.6.1", features = ["serde", "chrono"] }
 redact = { version = "0.1.9", features = ["serde"] }
 dotenvy = "0.15.7"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-tower-http = { version = "0.5.2", features = [
+tower-http = { version = "0.6.1", features = [
   "cors",
   "trace",
   "compression-full",
@@ -32,7 +32,7 @@ tower-http = { version = "0.5.2", features = [
   "request-id",
   "propagate-header",
 ] }
-openai_dive = "0.5.7"
+openai_dive = "0.6.1"
 bb8 = "0.8"
 reqwest = { version = "0.12.4", features = [
   "json",
@@ -42,7 +42,7 @@ reqwest = { version = "0.12.4", features = [
   "stream",
 ], default-features = false }
 regex = "1.10.6"
-redis = { version = "0.26.1", features = ["aio", "json", "tokio-comp"] }
+redis = { version = "0.27.2", features = ["aio", "json", "tokio-comp"] }
 task_worker = { path = "../task_worker" }
 tempfile = "3.11.0"
 url = "2.5.2"
