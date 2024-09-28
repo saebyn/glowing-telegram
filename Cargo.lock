@@ -3493,6 +3493,7 @@ dependencies = [
  "gt_ffmpeg",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",

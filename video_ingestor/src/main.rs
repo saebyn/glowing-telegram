@@ -94,29 +94,36 @@ async fn main() {
     .expect("failed to insert metadata into DynamoDB");
 }
 
+fn format_object(value: &serde_json::Value) -> AttributeValue {
+    match value {
+        serde_json::Value::String(s) => AttributeValue::S(s.clone()),
+        serde_json::Value::Number(n) => AttributeValue::N(n.to_string()),
+        serde_json::Value::Bool(b) => AttributeValue::Bool(*b),
+        serde_json::Value::Object(o) => {
+            let mut formatted_object = HashMap::new();
+            for (k, v) in o {
+                formatted_object.insert(k.clone(), format_object(v));
+            }
+            AttributeValue::M(formatted_object)
+        }
+        serde_json::Value::Array(a) => AttributeValue::L(
+            a.iter().map(format_object).collect::<Vec<AttributeValue>>(),
+        ),
+        serde_json::Value::Null => AttributeValue::Null(true),
+    }
+}
+
 fn format_metadata(metadata: &FFProbeOutput) -> AttributeValue {
     let json_metadata: serde_json::Value = serde_json::json!(metadata);
-
-    let mut formatted_metadata = HashMap::new();
-
-    for (key, value) in json_metadata.as_object().unwrap() {
-        let attribute_value = match value {
-            serde_json::Value::String(s) => AttributeValue::S(s.clone()),
-            serde_json::Value::Number(n) => AttributeValue::N(n.to_string()),
-            serde_json::Value::Bool(b) => AttributeValue::Bool(*b),
-            _ => AttributeValue::Null(true),
-        };
-
-        formatted_metadata.insert(key.clone(), attribute_value);
-    }
-
-    AttributeValue::M(formatted_metadata)
+    format_object(&json_metadata)
 }
 
 async fn save_s3_object_to_file(
     mut object: GetObjectOutput,
     path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    tracing::info!("Saving object to file: {}", path);
+
     let mut file = tokio::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -129,6 +136,8 @@ async fn save_s3_object_to_file(
             .await
             .expect("failed to write to temp file");
     }
+
+    file.flush().await.expect("failed to flush temp file");
 
     Ok(())
 }
@@ -207,7 +216,7 @@ async fn save_results_to_dynamodb(
         .item("audio", AttributeValue::S(audio_result.to_string()))
         .item(
             "keyframes",
-            AttributeValue::Ns(
+            AttributeValue::Ss(
                 keyframes_result
                     .into_iter()
                     .map(|s| s.parse().unwrap())
@@ -281,9 +290,11 @@ fn do_keyframes_extraction_task(
 ) -> tokio::task::JoinHandle<Vec<String>> {
     let s3_client = aws_sdk_s3::Client::new(aws_config);
     tokio::spawn(async move {
+        // Create a temporary directory to store the keyframes.
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
         // Extract keyframes from the video file
         let keyframe_fns =
-            keyframes_extraction::extract(&temp_file_path, 200, -1)
+            keyframes_extraction::extract(&temp_dir, &temp_file_path, 200, -1)
                 .await
                 .expect("failed to extract keyframes");
 
@@ -301,6 +312,12 @@ fn do_keyframes_extraction_task(
 
             let keyframe_key =
                 format!("{keyframes_prefix}/{input_key}/{keyframe_basename}");
+
+            tracing::info!(
+                "Uploading keyframe: {} to {}",
+                keyframe_fn,
+                keyframe_key
+            );
 
             s3_client
                 .put_object()

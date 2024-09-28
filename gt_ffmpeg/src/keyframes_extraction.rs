@@ -13,14 +13,13 @@ use tokio::process::Command;
 /// # Errors
 /// If the keyframe extraction fails, an error is returned.
 pub async fn extract(
+    temp_dir: &tempfile::TempDir,
     path: &str,
     width: i32,
     height: i32,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     tracing::info!("Extracting keyframes from {}", path);
 
-    // Create a temporary directory to store the keyframes.
-    let temp_dir = tempfile::tempdir()?;
     let output_path = temp_dir.path().join("frame-%06d.png");
 
     let mut keyframes_extraction_process = match Command::new("ffmpeg")
@@ -58,7 +57,7 @@ pub async fn extract(
     let mut keyframes: Vec<_> = std::fs::read_dir(temp_dir.path())?
         .filter_map(Result::ok)
         .filter(|entry| entry.path().is_file())
-        .map(|entry| entry.path().to_str().unwrap().to_string())
+        .map(|entry| entry.path().to_string_lossy().to_string())
         .collect();
 
     keyframes.sort();
