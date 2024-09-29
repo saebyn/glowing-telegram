@@ -6,8 +6,6 @@ ARG RUST_VERSION
 ARG DEBIAN_VERSION
 FROM rust:${RUST_VERSION:-latest} AS base
 
-ARG SERVICE_NAME
-
 ################################################################################
 # Chef stage
 ################################################################################
@@ -48,7 +46,7 @@ ARG RUN_TESTS=false
 RUN if [ "$RUN_TESTS" = "true" ]; then cargo test --release; fi
 
 # Build application
-WORKDIR /app/${SERVICE_NAME}
+WORKDIR /app/video_ingestor
 RUN cargo build --release
 
 ################################################################################
@@ -83,11 +81,6 @@ RUN adduser \
 
 USER ${USER}:${USER}
 
-ARG SERVICE_NAME
-
-# check that SERVICE_NAME is set
-RUN test -n "${SERVICE_NAME}"
-
-COPY --from=builder --chown=${USER}:${USER} /app/target/release/${SERVICE_NAME} /app/runtime
+COPY --from=builder --chown=${USER}:${USER} /app/target/release/video_ingestor /app/runtime
 
 ENTRYPOINT [ "/app/runtime" ]
