@@ -308,6 +308,12 @@ container_properties = pulumi.Output.all(
                     "name": "DYNAMODB_TABLE",
                     "value": args[2],
                 },
+                {"name": "SPEECH_TRACK_NUMBER", "value": 1},
+                {
+                    "name": "NOISE_TOLERANCE",
+                    "value": 0.004,
+                },
+                {"name": "SILENCE_DURATION", "value": 30},
             ],
             image=args[3],
             resourceRequirements=[
