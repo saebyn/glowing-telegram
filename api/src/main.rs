@@ -23,7 +23,6 @@ mod media;
 pub mod models;
 mod oauth;
 pub mod schema;
-mod serde;
 mod state;
 mod structs;
 mod task;

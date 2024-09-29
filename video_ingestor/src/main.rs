@@ -10,6 +10,7 @@ use gt_ffmpeg::{
     audio_extraction,
     ffprobe::{self, FFProbeOutput},
     keyframes_extraction,
+    silence_detection::Segment,
 };
 use serde::Deserialize;
 use std::{collections::HashMap, env};
@@ -24,6 +25,13 @@ struct Config {
     audio_prefix: String,
 
     dynamodb_table: String,
+
+    // The track number of the audio to extract
+    speech_track_number: u32,
+    // Input audio volume is less or equal to a noise tolerance value
+    noise_tolerance: f64,
+    // Minimum detected noise duration
+    silence_duration: f64,
 }
 
 fn load_config() -> Result<Config, figment::Error> {
@@ -53,33 +61,41 @@ async fn main() {
 
     tracing::info!("Processing video with key: {}", input_key);
 
-    let temp_file_path =
+    let input_video_file_path =
         download_video(&aws_config, &config.input_bucket, &input_key).await;
 
     // In parallel, do audio extraction to a temp file, extract keyframes, use ffprobe to get metadata
     // Await the tasks to ensure they complete
-    let (audio_result, keyframes_result, metadata_result) = tokio::join!(
+    let (audio_result, keyframes_result, metadata_result, silence_result) = tokio::join!(
         do_audio_extraction_task(
             &aws_config,
+            config.speech_track_number,
             config.audio_prefix.clone(),
-            temp_file_path.clone(),
+            input_video_file_path.clone(),
             config.output_bucket.clone(),
             input_key.clone()
         ),
         do_keyframes_extraction_task(
             &aws_config,
             config.keyframes_prefix.clone(),
-            temp_file_path.clone(),
+            input_video_file_path.clone(),
             config.output_bucket.clone(),
             input_key.clone()
         ),
-        do_metadata_task(temp_file_path.clone())
+        do_metadata_task(input_video_file_path.clone()),
+        do_silence_detection_task(
+            input_video_file_path.clone(),
+            config.speech_track_number,
+            config.noise_tolerance,
+            config.silence_duration
+        )
     );
 
     let audio_result = audio_result.expect("failed to extract audio");
     let keyframes_result =
         keyframes_result.expect("failed to extract keyframes");
     let metadata_result = metadata_result.expect("failed to get metadata");
+    let silence_result = silence_result.expect("failed to extract silence");
 
     // Insert the metadata into the DynamoDB table
     save_results_to_dynamodb(
@@ -89,6 +105,7 @@ async fn main() {
         metadata_result,
         audio_result,
         keyframes_result,
+        silence_result,
     )
     .await
     .expect("failed to insert metadata into DynamoDB");
@@ -118,6 +135,7 @@ fn format_metadata(metadata: &FFProbeOutput) -> AttributeValue {
     format_object(&json_metadata)
 }
 
+#[tracing::instrument]
 async fn save_s3_object_to_file(
     mut object: GetObjectOutput,
     path: &str,
@@ -139,9 +157,12 @@ async fn save_s3_object_to_file(
 
     file.flush().await.expect("failed to flush temp file");
 
+    tracing::info!("Saved object to file: {}", path);
+
     Ok(())
 }
 
+#[tracing::instrument]
 async fn save_stdio_to_file(
     mut stdio: tokio::process::ChildStdout,
     path: &str,
@@ -165,6 +186,7 @@ async fn save_stdio_to_file(
     Ok(())
 }
 
+#[tracing::instrument]
 async fn download_video(
     aws_config: &SdkConfig,
     input_bucket: &str,
@@ -198,6 +220,7 @@ async fn download_video(
     temp_file_path
 }
 
+#[tracing::instrument]
 async fn save_results_to_dynamodb(
     aws_config: &SdkConfig,
     table_name: &str,
@@ -205,6 +228,7 @@ async fn save_results_to_dynamodb(
     metadata_result: FFProbeOutput,
     audio_result: String,
     keyframes_result: Vec<String>,
+    silence_result: Vec<Segment>,
 ) -> Result<(), aws_sdk_dynamodb::Error> {
     let dynamodb_client = aws_sdk_dynamodb::Client::new(aws_config);
 
@@ -223,6 +247,34 @@ async fn save_results_to_dynamodb(
                     .collect(),
             ),
         )
+        .item(
+            "silence",
+            AttributeValue::L(
+                silence_result
+                    .into_iter()
+                    .map(|segment| {
+                        AttributeValue::M(
+                            vec![
+                                (
+                                    "start".to_string(),
+                                    AttributeValue::N(
+                                        segment.start.as_secs().to_string(),
+                                    ),
+                                ),
+                                (
+                                    "end".to_string(),
+                                    AttributeValue::N(
+                                        segment.end.as_secs().to_string(),
+                                    ),
+                                ),
+                            ]
+                            .into_iter()
+                            .collect(),
+                        )
+                    })
+                    .collect(),
+            ),
+        )
         .send()
         .await?;
 
@@ -231,6 +283,7 @@ async fn save_results_to_dynamodb(
 
 fn do_audio_extraction_task(
     aws_config: &SdkConfig,
+    track_number: u32,
     audio_prefix: String,
     temp_file_path: String,
     output_bucket: String,
@@ -243,7 +296,7 @@ fn do_audio_extraction_task(
         let audio_temp_file_path =
             std::env::temp_dir().join("audiofile").to_str().unwrap()[..]
                 .to_string();
-        let audio = audio_extraction::extract(&temp_file_path, 1)
+        let audio = audio_extraction::extract(&temp_file_path, track_number)
             .expect("failed to extract audio");
 
         save_stdio_to_file(audio, &audio_temp_file_path)
@@ -333,5 +386,34 @@ fn do_keyframes_extraction_task(
 
         // Return the S3 keys of the keyframes
         keyframe_keys
+    })
+}
+
+fn do_silence_detection_task(
+    temp_file_path: String,
+    track_number: u32,
+    noise: f64,
+    duration: f64,
+) -> tokio::task::JoinHandle<Vec<Segment>> {
+    tokio::spawn(async move {
+        // Detect silence in the audio file
+        let segments = gt_ffmpeg::silence_detection::extract(
+            &temp_file_path,
+            track_number,
+            noise,
+            duration,
+        )
+        .await
+        .expect("failed to extract silence");
+
+        for segment in &segments {
+            tracing::trace!(
+                "Silence detected from {:?} to {:?}",
+                segment.start,
+                segment.end
+            );
+        }
+
+        segments
     })
 }

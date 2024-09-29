@@ -1318,6 +1318,9 @@ dependencies = [
 name = "gt_ffmpeg"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "iso8601",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
