@@ -46,7 +46,7 @@ ARG RUN_TESTS=false
 RUN if [ "$RUN_TESTS" = "true" ]; then cargo test --release; fi
 
 # Build application
-WORKDIR /app/video_ingestor
+WORKDIR /app/audio_transcriber
 RUN cargo build --release
 
 ################################################################################
@@ -81,6 +81,6 @@ RUN adduser \
 
 USER ${USER}:${USER}
 
-COPY --from=builder --chown=${USER}:${USER} /app/target/release/video_ingestor /app/runtime
+COPY --from=builder --chown=${USER}:${USER} /app/target/release/audio_transcriber /app/runtime
 
 ENTRYPOINT [ "/app/runtime" ]
