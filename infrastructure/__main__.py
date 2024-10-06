@@ -5,6 +5,11 @@ import pulumi
 import pulumi_aws_native as aws_native
 import pulumi_aws as aws
 
+from FargateBatchJobQueue import FargateBatchJobQueue
+from GPUBatchJobQueue import GPUBatchJobQueue
+from VideoIngestorJob import VideoIngestorJob
+from AudioTranscriberJob import AudioTranscriberJob
+
 video_archive = aws_native.s3.Bucket(
     "video-archive",
     accelerate_configuration={
@@ -100,21 +105,7 @@ metadata_table = aws.dynamodb.Table(
     opts=pulumi.ResourceOptions(protect=True),
 )
 
-# Create a repository for the video ingestor
-ecr_repository = aws_native.ecr.Repository(
-    "ecr-repository",
-    repository_name="video_ingestor",
-    image_scanning_configuration={
-        "scan_on_push": True,
-    },
-)
-
-video_ingestor_image_tag = ecr_repository.repository_uri.apply(
-    lambda url: f"{url}:latest"
-)
-
-# AWS Batch compute environment
-
+# AWS Batch setup
 ## Get the default VPC
 default_vpc = aws.ec2.get_vpc(default=True)
 
@@ -128,227 +119,32 @@ default_subnets = aws.ec2.get_subnets_output(
     ]
 )
 
-## Create a service role for the compute environment
-compute_environment_service_role = aws_native.iam.Role(
-    "compute-environment-service-role",
-    assume_role_policy_document={
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Principal": {
-                    "Service": "batch.amazonaws.com",
-                },
-                "Action": "sts:AssumeRole",
-            },
-        ],
-    },
-    managed_policy_arns=[
-        "arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole",
-    ],
-)
-
-## Create a security group for the compute environment
-compute_environment_security_group = aws_native.ec2.SecurityGroup(
-    "compute-environment-security-group",
+fargate_batch_job_queue = FargateBatchJobQueue(
+    "fargate-batch-job-queue",
     vpc_id=default_vpc.id,
-    group_description="Security group for the compute environment",
-    security_group_egress=[
-        {
-            "cidr_ip": "0.0.0.0/0",
-            "from_port": 0,
-            "ip_protocol": "-1",
-            "to_port": 0,
-        },
-    ],
+    subnet_ids=default_subnets.ids,
 )
 
-## Create a compute environment for AWS Batch
-compute_environment = aws_native.batch.ComputeEnvironment(
-    "compute-environment",
-    compute_environment_name="video-ingestor-compute-environment",
-    compute_resources={
-        "maxv_cpus": 16,
-        "security_group_ids": [compute_environment_security_group.id],
-        "subnets": default_subnets.ids,
-        "type": "FARGATE",
-    },
-    service_role=compute_environment_service_role.arn,
-    type="MANAGED",
+gpu_batch_job_queue = GPUBatchJobQueue(
+    "gpu-batch-job-queue",
+    vpc_id=default_vpc.id,
+    subnet_ids=default_subnets.ids,
 )
 
-## Create an AWS batch queue
-batch_queue = aws_native.batch.JobQueue(
-    "batch-queue",
-    compute_environment_order=[
-        {
-            "compute_environment": compute_environment.compute_environment_arn,
-            "order": 1,
-        },
-    ],
-    priority=1,
+
+video_ingestor_job = VideoIngestorJob(
+    "video-ingestor-job",
+    video_archive=video_archive,
+    output_bucket=output_bucket,
+    metadata_table=metadata_table,
 )
 
-## Create container execution role
-container_execution_role = aws_native.iam.Role(
-    "container-execution-role",
-    assume_role_policy_document={
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Principal": {
-                    "Service": "ecs-tasks.amazonaws.com",
-                },
-                "Action": "sts:AssumeRole",
-            },
-        ],
-    },
-    managed_policy_arns=[
-        "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
-    ],
+audio_transcriber_job = AudioTranscriberJob(
+    "audio-transcriber-job",
+    output_bucket=output_bucket,
+    metadata_table=metadata_table,
 )
 
-## Create a task role for the video ingestor
-task_role = aws_native.iam.Role(
-    "video-ingestor-task-role",
-    assume_role_policy_document={
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Principal": {
-                    "Service": "ecs-tasks.amazonaws.com",
-                },
-                "Action": "sts:AssumeRole",
-            },
-        ],
-    },
-    policies=[
-        aws_native.iam.RolePolicyArgs(
-            policy_name="video-ingestor-task-policy",
-            policy_document={
-                "Version": "2012-10-17",
-                "Statement": [
-                    {
-                        "Effect": "Allow",
-                        "Action": [
-                            "s3:GetObject",
-                        ],
-                        "Resource": [
-                            pulumi.Output.format("{0}/*", video_archive.arn),
-                        ],
-                    },
-                    {
-                        "Effect": "Allow",
-                        "Action": [
-                            "s3:PutObject",
-                        ],
-                        "Resource": [
-                            pulumi.Output.format("{0}/*", output_bucket.arn),
-                        ],
-                    },
-                    {
-                        "Effect": "Allow",
-                        "Action": [
-                            "dynamodb:PutItem",
-                            "dynamodb:GetItem",
-                        ],
-                        "Resource": [
-                            pulumi.Output.format("{0}", metadata_table.arn),
-                        ],
-                    },
-                ],
-            },
-        ),
-    ],
-)
-
-## Define the container properties for the video ingestor
-# Environment variables are passed to the container:
-# - INPUT_BUCKET: The name of the S3 bucket where videos are stored
-# - OUTPUT_BUCKET: The name of the S3 bucket where the results are stored
-# - KEYFRAMES_PREFIX: The prefix for the keyframes in the output bucket
-# - AUDIO_PREFIX: The prefix for the audio files in the output bucket
-# - DYNAMODB_TABLE: The name of the DynamoDB table where metadata is stored
-container_properties = pulumi.Output.all(
-    video_archive.bucket_name,
-    output_bucket.bucket_name,
-    metadata_table.name,
-    video_ingestor_image_tag,
-    container_execution_role.arn,
-    task_role.arn,
-).apply(
-    lambda args: json.dumps(
-        dict(
-            command=["/app/runtime", "Ref::key"],
-            executionRoleArn=args[4],
-            jobRoleArn=args[5],
-            networkConfiguration={
-                "assignPublicIp": "ENABLED",
-            },
-            environment=[
-                {
-                    "name": "INPUT_BUCKET",
-                    "value": args[0],
-                },
-                {
-                    "name": "OUTPUT_BUCKET",
-                    "value": args[1],
-                },
-                {
-                    "name": "KEYFRAMES_PREFIX",
-                    "value": "keyframes",
-                },
-                {
-                    "name": "AUDIO_PREFIX",
-                    "value": "audio",
-                },
-                {
-                    "name": "DYNAMODB_TABLE",
-                    "value": args[2],
-                },
-                {"name": "SPEECH_TRACK_NUMBER", "value": 1},
-                {
-                    "name": "NOISE_TOLERANCE",
-                    "value": 0.004,
-                },
-                {"name": "SILENCE_DURATION", "value": 30},
-            ],
-            image=args[3],
-            resourceRequirements=[
-                {
-                    "type": "VCPU",
-                    "value": ".5",
-                },
-                {
-                    "type": "MEMORY",
-                    "value": "1024",
-                },
-                # {
-                #     "type": "GPU",
-                #     "value": "1",
-                # },
-            ],
-        )
-    )
-)
-
-## Create a job definition for the video ingestor
-video_ingestor_job_definition = aws.batch.JobDefinition(
-    "video-ingestor-job-definition",
-    container_properties=container_properties,
-    name="video-ingestor-job-definition",
-    parameters={
-        "key": "<key>",
-    },
-    retry_strategy={
-        "attempts": 1,
-    },
-    type="container",
-    opts=pulumi.ResourceOptions(depends_on=[ecr_repository]),
-    platform_capabilities=["FARGATE"],
-)
 
 ## Create a role for the target of the event rule
 event_target_role = aws_native.iam.Role(
@@ -377,8 +173,8 @@ event_target_role = aws_native.iam.Role(
                             "batch:SubmitJob",
                         ],
                         "Resource": [
-                            video_ingestor_job_definition.arn,
-                            batch_queue.job_queue_arn,
+                            video_ingestor_job.job_definition_arn,
+                            fargate_batch_job_queue.job_queue_arn,
                         ],
                     },
                 ],
@@ -407,13 +203,13 @@ event_rule = aws_native.events.Rule(
     targets=[
         {
             "id": "video-ingestor",
-            "arn": batch_queue.job_queue_arn,
+            "arn": fargate_batch_job_queue.job_queue_arn,
             "role_arn": event_target_role.arn,
             "dead_letter_config": {
                 "arn": dead_letter_queue.arn,
             },
             "batch_parameters": {
-                "job_definition": video_ingestor_job_definition.arn,
+                "job_definition": video_ingestor_job.job_definition_arn,
                 "job_name": "video-ingestor",
             },
             "input_transformer": {
