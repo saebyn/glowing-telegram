@@ -61,8 +61,12 @@ async fn main() {
 
     tracing::info!("Processing video with key: {}", input_key);
 
-    let input_video_file_path =
-        download_video(&aws_config, &config.input_bucket, &input_key).await;
+    let input_video_file_path = download_s3_object_to_tempfile(
+        &aws_config,
+        &config.input_bucket,
+        &input_key,
+    )
+    .await;
 
     // In parallel, do audio extraction to a temp file, extract keyframes, use ffprobe to get metadata
     // Await the tasks to ensure they complete
@@ -187,7 +191,7 @@ async fn save_stdio_to_file(
 }
 
 #[tracing::instrument]
-async fn download_video(
+async fn download_s3_object_to_tempfile(
     aws_config: &SdkConfig,
     input_bucket: &str,
     input_key: &str,
