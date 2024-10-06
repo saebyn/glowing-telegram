@@ -1,5 +1,7 @@
 [package]
 name = "api"
+license = "AGPL-3.0"
+description = "API for the Glowing Telegram project"
 version = "0.1.0"
 edition = "2021"
 

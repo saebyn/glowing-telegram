@@ -1,6 +1,7 @@
 
 [package]
 name = "task_worker"
+description = "Task Worker for the Glowing Telegram project"
 version = "0.1.0"
 edition = "2021"
 

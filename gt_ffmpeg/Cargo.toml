@@ -1,5 +1,6 @@
 [package]
 name = "gt_ffmpeg"
+description = "FFmpeg wrapper for the Glowing Telegram project"
 version = "0.1.0"
 edition = "2021"
 

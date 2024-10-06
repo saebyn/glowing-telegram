@@ -1,7 +1,15 @@
 [workspace]
+repository = "https://github.com/saebyn/glowing-telegram"
+license = "AGPL-3.0"
 resolver = "2"
 
-members = ["api", "gt_ffmpeg", "task_worker", "video_ingestor"]
+members = [
+  "api",
+  "gt_ffmpeg",
+  "task_worker",
+  "video_ingestor",
+  "audio_transcriber",
+]
 
 [workspace.lints.clippy]
 # Lint groups
