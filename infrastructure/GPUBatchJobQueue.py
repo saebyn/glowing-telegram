@@ -111,6 +111,7 @@ class GPUBatchJobQueue(pulumi.ComponentResource):
                 "instanceTypes": ["g4dn"],
             },
             type="MANAGED",
+            replace_compute_environment=True,
             service_role=compute_environment_service_role.arn,
             opts=pulumi.ResourceOptions(parent=self),
         )
