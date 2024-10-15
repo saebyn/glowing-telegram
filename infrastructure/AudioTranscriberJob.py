@@ -116,7 +116,6 @@ class AudioTranscriberJob(pulumi.ComponentResource):
             lambda args: json.dumps(
                 dict(
                     command=[
-                        "/app/runtime",
                         "Ref::item_key",
                         "Ref::input_key",
                         "Ref::initial_prompt",

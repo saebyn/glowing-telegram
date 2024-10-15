@@ -57,7 +57,7 @@ async fn main() {
     // Parse command line arguments
     let args: Vec<String> = env::args().collect();
 
-    let input_key = args[2].clone();
+    let input_key = args[1].clone();
 
     tracing::info!("Processing video with key: {}", input_key);
 

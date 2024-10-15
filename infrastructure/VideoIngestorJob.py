@@ -132,7 +132,7 @@ class VideoIngestorJob(pulumi.ComponentResource):
         ).apply(
             lambda args: json.dumps(
                 dict(
-                    command=["/app/runtime", "Ref::key"],
+                    command=["Ref::key"],
                     executionRoleArn=args[4],
                     jobRoleArn=args[5],
                     networkConfiguration={
@@ -159,7 +159,7 @@ class VideoIngestorJob(pulumi.ComponentResource):
                             "name": "DYNAMODB_TABLE",
                             "value": args[2],
                         },
-                        {"name": "SPEECH_TRACK_NUMBER", "value": "1"},
+                        {"name": "SPEECH_TRACK_NUMBER", "value": "2"},
                         {
                             "name": "NOISE_TOLERANCE",
                             "value": "0.004",
