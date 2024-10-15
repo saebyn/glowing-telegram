@@ -55,12 +55,14 @@ RUN cargo build --release
 FROM debian:${DEBIAN_VERSION:-latest} AS runtime
 
 RUN apt-get update \
+  && apt-get -y upgrade \
   && apt-get install -y --no-install-recommends \
   ca-certificates \
   curl \
   libssl-dev \
   pkg-config \
   ffmpeg \
+  && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user to run the app
