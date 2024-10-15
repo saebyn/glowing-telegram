@@ -58,6 +58,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
   ca-certificates \
   curl \
+  ffmpeg \
   libssl-dev \
   pkg-config \
   python3 \
@@ -86,6 +87,10 @@ RUN mkdir /model
 RUN chown ${USER}:${USER} /model
 
 USER ${USER}:${USER}
+
+COPY --from=builder --chown=${USER}:${USER} /app/audio_transcriber/download_model.py /app/download_model.py
+
+RUN python3 /app/download_model.py
 
 COPY --from=builder --chown=${USER}:${USER} /app/target/release/audio_transcriber /app/runtime
 
