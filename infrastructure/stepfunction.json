@@ -1,0 +1,102 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "Set up state",
+  "States": {
+    "Set up state": {
+      "Type": "Pass",
+      "Next": "Loop over Videos",
+      "Parameters": {
+        "iterator": {
+          "index": 0
+        },
+        "count.$": "States.ArrayLength($.videoKeys)",
+        "videoKeys.$": "$.videoKeys"
+      }
+    },
+    "Loop over Videos": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.iterator.index",
+          "NumericLessThanPath": "$.count",
+          "Next": "GetItem from DynamoDB"
+        }
+      ],
+      "Default": "Success"
+    },
+    "GetItem from DynamoDB": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:getItem",
+      "Parameters": {
+        "TableName": "MyDynamoDBTable",
+        "Key": {
+          "Column": {
+            "S": "MyEntry"
+          }
+        }
+      },
+      "Next": "Transcribe Audio to Text"
+    },
+    "Transcribe Audio to Text": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Parameters": {
+        "JobDefinition": "arn:aws:batch:us-west-2:159222827421:job-definition/audio-transcriber:1",
+        "JobQueue": "arn:aws:batch:us-west-2:159222827421:job-queue/gpu-batch-job-queue-queue-ffcf773",
+        "Parameters": {
+          "input_key": "value1",
+          "item_key.$": "States.ArrayGetItem($.videoKeys, $.iterator.index)",
+          "language": "en",
+          "initial_prompt": ""
+        }
+      },
+      "Next": "Summarize Transcription"
+    },
+    "Summarize Transcription": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Get context from DynamoDB"
+    },
+    "Get context from DynamoDB": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:getItem",
+      "Parameters": {
+        "TableName": "MyDynamoDBTable",
+        "Key": {
+          "Column": {
+            "S": "MyEntry"
+          }
+        }
+      },
+      "Next": "Increment index"
+    },
+    "Increment index": {
+      "Type": "Pass",
+      "Next": "Loop over Videos",
+      "Parameters": {
+        "index.$": "States.MathAdd(1, $.iterator.index)"
+      },
+      "ResultPath": "$.iterator"
+    },
+    "Success": {
+      "Type": "Succeed"
+    }
+  }
+}
