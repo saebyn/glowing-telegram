@@ -103,9 +103,9 @@ async fn main() {
         .update_item()
         .table_name(config.dynamodb_table.clone())
         .key("key", AttributeValue::S(item_key.clone()))
-        .update_expression("SET transcription = :transcription")
+        .update_expression("SET transcription = :t")
         .expression_attribute_values(
-            ":transcription",
+            ":t",
             AttributeValue::from(whisper_output),
         )
         .send()
@@ -152,11 +152,11 @@ impl From<WhisperOutput> for AttributeValue {
                 map.insert("text".to_string(), Self::S(segment.text.clone()));
                 map.insert(
                     "tokens".to_string(),
-                    Self::Ns(
+                    Self::L(
                         segment
                             .tokens
                             .iter()
-                            .map(|token| token.to_string())
+                            .map(|token| Self::N(token.to_string()))
                             .collect(),
                     ),
                 );
@@ -318,8 +318,8 @@ fn build_whisper_command(
         })
         .arg("--initial_prompt")
         .arg(options.initial_prompt)
-        //.arg("--model_dir")
-        //.arg(options.model_dir)
+        .arg("--model_dir")
+        .arg(options.model_dir)
         .arg("--output_format")
         .arg("json")
         .arg("--output_dir")
