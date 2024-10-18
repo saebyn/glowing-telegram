@@ -24,3 +24,10 @@ chatbot
 
 # Ignore node_modules
 **/node_modules
+
+# Ignore Dockerfiles
+**/Dockerfile
+Dockerfile.*
+
+# Ignore git files
+**/.git

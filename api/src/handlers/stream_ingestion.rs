@@ -5,7 +5,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::{ffprobe, state::AppState};
+use crate::state::AppState;
+use gt_ffmpeg::ffprobe;
 
 #[derive(Deserialize, Debug)]
 pub struct FindFilesQuery {
