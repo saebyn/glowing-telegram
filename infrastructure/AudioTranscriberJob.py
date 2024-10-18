@@ -132,11 +132,19 @@ class AudioTranscriberJob(pulumi.ComponentResource):
                             "name": "DYNAMODB_TABLE",
                             "value": args[1],
                         },
+                        {
+                            "name": "NVIDIA_DRIVER_CAPABILITIES",
+                            "value": "all",
+                        },
+                        {
+                            "name": "RUST_LOG",
+                            "value": "info",
+                        },
                     ],
                     image=args[2],
                     resourceRequirements=[
                         {"type": "VCPU", "value": "1"},
-                        {"type": "MEMORY", "value": "2048"},
+                        {"type": "MEMORY", "value": "8192"},
                         {"type": "GPU", "value": "1"},
                     ],
                 )
