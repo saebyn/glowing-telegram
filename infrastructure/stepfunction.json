@@ -10,7 +10,10 @@
           "index": 0
         },
         "count.$": "States.ArrayLength($.videoKeys)",
-        "videoKeys.$": "$.videoKeys"
+        "videoKeys.$": "$.videoKeys",
+        "transcriptionContext": {
+          "text.$": "$.initialPrompt"
+        }
       }
     },
     "Loop over Videos": {
@@ -28,36 +31,47 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::dynamodb:getItem",
       "Parameters": {
-        "TableName": "MyDynamoDBTable",
+        "TableName": "${metadataTableName}",
+        "ProjectionExpression": "#k, audio",
         "Key": {
-          "Column": {
-            "S": "MyEntry"
+          "key": {
+            "S.$": "States.ArrayGetItem($.videoKeys, $.iterator.index)"
           }
+        },
+        "ExpressionAttributeNames": {
+          "#k": "key"
         }
       },
-      "Next": "Transcribe Audio to Text"
+      "Next": "Transcribe Audio to Text",
+      "ResultPath": "$.item",
+      "ResultSelector": {
+        "key.$": "$.Item.key.S",
+        "audio.$": "$.Item.audio.S"
+      }
     },
     "Transcribe Audio to Text": {
       "Type": "Task",
       "Resource": "arn:aws:states:::batch:submitJob.sync",
       "Parameters": {
-        "JobDefinition": "arn:aws:batch:us-west-2:159222827421:job-definition/audio-transcriber:1",
-        "JobQueue": "arn:aws:batch:us-west-2:159222827421:job-queue/gpu-batch-job-queue-queue-ffcf773",
+        "JobDefinition": "${audioTranscriberJobDefinitionArn}",
+        "JobQueue": "${audioTranscriberJobQueueArn}",
         "Parameters": {
-          "input_key": "value1",
-          "item_key.$": "States.ArrayGetItem($.videoKeys, $.iterator.index)",
+          "input_key.$": "$.item.audio",
+          "item_key.$": "$.item.key",
           "language": "en",
-          "initial_prompt": ""
-        }
+          "initial_prompt.$": "$.transcriptionContext.text"
+        },
+        "JobName": "transcribe-audio"
       },
+      "ResultPath": null,
       "Next": "Summarize Transcription"
     },
     "Summarize Transcription": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
-      "OutputPath": "$.Payload",
       "Parameters": {
-        "Payload.$": "$"
+        "Payload.$": "$",
+        "FunctionName": "${summarizeTranscriptionFunctionArn}"
       },
       "Retry": [
         {
@@ -72,20 +86,26 @@
           "BackoffRate": 2
         }
       ],
+      "ResultPath": null,
       "Next": "Get context from DynamoDB"
     },
     "Get context from DynamoDB": {
       "Type": "Task",
       "Resource": "arn:aws:states:::dynamodb:getItem",
       "Parameters": {
-        "TableName": "MyDynamoDBTable",
+        "TableName": "${metadataTableName}",
+        "ProjectionExpression": "transcription_context",
         "Key": {
-          "Column": {
-            "S": "MyEntry"
+          "key": {
+            "S.$": "$.item.key"
           }
         }
       },
-      "Next": "Increment index"
+      "Next": "Increment index",
+      "ResultPath": "$.transcriptionContext",
+      "ResultSelector": {
+        "text.$": "$.Item.transcription_context.S"
+      }
     },
     "Increment index": {
       "Type": "Pass",

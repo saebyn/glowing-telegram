@@ -9,6 +9,7 @@ from FargateBatchJobQueue import FargateBatchJobQueue
 from GPUBatchJobQueue import GPUBatchJobQueue
 from VideoIngestorJob import VideoIngestorJob
 from AudioTranscriberJob import AudioTranscriberJob
+from StreamIngestion import StreamIngestion
 
 video_archive = aws_native.s3.Bucket(
     "video-archive",
@@ -220,4 +221,11 @@ event_rule = aws_native.events.Rule(
             },
         },
     ],
+)
+
+StreamIngestion(
+    "stream-ingestion",
+    audio_transcriber_job_arn=audio_transcriber_job.job_definition_arn,
+    gpu_batch_job_queue_arn=gpu_batch_job_queue.job_queue_arn,
+    metadata_table=metadata_table,
 )
