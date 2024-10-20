@@ -5,11 +5,9 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use task_worker::TaskRequest;
-use tokio::process::Command;
 use tracing::instrument;
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -31,17 +29,7 @@ pub struct DetectSegmentInput {
 #[derive(Serialize, Debug)]
 struct DetectSegmentOutput {
     cursor: Option<Cursor>,
-    segments: Vec<Segment>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Segment {
-    #[serde(deserialize_with = "crate::serde::deserialize_duration")]
-    #[serde(serialize_with = "crate::serde::serialize_duration")]
-    start: std::time::Duration,
-    #[serde(deserialize_with = "crate::serde::deserialize_duration")]
-    #[serde(serialize_with = "crate::serde::serialize_duration")]
-    end: std::time::Duration,
+    segments: Vec<gt_ffmpeg::silence_detection::Segment>,
 }
 
 #[instrument]
@@ -100,72 +88,23 @@ pub async fn detect_segment(
         }
     };
 
-    let command_output = match Command::new("ffmpeg")
-        .arg("-hide_banner")
-        .arg("-i")
-        .arg(path)
-        .arg("-map")
-        .arg(format!("0:a:{}", track))
-        .arg("-af")
-        .arg(format!(
-            "silencedetect=noise={}:duration={}",
-            noise, duration
-        ))
-        .arg("-f")
-        .arg("null")
-        .arg("-")
-        .output()
-        .await
+    let segments = match gt_ffmpeg::silence_detection::extract(
+        &path,
+        track as u32,
+        noise,
+        duration,
+    )
+    .await
     {
-        Ok(output) => output,
-        Err(_) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error")
-                .into_response()
+        Ok(segments) => segments,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": e.0 })),
+            )
+                .into_response();
         }
     };
-
-    let command_stderr = String::from_utf8_lossy(&command_output.stderr);
-
-    // handle output status code
-    if !command_output.status.success() {
-        tracing::error!("ffmpeg error: {}", command_stderr);
-        return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error")
-            .into_response();
-    }
-
-    // trace output
-    tracing::trace!("ffmpeg output: {}", command_stderr);
-
-    // detect error in filter by looking for "Conversion failed!" in output
-    if command_stderr.contains("Conversion failed!") {
-        return (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg error")
-            .into_response();
-    }
-
-    let re = match Regex::new(
-        r"silence_end: (?<end>\d+(\.\d+)?) \| silence_duration: (?<duration>\d+(\.\d+)?)",
-    ) {
-        Ok(re) => re,
-        Err(_) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, "regex error")
-                .into_response()
-        }
-    };
-
-    let mut segments = Vec::new();
-
-    for cap in re.captures_iter(&command_stderr) {
-        let end = cap["end"].parse::<f64>().unwrap();
-        let duration = cap["duration"].parse::<f64>().unwrap();
-
-        let start = end - duration;
-
-        segments.push(Segment {
-            start: std::time::Duration::from_secs_f64(start)
-                + cursor.start_offset,
-            end: std::time::Duration::from_secs_f64(end) + cursor.start_offset,
-        });
-    }
 
     // handle case where we are at the end of the list
     let length = body.uris.len();

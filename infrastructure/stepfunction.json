@@ -1,0 +1,122 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "Set up state",
+  "States": {
+    "Set up state": {
+      "Type": "Pass",
+      "Next": "Loop over Videos",
+      "Parameters": {
+        "iterator": {
+          "index": 0
+        },
+        "count.$": "States.ArrayLength($.videoKeys)",
+        "videoKeys.$": "$.videoKeys",
+        "transcriptionContext": {
+          "text.$": "$.initialPrompt"
+        }
+      }
+    },
+    "Loop over Videos": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.iterator.index",
+          "NumericLessThanPath": "$.count",
+          "Next": "GetItem from DynamoDB"
+        }
+      ],
+      "Default": "Success"
+    },
+    "GetItem from DynamoDB": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:getItem",
+      "Parameters": {
+        "TableName": "${metadataTableName}",
+        "ProjectionExpression": "#k, audio",
+        "Key": {
+          "key": {
+            "S.$": "States.ArrayGetItem($.videoKeys, $.iterator.index)"
+          }
+        },
+        "ExpressionAttributeNames": {
+          "#k": "key"
+        }
+      },
+      "Next": "Transcribe Audio to Text",
+      "ResultPath": "$.item",
+      "ResultSelector": {
+        "key.$": "$.Item.key.S",
+        "audio.$": "$.Item.audio.S"
+      }
+    },
+    "Transcribe Audio to Text": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Parameters": {
+        "JobDefinition": "${audioTranscriberJobDefinitionArn}",
+        "JobQueue": "${audioTranscriberJobQueueArn}",
+        "Parameters": {
+          "input_key.$": "$.item.audio",
+          "item_key.$": "$.item.key",
+          "language": "en",
+          "initial_prompt.$": "$.transcriptionContext.text"
+        },
+        "JobName": "transcribe-audio"
+      },
+      "ResultPath": null,
+      "Next": "Summarize Transcription"
+    },
+    "Summarize Transcription": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "${summarizeTranscriptionFunctionArn}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "ResultPath": null,
+      "Next": "Get context from DynamoDB"
+    },
+    "Get context from DynamoDB": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:getItem",
+      "Parameters": {
+        "TableName": "${metadataTableName}",
+        "ProjectionExpression": "transcription_context",
+        "Key": {
+          "key": {
+            "S.$": "$.item.key"
+          }
+        }
+      },
+      "Next": "Increment index",
+      "ResultPath": "$.transcriptionContext",
+      "ResultSelector": {
+        "text.$": "$.Item.transcription_context.S"
+      }
+    },
+    "Increment index": {
+      "Type": "Pass",
+      "Next": "Loop over Videos",
+      "Parameters": {
+        "index.$": "States.MathAdd(1, $.iterator.index)"
+      },
+      "ResultPath": "$.iterator"
+    },
+    "Success": {
+      "Type": "Succeed"
+    }
+  }
+}
