@@ -151,11 +151,13 @@ class AudioTranscriberJob(pulumi.ComponentResource):
             )
         )
 
-        ## Create a job definition for the video ingestor
         job_definition = aws.batch.JobDefinition(
             f"{name}-job-definition",
             container_properties=container_properties,
             name="audio-transcriber",
+            timeout={
+                "attempt_duration_seconds": 5 * 60,  # 5 minutes
+            },
             parameters={
                 "item_key": "<item_key>",
                 "input_key": "<input_key>",

@@ -185,6 +185,9 @@ class VideoIngestorJob(pulumi.ComponentResource):
         video_ingestor_job_definition = aws.batch.JobDefinition(
             f"{name}-job-definition",
             container_properties=container_properties,
+            timeout={
+                "attempt_duration_seconds": 15 * 60,  # 15 minutes
+            },
             name="video-ingestor",
             parameters={
                 "key": "<key>",
