@@ -8,7 +8,7 @@ members = [
   "gt_ffmpeg",
   "task_worker",
   "video_ingestor",
-  "audio_transcriber",
+  "audio_transcriber", "summarize_transcription",
 ]
 
 [workspace.lints.clippy]
