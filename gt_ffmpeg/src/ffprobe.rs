@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 
 /*
@@ -291,7 +291,7 @@ where
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[allow(dead_code)]
 pub struct FFProbeStream {
     pub index: u32,
@@ -336,7 +336,7 @@ pub struct FFProbeStream {
     pub tags: Option<FFProbeTags>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[allow(dead_code)]
 pub struct FFProbeDisposition {
     pub default: u32,
@@ -358,14 +358,14 @@ pub struct FFProbeDisposition {
     pub still_image: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[allow(dead_code)]
 pub struct FFProbeTags {
     #[serde(rename = "DURATION")]
     pub duration: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[allow(dead_code)]
 pub struct FFProbeFormat {
     pub filename: String,
@@ -387,18 +387,28 @@ pub struct FFProbeFormat {
     pub tags: FFProbeTags,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FFProbeOutput {
     pub streams: Vec<FFProbeStream>,
     pub format: FFProbeFormat,
 }
 
+/// Probe a media file using ffprobe
+///
+/// # Arguments
+/// path - Path to the media file
+///
+/// # Returns
+/// `FFProbeOutput` - Parsed ffprobe output
+///
+/// # Errors
+/// Box<dyn std::error::Error> - If ffprobe fails to execute or the output is not parsable
 pub async fn probe(
     path: &str,
 ) -> Result<FFProbeOutput, Box<dyn std::error::Error>> {
     tracing::info!("Probing {}", path);
 
-    let output = match Command::new("ffprobe")
+    let Ok(output) = Command::new("ffprobe")
         .arg("-v")
         .arg("quiet")
         .arg("-print_format")
@@ -408,9 +418,8 @@ pub async fn probe(
         .arg(path)
         .output()
         .await
-    {
-        Ok(output) => output,
-        Err(_) => return Err("Failed to execute ffprobe".into()),
+    else {
+        return Err("Failed to execute ffprobe".into());
     };
 
     let output = String::from_utf8_lossy(&output.stdout);

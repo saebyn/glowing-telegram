@@ -1,0 +1,5 @@
+config:
+  aws-native:region: us-west-2
+  aws-native:profile: glowing-telegram-admin
+  aws:region: us-west-2
+  aws:profile: glowing-telegram-admin

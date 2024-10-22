@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
  */
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Segment {
-    #[serde(serialize_with = "crate::serde::serialize_duration")]
+    #[serde(serialize_with = "gt_ffmpeg::serde::serialize_duration")]
     pub start: std::time::Duration,
-    #[serde(serialize_with = "crate::serde::serialize_duration")]
+    #[serde(serialize_with = "gt_ffmpeg::serde::serialize_duration")]
     pub end: std::time::Duration,
     pub text: String,
 }
