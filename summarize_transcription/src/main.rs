@@ -17,6 +17,14 @@ async fn func(event: LambdaEvent<Value>) -> Result<(), Error> {
         .load()
         .await;
 
+    // payload should be the dynamodb fields (key and audio) passed from the step function
+
+    // we need to
+    // 1. get the result from the transcription job from dynamodb and the context
+    // 2. get the openai api key from secrets manager
+    // 3. call the openai api with the transcription result and context
+    // 4. save the result to dynamodb
+
     println!("Received event: {:?}", event);
 
     Ok(())
