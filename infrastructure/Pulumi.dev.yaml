@@ -3,3 +3,5 @@ config:
   aws-native:profile: glowing-telegram-admin
   aws:region: us-west-2
   aws:profile: glowing-telegram-admin
+  glowing-telegram:my_ip:
+    secure: AAABANhcGz7cWItjodE8ojsqXxc2szwgqoqm3yHWKKiV+XSFJDlyKbkGiPXRYA==
