@@ -96,7 +96,13 @@ pub async fn detect_segment(
     )
     .await
     {
-        Ok(segments) => segments,
+        Ok(segments) => segments
+            .iter()
+            .map(|segment| gt_ffmpeg::silence_detection::Segment {
+                start: segment.start + cursor.start_offset,
+                end: segment.end + cursor.start_offset,
+            })
+            .collect(),
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
