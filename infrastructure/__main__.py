@@ -223,9 +223,147 @@ event_rule = aws_native.events.Rule(
     ],
 )
 
-StreamIngestion(
+stream_ingestion = StreamIngestion(
     "stream-ingestion",
     audio_transcriber_job_arn=audio_transcriber_job.job_definition_arn,
     gpu_batch_job_queue_arn=gpu_batch_job_queue.job_queue_arn,
     metadata_table=metadata_table,
+)
+
+###
+# Some demo code to show how to use API gateway to trigger the state machine
+# This is not a complete implementation, and is not safe for production use
+###
+
+# API Gateway setup
+api = aws.apigateway.RestApi(
+    "stream-ingestion-api",
+    name="stream-ingestion-api",
+    description="API for ingesting streams",
+    endpoint_configuration={"types": "REGIONAL"},
+)
+
+# set a resource policy for the API that allows one IP address to access the API
+my_ip = pulumi.Config().require_secret("my_ip")
+
+api_policy_document = aws.iam.get_policy_document_output(
+    statements=[
+        {
+            "effect": "Allow",
+            "principals": [
+                {
+                    "type": "AWS",
+                    "identifiers": ["*"],
+                }
+            ],
+            "actions": ["execute-api:Invoke"],
+            "resources": [api.execution_arn.apply(lambda arn: f"{arn}/*/*/*")],
+            "conditions": [
+                {
+                    "test": "IpAddress",
+                    "values": [my_ip],
+                    "variable": "aws:SourceIp",
+                }
+            ],
+        },
+    ]
+)
+
+
+api_policy = aws.apigateway.RestApiPolicy(
+    "stream-ingestion-api-policy",
+    rest_api_id=api.id,
+    policy=api_policy_document.json,
+)
+
+# Create a resource for the API
+resource = aws.apigateway.Resource(
+    "stream-ingestion-api-resource",
+    rest_api=api.id,
+    parent_id=api.root_resource_id,
+    path_part="stream",
+)
+
+# Create a method for the API
+method = aws.apigateway.Method(
+    "stream-ingestion-api-method",
+    rest_api=api.id,
+    resource_id=resource.id,
+    http_method="POST",
+    authorization="NONE",
+)
+
+
+# Create a role for the API Gateway to assume when invoking the state machine
+api_gateway_role = aws_native.iam.Role(
+    "api-gateway-role",
+    assume_role_policy_document={
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {
+                    "Service": "apigateway.amazonaws.com",
+                },
+                "Action": "sts:AssumeRole",
+            },
+        ],
+    },
+    policies=[
+        aws_native.iam.RolePolicyArgs(
+            policy_name="api-gateway-policy",
+            policy_document={
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": ["states:StartExecution"],
+                        "Resource": stream_ingestion.stepfunction_arn,
+                    },
+                ],
+            },
+        ),
+    ],
+)
+
+# Create an integration for the API
+integration = aws.apigateway.Integration(
+    "stream-ingestion-api-integration",
+    rest_api=api.id,
+    resource_id=resource.id,
+    http_method=method.http_method,
+    integration_http_method="POST",
+    type="AWS",
+    uri=f"arn:aws:apigateway:{aws.config.region}:states:action/StartExecution",
+    request_templates={
+        "application/json": pulumi.Output.all(stream_ingestion.stepfunction_arn).apply(
+            lambda args: json.dumps(
+                {
+                    "input": "$util.escapeJavaScript($input.json('$'))",
+                    "stateMachineArn": args[0],
+                }
+            )
+        ),
+    },
+    credentials=api_gateway_role.arn,
+)
+
+# integration response
+integration_response = aws.apigateway.IntegrationResponse(
+    "stream-ingestion-api-integration-response",
+    rest_api=api.id,
+    resource_id=resource.id,
+    http_method=method.http_method,
+    status_code="200",
+    response_templates={"application/json": "{}"},
+)
+
+# Response setup for the method
+response = aws.apigateway.MethodResponse(
+    "stream-ingestion-api-method-response",
+    rest_api=api.id,
+    resource_id=resource.id,
+    http_method=method.http_method,
+    status_code="200",
+    response_models={"application/json": "Empty"},
 )

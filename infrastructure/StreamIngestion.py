@@ -22,7 +22,16 @@ class StreamIngestion(pulumi.ComponentResource):
             "glowing_telegram:infrastructure:StreamIngestion", name, None, opts
         )
 
-        lambda_role = aws_native.iam.Role(
+        # Create secret for OpenAI API key
+        openai_secret = aws.secretsmanager.Secret(
+            f"{name}-openai-secret",
+            name=f"{name}-openai-secret",
+            description="OpenAI API key",
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # Create a Lambda execution role
+        summarize_transcription_lambda_role = aws_native.iam.Role(
             f"{name}-summarize-transcription-lambda-role",
             assume_role_policy_document={
                 "Version": "2012-10-17",
@@ -38,6 +47,44 @@ class StreamIngestion(pulumi.ComponentResource):
             },
             managed_policy_arns=[
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+            ],
+            policies=[
+                aws_native.iam.RolePolicyArgs(
+                    policy_name=f"{name}-summarize-transcription-lambda-policy",
+                    policy_document={
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            # DynamoDB permissions
+                            {
+                                "Effect": "Allow",
+                                "Action": [
+                                    "dynamodb:PutItem",
+                                    "dynamodb:GetItem",
+                                ],
+                                "Resource": metadata_table.arn,
+                            },
+                            # Allow X-Ray tracing
+                            {
+                                "Effect": "Allow",
+                                "Action": [
+                                    "xray:PutTraceSegments",
+                                    "xray:PutTelemetryRecords",
+                                    "xray:GetSamplingRules",
+                                    "xray:GetSamplingTargets",
+                                ],
+                                "Resource": ["*"],
+                            },
+                            # Allow getting the OpenAI secret
+                            {
+                                "Effect": "Allow",
+                                "Action": [
+                                    "secretsmanager:GetSecretValue",
+                                ],
+                                "Resource": openai_secret.arn,
+                            },
+                        ],
+                    },
+                )
             ],
             opts=pulumi.ResourceOptions(parent=self),
         )
@@ -55,7 +102,13 @@ class StreamIngestion(pulumi.ComponentResource):
             ),
             tracing_config={"mode": "Active"},
             handler="doesnt.matter",
-            role=lambda_role.arn,
+            role=summarize_transcription_lambda_role.arn,
+            environment={
+                "variables": {
+                    "OPENAI_SECRET_ARN": openai_secret.arn,
+                    "METADATA_TABLE_NAME": metadata_table.name,
+                }
+            },
             opts=pulumi.ResourceOptions(parent=self),
         )
 
@@ -88,9 +141,18 @@ class StreamIngestion(pulumi.ComponentResource):
                                 "Action": [
                                     "batch:SubmitJob",
                                     "batch:DescribeJobs",
+                                ],
+                                "Resource": [
+                                    gpu_batch_job_queue_arn,
+                                    audio_transcriber_job_arn,
+                                ],
+                            },
+                            {
+                                "Effect": "Allow",
+                                "Action": [
                                     "batch:TerminateJob",
                                 ],
-                                "Resource": "*",  # TODO: constrain to the job queue and job definition
+                                "Resource": "*",
                             },
                             {
                                 "Effect": "Allow",
@@ -100,7 +162,7 @@ class StreamIngestion(pulumi.ComponentResource):
                                     "events:DescribeRule",
                                 ],
                                 "Resource": [
-                                    "arn:aws:events:us-west-2:159222827421:rule/StepFunctionsGetEventsForBatchJobsRule"  # TODO use region and account id
+                                    f"arn:aws:events:{aws.config.region}:{aws.get_caller_identity().account_id}:rule/StepFunctions*",
                                 ],
                             },
                             {
@@ -147,4 +209,12 @@ class StreamIngestion(pulumi.ComponentResource):
             role_arn=state_machine_role.arn,
             tracing_configuration={"enabled": True},
             opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        self.stepfunction_arn = my_state_machine.arn
+
+        self.register_outputs(
+            {
+                "stepfunction_arn": my_state_machine.arn,
+            }
         )
