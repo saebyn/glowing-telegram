@@ -42,12 +42,24 @@
           "#k": "key"
         }
       },
-      "Next": "Transcribe Audio to Text",
+      "Next": "Check if transcription already exists",
       "ResultPath": "$.item",
       "ResultSelector": {
         "key.$": "$.Item.key.S",
-        "audio.$": "$.Item.audio.S"
+        "audio.$": "$.Item.audio.S",
+        "transcription.$": "$.Item.transcription.M"
       }
+    },
+    "Check if transcription already exists": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.item.transcription",
+          "IsPresent": true,
+          "Next": "Summarize Transcription"
+        }
+      ],
+      "Default": "Transcribe Audio to Text"
     },
     "Transcribe Audio to Text": {
       "Type": "Task",
