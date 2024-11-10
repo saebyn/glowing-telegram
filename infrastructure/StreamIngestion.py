@@ -60,6 +60,7 @@ class StreamIngestion(pulumi.ComponentResource):
                                 "Action": [
                                     "dynamodb:PutItem",
                                     "dynamodb:GetItem",
+                                    "dynamodb:UpdateItem",
                                 ],
                                 "Resource": metadata_table.arn,
                             },
@@ -93,6 +94,7 @@ class StreamIngestion(pulumi.ComponentResource):
         summarize_transcription_lambda = aws.lambda_.Function(
             f"{name}-summarize_transcription_lambda",
             runtime=aws.lambda_.Runtime.CUSTOM_AL2023,
+            timeout=15 * 60,
             code=pulumi.AssetArchive(
                 {
                     "bootstrap": pulumi.FileAsset(
@@ -107,6 +109,31 @@ class StreamIngestion(pulumi.ComponentResource):
                 "variables": {
                     "OPENAI_SECRET_ARN": openai_secret.arn,
                     "METADATA_TABLE_NAME": metadata_table.name,
+                    "OPENAI_MODEL": "gpt-4o-2024-08-06",
+                    "OPENAI_INSTRUCTIONS": """
+Generate a detailed summary report for the given transcript of a 20-minute video, using the provided context summary of preceding videos to enhance continuity and depth.
+
+The summary you generate must be not only informational for content review but also reusable for future summarization and reference purposes. Combine the details from the current video with the larger context of the ongoing series to identify recurring themes, connections, and key points.
+
+# Steps
+1. **Analyze the Transcript**: Read the 20-minute transcript thoroughly to capture major discussion points, arguments, examples, questions, and any pivotal moments or insights, and noting the time periods of each.
+2. **Incorporate Preceding Context**: Use the summary of the preceding videos to identify overarching topics, common themes, recurring elements, and key progressions in the narrative.
+3. **Extract Key Points**: Highlight:
+   - The main topics covered in the current video.
+   - Key arguments or perspectives.
+   - Examples or anecdotes that have importance.
+   - How the discussion connects to or extends previous episodes.
+4. **Generate the Output**:
+   - Create a high-level summary of the current video.
+   - Note connections to previous videos, showing continuity of ideas and context where applicable.
+   - Identify questions introduced or resolved, transitions in focus, or shifts from the previous video.
+   - Highlight significant new points or insights and how they enhance the larger theme.
+   - Review any errors or inconsistencies in the transcript that need clarification or correction (attentions).
+   - Identify any gaffs or issues that might require further investigation or follow-up (transcript errors).
+
+# Notes 
+- Ensure continuity between videos by emphasizing the ongoing build of ideas.
+- Focus on the usefulness of the `summary_context` in shaping future summaries, noting key phrases, themes, or topics that might resurface or require revisiting.""",
                 }
             },
             opts=pulumi.ResourceOptions(parent=self),

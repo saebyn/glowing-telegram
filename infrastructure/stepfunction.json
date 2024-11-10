@@ -11,8 +11,9 @@
         },
         "count.$": "States.ArrayLength($.videoKeys)",
         "videoKeys.$": "$.videoKeys",
-        "transcriptionContext": {
-          "text.$": "$.initialPrompt"
+        "context": {
+          "transcription.$": "$.initialPrompt",
+          "summarization": ""
         }
       }
     },
@@ -32,7 +33,7 @@
       "Resource": "arn:aws:states:::dynamodb:getItem",
       "Parameters": {
         "TableName": "${metadataTableName}",
-        "ProjectionExpression": "#k, audio",
+        "ProjectionExpression": "#k, audio, transcription",
         "Key": {
           "key": {
             "S.$": "States.ArrayGetItem($.videoKeys, $.iterator.index)"
@@ -42,12 +43,19 @@
           "#k": "key"
         }
       },
-      "Next": "Transcribe Audio to Text",
-      "ResultPath": "$.item",
-      "ResultSelector": {
-        "key.$": "$.Item.key.S",
-        "audio.$": "$.Item.audio.S"
-      }
+      "Next": "Check if transcription already exists",
+      "ResultPath": "$.dynamodb"
+    },
+    "Check if transcription already exists": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.dynamodb.Item.transcription",
+          "IsPresent": true,
+          "Next": "Summarize Transcription"
+        }
+      ],
+      "Default": "Transcribe Audio to Text"
     },
     "Transcribe Audio to Text": {
       "Type": "Task",
@@ -56,21 +64,26 @@
         "JobDefinition": "${audioTranscriberJobDefinitionArn}",
         "JobQueue": "${audioTranscriberJobQueueArn}",
         "Parameters": {
-          "input_key.$": "$.item.audio",
-          "item_key.$": "$.item.key",
+          "input_key.$": "$.dynamodb.Item.audio.S",
+          "item_key.$": "$.dynamodb.Item.key.S",
           "language": "en",
-          "initial_prompt.$": "$.transcriptionContext.text"
+          "initial_prompt.$": "$.context.transcription"
         },
         "JobName": "transcribe-audio"
       },
       "ResultPath": null,
-      "Next": "Summarize Transcription"
+      "Next": "GetItem from DynamoDB"
     },
     "Summarize Transcription": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
-        "Payload.$": "$",
+        "Payload": {
+          "input_key.$": "$.dynamodb.Item.key.S",
+          "transcription.$": "$.dynamodb.Item.transcription.M.segments",
+          "transcription_context.$": "$.context.transcription",
+          "summarization_context.$": "$.context.summarization"
+        },
         "FunctionName": "${summarizeTranscriptionFunctionArn}"
       },
       "Retry": [
@@ -86,26 +99,12 @@
           "BackoffRate": 2
         }
       ],
-      "ResultPath": null,
-      "Next": "Get context from DynamoDB"
-    },
-    "Get context from DynamoDB": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::dynamodb:getItem",
-      "Parameters": {
-        "TableName": "${metadataTableName}",
-        "ProjectionExpression": "transcription_context",
-        "Key": {
-          "key": {
-            "S.$": "$.item.key"
-          }
-        }
-      },
-      "Next": "Increment index",
-      "ResultPath": "$.transcriptionContext",
       "ResultSelector": {
-        "text.$": "$.Item.transcription_context.S"
-      }
+        "summarization.$": "$.Payload.summarization_context",
+        "transcription.$": "$.Payload.transcription_context"
+      },
+      "ResultPath": "$.context",
+      "Next": "Increment index"
     },
     "Increment index": {
       "Type": "Pass",
