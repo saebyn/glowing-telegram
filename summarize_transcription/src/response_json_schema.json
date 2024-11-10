@@ -1,0 +1,131 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "name": "video_summarization",
+  "description": "Schema for the response of the video summarization OpenAI chat completion.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "summary_context": {
+        "type": "string",
+        "description": "A 2-3 sentence summary of the video segment in the context of the preceding videos."
+      },
+      "summary_main_discussion": {
+        "type": "string",
+        "description": "A 2-3 sentence summary of the main things discussed in the video segment."
+      },
+      "title": {
+        "type": "string",
+        "description": "A title for the video segment."
+      },
+      "keywords": {
+        "type": "array",
+        "description": "A list of keywords relevant to the video segment.",
+        "items": {
+          "type": "string"
+        }
+      },
+      "highlights": {
+        "type": "array",
+        "description": "List of important moments in the video segment (highlights).",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timestamp_start",
+            "timestamp_end",
+            "description",
+            "reasoning"
+          ],
+          "properties": {
+            "timestamp_start": {
+              "type": "number",
+              "description": "The time (in seconds) in the video when the highlight occurs."
+            },
+            "timestamp_end": {
+              "type": "number",
+              "description": "The time (in seconds) in the video when the highlight ends."
+            },
+            "description": {
+              "type": "string",
+              "description": "A brief description of the highlight."
+            },
+            "reasoning": {
+              "type": "string",
+              "description": "A brief explanation of why the moment is important."
+            }
+          }
+        }
+      },
+      "attentions": {
+        "type": "array",
+        "description": "List of things that happened in the video segment that might need to be reviewed for removal or redaction or correction (attentions).",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timestamp_start",
+            "timestamp_end",
+            "description",
+            "reasoning"
+          ],
+          "properties": {
+            "timestamp_start": {
+              "type": "number",
+              "description": "The time (in seconds) in the video when the attention point starts."
+            },
+            "timestamp_end": {
+              "type": "number",
+              "description": "The time (in seconds) in the video when the attention point ends."
+            },
+            "description": {
+              "type": "string",
+              "description": "A brief description of the attention point."
+            },
+            "reasoning": {
+              "type": "string",
+              "description": "A brief explanation of why the moment needs attention."
+            }
+          }
+        }
+      },
+      "transcription_errors": {
+        "type": "array",
+        "description": "List of possible transcript errors in the video segment.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timestamp_start",
+            "description",
+            "reasoning"
+          ],
+          "properties": {
+            "timestamp_start": {
+              "type": "number",
+              "description": "The time (in seconds) in the video when the error occurs."
+            },
+            "description": {
+              "type": "string",
+              "description": "A brief description of the error."
+            },
+            "reasoning": {
+              "type": "string",
+              "description": "A brief explanation of why the moment is an error."
+            }
+          }
+        }
+      }
+    },
+    "required": [
+      "summary_context",
+      "summary_main_discussion",
+      "title",
+      "keywords",
+      "highlights",
+      "attentions",
+      "transcription_errors"
+    ],
+    "additionalProperties": false
+  },
+  "strict": true
+}
