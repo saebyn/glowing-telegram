@@ -7,6 +7,7 @@ use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
 use aws_sdk_dynamodb::types::AttributeValue;
 use figment::Figment;
 use lambda_runtime::{service_fn, Error, LambdaEvent};
+use openai_dive::v1::resources::shared::FinishReason::StopSequenceReached;
 use openai_dive::v1::{
     api::Client,
     resources::chat::{
@@ -315,32 +316,31 @@ async fn handler(
         .await
         .expect("failed to call openai api");
 
-    println!("response: {:?}", response);
-    println!("choices: {:?}", response.choices);
+    // Check that we got a choice from the openai api
+    let choice = response
+        .choices
+        .into_iter()
+        .next()
+        .expect("no choice found");
 
-    let result = SummarizationOutput {
-        summary_context: "summary_context".to_string(),
-        summary_main_discussion: "summary_main_discussion".to_string(),
-        title: "title".to_string(),
-        keywords: vec!["keyword1".to_string(), "keyword2".to_string()],
-        highlights: vec![SummaryHighlight {
-            timestamp_start: 0.0,
-            timestamp_end: 1.0,
-            description: "description".to_string(),
-            reasoning: "reasoning".to_string(),
-        }],
-        attentions: vec![SummaryHighlight {
-            timestamp_start: 0.0,
-            timestamp_end: 1.0,
-            description: "description".to_string(),
-            reasoning: "reasoning".to_string(),
-        }],
-        transcription_errors: vec![SummaryTranscriptionError {
-            timestamp_start: 0.0,
-            description: "description".to_string(),
-            reasoning: "reasoning".to_string(),
-        }],
+    // Check that the finish_reason is StopSequenceReached
+    assert_eq!(choice.finish_reason.unwrap(), StopSequenceReached);
+
+    // get the assistant's response
+    let message = match choice.message {
+        ChatMessage::Assistant { content, .. } => match content {
+            Some(content) => match content {
+                ChatMessageContent::Text(text) => text,
+                _ => panic!("expected text content"),
+            },
+            None => panic!("expected content"),
+        },
+        _ => panic!("expected assistant message"),
     };
+
+    // Parse the result as a SummarizationOutput
+    let result = serde_json::from_str::<SummarizationOutput>(&message)
+        .expect("failed to parse result");
 
     let summarization_context = result.summary_context.clone();
 
