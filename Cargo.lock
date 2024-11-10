@@ -89,7 +89,7 @@ dependencies = [
  "gt_ffmpeg",
  "iso8601",
  "oauth2",
- "openai_dive",
+ "openai_dive 0.5.7",
  "redact",
  "redis",
  "regex",
@@ -2069,6 +2069,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "openai_dive"
+version = "0.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3145b6053780214d0d872f204c92e2cf65706b8b78aa304d76567a8d3764d15"
+dependencies = [
+ "bytes",
+ "derive_builder",
+ "reqwest 0.12.5",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "openssl"
 version = "0.10.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2880,6 +2895,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_dynamo"
+version = "4.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e36c1b1792cfd9de29eb373ee6a4b74650369c096f55db7198ceb7b8921d1f7f"
+dependencies = [
+ "base64 0.21.7",
+ "serde",
+]
+
+[[package]]
 name = "serde_json"
 version = "1.0.132"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3063,7 +3088,9 @@ dependencies = [
  "aws-sdk-secretsmanager",
  "figment",
  "lambda_runtime",
+ "openai_dive 0.6.6",
  "serde",
+ "serde_dynamo",
  "serde_json",
  "tokio",
 ]
