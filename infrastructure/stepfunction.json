@@ -13,7 +13,7 @@
         "videoKeys.$": "$.videoKeys",
         "context": {
           "transcription.$": "$.initialPrompt",
-          "summarization": ""
+          "summarization.$": "$.initialSummary"
         }
       }
     },
