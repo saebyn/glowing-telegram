@@ -270,7 +270,98 @@ stream_ingestion = StreamIngestion(
     metadata_table=video_metadata_table,
 )
 
-# TODO cognito userpool setup
+# cognito userpool setup
+
+app_user_pool = aws.cognito.UserPool(
+    "AppUserPool",
+    account_recovery_setting={
+        "recovery_mechanisms": [
+            {
+                "name": "verified_email",
+                "priority": 1,
+            }
+        ],
+    },
+    auto_verified_attributes=["email"],
+    deletion_protection="ACTIVE",
+    device_configuration={
+        "challenge_required_on_new_device": True,
+        "device_only_remembered_on_user_prompt": True,
+    },
+    email_configuration={
+        "email_sending_account": "COGNITO_DEFAULT",
+    },
+    mfa_configuration="OPTIONAL",
+    name="glowing-telegram-user-pool",
+    password_policy={
+        "minimum_length": 20,
+        "password_history_size": 24,
+        "require_lowercase": True,
+        "require_numbers": True,
+        "require_symbols": True,
+        "require_uppercase": True,
+        "temporary_password_validity_days": 1,
+    },
+    software_token_mfa_configuration={
+        "enabled": True,
+    },
+    username_attributes=["email"],
+    username_configuration={
+        "case_sensitive": False,
+    },
+    verification_message_template={
+        "default_email_option": "CONFIRM_WITH_CODE",
+    },
+    opts=pulumi.ResourceOptions(protect=True),
+)
+
+user_pool_domain = aws.cognito.UserPoolDomain(
+    "AppUserPoolDomain",
+    domain="glowing-telegram",
+    user_pool_id=app_user_pool.id,
+    opts=pulumi.ResourceOptions(protect=True),
+)
+
+user_pool_client = aws_native.cognito.UserPoolClient(
+    "AppUserPoolClient",
+    access_token_validity=60,
+    allowed_o_auth_flows=["code"],
+    allowed_o_auth_flows_user_pool_client=True,
+    allowed_o_auth_scopes=[
+        "aws.cognito.signin.user.admin",
+        "email",
+        "openid",
+        "phone",
+        "profile",
+    ],
+    auth_session_validity=3,
+    callback_urls=[
+        "http://localhost:5173/auth-callback",
+        "https://localhost:5173/auth-callback",
+    ],
+    enable_token_revocation=True,
+    explicit_auth_flows=[
+        "ALLOW_REFRESH_TOKEN_AUTH",
+        "ALLOW_USER_AUTH",
+        "ALLOW_USER_SRP_AUTH",
+    ],
+    id_token_validity=60,
+    logout_urls=[
+        "http://localhost:5173/login",
+        "https://localhost:5173/login",
+    ],
+    client_name="glowing-telegram-client",
+    prevent_user_existence_errors="ENABLED",
+    refresh_token_validity=5,
+    supported_identity_providers=["COGNITO"],
+    token_validity_units={
+        "access_token": "minutes",
+        "id_token": "minutes",
+        "refresh_token": "days",
+    },
+    user_pool_id=app_user_pool.id,
+    opts=pulumi.ResourceOptions(protect=True),
+)
 
 ###
 # Some demo code to show how to use API gateway to trigger the state machine
@@ -290,8 +381,7 @@ api_user_authorizer = aws.apigateway.Authorizer(
     rest_api=api.id,
     type="COGNITO_USER_POOLS",
     provider_arns=[
-        # TODO replace with the actual user pool arn from above cognito setup
-        "arn:aws:cognito-idp:us-west-2:159222827421:userpool/us-west-2_wjnLs4FwR"
+        app_user_pool.arn,
     ],
 )
 
@@ -409,4 +499,10 @@ stream_ingestion_api_method_response = aws.apigateway.MethodResponse(
     http_method=stream_ingestion_api_method.http_method,
     status_code="200",
     response_models={"application/json": "Empty"},
+)
+
+
+# Trigger a deployment of the API when we do 'pulumi up'
+api_deployment = aws.apigateway.Deployment(
+    "stream-ingestion-api-deployment", rest_api=api.id, stage_name="tst"
 )
