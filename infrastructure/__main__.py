@@ -92,8 +92,8 @@ output_bucket = aws_native.s3.Bucket(
     opts=pulumi.ResourceOptions(protect=True),
 )
 
-# Create a DynamoDB table to store metadata about the videos
-metadata_table = aws.dynamodb.Table(
+# Create a DynamoDB tables for the application
+video_metadata_table = aws.dynamodb.Table(
     "metadata-table",
     billing_mode="PAY_PER_REQUEST",
     hash_key="key",
@@ -105,6 +105,46 @@ metadata_table = aws.dynamodb.Table(
     ],
     opts=pulumi.ResourceOptions(protect=True),
 )
+
+streams_table = aws.dynamodb.Table(
+    "streams",
+    billing_mode="PAY_PER_REQUEST",
+    hash_key="id",
+    attributes=[
+        {
+            "name": "id",
+            "type": "S",
+        }
+    ],
+    opts=pulumi.ResourceOptions(protect=True),
+)
+
+stream_series_table = aws.dynamodb.Table(
+    "stream-series",
+    billing_mode="PAY_PER_REQUEST",
+    hash_key="id",
+    attributes=[
+        {
+            "name": "id",
+            "type": "S",
+        }
+    ],
+    opts=pulumi.ResourceOptions(protect=True),
+)
+
+episode_table = aws.dynamodb.Table(
+    "episodes",
+    billing_mode="PAY_PER_REQUEST",
+    hash_key="id",
+    attributes=[
+        {
+            "name": "id",
+            "type": "S",
+        }
+    ],
+    opts=pulumi.ResourceOptions(protect=True),
+)
+
 
 # AWS Batch setup
 ## Get the default VPC
