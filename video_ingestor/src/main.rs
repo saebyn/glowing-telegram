@@ -237,13 +237,16 @@ async fn save_results_to_dynamodb(
     let dynamodb_client = aws_sdk_dynamodb::Client::new(aws_config);
 
     dynamodb_client
-        .put_item()
+        .update_item()
         .table_name(table_name)
-        .item("key", AttributeValue::S(input_key.to_string()))
-        .item("metadata", format_metadata(&metadata_result))
-        .item("audio", AttributeValue::S(audio_result.to_string()))
-        .item(
-            "keyframes",
+        .key("key", AttributeValue::S(input_key.clone()))
+        .update_expression(
+            "SET metadata = :metadata, audio = :audio, keyframes = :keyframes, silence = :silence",
+        )
+        .expression_attribute_values(":metadata", format_metadata(&metadata_result))
+        .expression_attribute_values(":audio", AttributeValue::S(audio_result.to_string()))
+        .expression_attribute_values(
+            ":keyframes",
             AttributeValue::Ss(
                 keyframes_result
                     .into_iter()
@@ -251,8 +254,8 @@ async fn save_results_to_dynamodb(
                     .collect(),
             ),
         )
-        .item(
-            "silence",
+        .expression_attribute_values(
+            ":silence",
             AttributeValue::L(
                 silence_result
                     .into_iter()
