@@ -8,26 +8,23 @@ use std::collections::HashMap;
 pub struct ListResult {
     pub items: Vec<serde_json::Value>,
     pub cursor: Option<String>,
-    pub total_items: i32,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct PageOptions {
     pub limit: i32,
-    pub cursor: Option<String>,
+    pub cursor: Option<serde_json::Value>,
 }
 
 pub async fn list(
     client: &Client,
     table_name: &str,
-    sort: Option<String>,
     filters: HashMap<String, String>,
     page: PageOptions,
 ) -> Result<ListResult, Error> {
     let mut scan_input = client.scan().table_name(table_name);
 
-    // Check if the query contains a filter and parse it
-
+    // Create the filter expression and attribute maps
     let mut filter_expressions = Vec::new();
     let mut expression_attribute_names = HashMap::new();
     let mut expression_attribute_values = HashMap::new();
@@ -54,6 +51,15 @@ pub async fn list(
             ));
     }
 
+    // Apply the limit and cursor to the scan input
+    if let Some(cursor) = page.cursor {
+        scan_input = scan_input
+            .set_exclusive_start_key(Some(convert_json_to_hm(&cursor)));
+    }
+    if page.limit > 0 {
+        scan_input = scan_input.limit(page.limit);
+    }
+
     // Send the scan request to DynamoDB
     let scan_output = scan_input.send().await?;
 
@@ -71,10 +77,111 @@ pub async fn list(
         cursor: scan_output
             .last_evaluated_key
             .map(|key| convert_hm_to_json(key).to_string()),
-        total_items: scan_output.count,
     };
 
     Ok(payload)
+}
+
+pub struct GetRecordResult(pub Option<serde_json::Value>);
+
+pub async fn get(
+    client: &Client,
+    table_name: &str,
+    key_name: &str,
+    record_id: &str,
+) -> Result<GetRecordResult, Error> {
+    let query = client.get_item().table_name(table_name).key(
+        key_name,
+        aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
+    );
+
+    match query.send().await {
+        Ok(result) => result.item.map_or_else(
+            || Ok(GetRecordResult(None)),
+            |item| {
+                let record = convert_hm_to_json(item);
+                Ok(GetRecordResult(Some(record)))
+            },
+        ),
+        Err(e) => Err(Error::from(e)),
+    }
+}
+
+pub async fn create(
+    client: &Client,
+    table_name: &str,
+    item: &serde_json::Value,
+) -> Result<(), Error> {
+    let item = convert_json_to_hm(item);
+
+    client
+        .put_item()
+        .table_name(table_name)
+        .set_item(Some(item))
+        .send()
+        .await?;
+
+    Ok(())
+}
+
+pub async fn update(
+    client: &Client,
+    table_name: &str,
+    key_name: &str,
+    record_id: &str,
+    item: &serde_json::Value,
+) -> Result<(), Error> {
+    let item = convert_json_to_hm(item);
+
+    let update_expression = item
+        .keys()
+        .map(|k| format!("#{k} = :{k}"))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    let expression_attribute_names = item
+        .keys()
+        .map(|k| (format!("#:{k}"), k.clone()))
+        .collect::<HashMap<String, String>>();
+
+    let expression_attribute_values = item
+        .iter()
+        .map(|(k, v)| (format!(":{k}"), v.clone()))
+        .collect::<HashMap<String, AttributeValue>>();
+
+    let query = client
+        .update_item()
+        .table_name(table_name)
+        .key(
+            key_name,
+            aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
+        )
+        .set_update_expression(Some(update_expression))
+        .set_expression_attribute_names(Some(expression_attribute_names))
+        .set_expression_attribute_values(Some(expression_attribute_values));
+
+    query.send().await?;
+
+    Ok(())
+}
+
+pub async fn delete(
+    client: &Client,
+    table_name: &str,
+    key_name: &str,
+    record_id: &str,
+) -> Result<(), Error> {
+    client
+        .delete_item()
+        .table_name(table_name)
+        .key(
+            key_name,
+            aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
+        )
+        .send()
+        .await?;
+
+    Ok(())
 }
 
 // Convert a hashmap with `AttributeValue`s to a JSON object
@@ -111,6 +218,16 @@ fn convert_hm_to_json(
 ) -> serde_json::Value {
     hm.into_iter()
         .map(|(k, v)| (k, convert_attribute_value_to_json(v)))
+        .collect()
+}
+
+fn convert_json_to_hm(
+    json: &serde_json::Value,
+) -> HashMap<String, AttributeValue> {
+    json.as_object()
+        .unwrap()
+        .iter()
+        .map(|(k, v)| (k.clone(), convert_json_to_attribute_value(v.clone())))
         .collect()
 }
 
@@ -154,5 +271,22 @@ fn convert_attribute_value_to_json(
                 .collect(),
         ),
         _ => serde_json::Value::Null,
+    }
+}
+
+fn convert_json_to_attribute_value(json: serde_json::Value) -> AttributeValue {
+    match json {
+        serde_json::Value::String(s) => AttributeValue::S(s),
+        serde_json::Value::Number(n) => AttributeValue::N(n.to_string()),
+        serde_json::Value::Bool(b) => AttributeValue::Bool(b),
+        serde_json::Value::Array(a) => AttributeValue::L(
+            a.into_iter().map(convert_json_to_attribute_value).collect(),
+        ),
+        serde_json::Value::Object(o) => AttributeValue::M(
+            o.into_iter()
+                .map(|(k, v)| (k, convert_json_to_attribute_value(v)))
+                .collect(),
+        ),
+        serde_json::Value::Null => AttributeValue::Null(true),
     }
 }

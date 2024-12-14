@@ -19,10 +19,10 @@ mod dynamodb;
 #[derive(Debug, Deserialize)]
 #[allow(clippy::struct_field_names)]
 struct Config {
-    video_metadata_table_name: String,
-    episodes_table_name: String,
-    streams_table_name: String,
-    series_table_name: String,
+    video_metadata_table: String,
+    episodes_table: String,
+    streams_table: String,
+    series_table: String,
 }
 
 fn load_config() -> Result<Config, figment::Error> {
@@ -83,6 +83,7 @@ async fn handler(
 
     let table_name =
         get_table_name(shared_resources, request.resource.as_str());
+    let key_name = get_key_name(request.resource.as_str());
 
     match request.method.as_str() {
         "GET" => {
@@ -97,6 +98,7 @@ async fn handler(
             get_record(
                 shared_resources,
                 table_name,
+                key_name,
                 request.record_id.as_ref().unwrap(),
             )
             .await
@@ -133,6 +135,7 @@ async fn handler(
             update_record(
                 shared_resources,
                 table_name,
+                key_name,
                 request.record_id.as_ref().unwrap(),
                 request.payload.as_ref().unwrap(),
             )
@@ -152,6 +155,7 @@ async fn handler(
             delete_record(
                 shared_resources,
                 table_name,
+                key_name,
                 request.record_id.as_ref().unwrap(),
             )
             .await
@@ -165,11 +169,18 @@ fn get_table_name<'a>(
     resource: &'a str,
 ) -> &'a str {
     match resource {
-        "streams" => &shared_resources.config.streams_table_name,
-        "episodes" => &shared_resources.config.episodes_table_name,
-        "series" => &shared_resources.config.series_table_name,
-        "video_clips" => &shared_resources.config.video_metadata_table_name,
+        "streams" => &shared_resources.config.streams_table,
+        "episodes" => &shared_resources.config.episodes_table,
+        "series" => &shared_resources.config.series_table,
+        "video_clips" => &shared_resources.config.video_metadata_table,
         _ => panic!("unsupported resource: {resource}"),
+    }
+}
+
+fn get_key_name(resource: &str) -> &str {
+    match resource {
+        "video_clips" => "key",
+        _ => "id",
     }
 }
 
@@ -209,11 +220,10 @@ async fn list_records(
         }
     };
 
-    // Call the ``list`` function from the ``dynamodb`` module
+    // Call the `list` function from the `dynamodb` module
     match dynamodb::list(
         &shared_resources.dynamodb,
         table_name,
-        None,
         filters,
         dynamodb::PageOptions {
             cursor: None,
@@ -226,7 +236,6 @@ async fn list_records(
             // Create the response payload
             let payload = json!({
                 "items": list_result.items,
-                "total": list_result.total_items,
                 "cursor": list_result.cursor,
             });
 
@@ -243,48 +252,81 @@ async fn list_records(
     }
 }
 
-// TODO remove the clippy warning suppression
-#[allow(clippy::unused_async)]
 async fn get_record(
     shared_resources: &SharedResources,
     table_name: &str,
+    key_name: &str,
     record_id: &str,
 ) -> Result<Response, Error> {
-    let response = Response {
-        payload: serde_json::json!({}),
-        headers: HashMap::new(),
-        status_code: 200,
-    };
-
-    Ok(response)
+    match dynamodb::get(
+        &shared_resources.dynamodb,
+        table_name,
+        key_name,
+        record_id,
+    )
+    .await
+    {
+        Ok(result) => result.0.map_or_else(
+            || {
+                Ok(Response {
+                    payload: serde_json::json!({}),
+                    headers: HashMap::new(),
+                    status_code: 404,
+                })
+            },
+            |record| {
+                Ok(Response {
+                    payload: record,
+                    headers: HashMap::new(),
+                    status_code: 200,
+                })
+            },
+        ),
+        Err(e) => Err(e),
+    }
 }
 
-// TODO remove the clippy warning suppression
-#[allow(clippy::unused_async)]
 async fn create_record(
     shared_resources: &SharedResources,
     table_name: &str,
     payload: &str,
 ) -> Result<Response, Error> {
+    let parsed_payload: serde_json::Value = serde_json::from_str(payload)
+        .map_err(|e| Error::from(format!("failed to parse payload: {e}")))?;
+
+    dynamodb::create(&shared_resources.dynamodb, table_name, &parsed_payload)
+        .await?;
+
     let response = Response {
-        payload: serde_json::json!({}),
+        payload: parsed_payload,
         headers: HashMap::new(),
-        status_code: 200,
+        status_code: 201,
     };
 
     Ok(response)
 }
 
-// TODO remove the clippy warning suppression
-#[allow(clippy::unused_async)]
 async fn update_record(
     shared_resources: &SharedResources,
     table_name: &str,
+    key_name: &str,
     record_id: &str,
     payload: &str,
 ) -> Result<Response, Error> {
+    let parsed_payload: serde_json::Value = serde_json::from_str(payload)
+        .map_err(|e| Error::from(format!("failed to parse payload: {e}")))?;
+
+    dynamodb::update(
+        &shared_resources.dynamodb,
+        table_name,
+        key_name,
+        record_id,
+        &parsed_payload,
+    )
+    .await?;
+
     let response = Response {
-        payload: serde_json::json!({}),
+        payload: parsed_payload,
         headers: HashMap::new(),
         status_code: 200,
     };
@@ -292,17 +334,25 @@ async fn update_record(
     Ok(response)
 }
 
-// TODO remove the clippy warning suppression
-#[allow(clippy::unused_async)]
 async fn delete_record(
     shared_resources: &SharedResources,
     table_name: &str,
+    key_name: &str,
     record_id: &str,
 ) -> Result<Response, Error> {
+    dynamodb::delete(
+        &shared_resources.dynamodb,
+        table_name,
+        key_name,
+        record_id,
+    )
+    .await?;
+
     let response = Response {
         payload: serde_json::json!({}),
         headers: HashMap::new(),
-        status_code: 200,
+        // 204 No Content
+        status_code: 204,
     };
 
     Ok(response)
