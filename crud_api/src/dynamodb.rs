@@ -16,6 +16,7 @@ pub struct PageOptions {
     pub cursor: Option<serde_json::Value>,
 }
 
+#[tracing::instrument]
 pub async fn list(
     client: &Client,
     table_name: &str,
@@ -43,6 +44,10 @@ pub async fn list(
 
     // Apply the filter expression to the scan input
     if !filter_expressions.is_empty() {
+        tracing::info!(
+            "Applying filter expression: {0}",
+            filter_expressions.join(" AND ")
+        );
         scan_input = scan_input
             .filter_expression(filter_expressions.join(" AND"))
             .set_expression_attribute_names(Some(expression_attribute_names))
@@ -53,10 +58,12 @@ pub async fn list(
 
     // Apply the limit and cursor to the scan input
     if let Some(cursor) = page.cursor {
+        tracing::info!("Applying cursor: {cursor}");
         scan_input = scan_input
             .set_exclusive_start_key(Some(convert_json_to_hm(&cursor)));
     }
     if page.limit > 0 {
+        tracing::info!("Applying limit: {0}", page.limit);
         scan_input = scan_input.limit(page.limit);
     }
 

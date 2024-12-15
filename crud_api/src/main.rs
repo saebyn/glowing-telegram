@@ -7,10 +7,15 @@
  *
  */
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
+use aws_lambda_events::{
+    apigw::{ApiGatewayProxyRequest, ApiGatewayProxyResponse},
+    http::HeaderMap,
+    query_map::QueryMap,
+};
 use aws_sdk_dynamodb::Client;
 use figment::Figment;
 use lambda_runtime::{service_fn, Error, LambdaEvent};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -31,25 +36,17 @@ fn load_config() -> Result<Config, figment::Error> {
     figment.extract()
 }
 
+#[derive(Debug, Clone)]
+struct Response {
+    payload: serde_json::Value,
+    headers: HeaderMap,
+    status_code: i64,
+}
+
+#[derive(Debug)]
 struct SharedResources {
     dynamodb: Client,
     config: Config,
-}
-
-#[derive(Debug, Deserialize)]
-struct Request {
-    resource: String,
-    method: String,
-    record_id: Option<String>,
-    query: HashMap<String, String>,
-    payload: Option<String>,
-}
-
-#[derive(Serialize)]
-struct Response {
-    payload: serde_json::Value,
-    headers: HashMap<String, String>,
-    status_code: u16,
 }
 
 #[tokio::main]
@@ -66,101 +63,175 @@ async fn main() -> Result<(), Error> {
 
     let shared_resources = &SharedResources { dynamodb, config };
 
-    let func = service_fn(move |event: LambdaEvent<Request>| async move {
-        handler(shared_resources, event).await
-    });
+    let func = service_fn(
+        move |event: LambdaEvent<ApiGatewayProxyRequest>| async move {
+            handler(shared_resources, event).await
+        },
+    );
+
+    // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
+    tracing_subscriber::fmt()
+        .json()
+        .with_max_level(tracing::Level::INFO)
+        // this needs to be set to remove duplicated information in the log.
+        .with_current_span(false)
+        // this needs to be set to false, otherwise ANSI color codes will
+        // show up in a confusing manner in CloudWatch logs.
+        .with_ansi(false)
+        // disabling time is handy because CloudWatch will add the ingestion time.
+        .without_time()
+        // remove the name of the function from every log entry
+        .with_target(false)
+        .init();
 
     lambda_runtime::run(func).await?;
 
     Ok(())
 }
 
+#[tracing::instrument(skip(event, shared_resources), fields(req_id = %event.context.request_id))]
 async fn handler(
     shared_resources: &SharedResources,
-    event: LambdaEvent<Request>,
-) -> Result<Response, Error> {
+    event: LambdaEvent<ApiGatewayProxyRequest>,
+) -> Result<ApiGatewayProxyResponse, Error> {
     let request = event.payload;
 
-    let table_name =
-        get_table_name(shared_resources, request.resource.as_str());
-    let key_name = get_key_name(request.resource.as_str());
+    tracing::info!("received request: {:?}", request);
 
-    match request.method.as_str() {
+    let path = request.path_parameters.get("proxy");
+
+    let (record_type, record_id) = match path {
+        Some(path) => {
+            let parts: Vec<&str> = path.split('/').collect();
+            if parts.len() == 1 {
+                (parts[0], None)
+            } else if parts.len() == 2 {
+                (parts[0], Some(parts[1]))
+            } else {
+                return Ok(ApiGatewayProxyResponse {
+                    status_code: 400,
+                    headers: HeaderMap::new(),
+                    body: Some(aws_lambda_events::encodings::Body::Text(
+                        "Invalid path".to_string(),
+                    )),
+                    is_base64_encoded: false,
+                    ..Default::default()
+                });
+            }
+        }
+        None => {
+            return Ok(ApiGatewayProxyResponse {
+                status_code: 400,
+                headers: HeaderMap::new(),
+                body: Some(aws_lambda_events::encodings::Body::Text(
+                    "Invalid path".to_string(),
+                )),
+                is_base64_encoded: false,
+                ..Default::default()
+            });
+        }
+    };
+
+    let table_name = get_table_name(shared_resources, record_type);
+    let key_name = get_key_name(record_type);
+
+    let result = match request.http_method.as_str() {
         "GET" => {
             // handle cases where the record_id is not provided (e.g. GET /streams)
-            if request.record_id.is_none() {
-                let response =
-                    list_records(shared_resources, table_name, &request.query)
-                        .await;
-                return response;
+            if record_id.is_none() {
+                list_records(
+                    shared_resources,
+                    table_name,
+                    &request.query_string_parameters,
+                )
+                .await
+            } else {
+                get_record(
+                    shared_resources,
+                    table_name,
+                    key_name,
+                    record_id.unwrap(),
+                )
+                .await
             }
-
-            get_record(
-                shared_resources,
-                table_name,
-                key_name,
-                request.record_id.as_ref().unwrap(),
-            )
-            .await
         }
         "POST" => {
-            if request.record_id.is_some() {
-                return Ok(Response {
+            if record_id.is_some() {
+                Ok(Response {
                     payload: serde_json::json!({
                         "message": "record_id should not be provided for POST requests"
                     }),
-                    headers: HashMap::new(),
+                    headers: HeaderMap::new(),
                     status_code: 400,
-                });
+                })
+            } else {
+                create_record(
+                    shared_resources,
+                    table_name,
+                    request.body.as_ref().unwrap(),
+                )
+                .await
             }
-
-            create_record(
-                shared_resources,
-                table_name,
-                request.payload.as_ref().unwrap(),
-            )
-            .await
         }
         "PUT" => {
-            if request.record_id.is_none() {
-                return Ok(Response {
+            if record_id.is_none() {
+                Ok(Response {
                     payload: serde_json::json!({
                         "message": "record_id should be provided for PUT requests"
                     }),
-                    headers: HashMap::new(),
+                    headers: HeaderMap::new(),
                     status_code: 400,
-                });
+                })
+            } else {
+                update_record(
+                    shared_resources,
+                    table_name,
+                    key_name,
+                    record_id.unwrap(),
+                    request.body.as_ref().unwrap(),
+                )
+                .await
             }
-
-            update_record(
-                shared_resources,
-                table_name,
-                key_name,
-                request.record_id.as_ref().unwrap(),
-                request.payload.as_ref().unwrap(),
-            )
-            .await
         }
         "DELETE" => {
-            if request.record_id.is_none() {
-                return Ok(Response {
+            if record_id.is_none() {
+                Ok(Response {
                     payload: serde_json::json!({
                         "message": "record_id should be provided for DELETE requests"
                     }),
-                    headers: HashMap::new(),
+                    headers: HeaderMap::new(),
                     status_code: 400,
-                });
+                })
+            } else {
+                delete_record(
+                    shared_resources,
+                    table_name,
+                    key_name,
+                    record_id.as_ref().unwrap(),
+                )
+                .await
             }
-
-            delete_record(
-                shared_resources,
-                table_name,
-                key_name,
-                request.record_id.as_ref().unwrap(),
-            )
-            .await
         }
-        _ => panic!("unsupported method: {}", request.method),
+        _ => panic!("unsupported method: {}", request.http_method),
+    };
+
+    match result {
+        Ok(response) => {
+            tracing::info!("response: {:?}", response);
+            Ok(ApiGatewayProxyResponse {
+                status_code: response.status_code,
+                headers: response.headers,
+                body: Some(aws_lambda_events::encodings::Body::Text(
+                    response.payload.to_string(),
+                )),
+                is_base64_encoded: false,
+                ..Default::default()
+            })
+        }
+        Err(e) => {
+            tracing::error!("error: {:?}", e);
+            Err(Error::from(e))
+        }
     }
 }
 
@@ -199,28 +270,31 @@ fn get_key_name(resource: &str) -> &str {
 ///
 /// A `Result` containing a `Response` with the scanned items and the total
 /// count, or an `Error`.
+#[allow(clippy::option_if_let_else)]
 async fn list_records(
     shared_resources: &SharedResources,
     table_name: &str,
-    query: &HashMap<String, String>,
+    query: &QueryMap,
 ) -> Result<Response, Error> {
+    tracing::info!("listing records from table: {table_name}");
+
     // Parse the query parameters
-    let filters: HashMap<_, _> = match serde_json::from_str(
-        query.get("filter").unwrap_or(&String::new()),
-    ) {
-        Ok(params) => params,
-        Err(e) => {
-            return Ok(Response {
-                payload: serde_json::json!({
-                    "message": format!("failed to parse query parameters: {}", e)
-                }),
-                headers: HashMap::new(),
-                status_code: 400,
-            });
-        }
+    let filters = match query.first("filter") {
+        Some(filter) => match filter {
+            "" => HashMap::new(),
+            _ => match serde_json::from_str(filter) {
+                Ok(filters) => filters,
+                Err(e) => {
+                    tracing::warn!("failed to parse filters: {e}");
+                    HashMap::new()
+                }
+            },
+        },
+        None => HashMap::new(),
     };
 
     // Call the `list` function from the `dynamodb` module
+    // TODO - handle pagination
     match dynamodb::list(
         &shared_resources.dynamodb,
         table_name,
@@ -242,13 +316,19 @@ async fn list_records(
             // Build the response
             let response = Response {
                 payload,
-                headers: HashMap::new(),
+                headers: HeaderMap::new(),
                 status_code: 200,
             };
 
+            tracing::info!("successfully listed records");
+
             Ok(response)
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            tracing::error!("failed to list records: {e}");
+
+            Err(e)
+        }
     }
 }
 
@@ -270,14 +350,14 @@ async fn get_record(
             || {
                 Ok(Response {
                     payload: serde_json::json!({}),
-                    headers: HashMap::new(),
+                    headers: HeaderMap::new(),
                     status_code: 404,
                 })
             },
             |record| {
                 Ok(Response {
                     payload: record,
-                    headers: HashMap::new(),
+                    headers: HeaderMap::new(),
                     status_code: 200,
                 })
             },
@@ -299,7 +379,7 @@ async fn create_record(
 
     let response = Response {
         payload: parsed_payload,
-        headers: HashMap::new(),
+        headers: HeaderMap::new(),
         status_code: 201,
     };
 
@@ -327,7 +407,7 @@ async fn update_record(
 
     let response = Response {
         payload: parsed_payload,
-        headers: HashMap::new(),
+        headers: HeaderMap::new(),
         status_code: 200,
     };
 
@@ -350,7 +430,7 @@ async fn delete_record(
 
     let response = Response {
         payload: serde_json::json!({}),
-        headers: HashMap::new(),
+        headers: HeaderMap::new(),
         // 204 No Content
         status_code: 204,
     };
