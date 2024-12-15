@@ -2,6 +2,7 @@ use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
 use lambda_runtime::Error;
 use serde::Deserialize;
+use serde_json::json;
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
@@ -139,31 +140,32 @@ pub async fn update(
     key_name: &str,
     record_id: &str,
     item: &serde_json::Value,
-) -> Result<(), Error> {
+) -> Result<serde_json::Value, Error> {
     let item = convert_json_to_hm(item);
 
     // TODO populate the updated_at field
 
-    let update_expression = item
-        .keys()
-        .map(|k| format!("#{k} = :{k}"))
+    let item_fields_to_update = item.iter().filter(|(k, _)| *k != key_name);
+
+    let update_expression = item_fields_to_update
+        .clone()
+        .map(|(k, _)| format!("#{k} = :{k}"))
         .collect::<Vec<String>>()
         .join(", ");
 
     let update_expression = format!("SET {update_expression}");
 
-    let expression_attribute_names = item
-        .keys()
-        .map(|k| (format!("#{k}"), k.clone()))
+    let expression_attribute_names = item_fields_to_update
+        .clone()
+        .map(|(k, _)| (format!("#{k}"), k.clone()))
         .collect::<HashMap<String, String>>();
 
-    let expression_attribute_values = item
-        .iter()
+    let expression_attribute_values = item_fields_to_update
+        .clone()
         .map(|(k, v)| (format!(":{k}"), v.clone()))
         .collect::<HashMap<String, AttributeValue>>();
 
-    // TODO revisit the logging levels in this crate
-    tracing::info!(
+    tracing::debug!(
         "Update expression: {:?}, Expression attribute names: {:?}, Expression attribute values: {:?}",
         update_expression,
         expression_attribute_names,
@@ -179,11 +181,19 @@ pub async fn update(
         )
         .set_update_expression(Some(update_expression))
         .set_expression_attribute_names(Some(expression_attribute_names))
-        .set_expression_attribute_values(Some(expression_attribute_values));
+        .set_expression_attribute_values(Some(expression_attribute_values))
+        .return_values(aws_sdk_dynamodb::types::ReturnValue::AllNew);
 
-    query.send().await?;
+    let result = query.send().await?;
 
-    Ok(())
+    let item = result
+        .attributes
+        .unwrap_or_default()
+        .iter()
+        .map(|(k, v)| (k.clone(), convert_attribute_value_to_json(v.clone())))
+        .collect::<HashMap<String, serde_json::Value>>();
+
+    Ok(json!(item))
 }
 
 pub async fn delete(

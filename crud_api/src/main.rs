@@ -264,6 +264,7 @@ fn get_table_name<'a>(
     }
 }
 
+// TODO make every function in main.rs change the key in the response to "id" if the resource is "video_clips" (use get_key_name)
 fn get_key_name(resource: &str) -> &str {
     match resource {
         "video_clips" => "key",
@@ -387,6 +388,8 @@ async fn create_record(
     table_name: &str,
     payload: &str,
 ) -> Result<Response, Error> {
+    // TODO validate the payload against a schema for this resource type
+
     let parsed_payload: serde_json::Value = serde_json::from_str(payload)
         .map_err(|e| Error::from(format!("failed to parse payload: {e}")))?;
 
@@ -409,10 +412,12 @@ async fn update_record(
     record_id: &str,
     payload: &str,
 ) -> Result<Response, Error> {
+    // TODO validate the payload against a schema for this resource type
+
     let parsed_payload: serde_json::Value = serde_json::from_str(payload)
         .map_err(|e| Error::from(format!("failed to parse payload: {e}")))?;
 
-    dynamodb::update(
+    let record: serde_json::Value = dynamodb::update(
         &shared_resources.dynamodb,
         table_name,
         key_name,
@@ -420,22 +425,6 @@ async fn update_record(
         &parsed_payload,
     )
     .await?;
-
-    // return the updated record
-    let record = match dynamodb::get(
-        &shared_resources.dynamodb,
-        table_name,
-        key_name,
-        record_id,
-    )
-    .await
-    {
-        Ok(result) => match result.0 {
-            Some(record) => record,
-            None => return Err(Error::from("record not found")),
-        },
-        Err(e) => return Err(e),
-    };
 
     let response = Response {
         payload: record,
