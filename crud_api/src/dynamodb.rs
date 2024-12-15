@@ -148,7 +148,7 @@ pub async fn update(
 
     let expression_attribute_names = item
         .keys()
-        .map(|k| (format!("#:{k}"), k.clone()))
+        .map(|k| (format!("#{k}"), k.clone()))
         .collect::<HashMap<String, String>>();
 
     let expression_attribute_values = item
