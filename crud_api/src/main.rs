@@ -421,10 +421,24 @@ async fn update_record(
     )
     .await?;
 
-    // TODO - return the updated record
+    // return the updated record
+    let record = match dynamodb::get(
+        &shared_resources.dynamodb,
+        table_name,
+        key_name,
+        record_id,
+    )
+    .await
+    {
+        Ok(result) => match result.0 {
+            Some(record) => record,
+            None => return Err(Error::from("record not found")),
+        },
+        Err(e) => return Err(e),
+    };
 
     let response = Response {
-        payload: parsed_payload,
+        payload: record,
         headers: HeaderMap::new(),
         status_code: 200,
     };
