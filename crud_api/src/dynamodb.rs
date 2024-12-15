@@ -121,6 +121,8 @@ pub async fn create(
 ) -> Result<(), Error> {
     let item = convert_json_to_hm(item);
 
+    // TODO populate the created_at field
+
     client
         .put_item()
         .table_name(table_name)
@@ -140,11 +142,15 @@ pub async fn update(
 ) -> Result<(), Error> {
     let item = convert_json_to_hm(item);
 
+    // TODO populate the updated_at field
+
     let update_expression = item
         .keys()
         .map(|k| format!("#{k} = :{k}"))
         .collect::<Vec<String>>()
         .join(", ");
+
+    let update_expression = format!("SET {update_expression}");
 
     let expression_attribute_names = item
         .keys()
@@ -155,6 +161,14 @@ pub async fn update(
         .iter()
         .map(|(k, v)| (format!(":{k}"), v.clone()))
         .collect::<HashMap<String, AttributeValue>>();
+
+    // TODO revisit the logging levels in this crate
+    tracing::info!(
+        "Update expression: {:?}, Expression attribute names: {:?}, Expression attribute values: {:?}",
+        update_expression,
+        expression_attribute_names,
+        expression_attribute_values
+    );
 
     let query = client
         .update_item()
