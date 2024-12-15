@@ -132,7 +132,7 @@ stream_series_table = aws.dynamodb.Table(
     opts=pulumi.ResourceOptions(protect=True),
 )
 
-episode_table = aws.dynamodb.Table(
+episodes_table = aws.dynamodb.Table(
     "episodes",
     billing_mode="PAY_PER_REQUEST",
     hash_key="id",
@@ -370,5 +370,5 @@ api = API(
     video_metadata_table=video_metadata_table,
     streams_table=streams_table,
     stream_series_table=stream_series_table,
-    episodes_table=episode_table,
+    episodes_table=episodes_table,
 )

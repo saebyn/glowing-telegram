@@ -118,7 +118,7 @@ class API(pulumi.ComponentResource):
         )
 
         # Create an integration for the API
-        st_api_integration = aws.apigateway.Integration(
+        stream_ingestion_api_integration = aws.apigateway.Integration(
             "stream-ingestion-api-integration",
             rest_api=api.id,
             resource_id=stream_api_resource.id,
@@ -150,7 +150,9 @@ class API(pulumi.ComponentResource):
             http_method=stream_ingestion_api_method.http_method,
             status_code="200",
             response_templates={"application/json": "{}"},
-            opts=pulumi.ResourceOptions(parent=self, depends_on=[st_api_integration]),
+            opts=pulumi.ResourceOptions(
+                parent=self, depends_on=[stream_ingestion_api_integration]
+            ),
         )
 
         # Response setup for the method
