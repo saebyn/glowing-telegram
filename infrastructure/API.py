@@ -287,7 +287,7 @@ class API(pulumi.ComponentResource):
         )
 
         crud_api_records_proxy_method = aws.apigateway.Method(
-            f"crud-api-records-method",
+            "crud-api-records-method",
             rest_api=api.id,
             resource_id=crud_api_records_proxy_resource,
             http_method="ANY",
@@ -297,7 +297,7 @@ class API(pulumi.ComponentResource):
         )
 
         crud_api_records_proxy_integration = aws.apigateway.Integration(
-            f"crud-api-record-integration",
+            "crud-api-record-integration",
             rest_api=api.id,
             resource_id=crud_api_records_proxy_resource,
             http_method=crud_api_records_proxy_method.http_method,
@@ -309,20 +309,18 @@ class API(pulumi.ComponentResource):
         )
 
         aws.apigateway.IntegrationResponse(
-            f"crud-api-record-integration-response",
+            "crud-api-record-integration-response",
             rest_api=api.id,
             resource_id=crud_api_records_proxy_resource,
             http_method=crud_api_records_proxy_method.http_method,
             status_code="200",
-            # TODO
-            response_templates={"application/json": "{}"},
             opts=pulumi.ResourceOptions(
                 parent=self, depends_on=[crud_api_records_proxy_integration]
             ),
         )
 
         aws.apigateway.MethodResponse(
-            f"crud-api-record-method-response",
+            "crud-api-record-method-response",
             rest_api=api.id,
             resource_id=crud_api_records_proxy_resource,
             http_method=crud_api_records_proxy_method.http_method,
@@ -332,11 +330,11 @@ class API(pulumi.ComponentResource):
 
         # Trigger a deployment of the API when we do 'pulumi up'
         # TODO do this the right way with a stage
-        # aws.apigateway.Deployment(
-        #    "stream-ingestion-api-deployment",
-        #    rest_api=api.id,
-        #    stage_name="tst",
-        #    opts=pulumi.ResourceOptions(parent=self),
-        # ``)
+        aws.apigateway.Deployment(
+            "stream-ingestion-api-deployment",
+            rest_api=api.id,
+            stage_name="tst",
+            opts=pulumi.ResourceOptions(parent=self),
+        )
 
         self.register_outputs({})
