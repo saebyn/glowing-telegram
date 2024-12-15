@@ -370,5 +370,5 @@ api = API(
     video_metadata_table=video_metadata_table,
     streams_table=streams_table,
     stream_series_table=stream_series_table,
-    episode_table=episode_table,
+    episodes_table=episode_table,
 )
