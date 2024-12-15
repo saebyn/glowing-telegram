@@ -28,6 +28,7 @@ struct Config {
     episodes_table: String,
     streams_table: String,
     series_table: String,
+    profiles_table: String,
 }
 
 fn load_config() -> Result<Config, figment::Error> {
@@ -215,9 +216,23 @@ async fn handler(
         _ => panic!("unsupported method: {}", request.http_method),
     };
 
+    let mut cors_headers = HeaderMap::new();
+    cors_headers.insert("Access-Control-Allow-Origin", "*".parse().unwrap());
+    cors_headers.insert(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, OPTIONS".parse().unwrap(),
+    );
+    cors_headers.insert(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization".parse().unwrap(),
+    );
+
     match result {
-        Ok(response) => {
+        Ok(mut response) => {
             tracing::info!("response: {:?}", response);
+
+            response.headers.extend(cors_headers);
+
             Ok(ApiGatewayProxyResponse {
                 status_code: response.status_code,
                 headers: response.headers,
@@ -244,6 +259,7 @@ fn get_table_name<'a>(
         "episodes" => &shared_resources.config.episodes_table,
         "series" => &shared_resources.config.series_table,
         "video_clips" => &shared_resources.config.video_metadata_table,
+        "profiles" => &shared_resources.config.profiles_table,
         _ => panic!("unsupported resource: {resource}"),
     }
 }
@@ -404,6 +420,8 @@ async fn update_record(
         &parsed_payload,
     )
     .await?;
+
+    // TODO - return the updated record
 
     let response = Response {
         payload: parsed_payload,
