@@ -1,6 +1,5 @@
 """glowing-telegram: A tool for managing stream recordings"""
 
-import json
 import pulumi
 import pulumi_aws_native as aws_native
 import pulumi_aws as aws
@@ -10,6 +9,7 @@ from GPUBatchJobQueue import GPUBatchJobQueue
 from VideoIngestorJob import VideoIngestorJob
 from AudioTranscriberJob import AudioTranscriberJob
 from StreamIngestion import StreamIngestion
+from API import API
 
 video_archive = aws_native.s3.Bucket(
     "video-archive",
@@ -132,7 +132,7 @@ stream_series_table = aws.dynamodb.Table(
     opts=pulumi.ResourceOptions(protect=True),
 )
 
-episode_table = aws.dynamodb.Table(
+episodes_table = aws.dynamodb.Table(
     "episodes",
     billing_mode="PAY_PER_REQUEST",
     hash_key="id",
@@ -363,146 +363,12 @@ user_pool_client = aws_native.cognito.UserPoolClient(
     opts=pulumi.ResourceOptions(protect=True),
 )
 
-###
-# Some demo code to show how to use API gateway to trigger the state machine
-# This is not a complete implementation, and is not safe for production use
-###
-
-# API Gateway setup
-api = aws.apigateway.RestApi(
-    "stream-ingestion-api",
-    name="stream-ingestion-api",
-    description="API for ingesting streams",
-    endpoint_configuration={"types": "REGIONAL"},
-)
-
-api_user_authorizer = aws.apigateway.Authorizer(
-    "stream-ingestion-api-user-authorizer",
-    rest_api=api.id,
-    type="COGNITO_USER_POOLS",
-    provider_arns=[
-        app_user_pool.arn,
-    ],
-)
-
-api_policy_document = aws.iam.get_policy_document_output(
-    statements=[
-        {
-            "effect": "Allow",
-            "principals": [
-                {
-                    "type": "AWS",
-                    "identifiers": ["*"],
-                }
-            ],
-            "actions": ["execute-api:Invoke"],
-            "resources": [api.execution_arn.apply(lambda arn: f"{arn}/*/*/*")],
-        },
-    ]
-)
-
-
-api_policy = aws.apigateway.RestApiPolicy(
-    "stream-ingestion-api-policy",
-    rest_api_id=api.id,
-    policy=api_policy_document.json,
-)
-
-# Create a resource for the API
-stream_api_resource = aws.apigateway.Resource(
-    "stream-ingestion-api-resource",
-    rest_api=api.id,
-    parent_id=api.root_resource_id,
-    path_part="stream",
-)
-
-# Create a method for the API
-stream_ingestion_api_method = aws.apigateway.Method(
-    "stream-ingestion-api-method",
-    rest_api=api.id,
-    resource_id=stream_api_resource.id,
-    http_method="POST",
-    authorization="COGNITO_USER_POOLS",
-    authorizer_id=api_user_authorizer.id,
-)
-
-
-# Create a role for the API Gateway to assume when invoking the state machine
-stream_ingestion_api_gateway_role = aws_native.iam.Role(
-    "api-gateway-role",
-    assume_role_policy_document={
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Principal": {
-                    "Service": "apigateway.amazonaws.com",
-                },
-                "Action": "sts:AssumeRole",
-            },
-        ],
-    },
-    policies=[
-        aws_native.iam.RolePolicyArgs(
-            policy_name="api-gateway-policy",
-            policy_document={
-                "Version": "2012-10-17",
-                "Statement": [
-                    {
-                        "Effect": "Allow",
-                        "Action": ["states:StartExecution"],
-                        "Resource": stream_ingestion.stepfunction_arn,
-                    },
-                ],
-            },
-        ),
-    ],
-)
-
-# Create an integration for the API
-stream_ingestion_api_integration = aws.apigateway.Integration(
-    "stream-ingestion-api-integration",
-    rest_api=api.id,
-    resource_id=stream_api_resource.id,
-    http_method=stream_ingestion_api_method.http_method,
-    integration_http_method="POST",
-    type="AWS",
-    uri=f"arn:aws:apigateway:{aws.config.region}:states:action/StartExecution",
-    request_templates={
-        "application/json": pulumi.Output.all(stream_ingestion.stepfunction_arn).apply(
-            lambda args: json.dumps(
-                {
-                    "input": "$util.escapeJavaScript($input.json('$'))",
-                    "stateMachineArn": args[0],
-                }
-            )
-        ),
-    },
-    credentials=stream_ingestion_api_gateway_role.arn,
-)
-
-# integration response
-stream_ingestion_api_integration_response = aws.apigateway.IntegrationResponse(
-    "stream-ingestion-api-integration-response",
-    rest_api=api.id,
-    resource_id=stream_api_resource.id,
-    http_method=stream_ingestion_api_method.http_method,
-    status_code="200",
-    response_templates={"application/json": "{}"},
-)
-
-# Response setup for the method
-stream_ingestion_api_method_response = aws.apigateway.MethodResponse(
-    "stream-ingestion-api-method-response",
-    rest_api=api.id,
-    resource_id=stream_api_resource.id,
-    http_method=stream_ingestion_api_method.http_method,
-    status_code="200",
-    response_models={"application/json": "Empty"},
-)
-
-
-# Trigger a deployment of the API when we do 'pulumi up'
-api_deployment = aws.apigateway.Deployment(
-    "stream-ingestion-api-deployment", rest_api=api.id, stage_name="tst"
+api = API(
+    "gt-api",
+    user_pool=app_user_pool,
+    stream_ingestion_stepfunction_arn=stream_ingestion.stepfunction_arn,
+    video_metadata_table=video_metadata_table,
+    streams_table=streams_table,
+    stream_series_table=stream_series_table,
+    episodes_table=episodes_table,
 )
