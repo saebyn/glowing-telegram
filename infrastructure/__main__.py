@@ -1,6 +1,5 @@
 """glowing-telegram: A tool for managing stream recordings"""
 
-import json
 import pulumi
 import pulumi_aws_native as aws_native
 import pulumi_aws as aws
@@ -10,6 +9,7 @@ from GPUBatchJobQueue import GPUBatchJobQueue
 from VideoIngestorJob import VideoIngestorJob
 from AudioTranscriberJob import AudioTranscriberJob
 from StreamIngestion import StreamIngestion
+from API import API
 
 video_archive = aws_native.s3.Bucket(
     "video-archive",
@@ -92,8 +92,8 @@ output_bucket = aws_native.s3.Bucket(
     opts=pulumi.ResourceOptions(protect=True),
 )
 
-# Create a DynamoDB table to store metadata about the videos
-metadata_table = aws.dynamodb.Table(
+# Create a DynamoDB tables for the application
+video_metadata_table = aws.dynamodb.Table(
     "metadata-table",
     billing_mode="PAY_PER_REQUEST",
     hash_key="key",
@@ -105,6 +105,46 @@ metadata_table = aws.dynamodb.Table(
     ],
     opts=pulumi.ResourceOptions(protect=True),
 )
+
+streams_table = aws.dynamodb.Table(
+    "streams",
+    billing_mode="PAY_PER_REQUEST",
+    hash_key="id",
+    attributes=[
+        {
+            "name": "id",
+            "type": "S",
+        }
+    ],
+    opts=pulumi.ResourceOptions(protect=True),
+)
+
+stream_series_table = aws.dynamodb.Table(
+    "stream-series",
+    billing_mode="PAY_PER_REQUEST",
+    hash_key="id",
+    attributes=[
+        {
+            "name": "id",
+            "type": "S",
+        }
+    ],
+    opts=pulumi.ResourceOptions(protect=True),
+)
+
+episodes_table = aws.dynamodb.Table(
+    "episodes",
+    billing_mode="PAY_PER_REQUEST",
+    hash_key="id",
+    attributes=[
+        {
+            "name": "id",
+            "type": "S",
+        }
+    ],
+    opts=pulumi.ResourceOptions(protect=True),
+)
+
 
 # AWS Batch setup
 ## Get the default VPC
@@ -137,13 +177,13 @@ video_ingestor_job = VideoIngestorJob(
     "video-ingestor-job",
     video_archive=video_archive,
     output_bucket=output_bucket,
-    metadata_table=metadata_table,
+    metadata_table=video_metadata_table,
 )
 
 audio_transcriber_job = AudioTranscriberJob(
     "audio-transcriber-job",
     output_bucket=output_bucket,
-    metadata_table=metadata_table,
+    metadata_table=video_metadata_table,
 )
 
 
@@ -227,143 +267,108 @@ stream_ingestion = StreamIngestion(
     "stream-ingestion",
     audio_transcriber_job_arn=audio_transcriber_job.job_definition_arn,
     gpu_batch_job_queue_arn=gpu_batch_job_queue.job_queue_arn,
-    metadata_table=metadata_table,
+    metadata_table=video_metadata_table,
 )
 
-###
-# Some demo code to show how to use API gateway to trigger the state machine
-# This is not a complete implementation, and is not safe for production use
-###
+# cognito userpool setup
 
-# API Gateway setup
-api = aws.apigateway.RestApi(
-    "stream-ingestion-api",
-    name="stream-ingestion-api",
-    description="API for ingesting streams",
-    endpoint_configuration={"types": "REGIONAL"},
-)
-
-# set a resource policy for the API that allows one IP address to access the API
-my_ip = pulumi.Config().require_secret("my_ip")
-
-api_policy_document = aws.iam.get_policy_document_output(
-    statements=[
-        {
-            "effect": "Allow",
-            "principals": [
-                {
-                    "type": "AWS",
-                    "identifiers": ["*"],
-                }
-            ],
-            "actions": ["execute-api:Invoke"],
-            "resources": [api.execution_arn.apply(lambda arn: f"{arn}/*/*/*")],
-            "conditions": [
-                {
-                    "test": "IpAddress",
-                    "values": [my_ip],
-                    "variable": "aws:SourceIp",
-                }
-            ],
-        },
-    ]
-)
-
-
-api_policy = aws.apigateway.RestApiPolicy(
-    "stream-ingestion-api-policy",
-    rest_api_id=api.id,
-    policy=api_policy_document.json,
-)
-
-# Create a resource for the API
-resource = aws.apigateway.Resource(
-    "stream-ingestion-api-resource",
-    rest_api=api.id,
-    parent_id=api.root_resource_id,
-    path_part="stream",
-)
-
-# Create a method for the API
-method = aws.apigateway.Method(
-    "stream-ingestion-api-method",
-    rest_api=api.id,
-    resource_id=resource.id,
-    http_method="POST",
-    authorization="NONE",
-)
-
-
-# Create a role for the API Gateway to assume when invoking the state machine
-api_gateway_role = aws_native.iam.Role(
-    "api-gateway-role",
-    assume_role_policy_document={
-        "Version": "2012-10-17",
-        "Statement": [
+app_user_pool = aws.cognito.UserPool(
+    "AppUserPool",
+    account_recovery_setting={
+        "recovery_mechanisms": [
             {
-                "Effect": "Allow",
-                "Principal": {
-                    "Service": "apigateway.amazonaws.com",
-                },
-                "Action": "sts:AssumeRole",
-            },
+                "name": "verified_email",
+                "priority": 1,
+            }
         ],
     },
-    policies=[
-        aws_native.iam.RolePolicyArgs(
-            policy_name="api-gateway-policy",
-            policy_document={
-                "Version": "2012-10-17",
-                "Statement": [
-                    {
-                        "Effect": "Allow",
-                        "Action": ["states:StartExecution"],
-                        "Resource": stream_ingestion.stepfunction_arn,
-                    },
-                ],
-            },
-        ),
-    ],
-)
-
-# Create an integration for the API
-integration = aws.apigateway.Integration(
-    "stream-ingestion-api-integration",
-    rest_api=api.id,
-    resource_id=resource.id,
-    http_method=method.http_method,
-    integration_http_method="POST",
-    type="AWS",
-    uri=f"arn:aws:apigateway:{aws.config.region}:states:action/StartExecution",
-    request_templates={
-        "application/json": pulumi.Output.all(stream_ingestion.stepfunction_arn).apply(
-            lambda args: json.dumps(
-                {
-                    "input": "$util.escapeJavaScript($input.json('$'))",
-                    "stateMachineArn": args[0],
-                }
-            )
-        ),
+    auto_verified_attributes=["email"],
+    deletion_protection="ACTIVE",
+    device_configuration={
+        "challenge_required_on_new_device": True,
+        "device_only_remembered_on_user_prompt": True,
     },
-    credentials=api_gateway_role.arn,
+    email_configuration={
+        "email_sending_account": "COGNITO_DEFAULT",
+    },
+    mfa_configuration="OPTIONAL",
+    name="glowing-telegram-user-pool",
+    password_policy={
+        "minimum_length": 20,
+        "password_history_size": 24,
+        "require_lowercase": True,
+        "require_numbers": True,
+        "require_symbols": True,
+        "require_uppercase": True,
+        "temporary_password_validity_days": 1,
+    },
+    software_token_mfa_configuration={
+        "enabled": True,
+    },
+    username_attributes=["email"],
+    username_configuration={
+        "case_sensitive": False,
+    },
+    verification_message_template={
+        "default_email_option": "CONFIRM_WITH_CODE",
+    },
+    opts=pulumi.ResourceOptions(protect=True),
 )
 
-# integration response
-integration_response = aws.apigateway.IntegrationResponse(
-    "stream-ingestion-api-integration-response",
-    rest_api=api.id,
-    resource_id=resource.id,
-    http_method=method.http_method,
-    status_code="200",
-    response_templates={"application/json": "{}"},
+user_pool_domain = aws.cognito.UserPoolDomain(
+    "AppUserPoolDomain",
+    domain="glowing-telegram",
+    user_pool_id=app_user_pool.id,
+    opts=pulumi.ResourceOptions(protect=True),
 )
 
-# Response setup for the method
-response = aws.apigateway.MethodResponse(
-    "stream-ingestion-api-method-response",
-    rest_api=api.id,
-    resource_id=resource.id,
-    http_method=method.http_method,
-    status_code="200",
-    response_models={"application/json": "Empty"},
+user_pool_client = aws_native.cognito.UserPoolClient(
+    "AppUserPoolClient",
+    access_token_validity=60,
+    allowed_o_auth_flows=["code"],
+    allowed_o_auth_flows_user_pool_client=True,
+    allowed_o_auth_scopes=[
+        "aws.cognito.signin.user.admin",
+        "email",
+        "openid",
+        "phone",
+        "profile",
+    ],
+    auth_session_validity=3,
+    callback_urls=[
+        "http://localhost:5173/auth-callback",
+        "https://localhost:5173/auth-callback",
+    ],
+    enable_token_revocation=True,
+    explicit_auth_flows=[
+        "ALLOW_REFRESH_TOKEN_AUTH",
+        "ALLOW_USER_AUTH",
+        "ALLOW_USER_SRP_AUTH",
+    ],
+    id_token_validity=60,
+    logout_urls=[
+        "http://localhost:5173/login",
+        "https://localhost:5173/login",
+    ],
+    client_name="glowing-telegram-client",
+    prevent_user_existence_errors="ENABLED",
+    refresh_token_validity=5,
+    supported_identity_providers=["COGNITO"],
+    token_validity_units={
+        "access_token": "minutes",
+        "id_token": "minutes",
+        "refresh_token": "days",
+    },
+    user_pool_id=app_user_pool.id,
+    opts=pulumi.ResourceOptions(protect=True),
+)
+
+api = API(
+    "gt-api",
+    user_pool=app_user_pool,
+    stream_ingestion_stepfunction_arn=stream_ingestion.stepfunction_arn,
+    video_metadata_table=video_metadata_table,
+    streams_table=streams_table,
+    stream_series_table=stream_series_table,
+    episodes_table=episodes_table,
 )

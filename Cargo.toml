@@ -8,8 +8,13 @@ members = [
   "gt_ffmpeg",
   "task_worker",
   "video_ingestor",
-  "audio_transcriber", "summarize_transcription",
+  "audio_transcriber",
+  "summarize_transcription",
+  "crud_api",
 ]
+
+[profile.release]
+strip = true
 
 [workspace.lints.clippy]
 # Lint groups
