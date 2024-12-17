@@ -120,9 +120,14 @@ pub async fn create(
     table_name: &str,
     item: &serde_json::Value,
 ) -> Result<(), Error> {
-    let item = convert_json_to_hm(item);
+    let mut item = convert_json_to_hm(item);
 
-    // TODO populate the created_at field
+    // populate the created_at field
+    let created_at = chrono::Utc::now().to_rfc3339();
+    item.insert(
+        "created_at".to_string(),
+        AttributeValue::S(created_at.to_string()),
+    );
 
     client
         .put_item()
@@ -141,7 +146,15 @@ pub async fn update(
     record_id: &str,
     item: &serde_json::Value,
 ) -> Result<serde_json::Value, Error> {
-    let item = convert_json_to_hm(item);
+    let mut item = convert_json_to_hm(item);
+
+    // populate the updated_at field with the current timestamp,
+    // replacing the existing value if it exists
+    let updated_at = chrono::Utc::now().to_rfc3339();
+    item.insert(
+        "updated_at".to_string(),
+        AttributeValue::S(updated_at.to_string()),
+    );
 
     let (
         update_expression,
