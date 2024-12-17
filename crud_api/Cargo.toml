@@ -4,16 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-aws-config = "1.5.5"
-aws-sdk-dynamodb = { version = "1.53.0" }
+aws-config = "1.5.10"
+aws-sdk-dynamodb = { version = "1.55.0" }
 lambda_runtime = "0.13.0"
-serde = { version = "1.0.214", features = ["derive"] }
-serde_json = "1.0.132"
-tokio = { version = "1.40.0", features = ["full"] }
+serde = { version = "1.0.216", features = ["derive"] }
+serde_json = "1.0.133"
+tokio = { version = "1.42.0", features = ["full"] }
 figment = { version = "0.10.19", features = ["env"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
-aws_lambda_events = "0.15.1"
+aws_lambda_events = "0.16.0"
 chrono = "0.4.39"
 
 [lints]
