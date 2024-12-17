@@ -28,6 +28,7 @@ struct Config {
     episodes_table: String,
     streams_table: String,
     series_table: String,
+    profiles_table: String,
 }
 
 fn load_config() -> Result<Config, figment::Error> {
@@ -215,9 +216,23 @@ async fn handler(
         _ => panic!("unsupported method: {}", request.http_method),
     };
 
+    let mut cors_headers = HeaderMap::new();
+    cors_headers.insert("Access-Control-Allow-Origin", "*".parse().unwrap());
+    cors_headers.insert(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, OPTIONS".parse().unwrap(),
+    );
+    cors_headers.insert(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization".parse().unwrap(),
+    );
+
     match result {
-        Ok(response) => {
+        Ok(mut response) => {
             tracing::info!("response: {:?}", response);
+
+            response.headers.extend(cors_headers);
+
             Ok(ApiGatewayProxyResponse {
                 status_code: response.status_code,
                 headers: response.headers,
@@ -244,10 +259,12 @@ fn get_table_name<'a>(
         "episodes" => &shared_resources.config.episodes_table,
         "series" => &shared_resources.config.series_table,
         "video_clips" => &shared_resources.config.video_metadata_table,
+        "profiles" => &shared_resources.config.profiles_table,
         _ => panic!("unsupported resource: {resource}"),
     }
 }
 
+// TODO make every function in main.rs change the key in the response to "id" if the resource is "video_clips" (use get_key_name)
 fn get_key_name(resource: &str) -> &str {
     match resource {
         "video_clips" => "key",
@@ -371,6 +388,8 @@ async fn create_record(
     table_name: &str,
     payload: &str,
 ) -> Result<Response, Error> {
+    // TODO validate the payload against a schema for this resource type
+
     let parsed_payload: serde_json::Value = serde_json::from_str(payload)
         .map_err(|e| Error::from(format!("failed to parse payload: {e}")))?;
 
@@ -393,10 +412,12 @@ async fn update_record(
     record_id: &str,
     payload: &str,
 ) -> Result<Response, Error> {
+    // TODO validate the payload against a schema for this resource type
+
     let parsed_payload: serde_json::Value = serde_json::from_str(payload)
         .map_err(|e| Error::from(format!("failed to parse payload: {e}")))?;
 
-    dynamodb::update(
+    let record: serde_json::Value = dynamodb::update(
         &shared_resources.dynamodb,
         table_name,
         key_name,
@@ -406,7 +427,7 @@ async fn update_record(
     .await?;
 
     let response = Response {
-        payload: parsed_payload,
+        payload: record,
         headers: HeaderMap::new(),
         status_code: 200,
     };

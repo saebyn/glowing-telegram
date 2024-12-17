@@ -18,6 +18,7 @@ class API(pulumi.ComponentResource):
         streams_table: aws.dynamodb.Table,
         stream_series_table: aws.dynamodb.Table,
         episodes_table: aws.dynamodb.Table,
+        profiles_table: aws.dynamodb.Table,
         opts=None,
     ):
         super().__init__("glowing_telegram:infrastructure:API", name, None, opts)
@@ -30,6 +31,8 @@ class API(pulumi.ComponentResource):
             endpoint_configuration={"types": "REGIONAL"},
             opts=pulumi.ResourceOptions(parent=self),
         )
+
+        # TODO set up CORS support
 
         api_user_authorizer = aws.apigateway.Authorizer(
             "stream-ingestion-api-user-authorizer",
@@ -208,6 +211,7 @@ class API(pulumi.ComponentResource):
                                     streams_table.arn,
                                     stream_series_table.arn,
                                     episodes_table.arn,
+                                    profiles_table.arn,
                                 ],
                             },
                         ],
@@ -233,6 +237,7 @@ class API(pulumi.ComponentResource):
                     "STREAMS_TABLE": streams_table.name,
                     "SERIES_TABLE": stream_series_table.name,
                     "EPISODES_TABLE": episodes_table.name,
+                    "PROFILES_TABLE": profiles_table.name,
                 }
             },
             opts=pulumi.ResourceOptions(parent=self),

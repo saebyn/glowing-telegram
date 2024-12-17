@@ -2,6 +2,7 @@ use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
 use lambda_runtime::Error;
 use serde::Deserialize;
+use serde_json::json;
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
@@ -119,7 +120,14 @@ pub async fn create(
     table_name: &str,
     item: &serde_json::Value,
 ) -> Result<(), Error> {
-    let item = convert_json_to_hm(item);
+    let mut item = convert_json_to_hm(item);
+
+    // populate the created_at field
+    let created_at = chrono::Utc::now().to_rfc3339();
+    item.insert(
+        "created_at".to_string(),
+        AttributeValue::S(created_at.to_string()),
+    );
 
     client
         .put_item()
@@ -137,24 +145,42 @@ pub async fn update(
     key_name: &str,
     record_id: &str,
     item: &serde_json::Value,
-) -> Result<(), Error> {
-    let item = convert_json_to_hm(item);
+) -> Result<serde_json::Value, Error> {
+    let mut item = convert_json_to_hm(item);
 
-    let update_expression = item
-        .keys()
-        .map(|k| format!("#{k} = :{k}"))
-        .collect::<Vec<String>>()
-        .join(", ");
+    // populate the updated_at field with the current timestamp,
+    // replacing the existing value if it exists
+    let updated_at = chrono::Utc::now().to_rfc3339();
+    item.insert(
+        "updated_at".to_string(),
+        AttributeValue::S(updated_at.to_string()),
+    );
 
-    let expression_attribute_names = item
-        .keys()
-        .map(|k| (format!("#{k}"), k.clone()))
-        .collect::<HashMap<String, String>>();
-
-    let expression_attribute_values = item
+    let (
+        update_expression,
+        expression_attribute_names,
+        expression_attribute_values,
+    ) = item
         .iter()
-        .map(|(k, v)| (format!(":{k}"), v.clone()))
-        .collect::<HashMap<String, AttributeValue>>();
+        .filter(|(k, _)| *k != key_name)
+        .enumerate()
+        .fold(
+            (Vec::new(), HashMap::new(), HashMap::new()),
+            |(mut exprs, mut names, mut values), (i, (k, v))| {
+                exprs.push(format!("#k{i} = :v{i}"));
+                names.insert(format!("#k{i}"), k.clone());
+                values.insert(format!(":v{i}"), v.clone());
+                (exprs, names, values)
+            },
+        );
+    let update_expression = format!("SET {}", update_expression.join(", "));
+
+    tracing::debug!(
+        "Update expression: {:?}, Expression attribute names: {:?}, Expression attribute values: {:?}",
+        update_expression,
+        expression_attribute_names,
+        expression_attribute_values
+    );
 
     let query = client
         .update_item()
@@ -165,11 +191,19 @@ pub async fn update(
         )
         .set_update_expression(Some(update_expression))
         .set_expression_attribute_names(Some(expression_attribute_names))
-        .set_expression_attribute_values(Some(expression_attribute_values));
+        .set_expression_attribute_values(Some(expression_attribute_values))
+        .return_values(aws_sdk_dynamodb::types::ReturnValue::AllNew);
 
-    query.send().await?;
+    let result = query.send().await?;
 
-    Ok(())
+    let item = result
+        .attributes
+        .unwrap_or_default()
+        .iter()
+        .map(|(k, v)| (k.clone(), convert_attribute_value_to_json(v.clone())))
+        .collect::<HashMap<String, serde_json::Value>>();
+
+    Ok(json!(item))
 }
 
 pub async fn delete(
