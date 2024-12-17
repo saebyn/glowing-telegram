@@ -143,27 +143,24 @@ pub async fn update(
 ) -> Result<serde_json::Value, Error> {
     let item = convert_json_to_hm(item);
 
-    // TODO populate the updated_at field
-
-    let item_fields_to_update = item.iter().filter(|(k, _)| *k != key_name);
-
-    let update_expression = item_fields_to_update
-        .clone()
-        .map(|(k, _)| format!("#{k} = :{k}"))
-        .collect::<Vec<String>>()
-        .join(", ");
-
-    let update_expression = format!("SET {update_expression}");
-
-    let expression_attribute_names = item_fields_to_update
-        .clone()
-        .map(|(k, _)| (format!("#{k}"), k.clone()))
-        .collect::<HashMap<String, String>>();
-
-    let expression_attribute_values = item_fields_to_update
-        .clone()
-        .map(|(k, v)| (format!(":{k}"), v.clone()))
-        .collect::<HashMap<String, AttributeValue>>();
+    let (
+        update_expression,
+        expression_attribute_names,
+        expression_attribute_values,
+    ) = item
+        .iter()
+        .filter(|(k, _)| *k != key_name)
+        .enumerate()
+        .fold(
+            (Vec::new(), HashMap::new(), HashMap::new()),
+            |(mut exprs, mut names, mut values), (i, (k, v))| {
+                exprs.push(format!("#k{i} = :v{i}"));
+                names.insert(format!("#k{i}"), k.clone());
+                values.insert(format!(":v{i}"), v.clone());
+                (exprs, names, values)
+            },
+        );
+    let update_expression = format!("SET {}", update_expression.join(", "));
 
     tracing::debug!(
         "Update expression: {:?}, Expression attribute names: {:?}, Expression attribute values: {:?}",
