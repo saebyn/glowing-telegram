@@ -351,6 +351,8 @@ user_pool_client = aws_native.cognito.UserPoolClient(
     callback_urls=[
         "http://localhost:5173/auth-callback",
         "https://localhost:5173/auth-callback",
+        "http://localhost:5173/",
+        "https://localhost:5173/",
     ],
     enable_token_revocation=True,
     explicit_auth_flows=[
@@ -360,8 +362,8 @@ user_pool_client = aws_native.cognito.UserPoolClient(
     ],
     id_token_validity=60,
     logout_urls=[
-        "http://localhost:5173/login",
-        "https://localhost:5173/login",
+        "http://localhost:5173/",
+        "https://localhost:5173/",
     ],
     client_name="glowing-telegram-client",
     prevent_user_existence_errors="ENABLED",
