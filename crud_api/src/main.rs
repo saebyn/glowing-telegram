@@ -7,21 +7,32 @@
  *
  */
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
-use aws_lambda_events::{
-    apigw::{ApiGatewayProxyRequest, ApiGatewayProxyResponse},
-    http::HeaderMap,
-    query_map::QueryMap,
-};
 use aws_sdk_dynamodb::Client;
+use axum::{
+    body::Body,
+    extract::{Path, Query, State},
+    http::{
+        header::{
+            self, ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_TYPE, ORIGIN,
+        },
+        Request, StatusCode,
+    },
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
 use figment::Figment;
-use lambda_runtime::{service_fn, Error, LambdaEvent};
+use lambda_http::tower;
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
+use tower_http::{
+    compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer,
+};
 
 mod dynamodb;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[allow(clippy::struct_field_names)]
 struct Config {
     video_metadata_table: String,
@@ -38,38 +49,26 @@ fn load_config() -> Result<Config, figment::Error> {
 }
 
 #[derive(Debug, Clone)]
-struct Response {
-    payload: serde_json::Value,
-    headers: HeaderMap,
-    status_code: i64,
-}
-
-#[derive(Debug)]
-struct SharedResources {
-    dynamodb: Client,
+struct AppState {
+    dynamodb: Arc<Client>,
     config: Config,
 }
 
+#[derive(Debug, Deserialize)]
+struct RequestPath {
+    stage: String,
+    resource: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RequestPathWithId {
+    stage: String,
+    resource: String,
+    record_id: String,
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Error> {
-    let config = load_config().expect("failed to load config");
-    let region_provider =
-        RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = aws_config::defaults(BehaviorVersion::latest())
-        .region(region_provider)
-        .load()
-        .await;
-
-    let dynamodb = aws_sdk_dynamodb::Client::new(&aws_config);
-
-    let shared_resources = &SharedResources { dynamodb, config };
-
-    let func = service_fn(
-        move |event: LambdaEvent<ApiGatewayProxyRequest>| async move {
-            handler(shared_resources, event).await
-        },
-    );
-
+async fn main() {
     // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
     tracing_subscriber::fmt()
         .json()
@@ -85,181 +84,88 @@ async fn main() -> Result<(), Error> {
         .with_target(false)
         .init();
 
-    lambda_runtime::run(func).await?;
+    let config = load_config().expect("failed to load config");
+    let region_provider =
+        RegionProviderChain::default_provider().or_else("us-east-1");
+    let aws_config = aws_config::defaults(BehaviorVersion::latest())
+        .region(region_provider)
+        .load()
+        .await;
 
-    Ok(())
-}
+    let dynamodb = aws_sdk_dynamodb::Client::new(&aws_config);
 
-#[tracing::instrument(skip(event, shared_resources), fields(req_id = %event.context.request_id))]
-async fn handler(
-    shared_resources: &SharedResources,
-    event: LambdaEvent<ApiGatewayProxyRequest>,
-) -> Result<ApiGatewayProxyResponse, Error> {
-    let request = event.payload;
-
-    tracing::info!("received request: {:?}", request);
-
-    let path = request.path_parameters.get("proxy");
-
-    let (record_type, record_id) = match path {
-        Some(path) => {
-            let parts: Vec<&str> = path.split('/').collect();
-            if parts.len() == 1 {
-                (parts[0], None)
-            } else if parts.len() == 2 {
-                (parts[0], Some(parts[1]))
-            } else {
-                return Ok(ApiGatewayProxyResponse {
-                    status_code: 400,
-                    headers: HeaderMap::new(),
-                    body: Some(aws_lambda_events::encodings::Body::Text(
-                        "Invalid path".to_string(),
-                    )),
-                    is_base64_encoded: false,
-                    ..Default::default()
-                });
-            }
-        }
-        None => {
-            return Ok(ApiGatewayProxyResponse {
-                status_code: 400,
-                headers: HeaderMap::new(),
-                body: Some(aws_lambda_events::encodings::Body::Text(
-                    "Invalid path".to_string(),
-                )),
-                is_base64_encoded: false,
-                ..Default::default()
-            });
-        }
+    // Create a shared state to pass to the handler
+    let state = AppState {
+        dynamodb: Arc::new(dynamodb),
+        config,
     };
 
-    let table_name = get_table_name(shared_resources, record_type);
-    let key_name = get_key_name(record_type);
-
-    let result = match request.http_method.as_str() {
-        "GET" => {
-            // handle cases where the record_id is not provided (e.g. GET /streams)
-            if record_id.is_none() {
-                list_records(
-                    shared_resources,
-                    table_name,
-                    &request.query_string_parameters,
-                )
-                .await
-            } else {
-                get_record(
-                    shared_resources,
-                    table_name,
-                    key_name,
-                    record_id.unwrap(),
-                )
-                .await
-            }
-        }
-        "POST" => {
-            if record_id.is_some() {
-                Ok(Response {
-                    payload: serde_json::json!({
-                        "message": "record_id should not be provided for POST requests"
-                    }),
-                    headers: HeaderMap::new(),
-                    status_code: 400,
-                })
-            } else {
-                create_record(
-                    shared_resources,
-                    table_name,
-                    request.body.as_ref().unwrap(),
-                )
-                .await
-            }
-        }
-        "PUT" => {
-            if record_id.is_none() {
-                Ok(Response {
-                    payload: serde_json::json!({
-                        "message": "record_id should be provided for PUT requests"
-                    }),
-                    headers: HeaderMap::new(),
-                    status_code: 400,
-                })
-            } else {
-                update_record(
-                    shared_resources,
-                    table_name,
-                    key_name,
-                    record_id.unwrap(),
-                    request.body.as_ref().unwrap(),
-                )
-                .await
-            }
-        }
-        "DELETE" => {
-            if record_id.is_none() {
-                Ok(Response {
-                    payload: serde_json::json!({
-                        "message": "record_id should be provided for DELETE requests"
-                    }),
-                    headers: HeaderMap::new(),
-                    status_code: 400,
-                })
-            } else {
-                delete_record(
-                    shared_resources,
-                    table_name,
-                    key_name,
-                    record_id.as_ref().unwrap(),
-                )
-                .await
-            }
-        }
-        _ => panic!("unsupported method: {}", request.http_method),
-    };
-
-    let mut cors_headers = HeaderMap::new();
-    cors_headers.insert("Access-Control-Allow-Origin", "*".parse().unwrap());
-    cors_headers.insert(
-        "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS".parse().unwrap(),
-    );
-    cors_headers.insert(
-        "Access-Control-Allow-Headers",
-        "Content-Type, Authorization".parse().unwrap(),
+    // Set up a trace layer
+    let trace_layer = TraceLayer::new_for_http().on_request(
+        |request: &Request<Body>, _: &tracing::Span| {
+            tracing::info!(
+                "received request: {method} {uri}",
+                method = request.method(),
+                uri = request.uri()
+            );
+        },
     );
 
-    match result {
-        Ok(mut response) => {
-            tracing::info!("response: {:?}", response);
+    // Set up a CORS layer
+    let cors_layer = CorsLayer::new()
+        .allow_headers([
+            ACCEPT,
+            ACCEPT_ENCODING,
+            AUTHORIZATION,
+            CONTENT_TYPE,
+            ORIGIN,
+        ])
+        .allow_methods(tower_http::cors::Any)
+        .allow_origin(tower_http::cors::Any);
 
-            response.headers.extend(cors_headers);
+    let compression_layer = CompressionLayer::new().gzip(true).deflate(true);
 
-            Ok(ApiGatewayProxyResponse {
-                status_code: response.status_code,
-                headers: response.headers,
-                body: Some(aws_lambda_events::encodings::Body::Text(
-                    response.payload.to_string(),
-                )),
-                is_base64_encoded: false,
-                ..Default::default()
-            })
-        }
-        Err(e) => {
-            tracing::error!("error: {:?}", e);
-            Err(Error::from(e))
-        }
-    }
+    // Create Axum app
+    let app = Router::new()
+        .route(
+            "/:stage/records/:resource",
+            get(list_records_handler).post(create_record_handler),
+        )
+        .route(
+            "/:stage/records/:resource/:record_id",
+            get(get_record_handler)
+                .put(update_record_handler)
+                .delete(delete_record_handler),
+        )
+        .fallback(|| async {
+            (
+                StatusCode::NOT_FOUND,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "not found",
+                })),
+            )
+        })
+        .layer(cors_layer)
+        .layer(trace_layer)
+        .layer(compression_layer)
+        .with_state(state);
+
+    // Provide the app to the lambda runtime
+    let app = tower::ServiceBuilder::new()
+        .layer(axum_aws_lambda::LambdaLayer::default())
+        .service(app);
+
+    lambda_http::run(app).await.unwrap();
 }
 
-fn get_table_name<'a>(
-    shared_resources: &'a SharedResources,
-    resource: &'a str,
-) -> &'a str {
+fn get_table_name<'a>(state: &'a AppState, resource: &'a str) -> &'a str {
     match resource {
-        "streams" => &shared_resources.config.streams_table,
-        "episodes" => &shared_resources.config.episodes_table,
-        "series" => &shared_resources.config.series_table,
-        "video_clips" => &shared_resources.config.video_metadata_table,
-        "profiles" => &shared_resources.config.profiles_table,
+        "streams" => &state.config.streams_table,
+        "episodes" => &state.config.episodes_table,
+        "series" => &state.config.series_table,
+        "video_clips" => &state.config.video_metadata_table,
+        "profiles" => &state.config.profiles_table,
         _ => panic!("unsupported resource: {resource}"),
     }
 }
@@ -277,7 +183,7 @@ fn get_key_name(resource: &str) -> &str {
 ///
 /// # Arguments
 ///
-/// * `shared_resources` - A reference to the shared resources containing the
+/// * `state` - A reference to the shared resources containing the
 ///   ``DynamoDB`` client and configuration.
 /// * `table_name` - The name of the ``DynamoDB`` table to scan.
 /// * `query` - A hashmap containing the query parameters, including filters as
@@ -288,16 +194,18 @@ fn get_key_name(resource: &str) -> &str {
 /// A `Result` containing a `Response` with the scanned items and the total
 /// count, or an `Error`.
 #[allow(clippy::option_if_let_else)]
-async fn list_records(
-    shared_resources: &SharedResources,
-    table_name: &str,
-    query: &QueryMap,
-) -> Result<Response, Error> {
+async fn list_records_handler(
+    Path(RequestPath { stage: _, resource }): Path<RequestPath>,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let table_name = get_table_name(&state, &resource);
+
     tracing::info!("listing records from table: {table_name}");
 
     // Parse the query parameters
-    let filters = match query.first("filter") {
-        Some(filter) => match filter {
+    let filters = match query.get("filter") {
+        Some(filter) => match filter.as_str() {
             "" => HashMap::new(),
             _ => match serde_json::from_str(filter) {
                 Ok(filters) => filters,
@@ -313,7 +221,7 @@ async fn list_records(
     // Call the `list` function from the `dynamodb` module
     // TODO - handle pagination
     match dynamodb::list(
-        &shared_resources.dynamodb,
+        &state.dynamodb,
         table_name,
         filters,
         dynamodb::PageOptions {
@@ -324,137 +232,184 @@ async fn list_records(
     .await
     {
         Ok(list_result) => {
-            // Create the response payload
-            let payload = json!({
-                "items": list_result.items,
-                "cursor": list_result.cursor,
-            });
-
             // Build the response
-            let response = Response {
-                payload,
-                headers: HeaderMap::new(),
-                status_code: 200,
-            };
-
             tracing::info!("successfully listed records");
 
-            Ok(response)
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "items": list_result.items,
+                    "cursor": list_result.cursor,
+                })),
+            )
         }
         Err(e) => {
             tracing::error!("failed to list records: {e}");
 
-            Err(e)
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "failed to list records",
+                })),
+            )
         }
     }
 }
 
-async fn get_record(
-    shared_resources: &SharedResources,
-    table_name: &str,
-    key_name: &str,
-    record_id: &str,
-) -> Result<Response, Error> {
+async fn get_record_handler(
+    Path(RequestPathWithId {
+        stage: _,
+        resource,
+        record_id,
+    }): Path<RequestPathWithId>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let table_name = get_table_name(&state, &resource);
+    let key_name = get_key_name(&resource);
+
     match dynamodb::get(
-        &shared_resources.dynamodb,
+        &state.dynamodb,
         table_name,
         key_name,
-        record_id,
+        record_id.as_str(),
     )
     .await
     {
         Ok(result) => result.0.map_or_else(
             || {
-                Ok(Response {
-                    payload: serde_json::json!({}),
-                    headers: HeaderMap::new(),
-                    status_code: 404,
-                })
+                (
+                    StatusCode::NOT_FOUND,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(json!({
+                        "message": "record not found",
+                    })),
+                )
             },
             |record| {
-                Ok(Response {
-                    payload: record,
-                    headers: HeaderMap::new(),
-                    status_code: 200,
-                })
+                (
+                    StatusCode::OK,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(record),
+                )
             },
         ),
-        Err(e) => Err(e),
+        Err(e) => {
+            tracing::error!("failed to get record: {e}");
+
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "failed to get record",
+                })),
+            )
+        }
     }
 }
 
-async fn create_record(
-    shared_resources: &SharedResources,
-    table_name: &str,
-    payload: &str,
-) -> Result<Response, Error> {
-    // TODO validate the payload against a schema for this resource type
+async fn create_record_handler(
+    Path(RequestPath { stage: _, resource }): Path<RequestPath>,
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let table_name = get_table_name(&state, &resource);
 
-    let parsed_payload: serde_json::Value = serde_json::from_str(payload)
-        .map_err(|e| Error::from(format!("failed to parse payload: {e}")))?;
+    match dynamodb::create(&state.dynamodb, table_name, &payload).await {
+        Ok(()) => (
+            StatusCode::CREATED,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(payload),
+        ),
+        Err(e) => {
+            tracing::error!("failed to create record: {e}");
 
-    dynamodb::create(&shared_resources.dynamodb, table_name, &parsed_payload)
-        .await?;
-
-    let response = Response {
-        payload: parsed_payload,
-        headers: HeaderMap::new(),
-        status_code: 201,
-    };
-
-    Ok(response)
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "failed to create record",
+                })),
+            )
+        }
+    }
 }
 
-async fn update_record(
-    shared_resources: &SharedResources,
-    table_name: &str,
-    key_name: &str,
-    record_id: &str,
-    payload: &str,
-) -> Result<Response, Error> {
-    // TODO validate the payload against a schema for this resource type
+async fn update_record_handler(
+    Path(RequestPathWithId {
+        stage: _,
+        resource,
+        record_id,
+    }): Path<RequestPathWithId>,
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let table_name = get_table_name(&state, &resource);
+    let key_name = get_key_name(&resource);
 
-    let parsed_payload: serde_json::Value = serde_json::from_str(payload)
-        .map_err(|e| Error::from(format!("failed to parse payload: {e}")))?;
-
-    let record: serde_json::Value = dynamodb::update(
-        &shared_resources.dynamodb,
+    match dynamodb::update(
+        &state.dynamodb,
         table_name,
         key_name,
-        record_id,
-        &parsed_payload,
+        record_id.as_str(),
+        &payload,
     )
-    .await?;
+    .await
+    {
+        Ok(response) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(response),
+        ),
+        Err(e) => {
+            tracing::error!("failed to update record: {e}");
 
-    let response = Response {
-        payload: record,
-        headers: HeaderMap::new(),
-        status_code: 200,
-    };
-
-    Ok(response)
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "failed to update record",
+                })),
+            )
+        }
+    }
 }
 
-async fn delete_record(
-    shared_resources: &SharedResources,
-    table_name: &str,
-    key_name: &str,
-    record_id: &str,
-) -> Result<Response, Error> {
-    dynamodb::delete(
-        &shared_resources.dynamodb,
+async fn delete_record_handler(
+    Path(RequestPathWithId {
+        stage: _,
+        resource,
+        record_id,
+    }): Path<RequestPathWithId>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let table_name = get_table_name(&state, &resource);
+    let key_name = get_key_name(&resource);
+
+    match dynamodb::delete(
+        &state.dynamodb,
         table_name,
         key_name,
-        record_id,
+        record_id.as_str(),
     )
-    .await?;
+    .await
+    {
+        Ok(()) => (
+            StatusCode::NO_CONTENT,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({})),
+        ),
+        Err(e) => {
+            tracing::error!("failed to delete record: {e}");
 
-    let response = Response {
-        payload: serde_json::json!({}),
-        headers: HeaderMap::new(),
-        // 204 No Content
-        status_code: 204,
-    };
-
-    Ok(response)
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "failed to delete record",
+                })),
+            )
+        }
+    }
 }
