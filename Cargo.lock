@@ -671,10 +671,27 @@ dependencies = [
  "sync_wrapper 1.0.1",
  "tokio",
  "tokio-tungstenite",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "axum-aws-lambda"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a21ae5caa7f49804ca2467334f70c362c89cf15431fe581d5d38ca770de112ac"
+dependencies = [
+ "axum",
+ "bytes",
+ "futures-util",
+ "http 1.1.0",
+ "http-body-util",
+ "hyper 1.4.1",
+ "lambda_http",
+ "tower 0.5.2",
+ "tower-service",
 ]
 
 [[package]]
@@ -946,12 +963,16 @@ dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
  "aws_lambda_events",
+ "axum",
+ "axum-aws-lambda",
  "chrono",
  "figment",
+ "lambda_http",
  "lambda_runtime",
  "serde",
  "serde_json",
  "tokio",
+ "tower-http",
  "tracing",
  "tracing-subscriber",
 ]
@@ -1723,7 +1744,7 @@ dependencies = [
  "pin-project-lite",
  "socket2",
  "tokio",
- "tower",
+ "tower 0.4.13",
  "tower-service",
  "tracing",
 ]
@@ -1838,6 +1859,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "lambda_http"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67fe279be7f89f5f72c97c3a96f45c43db8edab1007320ecc6a5741273b4d6db"
+dependencies = [
+ "aws_lambda_events",
+ "base64 0.22.1",
+ "bytes",
+ "encoding_rs",
+ "futures",
+ "futures-util",
+ "http 1.1.0",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper 1.4.1",
+ "lambda_runtime",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "tokio-stream",
+ "url",
+]
+
+[[package]]
 name = "lambda_runtime"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1860,7 +1908,7 @@ dependencies = [
  "serde_path_to_error",
  "tokio",
  "tokio-stream",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tracing",
 ]
@@ -1880,7 +1928,7 @@ dependencies = [
  "hyper 1.4.1",
  "hyper-util",
  "tokio",
- "tower",
+ "tower 0.4.13",
  "tower-service",
  "tracing",
  "tracing-subscriber",
@@ -3520,6 +3568,16 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "tower"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
+dependencies = [
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]
