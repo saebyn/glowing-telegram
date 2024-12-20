@@ -221,13 +221,18 @@ class API(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        crud_lambda_ecr = aws.ecr.Repository(
+            "crud-lambda-ecr",
+            image_scanning_configuration={"scan_on_push": True},
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
         crud_lambda = aws.lambda_.Function(
-            "crud-lambda",
+            "new-crud-lambda",
             runtime=aws.lambda_.Runtime.CUSTOM_AL2023,
             timeout=15 * 60,
-            code=pulumi.AssetArchive(
-                {"bootstrap": pulumi.FileAsset("../target/debug/crud_api")}
-            ),
+            package_type="Image",
+            image_uri=crud_lambda_ecr.repository_url.apply(lambda url: f"{url}:latest"),
             tracing_config={"mode": "Active"},
             handler="doesnt.matter",
             role=crud_lambda_role.arn,
