@@ -1,4 +1,4 @@
-use aws_sdk_dynamodb::types::AttributeValue;
+use aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes};
 use aws_sdk_dynamodb::Client;
 use lambda_runtime::Error;
 use serde::Deserialize;
@@ -113,6 +113,43 @@ pub async fn get(
         ),
         Err(e) => Err(Error::from(e)),
     }
+}
+
+pub async fn get_many(
+    client: &Client,
+    table_name: &str,
+    key_name: &str,
+    ids: &[&str],
+) -> Result<Vec<serde_json::Value>, Error> {
+    let keys = ids
+        .iter()
+        .map(|id| {
+            vec![(key_name.to_string(), AttributeValue::S((*id).to_string()))]
+                .into_iter()
+                .collect()
+        })
+        .collect();
+
+    let request_items = std::collections::HashMap::from([(
+        table_name.to_string(),
+        KeysAndAttributes::builder().set_keys(Some(keys)).build()?,
+    )]);
+
+    let resp = client
+        .batch_get_item()
+        .set_request_items(Some(request_items))
+        .send()
+        .await?;
+
+    let mut items = Vec::new();
+    if let Some(responses) = resp.responses() {
+        if let Some(table_items) = responses.get(table_name) {
+            for item in table_items {
+                items.push(convert_hm_to_json(item.clone()));
+            }
+        }
+    }
+    Ok(items)
 }
 
 pub async fn create(

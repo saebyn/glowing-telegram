@@ -67,6 +67,11 @@ struct RequestPathWithId {
     record_id: String,
 }
 
+#[derive(Deserialize)]
+struct ManyQuery {
+    id: Vec<String>,
+}
+
 #[tokio::main]
 async fn main() {
     // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
@@ -136,6 +141,10 @@ async fn main() {
             get(get_record_handler)
                 .put(update_record_handler)
                 .delete(delete_record_handler),
+        )
+        .route(
+            "/:stage/records/:resource/many",
+            get(get_many_records_handler),
         )
         .fallback(|| async {
             (
@@ -409,6 +418,38 @@ async fn delete_record_handler(
                 Json(json!({
                     "message": "failed to delete record",
                 })),
+            )
+        }
+    }
+}
+
+async fn get_many_records_handler(
+    Path(RequestPath { stage: _, resource }): Path<RequestPath>,
+    State(state): State<AppState>,
+    Query(query_params): Query<ManyQuery>,
+) -> impl IntoResponse {
+    let table_name = get_table_name(&state, &resource);
+    let key_name = get_key_name(&resource);
+
+    let ids = query_params
+        .id
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    match dynamodb::get_many(&state.dynamodb, table_name, key_name, &ids).await
+    {
+        Ok(items) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({ "items": items })),
+        ),
+        Err(e) => {
+            tracing::error!("failed to batch get records: {e}");
+
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({ "message": "failed to batch get records" })),
             )
         }
     }
