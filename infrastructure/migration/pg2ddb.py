@@ -71,7 +71,9 @@ with psycopg2.connect(
                 stream_platform,
                 duration,
                 stream_date,
-                series_id
+                series_id,
+                (SELECT COUNT(*) FROM video_clips WHERE video_clips.stream_id = streams.id),
+                (SELECT COUNT(*) FROM episodes WHERE episodes.stream_id = streams.id)
             FROM
                 streams
         """
@@ -91,6 +93,8 @@ with psycopg2.connect(
                     "duration": row[9],
                     "stream_date": row[10],
                     "series_id": row[11],
+                    "video_clip_count": row[12],
+                    "has_episodes": row[13] > 0,
                 }
             )
 
@@ -195,6 +199,8 @@ with streams_table.batch_writer() as batch:
                 "duration": duration,
                 "stream_date": stream_date,
                 "series_id": stream["series_id"],
+                "video_clip_count": stream["video_clip_count"],
+                "has_episodes": stream["has_episodes"],
             }
         )
 
