@@ -209,33 +209,52 @@ async fn list_records_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     let table_name = get_table_name(&state, &resource);
+    let key_name = get_key_name(&resource);
 
     tracing::info!("listing records from table: {table_name}");
 
     // Parse the query parameters
     let filters = match query.get("filter") {
         Some(filter) => match filter.as_str() {
-            "" => HashMap::new(),
+            "" => serde_json::Map::new(),
             _ => match serde_json::from_str(filter) {
                 Ok(filters) => filters,
                 Err(e) => {
                     tracing::warn!("failed to parse filters: {e}");
-                    HashMap::new()
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        [(header::CONTENT_TYPE, "application/json")],
+                        Json(json!({
+                            "message": "failed to parse filters",
+                        })),
+                    );
                 }
             },
         },
-        None => HashMap::new(),
+        None => serde_json::Map::new(),
     };
 
     // Call the `list` function from the `dynamodb` module
-    // TODO - handle pagination
+
+    let cursor = match query.get("cursor") {
+        Some(cursor) => match cursor.as_str() {
+            "null" | "" => None,
+            _ => Some(cursor.clone()),
+        },
+        None => None,
+    };
+
     match dynamodb::list(
         &state.dynamodb,
         table_name,
+        key_name,
         filters,
         dynamodb::PageOptions {
-            cursor: None,
-            limit: 10,
+            cursor,
+            limit: query
+                .get("perPage")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(10),
         },
     )
     .await

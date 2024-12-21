@@ -14,77 +14,100 @@ pub struct ListResult {
 #[derive(Debug, Deserialize)]
 pub struct PageOptions {
     pub limit: i32,
-    pub cursor: Option<serde_json::Value>,
+    pub cursor: Option<String>,
 }
 
-#[tracing::instrument]
+const DEFAULT_PAGE_LIMIT: i32 = 10;
+
+#[tracing::instrument(skip(client))]
 pub async fn list(
     client: &Client,
     table_name: &str,
-    filters: HashMap<String, String>,
+    key_name: &str,
+    filters: serde_json::Map<String, serde_json::Value>,
     page: PageOptions,
 ) -> Result<ListResult, Error> {
-    let mut scan_input = client.scan().table_name(table_name);
+    let mut items = Vec::new();
+    let mut last_key = page.cursor.map(|c| {
+        HashMap::from([(key_name.to_string(), AttributeValue::S(c))])
+    });
+    let limit = if page.limit > 0 {
+        page.limit
+    } else {
+        DEFAULT_PAGE_LIMIT
+    };
 
-    // Create the filter expression and attribute maps
-    let mut filter_expressions = Vec::new();
-    let mut expression_attribute_names = HashMap::new();
-    let mut expression_attribute_values = HashMap::new();
+    let (
+        filter_expressions,
+        expression_attribute_names,
+        expression_attribute_values,
+    ) = convert_filters(&filters);
 
-    // Iterate over the filters and build the filter expression
-    for (i, (key, value)) in filters.iter().enumerate() {
-        let attribute_name = format!("#k{i}");
-        let attribute_value = format!(":v{i}");
-
-        filter_expressions
-            .push(format!("{attribute_name} = {attribute_value}"));
-        expression_attribute_names.insert(attribute_name, key.clone());
-        expression_attribute_values
-            .insert(attribute_value, AttributeValue::S(value.clone()));
-    }
-
-    // Apply the filter expression to the scan input
-    if !filter_expressions.is_empty() {
+    loop {
         tracing::info!(
-            "Applying filter expression: {0}",
-            filter_expressions.join(" AND ")
+            "Scanning table: {0}, with limit: {1}, cursor: {2:?}",
+            table_name,
+            limit,
+            last_key
         );
-        scan_input = scan_input
-            .filter_expression(filter_expressions.join(" AND"))
-            .set_expression_attribute_names(Some(expression_attribute_names))
-            .set_expression_attribute_values(Some(
-                expression_attribute_values,
-            ));
+        let mut scan_input = client.scan().table_name(table_name);
+
+        // Apply the filter expression to the scan input
+        if !filter_expressions.is_empty() {
+            tracing::info!(
+                "Applying filter expression: {0}",
+                filter_expressions.join(" AND ")
+            );
+            scan_input = scan_input
+                .filter_expression(filter_expressions.join(" AND "))
+                .set_expression_attribute_names(Some(
+                    expression_attribute_names.clone(),
+                ))
+                .set_expression_attribute_values(Some(
+                    expression_attribute_values.clone(),
+                ));
+        }
+
+        // Apply the limit and cursor to the scan input
+        if let Some(key) = last_key.clone() {
+            scan_input = scan_input.set_exclusive_start_key(Some(key));
+        }
+        let remaining = limit - i32::try_from(items.len())?;
+        if remaining <= 0 {
+            tracing::info!("Reached the limit of {0} items", limit);
+            break;
+        }
+        scan_input = scan_input.limit(remaining);
+
+        // Send the scan request to DynamoDB
+        let scan_output = scan_input.send().await?;
+
+        // Convert the scanned items to JSON
+        let new_items = scan_output
+            .items
+            .unwrap_or_default()
+            .iter()
+            .map(|item| convert_hm_to_json(item.clone()))
+            .collect::<Vec<serde_json::Value>>();
+        items.extend(new_items);
+
+        if let Some(k) = scan_output.last_evaluated_key {
+            last_key = Some(k);
+        } else {
+            // No more items to scan
+            tracing::info!("No more items to scan");
+            last_key = None;
+            break;
+        }
     }
 
-    // Apply the limit and cursor to the scan input
-    if let Some(cursor) = page.cursor {
-        tracing::info!("Applying cursor: {cursor}");
-        scan_input = scan_input
-            .set_exclusive_start_key(Some(convert_json_to_hm(&cursor)));
-    }
-    if page.limit > 0 {
-        tracing::info!("Applying limit: {0}", page.limit);
-        scan_input = scan_input.limit(page.limit);
-    }
-
-    // Send the scan request to DynamoDB
-    let scan_output = scan_input.send().await?;
-
-    // Convert the scanned items to JSON
-    let items = scan_output
-        .items
-        .unwrap_or_default()
-        .iter()
-        .map(|item| convert_hm_to_json(item.clone()))
-        .collect::<Vec<serde_json::Value>>();
+    tracing::info!("Returning {0} items", items.len());
 
     // Create the response payload
     let payload = ListResult {
         items,
-        cursor: scan_output
-            .last_evaluated_key
-            .map(|key| convert_hm_to_json(key).to_string()),
+        cursor: last_key
+            .map(|k| k.get(key_name).unwrap().as_s().unwrap().to_string()),
     };
 
     Ok(payload)
@@ -92,6 +115,7 @@ pub async fn list(
 
 pub struct GetRecordResult(pub Option<serde_json::Value>);
 
+#[tracing::instrument(skip(client))]
 pub async fn get(
     client: &Client,
     table_name: &str,
@@ -115,6 +139,7 @@ pub async fn get(
     }
 }
 
+#[tracing::instrument(skip(client))]
 pub async fn get_many(
     client: &Client,
     table_name: &str,
@@ -152,6 +177,7 @@ pub async fn get_many(
     Ok(items)
 }
 
+#[tracing::instrument(skip(client))]
 pub async fn create(
     client: &Client,
     table_name: &str,
@@ -176,6 +202,7 @@ pub async fn create(
     Ok(())
 }
 
+#[tracing::instrument(skip(client))]
 pub async fn update(
     client: &Client,
     table_name: &str,
@@ -243,6 +270,7 @@ pub async fn update(
     Ok(json!(item))
 }
 
+#[tracing::instrument(skip(client))]
 pub async fn delete(
     client: &Client,
     table_name: &str,
@@ -367,4 +395,37 @@ fn convert_json_to_attribute_value(json: serde_json::Value) -> AttributeValue {
         ),
         serde_json::Value::Null => AttributeValue::Null(true),
     }
+}
+
+fn convert_filters(
+    filters: &serde_json::Map<String, serde_json::Value>,
+) -> (
+    Vec<String>,
+    HashMap<String, String>,
+    HashMap<String, AttributeValue>,
+) {
+    // Create the filter expression and attribute maps
+    let mut filter_expressions = Vec::new();
+    let mut expression_attribute_names = HashMap::new();
+    let mut expression_attribute_values = HashMap::new();
+
+    // Iterate over the filters and build the filter expression
+    for (i, (key, value)) in filters.iter().enumerate() {
+        let attribute_name = format!("#k{i}");
+        let attribute_value = format!(":v{i}");
+
+        filter_expressions
+            .push(format!("{attribute_name} = {attribute_value}"));
+        expression_attribute_names.insert(attribute_name, key.clone());
+        expression_attribute_values.insert(
+            attribute_value,
+            convert_json_to_attribute_value(value.clone()),
+        );
+    }
+
+    (
+        filter_expressions,
+        expression_attribute_names,
+        expression_attribute_values,
+    )
 }
