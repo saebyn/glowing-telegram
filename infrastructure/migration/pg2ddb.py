@@ -43,10 +43,16 @@ tables to migrate:
 from decimal import Decimal
 import psycopg2
 import boto3
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 streams = []
 video_clips = []
 episodes = []
+
+logger.info("🎉 Starting the data migration from PostgreSQL to DynamoDB!")
 
 # Connect to the postgresql database
 with psycopg2.connect(
@@ -98,6 +104,8 @@ with psycopg2.connect(
                 }
             )
 
+    logger.info(f"🌟 Streams retrieved: {len(streams)}.")
+
     # Fetch the video_clips from the postgresql database
     with conn.cursor() as cur:
         cur.execute(
@@ -119,6 +127,8 @@ with psycopg2.connect(
                     "filename": row[2],
                 }
             )
+
+    logger.info(f"🚀 Video clips retrieved: {len(video_clips)}.")
 
     # Fetch the episodes from the postgresql database
     with conn.cursor() as cur:
@@ -166,10 +176,14 @@ with psycopg2.connect(
                 }
             )
 
+    logger.info(f"🎞️ Episodes retrieved: {len(episodes)}.")
+
 # Connect to the dynamodb database
 dynamodb = boto3.resource("dynamodb")
 
 streams_table = dynamodb.Table("streams-963700c")
+
+logger.info("🚚 Writing streams to DynamoDB...")
 
 # Insert the streams into the dynamodb table
 # overwriting the existing data!!
@@ -206,6 +220,9 @@ with streams_table.batch_writer() as batch:
 
 # episodes
 episodes_table = dynamodb.Table("episodes-03b1f6f")
+
+logger.info("📦 Writing episodes to DynamoDB...")
+
 # overwriting the existing data!!
 with episodes_table.batch_writer() as batch:
     for episode in episodes:
@@ -241,6 +258,8 @@ with episodes_table.batch_writer() as batch:
 # ensure that we do not overwrite the existing data (so we cannot use batch_writer or put_item)
 video_metadata_table = dynamodb.Table("metadata-table-aa16405")
 
+logger.info("🗄️ Updating video clips in DynamoDB...")
+
 for video_clip in video_clips:
     video_date = video_clip["filename"].split(" ")[0]
     key = f"{video_date}/{video_clip['filename']}"
@@ -261,3 +280,5 @@ for video_clip in video_clips:
             ":start_time": start_time,
         },
     )
+
+logger.info("🌈 Migration completed successfully!")
