@@ -41,7 +41,7 @@ pub async fn list(
         filter_expressions,
         expression_attribute_names,
         expression_attribute_values,
-    ) = convert_filters(&filters);
+    ) = build_filter_expressions(&filters);
 
     loop {
         tracing::info!(
@@ -397,7 +397,17 @@ fn convert_json_to_attribute_value(json: serde_json::Value) -> AttributeValue {
     }
 }
 
-fn convert_filters(
+fn get_operator(op_name: &str) -> &'static str {
+    match op_name {
+        "gte" => ">=",
+        "gt" => ">",
+        "lte" => "<=",
+        "lt" => "<",
+        _ => "=",
+    }
+}
+
+fn build_filter_expressions(
     filters: &serde_json::Map<String, serde_json::Value>,
 ) -> (
     Vec<String>,
@@ -411,12 +421,19 @@ fn convert_filters(
 
     // Iterate over the filters and build the filter expression
     for (i, (key, value)) in filters.iter().enumerate() {
+        let (base_key, op) =
+            if let Some((name, suffix)) = key.rsplit_once("__") {
+                (name, get_operator(suffix))
+            } else {
+                (key.as_str(), "=")
+            };
         let attribute_name = format!("#k{i}");
         let attribute_value = format!(":v{i}");
 
         filter_expressions
-            .push(format!("{attribute_name} = {attribute_value}"));
-        expression_attribute_names.insert(attribute_name, key.clone());
+            .push(format!("{attribute_name} {op} {attribute_value}"));
+        expression_attribute_names
+            .insert(attribute_name.clone(), base_key.to_string());
         expression_attribute_values.insert(
             attribute_value,
             convert_json_to_attribute_value(value.clone()),
@@ -428,4 +445,41 @@ fn convert_filters(
         expression_attribute_names,
         expression_attribute_values,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_filter_expressions_equality() {
+        let mut filters = serde_json::Map::new();
+        filters.insert(
+            "status".to_string(),
+            serde_json::Value::String("active".to_string()),
+        );
+        let (exprs, anames, avals) = build_filter_expressions(&filters);
+        assert_eq!(exprs, vec!["#k0 = :v0"]);
+        assert_eq!(anames.get("#k0"), Some(&"status".to_string()));
+        assert_eq!(
+            avals.get(":v0").unwrap().as_s().ok(),
+            Some("active".to_string()).as_ref()
+        );
+    }
+
+    #[test]
+    fn test_build_filter_expressions_greater_than() {
+        let mut filters = serde_json::Map::new();
+        filters.insert(
+            "age__gt".to_string(),
+            serde_json::Value::Number(30.into()),
+        );
+        let (exprs, anames, avals) = build_filter_expressions(&filters);
+        assert_eq!(exprs, vec!["#k0 > :v0"]);
+        assert_eq!(anames.get("#k0"), Some(&"age".to_string()));
+        assert_eq!(
+            avals.get(":v0").unwrap().as_n().ok(),
+            Some("30".to_string()).as_ref()
+        );
+    }
 }
