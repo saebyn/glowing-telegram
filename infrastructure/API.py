@@ -229,12 +229,13 @@ class API(pulumi.ComponentResource):
 
         crud_lambda = aws.lambda_.Function(
             "new-crud-lambda",
-            runtime=aws.lambda_.Runtime.CUSTOM_AL2023,
             timeout=15 * 60,
             package_type="Image",
             image_uri=crud_lambda_ecr.repository_url.apply(lambda url: f"{url}:latest"),
             tracing_config={"mode": "Active"},
-            handler="doesnt.matter",
+            logging_config={
+                "log_format": "JSON",
+            },
             role=crud_lambda_role.arn,
             environment={
                 "variables": {
