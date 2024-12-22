@@ -149,7 +149,7 @@ pub async fn query(
     let query_output = match query.send().await {
         Ok(query_output) => query_output,
         Err(err) => {
-            tracing::error!("Failed to query: {:?}", err);
+            tracing::error!("Failed to query table {} on index {}: {:?}", table_config.table, indexed_field, err);
 
             return Err(Box::new(err));
         }
