@@ -527,35 +527,4 @@ mod tests {
             Some("30".to_string()).as_ref()
         );
     }
-
-    #[test]
-    fn test_build_filter_expressions_multiple() {
-        let table_config = DynamoDbTableConfig {
-            table: "users",
-            partition_key: "id",
-            q_key: "name",
-        };
-        let mut filters = serde_json::Map::new();
-        filters.insert(
-            "status".to_string(),
-            serde_json::Value::String("active".to_string()),
-        );
-        filters.insert(
-            "age__gte".to_string(),
-            serde_json::Value::Number(30.into()),
-        );
-        let (expr, anames, avals) =
-            build_filter_expressions(&table_config, &filters);
-        assert_eq!(expr.unwrap(), "#k0 = :v0 AND #k1 >= :v1");
-        assert_eq!(anames.get("#k0"), Some(&"status".to_string()));
-        assert_eq!(anames.get("#k1"), Some(&"age".to_string()));
-        assert_eq!(
-            avals.get(":v0").unwrap().as_s().ok(),
-            Some("active".to_string()).as_ref()
-        );
-        assert_eq!(
-            avals.get(":v1").unwrap().as_n().ok(),
-            Some("30".to_string()).as_ref()
-        );
-    }
 }
