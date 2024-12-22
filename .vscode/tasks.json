@@ -8,7 +8,8 @@
       "type": "pickString",
       "description": "The name of the service to run",
       "options": [
-        "api"
+        "api",
+        "crud_api"
       ]
     },
     {
@@ -18,6 +19,21 @@
     }
   ],
   "tasks": [
+    {
+      "label": "deploy lambda",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "AWS_PROFILE": "glowing-telegram-admin",
+          "AWS_REGION": "us-west-2",
+          "AWS_ACCOUNT_ID": "159222827421",
+        }
+      },
+      "command": "./infrastructure/push_lambda.sh ${input:service}",
+      "group": "build",
+      "problemMatcher": []
+    },
     {
       "label": "cargo watch",
       "type": "shell",
