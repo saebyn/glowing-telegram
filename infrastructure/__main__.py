@@ -102,6 +102,17 @@ video_metadata_table = aws.dynamodb.Table(
             "name": "key",
             "type": "S",
         },
+        {
+            "name": "stream_id",
+            "type": "S",
+        },
+    ],
+    global_secondary_indexes=[
+        {
+            "hash_key": "stream_id",
+            "name": "stream_id-index",
+            "projection_type": "ALL",
+        }
     ],
     opts=pulumi.ResourceOptions(protect=True),
 )

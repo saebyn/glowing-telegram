@@ -212,6 +212,10 @@ class API(pulumi.ComponentResource):
                                     stream_series_table.arn,
                                     episodes_table.arn,
                                     profiles_table.arn,
+                                    # Allow access to the indexes
+                                    video_metadata_table.arn.apply(
+                                        lambda arn: f"{arn}/index/*"
+                                    ),
                                 ],
                             },
                         ],
