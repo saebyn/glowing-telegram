@@ -22,6 +22,7 @@ pub struct DynamoDbTableConfig<'a> {
     pub table: &'a str,
     pub partition_key: &'a str,
     pub q_key: &'a str,
+    pub indexes: Vec<&'a str>,
 }
 
 const DEFAULT_PAGE_LIMIT: i32 = 10;
@@ -125,6 +126,46 @@ pub async fn list(
     };
 
     Ok(payload)
+}
+
+#[tracing::instrument(skip(client))]
+pub async fn query(
+    client: &Client,
+    table_config: &DynamoDbTableConfig<'_>,
+    indexed_field: &str,
+    value: serde_json::Value,
+) -> Result<ListResult, Error> {
+    let query = client
+        .query()
+        .table_name(table_config.table)
+        .index_name(format!("{indexed_field}-index"))
+        .expression_attribute_names("#k", indexed_field)
+        .expression_attribute_values(
+            ":v",
+            convert_json_to_attribute_value(value),
+        )
+        .key_condition_expression("#k = :v");
+
+    let query_output = match query.send().await {
+        Ok(query_output) => query_output,
+        Err(err) => {
+            tracing::error!("Failed to query: {:?}", err);
+
+            return Err(Box::new(err));
+        }
+    };
+
+    let items = query_output
+        .items
+        .unwrap_or_default()
+        .iter()
+        .map(|item| convert_hm_to_json(item.clone()))
+        .collect::<Vec<serde_json::Value>>();
+
+    Ok(ListResult {
+        cursor: None,
+        items,
+    })
 }
 
 pub struct GetRecordResult(pub Option<serde_json::Value>);
@@ -490,6 +531,7 @@ mod tests {
             table: "users",
             partition_key: "id",
             q_key: "name",
+            indexes: vec![],
         };
         let mut filters = serde_json::Map::new();
         filters.insert(
@@ -512,6 +554,7 @@ mod tests {
             table: "users",
             partition_key: "id",
             q_key: "name",
+            indexes: vec![],
         };
         let mut filters = serde_json::Map::new();
         filters.insert(

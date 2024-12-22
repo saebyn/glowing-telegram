@@ -68,6 +68,14 @@ struct RequestPathWithId {
     record_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct RequestPathWithRelatedField {
+    stage: String,
+    resource: String,
+    related_field: String,
+    id: String,
+}
+
 #[derive(Deserialize)]
 struct ManyQuery {
     id: Vec<String>,
@@ -144,6 +152,10 @@ async fn main() {
                 .delete(delete_record_handler),
         )
         .route(
+            "/:stage/records/:resource/:related_field/:id",
+            get(get_many_related_records_handler),
+        )
+        .route(
             "/:stage/records/:resource/many",
             get(get_many_records_handler),
         )
@@ -190,6 +202,10 @@ fn get_table_config<'a>(
             "video_clips" => "key",
             "profiles" => "id",
             _ => "title",
+        },
+        indexes: match resource {
+            "video_clips" => vec!["stream_id"],
+            _ => vec![],
         },
     }
 }
@@ -458,6 +474,58 @@ async fn get_many_records_handler(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 [(header::CONTENT_TYPE, "application/json")],
                 Json(json!({ "message": "failed to batch get records" })),
+            )
+        }
+    }
+}
+
+async fn get_many_related_records_handler(
+    Path(RequestPathWithRelatedField {
+        stage: _,
+        resource,
+        related_field,
+        id,
+    }): Path<RequestPathWithRelatedField>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let table_config = get_table_config(&state, &resource);
+
+    // validate the related field against the table configuration
+    if !table_config.indexes.contains(&related_field.as_str()) {
+        return (
+            StatusCode::BAD_REQUEST,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({
+                "message": "invalid related field",
+            })),
+        );
+    }
+
+    match dynamodb::query(
+        &state.dynamodb,
+        &table_config,
+        related_field.as_str(),
+        json!(id),
+    )
+    .await
+    {
+        Ok(result) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({
+                "items": result.items,
+                "cursor": result.cursor,
+            })),
+        ),
+        Err(e) => {
+            tracing::error!("failed to query related records: {e}");
+
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "failed to query related records",
+                })),
             )
         }
     }
