@@ -17,19 +17,28 @@ pub struct PageOptions {
     pub cursor: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct DynamoDbTableConfig<'a> {
+    pub table: &'a str,
+    pub partition_key: &'a str,
+    pub q_key: &'a str,
+}
+
 const DEFAULT_PAGE_LIMIT: i32 = 10;
 
 #[tracing::instrument(skip(client))]
 pub async fn list(
     client: &Client,
-    table_name: &str,
-    key_name: &str,
+    table_config: &DynamoDbTableConfig<'_>,
     filters: serde_json::Map<String, serde_json::Value>,
     page: PageOptions,
 ) -> Result<ListResult, Error> {
     let mut items = Vec::new();
     let mut last_key = page.cursor.map(|c| {
-        HashMap::from([(key_name.to_string(), AttributeValue::S(c))])
+        HashMap::from([(
+            table_config.partition_key.to_string(),
+            AttributeValue::S(c),
+        )])
     });
     let limit = if page.limit > 0 {
         page.limit
@@ -38,28 +47,28 @@ pub async fn list(
     };
 
     let (
-        filter_expressions,
+        filter_expression,
         expression_attribute_names,
         expression_attribute_values,
-    ) = build_filter_expressions(&filters);
+    ) = build_filter_expressions(table_config, &filters);
 
     loop {
         tracing::info!(
             "Scanning table: {0}, with limit: {1}, cursor: {2:?}",
-            table_name,
+            table_config.table,
             limit,
             last_key
         );
-        let mut scan_input = client.scan().table_name(table_name);
+        let mut scan_input = client.scan().table_name(table_config.table);
 
         // Apply the filter expression to the scan input
-        if !filter_expressions.is_empty() {
+        if let Some(filter_expression) = filter_expression.clone() {
             tracing::info!(
                 "Applying filter expression: {0}",
-                filter_expressions.join(" AND ")
+                filter_expression
             );
             scan_input = scan_input
-                .filter_expression(filter_expressions.join(" AND "))
+                .filter_expression(filter_expression)
                 .set_expression_attribute_names(Some(
                     expression_attribute_names.clone(),
                 ))
@@ -106,8 +115,13 @@ pub async fn list(
     // Create the response payload
     let payload = ListResult {
         items,
-        cursor: last_key
-            .map(|k| k.get(key_name).unwrap().as_s().unwrap().to_string()),
+        cursor: last_key.map(|k| {
+            k.get(table_config.partition_key)
+                .unwrap()
+                .as_s()
+                .unwrap()
+                .to_string()
+        }),
     };
 
     Ok(payload)
@@ -118,12 +132,11 @@ pub struct GetRecordResult(pub Option<serde_json::Value>);
 #[tracing::instrument(skip(client))]
 pub async fn get(
     client: &Client,
-    table_name: &str,
-    key_name: &str,
+    table_config: &DynamoDbTableConfig<'_>,
     record_id: &str,
 ) -> Result<GetRecordResult, Error> {
-    let query = client.get_item().table_name(table_name).key(
-        key_name,
+    let query = client.get_item().table_name(table_config.table).key(
+        table_config.partition_key,
         aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
     );
 
@@ -142,21 +155,23 @@ pub async fn get(
 #[tracing::instrument(skip(client))]
 pub async fn get_many(
     client: &Client,
-    table_name: &str,
-    key_name: &str,
+    table_config: &DynamoDbTableConfig<'_>,
     ids: &[&str],
 ) -> Result<Vec<serde_json::Value>, Error> {
     let keys = ids
         .iter()
         .map(|id| {
-            vec![(key_name.to_string(), AttributeValue::S((*id).to_string()))]
-                .into_iter()
-                .collect()
+            vec![(
+                table_config.partition_key.to_string(),
+                AttributeValue::S((*id).to_string()),
+            )]
+            .into_iter()
+            .collect()
         })
         .collect();
 
     let request_items = std::collections::HashMap::from([(
-        table_name.to_string(),
+        table_config.table.to_string(),
         KeysAndAttributes::builder().set_keys(Some(keys)).build()?,
     )]);
 
@@ -168,7 +183,7 @@ pub async fn get_many(
 
     let mut items = Vec::new();
     if let Some(responses) = resp.responses() {
-        if let Some(table_items) = responses.get(table_name) {
+        if let Some(table_items) = responses.get(table_config.table) {
             for item in table_items {
                 items.push(convert_hm_to_json(item.clone()));
             }
@@ -180,10 +195,12 @@ pub async fn get_many(
 #[tracing::instrument(skip(client))]
 pub async fn create(
     client: &Client,
-    table_name: &str,
+    table_config: &DynamoDbTableConfig<'_>,
     item: &serde_json::Value,
 ) -> Result<(), Error> {
     let mut item = convert_json_to_hm(item);
+
+    // TODO generate a UUID for the record ID, handle if the ID is already present
 
     // populate the created_at field
     let created_at = chrono::Utc::now().to_rfc3339();
@@ -194,7 +211,7 @@ pub async fn create(
 
     client
         .put_item()
-        .table_name(table_name)
+        .table_name(table_config.table)
         .set_item(Some(item))
         .send()
         .await?;
@@ -205,8 +222,7 @@ pub async fn create(
 #[tracing::instrument(skip(client))]
 pub async fn update(
     client: &Client,
-    table_name: &str,
-    key_name: &str,
+    table_config: &DynamoDbTableConfig<'_>,
     record_id: &str,
     item: &serde_json::Value,
 ) -> Result<serde_json::Value, Error> {
@@ -226,7 +242,7 @@ pub async fn update(
         expression_attribute_values,
     ) = item
         .iter()
-        .filter(|(k, _)| *k != key_name)
+        .filter(|(k, _)| *k != table_config.partition_key)
         .enumerate()
         .fold(
             (Vec::new(), HashMap::new(), HashMap::new()),
@@ -248,9 +264,9 @@ pub async fn update(
 
     let query = client
         .update_item()
-        .table_name(table_name)
+        .table_name(table_config.table)
         .key(
-            key_name,
+            table_config.partition_key,
             aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
         )
         .set_update_expression(Some(update_expression))
@@ -273,15 +289,14 @@ pub async fn update(
 #[tracing::instrument(skip(client))]
 pub async fn delete(
     client: &Client,
-    table_name: &str,
-    key_name: &str,
+    table_config: &DynamoDbTableConfig<'_>,
     record_id: &str,
 ) -> Result<(), Error> {
     client
         .delete_item()
-        .table_name(table_name)
+        .table_name(table_config.table)
         .key(
-            key_name,
+            table_config.partition_key,
             aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
         )
         .send()
@@ -408,9 +423,10 @@ fn get_operator(op_name: &str) -> &'static str {
 }
 
 fn build_filter_expressions(
+    table_config: &DynamoDbTableConfig<'_>,
     filters: &serde_json::Map<String, serde_json::Value>,
 ) -> (
-    Vec<String>,
+    Option<String>,
     HashMap<String, String>,
     HashMap<String, AttributeValue>,
 ) {
@@ -421,17 +437,30 @@ fn build_filter_expressions(
 
     // Iterate over the filters and build the filter expression
     for (i, (key, value)) in filters.iter().enumerate() {
+        // Check if the key contains an operator suffix (e.g. __gt)
         let (base_key, op) =
             if let Some((name, suffix)) = key.rsplit_once("__") {
                 (name, get_operator(suffix))
             } else {
                 (key.as_str(), "=")
             };
+
+        // Handle the "q" key name separately, converting it to the actual key name for the table from the config
+        let (base_key, op) = if base_key == "q" {
+            (table_config.q_key, "contains")
+        } else {
+            (base_key, op)
+        };
+
         let attribute_name = format!("#k{i}");
         let attribute_value = format!(":v{i}");
 
-        filter_expressions
-            .push(format!("{attribute_name} {op} {attribute_value}"));
+        filter_expressions.push(if op == "contains" {
+            format!("contains({attribute_name}, {attribute_value})")
+        } else {
+            format!("{attribute_name} {op} {attribute_value}")
+        });
+
         expression_attribute_names
             .insert(attribute_name.clone(), base_key.to_string());
         expression_attribute_values.insert(
@@ -441,7 +470,11 @@ fn build_filter_expressions(
     }
 
     (
-        filter_expressions,
+        if filter_expressions.is_empty() {
+            None
+        } else {
+            Some(filter_expressions.join(" AND "))
+        },
         expression_attribute_names,
         expression_attribute_values,
     )
@@ -453,13 +486,19 @@ mod tests {
 
     #[test]
     fn test_build_filter_expressions_equality() {
+        let table_config = DynamoDbTableConfig {
+            table: "users",
+            partition_key: "id",
+            q_key: "name",
+        };
         let mut filters = serde_json::Map::new();
         filters.insert(
             "status".to_string(),
             serde_json::Value::String("active".to_string()),
         );
-        let (exprs, anames, avals) = build_filter_expressions(&filters);
-        assert_eq!(exprs, vec!["#k0 = :v0"]);
+        let (expr, anames, avals) =
+            build_filter_expressions(&table_config, &filters);
+        assert_eq!(expr.unwrap(), "#k0 = :v0");
         assert_eq!(anames.get("#k0"), Some(&"status".to_string()));
         assert_eq!(
             avals.get(":v0").unwrap().as_s().ok(),
@@ -469,13 +508,19 @@ mod tests {
 
     #[test]
     fn test_build_filter_expressions_greater_than() {
+        let table_config = DynamoDbTableConfig {
+            table: "users",
+            partition_key: "id",
+            q_key: "name",
+        };
         let mut filters = serde_json::Map::new();
         filters.insert(
             "age__gt".to_string(),
             serde_json::Value::Number(30.into()),
         );
-        let (exprs, anames, avals) = build_filter_expressions(&filters);
-        assert_eq!(exprs, vec!["#k0 > :v0"]);
+        let (expr, anames, avals) =
+            build_filter_expressions(&table_config, &filters);
+        assert_eq!(expr.unwrap(), "#k0 > :v0");
         assert_eq!(anames.get("#k0"), Some(&"age".to_string()));
         assert_eq!(
             avals.get(":v0").unwrap().as_n().ok(),
