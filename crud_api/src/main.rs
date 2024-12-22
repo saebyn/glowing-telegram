@@ -21,6 +21,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use dynamodb::DynamoDbTableConfig;
 use figment::Figment;
 use lambda_http::tower;
 use serde::Deserialize;
@@ -168,22 +169,28 @@ async fn main() {
     lambda_http::run(app).await.unwrap();
 }
 
-fn get_table_name<'a>(state: &'a AppState, resource: &'a str) -> &'a str {
-    match resource {
-        "streams" => &state.config.streams_table,
-        "episodes" => &state.config.episodes_table,
-        "series" => &state.config.series_table,
-        "video_clips" => &state.config.video_metadata_table,
-        "profiles" => &state.config.profiles_table,
-        _ => panic!("unsupported resource: {resource}"),
-    }
-}
-
-// TODO make every function in main.rs change the key in the response to "id" if the resource is "video_clips" (use get_key_name)
-fn get_key_name(resource: &str) -> &str {
-    match resource {
-        "video_clips" => "key",
-        _ => "id",
+fn get_table_config<'a>(
+    state: &'a AppState,
+    resource: &'a str,
+) -> DynamoDbTableConfig<'a> {
+    DynamoDbTableConfig {
+        table: match resource {
+            "streams" => &state.config.streams_table,
+            "episodes" => &state.config.episodes_table,
+            "series" => &state.config.series_table,
+            "video_clips" => &state.config.video_metadata_table,
+            "profiles" => &state.config.profiles_table,
+            _ => panic!("unsupported resource: {resource}"),
+        },
+        partition_key: match resource {
+            "video_clips" => "key",
+            _ => "id",
+        },
+        q_key: match resource {
+            "video_clips" => "key",
+            "profiles" => "id",
+            _ => "title",
+        },
     }
 }
 
@@ -208,10 +215,9 @@ async fn list_records_handler(
     Query(query): Query<HashMap<String, String>>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let table_name = get_table_name(&state, &resource);
-    let key_name = get_key_name(&resource);
+    let table_config = get_table_config(&state, &resource);
 
-    tracing::info!("listing records from table: {table_name}");
+    tracing::info!("listing records from table: {0}", table_config.table);
 
     // Parse the query parameters
     let filters = match query.get("filter") {
@@ -246,8 +252,7 @@ async fn list_records_handler(
 
     match dynamodb::list(
         &state.dynamodb,
-        table_name,
-        key_name,
+        &table_config,
         filters,
         dynamodb::PageOptions {
             cursor,
@@ -294,16 +299,10 @@ async fn get_record_handler(
     }): Path<RequestPathWithId>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let table_name = get_table_name(&state, &resource);
-    let key_name = get_key_name(&resource);
+    let table_config = get_table_config(&state, &resource);
 
-    match dynamodb::get(
-        &state.dynamodb,
-        table_name,
-        key_name,
-        record_id.as_str(),
-    )
-    .await
+    match dynamodb::get(&state.dynamodb, &table_config, record_id.as_str())
+        .await
     {
         Ok(result) => result.0.map_or_else(
             || {
@@ -342,9 +341,9 @@ async fn create_record_handler(
     State(state): State<AppState>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let table_name = get_table_name(&state, &resource);
+    let table_config = get_table_config(&state, &resource);
 
-    match dynamodb::create(&state.dynamodb, table_name, &payload).await {
+    match dynamodb::create(&state.dynamodb, &table_config, &payload).await {
         Ok(()) => (
             StatusCode::CREATED,
             [(header::CONTENT_TYPE, "application/json")],
@@ -373,14 +372,12 @@ async fn update_record_handler(
     State(state): State<AppState>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let table_name = get_table_name(&state, &resource);
-    let key_name = get_key_name(&resource);
+    let table_config = get_table_config(&state, &resource);
 
     match dynamodb::update(
         &state.dynamodb,
-        table_name,
-        key_name,
-        record_id.as_str(),
+        &table_config,
+        &record_id,
         &payload,
     )
     .await
@@ -412,16 +409,10 @@ async fn delete_record_handler(
     }): Path<RequestPathWithId>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let table_name = get_table_name(&state, &resource);
-    let key_name = get_key_name(&resource);
+    let table_config = get_table_config(&state, &resource);
 
-    match dynamodb::delete(
-        &state.dynamodb,
-        table_name,
-        key_name,
-        record_id.as_str(),
-    )
-    .await
+    match dynamodb::delete(&state.dynamodb, &table_config, record_id.as_str())
+        .await
     {
         Ok(()) => (
             StatusCode::NO_CONTENT,
@@ -447,16 +438,14 @@ async fn get_many_records_handler(
     State(state): State<AppState>,
     Query(query_params): Query<ManyQuery>,
 ) -> impl IntoResponse {
-    let table_name = get_table_name(&state, &resource);
-    let key_name = get_key_name(&resource);
+    let table_config = get_table_config(&state, &resource);
 
     let ids = query_params
         .id
         .iter()
         .map(String::as_str)
         .collect::<Vec<_>>();
-    match dynamodb::get_many(&state.dynamodb, table_name, key_name, &ids).await
-    {
+    match dynamodb::get_many(&state.dynamodb, &table_config, &ids).await {
         Ok(items) => (
             StatusCode::OK,
             [(header::CONTENT_TYPE, "application/json")],
