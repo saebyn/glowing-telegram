@@ -1,9 +1,12 @@
-use aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes};
+use aws_sdk_dynamodb::types::{
+    AttributeValue, KeysAndAttributes, PutRequest, ReturnValue, WriteRequest,
+};
 use aws_sdk_dynamodb::Client;
 use lambda_runtime::Error;
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::vec;
 
 #[derive(Debug, Deserialize)]
 pub struct ListResult {
@@ -22,6 +25,7 @@ pub struct DynamoDbTableConfig<'a> {
     pub table: &'a str,
     pub partition_key: &'a str,
     pub q_key: &'a str,
+    pub indexes: Vec<&'a str>,
 }
 
 const DEFAULT_PAGE_LIMIT: i32 = 10;
@@ -127,6 +131,51 @@ pub async fn list(
     Ok(payload)
 }
 
+#[tracing::instrument(skip(client))]
+pub async fn query(
+    client: &Client,
+    table_config: &DynamoDbTableConfig<'_>,
+    indexed_field: &str,
+    value: serde_json::Value,
+) -> Result<ListResult, Error> {
+    let query = client
+        .query()
+        .table_name(table_config.table)
+        .index_name(format!("{indexed_field}-index"))
+        .expression_attribute_names("#k", indexed_field)
+        .expression_attribute_values(
+            ":v",
+            convert_json_to_attribute_value(value),
+        )
+        .key_condition_expression("#k = :v");
+
+    let query_output = match query.send().await {
+        Ok(query_output) => query_output,
+        Err(err) => {
+            tracing::error!(
+                "Failed to query table {} on index {}: {:?}",
+                table_config.table,
+                indexed_field,
+                err
+            );
+
+            return Err(Box::new(err));
+        }
+    };
+
+    let items = query_output
+        .items
+        .unwrap_or_default()
+        .iter()
+        .map(|item| convert_hm_to_json(item.clone()))
+        .collect::<Vec<serde_json::Value>>();
+
+    Ok(ListResult {
+        cursor: None,
+        items,
+    })
+}
+
 pub struct GetRecordResult(pub Option<serde_json::Value>);
 
 #[tracing::instrument(skip(client))]
@@ -196,27 +245,77 @@ pub async fn get_many(
 pub async fn create(
     client: &Client,
     table_config: &DynamoDbTableConfig<'_>,
-    item: &serde_json::Value,
-) -> Result<(), Error> {
-    let mut item = convert_json_to_hm(item);
+    items: Vec<&serde_json::Value>,
+) -> Result<Vec<serde_json::Value>, Error> {
+    let mut item_ids: HashSet<String> = HashSet::new();
 
-    // TODO generate a UUID for the record ID, handle if the ID is already present
+    let put_requests = items
+        .iter()
+        .copied()
+        .map(|item| {
+            let mut item = convert_json_to_hm(item);
 
-    // populate the created_at field
-    let created_at = chrono::Utc::now().to_rfc3339();
-    item.insert(
-        "created_at".to_string(),
-        AttributeValue::S(created_at.to_string()),
-    );
+            // generate a UUID for the record ID
+            let record_id = uuid::Uuid::now_v7().to_string();
 
-    client
-        .put_item()
-        .table_name(table_config.table)
-        .set_item(Some(item))
+            item_ids.insert(record_id.clone());
+            item.insert(
+                table_config.partition_key.to_string(),
+                AttributeValue::S(record_id),
+            );
+
+            // populate the created_at field
+            let created_at = chrono::Utc::now().to_rfc3339();
+            item.insert(
+                "created_at".to_string(),
+                AttributeValue::S(created_at),
+            );
+
+            let put_request =
+                PutRequest::builder().set_item(Some(item)).build();
+
+            put_request.map_or_else(
+                |_| Err(Error::from("Failed to create PutRequest")),
+                |put_request| {
+                    let write_request = WriteRequest::builder()
+                        .set_put_request(Some(put_request))
+                        .build();
+
+                    Ok(write_request)
+                },
+            )
+        })
+        .collect::<Result<Vec<WriteRequest>, Error>>()?;
+
+    let result = client
+        .batch_write_item()
+        .set_request_items(Some(std::collections::HashMap::from([(
+            table_config.table.to_string(),
+            put_requests,
+        )])))
         .send()
         .await?;
 
-    Ok(())
+    // Loop over the results and check for any unprocessed items
+    // and remove them from the list of item IDs
+    if let Some(unprocessed_items) = result.unprocessed_items() {
+        for (_, items) in unprocessed_items {
+            for item in items {
+                if let Some(put_request) = &item.put_request {
+                    if let Some(AttributeValue::S(id)) =
+                        put_request.item.get(table_config.partition_key)
+                    {
+                        item_ids.remove(id);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(item_ids
+        .iter()
+        .map(|id| json!({ table_config.partition_key: id }))
+        .collect())
 }
 
 #[tracing::instrument(skip(client))]
@@ -267,12 +366,12 @@ pub async fn update(
         .table_name(table_config.table)
         .key(
             table_config.partition_key,
-            aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
+            AttributeValue::S(record_id.to_string()),
         )
         .set_update_expression(Some(update_expression))
         .set_expression_attribute_names(Some(expression_attribute_names))
         .set_expression_attribute_values(Some(expression_attribute_values))
-        .return_values(aws_sdk_dynamodb::types::ReturnValue::AllNew);
+        .return_values(ReturnValue::AllNew);
 
     let result = query.send().await?;
 
@@ -297,7 +396,7 @@ pub async fn delete(
         .table_name(table_config.table)
         .key(
             table_config.partition_key,
-            aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
+            AttributeValue::S(record_id.to_string()),
         )
         .send()
         .await?;
@@ -490,6 +589,7 @@ mod tests {
             table: "users",
             partition_key: "id",
             q_key: "name",
+            indexes: vec![],
         };
         let mut filters = serde_json::Map::new();
         filters.insert(
@@ -512,6 +612,7 @@ mod tests {
             table: "users",
             partition_key: "id",
             q_key: "name",
+            indexes: vec![],
         };
         let mut filters = serde_json::Map::new();
         filters.insert(

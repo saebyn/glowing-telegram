@@ -55,7 +55,6 @@ aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_D
 
 # Build the Docker image
 echo "Building Docker image for $SERVICE"
-cd ..
 docker build -f $SERVICE/Dockerfile -t $SERVICE .
 
 # Tag the image with the ECR repository URI
