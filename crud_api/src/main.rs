@@ -2,8 +2,7 @@
  * This is the main entrypoint for the `crud_api` lambda function.
  *
  * The function is responsible for handling the requests and responses for the
- * CRUD operations, in a way compatible with the ra-data-simple-rest data
- * provider for React Admin.
+ * CRUD operations from the API Gateway.
  *
  */
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
@@ -57,20 +56,17 @@ struct AppState {
 
 #[derive(Debug, Deserialize)]
 struct RequestPath {
-    stage: String,
     resource: String,
 }
 
 #[derive(Debug, Deserialize)]
 struct RequestPathWithId {
-    stage: String,
     resource: String,
     record_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 struct RequestPathWithRelatedField {
-    stage: String,
     resource: String,
     related_field: String,
     id: String,
@@ -142,23 +138,20 @@ async fn main() {
     // Create Axum app
     let app = Router::new()
         .route(
-            "/:stage/records/:resource",
+            "/records/:resource",
             get(list_records_handler).post(create_record_handler),
         )
         .route(
-            "/:stage/records/:resource/:record_id",
+            "/records/:resource/:record_id",
             get(get_record_handler)
                 .put(update_record_handler)
                 .delete(delete_record_handler),
         )
         .route(
-            "/:stage/records/:resource/:related_field/:id",
+            "/records/:resource/:related_field/:id",
             get(get_many_related_records_handler),
         )
-        .route(
-            "/:stage/records/:resource/many",
-            get(get_many_records_handler),
-        )
+        .route("/records/:resource/many", get(get_many_records_handler))
         .fallback(|| async {
             (
                 StatusCode::NOT_FOUND,
@@ -175,7 +168,7 @@ async fn main() {
 
     // Provide the app to the lambda runtime
     let app = tower::ServiceBuilder::new()
-        .layer(axum_aws_lambda::LambdaLayer::default())
+        .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
         .service(app);
 
     lambda_http::run(app).await.unwrap();
@@ -227,7 +220,7 @@ fn get_table_config<'a>(
 /// count, or an `Error`.
 #[allow(clippy::option_if_let_else)]
 async fn list_records_handler(
-    Path(RequestPath { stage: _, resource }): Path<RequestPath>,
+    Path(RequestPath { resource }): Path<RequestPath>,
     Query(query): Query<HashMap<String, String>>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
@@ -309,7 +302,6 @@ async fn list_records_handler(
 
 async fn get_record_handler(
     Path(RequestPathWithId {
-        stage: _,
         resource,
         record_id,
     }): Path<RequestPathWithId>,
@@ -353,18 +345,50 @@ async fn get_record_handler(
 }
 
 async fn create_record_handler(
-    Path(RequestPath { stage: _, resource }): Path<RequestPath>,
+    Path(RequestPath { resource }): Path<RequestPath>,
     State(state): State<AppState>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
 
-    match dynamodb::create(&state.dynamodb, &table_config, &payload).await {
-        Ok(()) => (
-            StatusCode::CREATED,
-            [(header::CONTENT_TYPE, "application/json")],
-            Json(payload),
-        ),
+    let payload = match payload {
+        serde_json::Value::Object(map) => {
+            vec![serde_json::Value::Object(map)]
+        }
+        serde_json::Value::Array(array) => array,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "invalid payload: expected object or array",
+                })),
+            )
+        }
+    };
+
+    match dynamodb::create(
+        &state.dynamodb,
+        &table_config,
+        payload.iter().collect(),
+    )
+    .await
+    {
+        Ok(items) => {
+            if payload.len() == 1 {
+                (
+                    StatusCode::CREATED,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(items[0].clone()),
+                )
+            } else {
+                (
+                    StatusCode::CREATED,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(json!({ "items": items })),
+                )
+            }
+        }
         Err(e) => {
             tracing::error!("failed to create record: {e}");
 
@@ -381,7 +405,6 @@ async fn create_record_handler(
 
 async fn update_record_handler(
     Path(RequestPathWithId {
-        stage: _,
         resource,
         record_id,
     }): Path<RequestPathWithId>,
@@ -419,7 +442,6 @@ async fn update_record_handler(
 
 async fn delete_record_handler(
     Path(RequestPathWithId {
-        stage: _,
         resource,
         record_id,
     }): Path<RequestPathWithId>,
@@ -450,7 +472,7 @@ async fn delete_record_handler(
 }
 
 async fn get_many_records_handler(
-    Path(RequestPath { stage: _, resource }): Path<RequestPath>,
+    Path(RequestPath { resource }): Path<RequestPath>,
     State(state): State<AppState>,
     Query(query_params): Query<ManyQuery>,
 ) -> impl IntoResponse {
@@ -481,7 +503,6 @@ async fn get_many_records_handler(
 
 async fn get_many_related_records_handler(
     Path(RequestPathWithRelatedField {
-        stage: _,
         resource,
         related_field,
         id,

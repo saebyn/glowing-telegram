@@ -24,6 +24,7 @@ tower-http = { version = "0.5.0", features = [
   "compression-deflate",
   "trace",
 ] }
+uuid = { version = "1.11.0", features = ["v7", "fast-rng"] }
 
 [lints]
 workspace = true
