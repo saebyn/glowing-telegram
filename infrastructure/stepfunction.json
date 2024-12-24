@@ -27,14 +27,15 @@
 					"id": {
 						"S.$": "$.stream_id"
 					}
-				}
+				},
+				"ProjectionExpression": "id, prefix"
 			},
 			"ResultPath": "$.streamRecord",
 			"Next": "List video objects"
 		},
 		"List video objects": {
 			"Type": "Task",
-			"Comment": "List the objects in the S3 bucket with the prefix from the stream record",
+			"Comment": "List the objects in the S3 bucket with the prefix from the stream record. Because ListObjectsV2 returns objects in lexicographical order based on their key names, and keys are ISO 8601 formatted, the videos will be processed in chronological order",
 			"Resource": "arn:aws:states:::aws-sdk:s3:listObjectsV2",
 			"Parameters": {
 				"Bucket": "${videoBucketName}",

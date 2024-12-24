@@ -16,7 +16,8 @@ class StreamIngestion(pulumi.ComponentResource):
         audio_transcriber_job_arn: str,
         gpu_batch_job_queue_arn: str,
         metadata_table: aws.dynamodb.Table,
-        video_archive_bucket: aws.s3.Bucket,
+        video_archive_bucket: aws_native.s3.Bucket,
+        streams_table: aws.dynamodb.Table,
         opts=None,
     ):
         super().__init__(
@@ -167,10 +168,21 @@ The summary you generate must be not only informational for content review but a
                             {
                                 "Effect": "Allow",
                                 "Action": [
-                                    "s3:ListObjects",
+                                    "s3:ListBucket",
                                 ],
                                 "Resource": [
                                     video_archive_bucket.arn,
+                                ],
+                            },
+                            {
+                                "Effect": "Allow",
+                                "Action": [
+                                    "s3:ListObjects",
+                                ],
+                                "Resource": [
+                                    video_archive_bucket.arn.apply(
+                                        lambda arn: f"{arn}/*"
+                                    ),
                                 ],
                             },
                             {
@@ -214,9 +226,16 @@ The summary you generate must be not only informational for content review but a
                                 "Action": [
                                     "dynamodb:PutItem",
                                     "dynamodb:GetItem",
-                                    "dynamodb:UpdateItem",
                                 ],
                                 "Resource": metadata_table.arn,
+                            },
+                            {
+                                "Effect": "Allow",
+                                "Action": [
+                                    "dynamodb:GetItem",
+                                    "dynamodb:UpdateItem",
+                                ],
+                                "Resource": streams_table.arn,
                             },
                             {
                                 "Effect": "Allow",
@@ -240,6 +259,8 @@ The summary you generate must be not only informational for content review but a
             definition_string=state_machine_definition,
             definition_substitutions={
                 "metadataTableName": metadata_table.name,
+                "videoBucketName": video_archive_bucket.bucket_name,
+                "streamTableName": streams_table.name,
                 "summarizeTranscriptionFunctionArn": summarize_transcription_lambda.qualified_arn,
                 "audioTranscriberJobQueueArn": gpu_batch_job_queue_arn,
                 "audioTranscriberJobDefinitionArn": audio_transcriber_job_arn,

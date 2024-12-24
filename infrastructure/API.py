@@ -182,7 +182,17 @@ class API(pulumi.ComponentResource):
             resource_id=stream_api_resource.id,
             http_method=stream_ingestion_api_method.http_method,
             status_code="200",
-            response_templates={"application/json": "{}"},
+            response_parameters={
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+            },
+            response_templates={
+                "application/json": """
+                #set($inputRoot = $input.path('$'))
+                {
+                    "id": "$inputRoot.executionArn"
+                }
+               """
+            },
             opts=pulumi.ResourceOptions(
                 parent=self, depends_on=[stream_ingestion_api_integration]
             ),
@@ -194,8 +204,10 @@ class API(pulumi.ComponentResource):
             rest_api=api.id,
             resource_id=stream_api_resource.id,
             http_method=stream_ingestion_api_method.http_method,
+            response_parameters={
+                "method.response.header.Access-Control-Allow-Origin": True,
+            },
             status_code="200",
-            response_models={"application/json": "Empty"},
             opts=pulumi.ResourceOptions(parent=self),
         )
 
