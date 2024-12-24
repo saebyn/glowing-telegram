@@ -292,6 +292,7 @@ stream_ingestion = StreamIngestion(
     audio_transcriber_job_arn=audio_transcriber_job.job_definition_arn,
     gpu_batch_job_queue_arn=gpu_batch_job_queue.job_queue_arn,
     metadata_table=video_metadata_table,
+    video_archive_bucket=video_archive,
 )
 
 # cognito userpool setup

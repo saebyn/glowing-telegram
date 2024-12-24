@@ -76,6 +76,34 @@ class API(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # Create a request validator for the API
+        stream_ingestion_api_request_validator = aws.apigateway.RequestValidator(
+            "stream-ingestion-api-request-validator",
+            rest_api=api.id,
+            validate_request_body=True,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # Create a model for the API
+        stream_ingestion_api_model = aws.apigateway.Model(
+            "stream-ingestion-api-model",
+            rest_api=api.id,
+            name="StreamIngestionModel",
+            content_type="application/json",
+            schema=json.dumps(
+                {
+                    "type": "object",
+                    "properties": {
+                        "streamId": {"type": "string"},
+                        "initialPrompt": {"type": "string"},
+                        "initialSummary": {"type": "string"},
+                    },
+                    "required": ["streamId", "initialPrompt", "initialSummary"],
+                }
+            ),
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
         # Create a method for the API
         stream_ingestion_api_method = aws.apigateway.Method(
             "stream-ingestion-api-method",
@@ -84,6 +112,8 @@ class API(pulumi.ComponentResource):
             http_method="POST",
             authorization="COGNITO_USER_POOLS",
             authorizer_id=api_user_authorizer.id,
+            request_models={"application/json": stream_ingestion_api_model.name},
+            request_validator_id=stream_ingestion_api_request_validator.id,
             opts=pulumi.ResourceOptions(parent=self),
         )
 

@@ -16,6 +16,7 @@ class StreamIngestion(pulumi.ComponentResource):
         audio_transcriber_job_arn: str,
         gpu_batch_job_queue_arn: str,
         metadata_table: aws.dynamodb.Table,
+        video_archive_bucket: aws.s3.Bucket,
         opts=None,
     ):
         super().__init__(
@@ -166,6 +167,15 @@ The summary you generate must be not only informational for content review but a
                             {
                                 "Effect": "Allow",
                                 "Action": [
+                                    "s3:ListObjects",
+                                ],
+                                "Resource": [
+                                    video_archive_bucket.arn,
+                                ],
+                            },
+                            {
+                                "Effect": "Allow",
+                                "Action": [
                                     "batch:SubmitJob",
                                     "batch:DescribeJobs",
                                 ],
@@ -204,6 +214,7 @@ The summary you generate must be not only informational for content review but a
                                 "Action": [
                                     "dynamodb:PutItem",
                                     "dynamodb:GetItem",
+                                    "dynamodb:UpdateItem",
                                 ],
                                 "Resource": metadata_table.arn,
                             },
