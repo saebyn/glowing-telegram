@@ -299,7 +299,7 @@ pub async fn create(
     // Loop over the results and check for any unprocessed items
     // and remove them from the list of item IDs
     if let Some(unprocessed_items) = result.unprocessed_items() {
-        for (_, items) in unprocessed_items {
+        for items in unprocessed_items.values() {
             for item in items {
                 if let Some(put_request) = &item.put_request {
                     if let Some(AttributeValue::S(id)) =
@@ -552,20 +552,34 @@ fn build_filter_expressions(
         };
 
         let attribute_name = format!("#k{i}");
-        let attribute_value = format!(":v{i}");
 
-        filter_expressions.push(if op == "contains" {
-            format!("contains({attribute_name}, {attribute_value})")
-        } else {
-            format!("{attribute_name} {op} {attribute_value}")
-        });
+        let values = match value {
+            serde_json::Value::Array(values) => values,
+            _ => &vec![value.clone()],
+        };
 
-        expression_attribute_names
-            .insert(attribute_name.clone(), base_key.to_string());
-        expression_attribute_values.insert(
-            attribute_value,
-            convert_json_to_attribute_value(value.clone()),
-        );
+        let inner_filter_expr = values
+            .iter()
+            .map(|value| {
+                let attribute_value = format!(":v{i}");
+
+                expression_attribute_names
+                    .insert(attribute_name.clone(), base_key.to_string());
+                expression_attribute_values.insert(
+                    attribute_value.clone(),
+                    convert_json_to_attribute_value(value.clone()),
+                );
+
+                if op == "contains" {
+                    format!("contains({attribute_name}, {attribute_value})")
+                } else {
+                    format!("{attribute_name} {op} {attribute_value}")
+                }
+            })
+            .collect::<Vec<String>>()
+            .join(" OR ");
+
+        filter_expressions.push(format!("({inner_filter_expr})"));
     }
 
     (
@@ -598,7 +612,7 @@ mod tests {
         );
         let (expr, anames, avals) =
             build_filter_expressions(&table_config, &filters);
-        assert_eq!(expr.unwrap(), "#k0 = :v0");
+        assert_eq!(expr.unwrap(), "(#k0 = :v0)");
         assert_eq!(anames.get("#k0"), Some(&"status".to_string()));
         assert_eq!(
             avals.get(":v0").unwrap().as_s().ok(),
@@ -621,7 +635,7 @@ mod tests {
         );
         let (expr, anames, avals) =
             build_filter_expressions(&table_config, &filters);
-        assert_eq!(expr.unwrap(), "#k0 > :v0");
+        assert_eq!(expr.unwrap(), "(#k0 > :v0)");
         assert_eq!(anames.get("#k0"), Some(&"age".to_string()));
         assert_eq!(
             avals.get(":v0").unwrap().as_n().ok(),
