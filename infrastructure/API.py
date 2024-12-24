@@ -76,6 +76,34 @@ class API(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # Create a request validator for the API
+        stream_ingestion_api_request_validator = aws.apigateway.RequestValidator(
+            "stream-ingestion-api-request-validator",
+            rest_api=api.id,
+            validate_request_body=True,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # Create a model for the API
+        stream_ingestion_api_model = aws.apigateway.Model(
+            "stream-ingestion-api-model",
+            rest_api=api.id,
+            name="StreamIngestionModel",
+            content_type="application/json",
+            schema=json.dumps(
+                {
+                    "type": "object",
+                    "properties": {
+                        "streamId": {"type": "string"},
+                        "initialPrompt": {"type": "string"},
+                        "initialSummary": {"type": "string"},
+                    },
+                    "required": ["streamId", "initialPrompt", "initialSummary"],
+                }
+            ),
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
         # Create a method for the API
         stream_ingestion_api_method = aws.apigateway.Method(
             "stream-ingestion-api-method",
@@ -84,6 +112,8 @@ class API(pulumi.ComponentResource):
             http_method="POST",
             authorization="COGNITO_USER_POOLS",
             authorizer_id=api_user_authorizer.id,
+            request_models={"application/json": stream_ingestion_api_model.name},
+            request_validator_id=stream_ingestion_api_request_validator.id,
             opts=pulumi.ResourceOptions(parent=self),
         )
 
@@ -152,7 +182,17 @@ class API(pulumi.ComponentResource):
             resource_id=stream_api_resource.id,
             http_method=stream_ingestion_api_method.http_method,
             status_code="200",
-            response_templates={"application/json": "{}"},
+            response_parameters={
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+            },
+            response_templates={
+                "application/json": """
+                #set($inputRoot = $input.path('$'))
+                {
+                    "id": "$inputRoot.executionArn"
+                }
+               """
+            },
             opts=pulumi.ResourceOptions(
                 parent=self, depends_on=[stream_ingestion_api_integration]
             ),
@@ -164,8 +204,10 @@ class API(pulumi.ComponentResource):
             rest_api=api.id,
             resource_id=stream_api_resource.id,
             http_method=stream_ingestion_api_method.http_method,
+            response_parameters={
+                "method.response.header.Access-Control-Allow-Origin": True,
+            },
             status_code="200",
-            response_models={"application/json": "Empty"},
             opts=pulumi.ResourceOptions(parent=self),
         )
 
