@@ -612,7 +612,7 @@ mod tests {
         );
         let (expr, anames, avals) =
             build_filter_expressions(&table_config, &filters);
-        assert_eq!(expr.unwrap(), "#k0 = :v0");
+        assert_eq!(expr.unwrap(), "(#k0 = :v0)");
         assert_eq!(anames.get("#k0"), Some(&"status".to_string()));
         assert_eq!(
             avals.get(":v0").unwrap().as_s().ok(),
@@ -635,7 +635,7 @@ mod tests {
         );
         let (expr, anames, avals) =
             build_filter_expressions(&table_config, &filters);
-        assert_eq!(expr.unwrap(), "#k0 > :v0");
+        assert_eq!(expr.unwrap(), "(#k0 > :v0)");
         assert_eq!(anames.get("#k0"), Some(&"age".to_string()));
         assert_eq!(
             avals.get(":v0").unwrap().as_n().ok(),
