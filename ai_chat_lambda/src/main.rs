@@ -110,10 +110,9 @@ async fn handler(
         .get_secret_value()
         .secret_id(&shared_resources.config.openai_secret_arn)
         .send()
-        .await
-        .expect("failed to get secret")
+        .await?
         .secret_string
-        .expect("secret not found");
+        .ok_or("Secret string not found")?;
 
     let client = Client::new(openai_secret);
 
