@@ -24,6 +24,16 @@ components:
         - $ref: "#/components/schemas/Episode"
         - $ref: "#/components/schemas/Profile"
         - $ref: "#/components/schemas/VideoClip"
+    TwitchAuthRequest:
+      $ref: "./schemas.json#/TwitchAuthRequest"
+    AuthorizationUrlResponse:
+      $ref: "./schemas.json#/AuthorizationUrlResponse"
+    TwitchCallbackRequest:
+      $ref: "./schemas.json#/TwitchCallbackRequest"
+    AccessTokenResponse:
+      $ref: "./schemas.json#/AccessTokenResponse"
+    SimpleChatMessage:
+      $ref: "./schemas.json#/SimpleChatMessage"
 
   responses:
     Error:
@@ -36,6 +46,32 @@ components:
               message:
                 type: string
 paths:
+  /ai/chat:
+    post:
+      summary: Chat with AI
+      tags:
+        - chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/SimpleChatMessage"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SimpleChatMessage"
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
   /records/{resource}:
     get:
       summary: List records
@@ -271,3 +307,46 @@ paths:
           $ref: "#/components/responses/Error"
         "500":
           $ref: "#/components/responses/Error"
+  /auth/twitch/url:
+    post:
+      summary: Obtain Twitch authorization URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwitchAuthRequest"
+      responses:
+        "200":
+          description: Authorization URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorizationUrlResponse"
+  /auth/twitch/callback:
+    get:
+      summary: Handle Twitch callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to client
+  /auth/twitch/token:
+    get:
+      summary: Obtain Twitch access token
+      responses:
+        "200":
+          description: Access token response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"

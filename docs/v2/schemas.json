@@ -190,5 +190,76 @@
         }
       }
     }
+  },
+  "TwitchAuthRequest": {
+    "$comment": "Represents the request from the client to Glowing Telegram to authorize with Twitch",
+    "type": "object",
+    "properties": {
+      "redirect_uri": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "required": ["redirect_uri"]
+  },
+  "AuthorizationUrlResponse": {
+    "$comment": "Represents the response from Glowing Telegram when the client requests the URL to authorize with Twitch",
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "required": ["url"]
+  },
+  "TwitchCallbackRequest": {
+    "$comment": "Represents the query parameters that Twitch sends to the callback URL",
+    "type": "object",
+    "properties": {
+      "code": { "type": "string" },
+      "scope": { "type": "array", "items": { "type": "string" } },
+      "state": { "type": "string" }
+    },
+    "required": ["code","state","scope"]
+  },
+  "TwitchCallbackError": {
+    "$comment": "Represents the query parameters that Twitch sends to the callback URL when an error occurs",
+    "type": "object",
+    "properties": {
+      "error": { "type": "string" },
+      "error_description": { "type": "string" },
+      "state": { "type": "string" }
+    },
+    "required": ["error","error_description","state"]
+  },
+  "AccessTokenResponse": {
+    "$comment": "Represents the response from Glowing Telegram when the client requests the current user's access token",
+    "type": "object",
+    "properties": {
+      "access_token": { "type": "string" }
+    },
+    "required": ["access_token"]
+  },
+  "TwitchAPITokenResponse": {
+    "$comment": "Represents the response from Twitch when the auth flow is complete",
+    "type": "object",
+    "properties": {
+      "access_token": { "type": "string" },
+      "refresh_token": { "type": "string" },
+      "expires_in": { "type": "number" },
+      "scope": { "type": "array", "items": { "type": "string" } },
+      "token_type": { "type": "string" }
+    },
+    "required": ["access_token","refresh_token","expires_in","scope","token_type"]
+  },
+  "SimpleChatMessage": {
+    "$comment": "Represents a simple chat completion message",
+    "type": "object",
+    "properties": {
+      "role": { "type": "string" },
+      "content": { "type": "string" }
+    },
+    "required": ["role","content"]
   }
 }
