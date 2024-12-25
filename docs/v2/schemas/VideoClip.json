@@ -1,0 +1,113 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$defs": {
+		"TranscriptSegment": {
+			"type": "object",
+			"properties": {
+				"start": { "type": "number" },
+				"end": { "type": "number" },
+				"avg_logprob": { "type": "number" },
+				"compression_ratio": { "type": "number" },
+				"no_speech_prob": { "type": "number" },
+				"temperature": { "type": "number" },
+				"text": { "type": "string" }
+			}
+		},
+		"VideoClip": {
+			"type": "object",
+			"properties": {
+				"key": { "type": "string" },
+				"keyframes": {
+					"type": "array",
+					"items": { "type": "string" }
+				},
+				"audio": { "type": "string" },
+				"silence": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"start": { "type": "number" },
+							"end": { "type": "number" }
+						}
+					}
+				},
+				"start_time": { "type": "number" },
+				"stream_id": { "type": "string" },
+				"metadata": {
+					"type": "object",
+					"properties": {
+						"format": {
+							"type": "object",
+							"properties": {
+								"duration": { "type": "number" }
+							}
+						}
+					}
+				},
+				"transcription": {
+					"type": "object",
+					"properties": {
+						"language": { "type": "string" },
+						"text": { "type": "string" },
+						"segments": {
+							"type": "array",
+							"items": { "$ref": "#/$defs/TranscriptSegment" }
+						}
+					}
+				},
+				"summary": {
+					"type": "object",
+					"properties": {
+						"attentions": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"timestamp_start": { "type": "number" },
+									"timestamp_end": { "type": "number" },
+									"description": { "type": "number" },
+									"reasoning": { "type": "number" }
+								}
+							}
+						},
+						"highlights": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"timestamp_start": { "type": "number" },
+									"timestamp_end": { "type": "number" },
+									"description": { "type": "number" },
+									"reasoning": { "type": "number" }
+								}
+							}
+						},
+						"keywords": {
+							"type": "array",
+							"items": { "type": "string" }
+						},
+						"summary_context": { "type": "string" },
+						"summary_main_discussion": { "type": "string" },
+						"title": { "type": "string" },
+						"transcription_errors": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"timestamp_start": { "type": "number" },
+									"description": { "type": "number" },
+									"reasoning": { "type": "number" }
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"type": "object",
+	"$ref": "#/$defs/VideoClip",
+	"additionalItems": false,
+	"$comment": "Represents a video clip object aka a video segment aka video metadata"
+}

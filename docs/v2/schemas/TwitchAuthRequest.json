@@ -1,0 +1,13 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"$comment": "Represents the request from the client to Glowing Telegram to authorize with Twitch",
+	"properties": {
+		"redirect_uri": {
+			"type": "string",
+			"format": "uri"
+		}
+	},
+	"required": ["redirect_uri"],
+	"additionalProperties": false
+}

@@ -6,17 +6,17 @@ info:
 components:
   schemas:
     Stream:
-      $ref: "./schemas.json#/Stream"
+      $ref: "./schemas/Stream.json"
     Episode:
-      $ref: "./schemas.json#/Episode"
+      $ref: "./schemas/Episode.json"
     Profile:
-      $ref: "./schemas.json#/Profile"
+      $ref: "./schemas/Profile.json"
     StreamIngestionRequest:
-      $ref: "./schemas.json#/StreamIngestionRequest"
+      $ref: "./schemas/StreamIngestionRequest.json"
     VideoClip:
-      $ref: "./schemas.json#/VideoClip"
+      $ref: "./schemas/VideoClip.json"
     IdOnly:
-      $ref: "./schemas.json#/IdOnly"
+      $ref: "./schemas/IdOnly.json"
     Record:
       type: object
       oneOf:
@@ -25,15 +25,15 @@ components:
         - $ref: "#/components/schemas/Profile"
         - $ref: "#/components/schemas/VideoClip"
     TwitchAuthRequest:
-      $ref: "./schemas.json#/TwitchAuthRequest"
+      $ref: "./schemas/TwitchAuthRequest.json"
     AuthorizationUrlResponse:
-      $ref: "./schemas.json#/AuthorizationUrlResponse"
+      $ref: "./schemas/AuthorizationUrlResponse.json"
     TwitchCallbackRequest:
-      $ref: "./schemas.json#/TwitchCallbackRequest"
+      $ref: "./schemas/TwitchCallbackRequest.json"
     AccessTokenResponse:
-      $ref: "./schemas.json#/AccessTokenResponse"
+      $ref: "./schemas/AccessTokenResponse.json"
     SimpleChatMessage:
-      $ref: "./schemas.json#/SimpleChatMessage"
+      $ref: "./schemas/SimpleChatMessage.json"
 
   responses:
     Error:

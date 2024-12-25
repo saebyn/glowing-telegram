@@ -1,0 +1,16 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"properties": {
+		"content": {
+			"type": "string"
+		},
+		"role": {
+			"type": "string",
+			"enum": ["system", "user", "assistant", "function", "tool"]
+		}
+	},
+	"required": ["content", "role"],
+	"$comment": "Represents a simple chat message object",
+	"additionalProperties": false
+}
