@@ -136,7 +136,7 @@ async fn handler(
                     .into())
                 }
                 _ => {
-                    return Err("Internal server error".into());
+                    return Err("Unexpected error occurred while processing the chat request".into());
                 }
             }
         }
