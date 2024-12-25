@@ -9,7 +9,8 @@
       "description": "The name of the service to run",
       "options": [
         "api",
-        "crud_api"
+        "crud_api",
+        "ai_chat_lambda"
       ]
     },
     {

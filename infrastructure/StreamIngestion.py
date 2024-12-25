@@ -18,18 +18,11 @@ class StreamIngestion(pulumi.ComponentResource):
         metadata_table: aws.dynamodb.Table,
         video_archive_bucket: aws_native.s3.Bucket,
         streams_table: aws.dynamodb.Table,
+        openai_secret: aws.secretsmanager.Secret,
         opts=None,
     ):
         super().__init__(
             "glowing_telegram:infrastructure:StreamIngestion", name, None, opts
-        )
-
-        # Create secret for OpenAI API key
-        openai_secret = aws.secretsmanager.Secret(
-            f"{name}-openai-secret",
-            name=f"{name}-openai-secret",
-            description="OpenAI API key",
-            opts=pulumi.ResourceOptions(parent=self),
         )
 
         # Create a Lambda execution role
@@ -111,7 +104,7 @@ class StreamIngestion(pulumi.ComponentResource):
                 "variables": {
                     "OPENAI_SECRET_ARN": openai_secret.arn,
                     "METADATA_TABLE_NAME": metadata_table.name,
-                    "OPENAI_MODEL": "gpt-4o-2024-08-06",
+                    "OPENAI_MODEL": "gpt-4o-2024-11-20",
                     "OPENAI_INSTRUCTIONS": """
 Generate a detailed summary report for the given transcript of a 20-minute video, using the provided context summary of preceding videos to enhance continuity and depth.
 

@@ -19,6 +19,7 @@ class API(pulumi.ComponentResource):
         stream_series_table: aws.dynamodb.Table,
         episodes_table: aws.dynamodb.Table,
         profiles_table: aws.dynamodb.Table,
+        openai_secret: aws.secretsmanager.Secret,
         opts=None,
     ):
         super().__init__("glowing_telegram:infrastructure:API", name, None, opts)
@@ -387,12 +388,210 @@ class API(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Trigger a deployment of the API when we do 'pulumi up'
-        # TODO do this the right way with a stage
-        aws.apigateway.Deployment(
-            "stream-ingestion-api-deployment",
+        ai_chat_lambda_role = aws_native.iam.Role(
+            "ai-chat-lambda-role",
+            assume_role_policy_document={
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "lambda.amazonaws.com",
+                        },
+                        "Action": "sts:AssumeRole",
+                    },
+                ],
+            },
+            managed_policy_arns=[
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                "arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess",
+            ],
+            policies=[
+                aws_native.iam.RolePolicyArgs(
+                    policy_name="ai-chat-lambda-policy",
+                    policy_document={
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": [
+                                    "secretsmanager:GetSecretValue",
+                                    "secretsmanager:DescribeSecret",
+                                ],
+                                "Resource": [
+                                    openai_secret.arn,
+                                ],
+                            },
+                        ],
+                    },
+                ),
+            ],
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        ai_chat_lambda_ecr = aws.ecr.Repository(
+            "ai-chat-lambda-ecr",
+            image_scanning_configuration={"scan_on_push": True},
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        ai_chat_lambda = aws.lambda_.Function(
+            "new-ai-chat-lambda",
+            timeout=15 * 60,
+            package_type="Image",
+            image_uri=ai_chat_lambda_ecr.repository_url.apply(
+                lambda url: f"{url}:latest"
+            ),
+            tracing_config={"mode": "Active"},
+            logging_config={
+                "log_format": "JSON",
+            },
+            role=ai_chat_lambda_role.arn,
+            environment={
+                "variables": {
+                    "OPENAI_SECRET_ARN": openai_secret.arn,
+                    "OPENAI_MODEL": "gpt-4o-2024-11-20",
+                }
+            },
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # Create a role for the API Gateway to assume for the ai-chat APIs
+        ai_chat_api_gateway_role = aws_native.iam.Role(
+            "ai-chat-api-gateway-role",
+            assume_role_policy_document={
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "apigateway.amazonaws.com",
+                        },
+                        "Action": "sts:AssumeRole",
+                    },
+                ],
+            },
+            policies=[
+                aws_native.iam.RolePolicyArgs(
+                    policy_name="ai-chat-api-gateway-policy",
+                    policy_document={
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": ["lambda:InvokeFunction"],
+                                "Resource": ai_chat_lambda.arn,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # Create a resource for the API
+        ai_api_resource = aws.apigateway.Resource(
+            "ai-api-resource",
             rest_api=api.id,
-            stage_name="tst",
+            parent_id=api.root_resource_id,
+            path_part="ai",
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+        ai_chat_api_resource = aws.apigateway.Resource(
+            "ai-chat-api-resource",
+            rest_api=api.id,
+            parent_id=ai_api_resource.id,
+            path_part="chat",
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # Create a request validator for the API
+        ai_chat_api_request_validator = aws.apigateway.RequestValidator(
+            "ai-chat-api-request-validator",
+            rest_api=api.id,
+            validate_request_body=True,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # Create a model for the API
+        ai_chat_api_model = aws.apigateway.Model(
+            "ai-chat-api-model",
+            rest_api=api.id,
+            name="AIChatModel",
+            content_type="application/json",
+            schema=json.dumps(
+                {
+                    "type": "object",
+                    "properties": {
+                        "messages": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "content": {"type": "string"},
+                                    "role": {"type": "string"},
+                                },
+                                "required": ["content", "role"],
+                            },
+                        },
+                    },
+                    "required": ["messages"],
+                }
+            ),
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # Create a method for the API
+        ai_chat_api_method = aws.apigateway.Method(
+            "ai-chat-api-method",
+            rest_api=api.id,
+            resource_id=ai_chat_api_resource.id,
+            http_method="POST",
+            authorization="COGNITO_USER_POOLS",
+            authorizer_id=api_user_authorizer.id,
+            request_models={"application/json": ai_chat_api_model.name},
+            request_validator_id=ai_chat_api_request_validator.id,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # Create an integration for the API to call the Lambda function
+        ai_chat_api_integration = aws.apigateway.Integration(
+            "ai-chat-api-integration",
+            rest_api=api.id,
+            resource_id=ai_chat_api_resource.id,
+            http_method=ai_chat_api_method.http_method,
+            integration_http_method="POST",
+            type="AWS",
+            uri=ai_chat_lambda.invoke_arn,
+            credentials=ai_chat_api_gateway_role.arn,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # integration response
+        aws.apigateway.IntegrationResponse(
+            "ai-chat-api-integration-response",
+            rest_api=api.id,
+            resource_id=ai_chat_api_resource.id,
+            http_method=ai_chat_api_method.http_method,
+            status_code="200",
+            response_parameters={
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+            },
+            opts=pulumi.ResourceOptions(
+                parent=self, depends_on=[ai_chat_api_integration]
+            ),
+        )
+
+        # Response setup for the method
+        aws.apigateway.MethodResponse(
+            "ai-chat-api-method-response",
+            rest_api=api.id,
+            resource_id=ai_chat_api_resource.id,
+            http_method=ai_chat_api_method.http_method,
+            response_parameters={
+                "method.response.header.Access-Control-Allow-Origin": True,
+            },
+            status_code="200",
             opts=pulumi.ResourceOptions(parent=self),
         )
 
