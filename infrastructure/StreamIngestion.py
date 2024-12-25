@@ -19,6 +19,8 @@ class StreamIngestion(pulumi.ComponentResource):
         video_archive_bucket: aws_native.s3.Bucket,
         streams_table: aws.dynamodb.Table,
         openai_secret: aws.secretsmanager.Secret,
+        video_ingestor_job_definition_arn: str,
+        video_ingestor_job_queue_arn: str,
         opts=None,
     ):
         super().__init__(
@@ -187,6 +189,8 @@ The summary you generate must be not only informational for content review but a
                                 "Resource": [
                                     gpu_batch_job_queue_arn,
                                     audio_transcriber_job_arn,
+                                    video_ingestor_job_queue_arn,
+                                    video_ingestor_job_definition_arn,
                                 ],
                             },
                             {
@@ -219,6 +223,7 @@ The summary you generate must be not only informational for content review but a
                                 "Action": [
                                     "dynamodb:PutItem",
                                     "dynamodb:GetItem",
+                                    "dynamodb:UpdateItem",
                                 ],
                                 "Resource": metadata_table.arn,
                             },
@@ -254,6 +259,8 @@ The summary you generate must be not only informational for content review but a
                 "metadataTableName": metadata_table.name,
                 "videoBucketName": video_archive_bucket.bucket_name,
                 "streamTableName": streams_table.name,
+                "videoIngestJobQueueArn": video_ingestor_job_queue_arn,
+                "videoIngestJobDefinitionArn": video_ingestor_job_definition_arn,
                 "summarizeTranscriptionFunctionArn": summarize_transcription_lambda.qualified_arn,
                 "audioTranscriberJobQueueArn": gpu_batch_job_queue_arn,
                 "audioTranscriberJobDefinitionArn": audio_transcriber_job_arn,

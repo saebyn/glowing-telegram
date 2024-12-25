@@ -303,6 +303,8 @@ stream_ingestion = StreamIngestion(
     video_archive_bucket=video_archive,
     streams_table=streams_table,
     openai_secret=openai_secret,
+    video_ingestor_job_queue_arn=fargate_batch_job_queue.job_queue_arn,
+    video_ingestor_job_definition_arn=video_ingestor_job.job_definition_arn,
 )
 
 # cognito userpool setup
