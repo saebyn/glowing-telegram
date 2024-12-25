@@ -39,6 +39,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ai_chat_lambda"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-secretsmanager",
+ "figment",
+ "lambda_runtime",
+ "openai_dive 0.7.1",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2189,6 +2205,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "openai_dive"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2facfd14e5230e3a647348f1d9433b3b85a2201b102575b833524412c1b67b56"
+dependencies = [
+ "bytes",
+ "derive_builder",
+ "reqwest 0.12.5",
+ "serde",
+ "serde_html_form",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "openssl"
 version = "0.10.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3017,6 +3049,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e36c1b1792cfd9de29eb373ee6a4b74650369c096f55db7198ceb7b8921d1f7f"
 dependencies = [
  "base64 0.21.7",
+ "serde",
+]
+
+[[package]]
+name = "serde_html_form"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d2de91cf02bbc07cde38891769ccd5d4f073d22a40683aa4bc7a95781aaa2c4"
+dependencies = [
+ "form_urlencoded",
+ "indexmap 2.4.0",
+ "itoa",
+ "ryu",
  "serde",
 ]
 

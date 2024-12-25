@@ -29,6 +29,10 @@ case $SERVICE in
     FUNCTION_NAME="new-crud-lambda-ec79885"
     ECR_REPOSITORY="crud-lambda-ecr-b5e445c"
     ;;
+  ai_chat_lambda)
+    FUNCTION_NAME="new-ai-chat-lambda-0c271fa"
+    ECR_REPOSITORY="ai-chat-lambda-ecr-781db3a"
+    ;;
   *)
     echo "The SERVICE is not supported"
     exit 1
