@@ -5,14 +5,25 @@ info:
   version: "2.0"
 components:
   schemas:
-    $ref: './schemas.json'
-
+    Stream:
+      $ref: "./schemas.json#/Stream"
+    Episode:
+      $ref: "./schemas.json#/Episode"
+    Profile:
+      $ref: "./schemas.json#/Profile"
+    StreamIngestionRequest:
+      $ref: "./schemas.json#/StreamIngestionRequest"
+    VideoClip:
+      $ref: "./schemas.json#/VideoClip"
+    IdOnly:
+      $ref: "./schemas.json#/IdOnly"
     Record:
       type: object
       oneOf:
-        - $ref: '#/components/schemas/Stream'
-        - $ref: '#/components/schemas/Episode'
-        - $ref: '#/components/schemas/Profile'
+        - $ref: "#/components/schemas/Stream"
+        - $ref: "#/components/schemas/Episode"
+        - $ref: "#/components/schemas/Profile"
+        - $ref: "#/components/schemas/VideoClip"
 
   responses:
     Error:
@@ -54,7 +65,7 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
@@ -64,13 +75,13 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Record'
+                      $ref: "#/components/schemas/Record"
                   cursor:
                     type: string
-        '400':
-          $ref: '#/components/responses/Error'
-        '500':
-          $ref: '#/components/responses/Error'
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
     post:
       summary: Create a record
       tags:
@@ -87,21 +98,21 @@ paths:
           application/json:
             schema:
               oneOf:
-                - $ref: '#/components/schemas/Record'
-                - $ref: '#/components/schemad/StreamIngestionRequest'
+                - $ref: "#/components/schemas/Record"
+                - $ref: "#/components/schemad/StreamIngestionRequest"
       responses:
-        '201':
+        "201":
           description: Record created
           content:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/Record'
-                  - $ref: '#/components/schemas/IdOnly'
-        '400':
-          $ref: '#/components/responses/Error'
-        '500':
-          $ref: '#/components/responses/Error'
+                  - $ref: "#/components/schemas/Record"
+                  - $ref: "#/components/schemas/IdOnly"
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
   /records/{resource}/{record_id}:
     get:
       summary: Get a record
@@ -119,20 +130,20 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/Record'
-        '400':
-          $ref: '#/components/responses/Error'
-        '404':
+                  - $ref: "#/components/schemas/Record"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
           description: Record not found
-          $ref: '#/components/responses/Error'
-        '500':
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
     put:
       summary: Update a record
       tags:
@@ -153,18 +164,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Record'
+              $ref: "#/components/schemas/Record"
       responses:
-        '200':
+        "200":
           description: Record updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Record'
-        '400':
-          $ref: '#/components/responses/Error'
-        '500':
-          $ref: '#/components/responses/Error'
+                $ref: "#/components/schemas/Record"
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
     delete:
       summary: Delete a record
       tags:
@@ -181,12 +192,12 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Record deleted
-        '400':
-          $ref: '#/components/responses/Error'
-        '500':
-          $ref: '#/components/responses/Error'
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
   /records/{resource}/{related_field}/{id}:
     get:
       summary: Get related records
@@ -209,7 +220,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
@@ -219,13 +230,13 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Record'
+                      $ref: "#/components/schemas/Record"
                   cursor:
                     type: string
-        '400':
-          $ref: '#/components/responses/Error'
-        '500':
-          $ref: '#/components/responses/Error'
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
   /records/{resource}/many:
     get:
       summary: Get many records
@@ -245,7 +256,7 @@ paths:
             items:
               type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
@@ -255,9 +266,8 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Record'
-        '400':
-          $ref: '#/components/responses/Error'
-        '500':
-          $ref: '#/components/responses/Error'
-
+                      $ref: "#/components/schemas/Record"
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
