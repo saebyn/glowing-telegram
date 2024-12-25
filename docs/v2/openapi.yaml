@@ -1,0 +1,263 @@
+---
+openapi: 3.1.1
+info:
+  title: Glowing Telegram API
+  version: "2.0"
+components:
+  schemas:
+    $ref: './schemas.json'
+
+    Record:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/Stream'
+        - $ref: '#/components/schemas/Episode'
+        - $ref: '#/components/schemas/Profile'
+
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+paths:
+  /records/{resource}:
+    get:
+      summary: List records
+      tags:
+        - list
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: filter
+          in: query
+          schema:
+            type: string
+            format: json
+            content:
+              application/json:
+                schema:
+                  type: object
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Record'
+                  cursor:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+    post:
+      summary: Create a record
+      tags:
+        - create
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/Record'
+                - $ref: '#/components/schemad/StreamIngestionRequest'
+      responses:
+        '201':
+          description: Record created
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Record'
+                  - $ref: '#/components/schemas/IdOnly'
+        '400':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /records/{resource}/{record_id}:
+    get:
+      summary: Get a record
+      tags:
+        - get
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Record'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          description: Record not found
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+    put:
+      summary: Update a record
+      tags:
+        - update
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Record'
+      responses:
+        '200':
+          description: Record updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+        '400':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+    delete:
+      summary: Delete a record
+      tags:
+        - delete
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Record deleted
+        '400':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /records/{resource}/{related_field}/{id}:
+    get:
+      summary: Get related records
+      tags:
+        - get
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: related_field
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Record'
+                  cursor:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+  /records/{resource}/many:
+    get:
+      summary: Get many records
+      tags:
+        - get
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Record'
+        '400':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+

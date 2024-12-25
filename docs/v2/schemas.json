@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "StreamIngestionRequest": {
+    "type": "object",
+    "properties": {
+      "streamId": {
+        "type": "string"
+      },
+      "initialPrompt": {
+        "type": "string"
+      },
+      "initialSummary": {
+        "type": "string"
+      }
+    },
+    "required": ["streamId", "initialPrompt", "initialSummary"]
+  },
+  "IdOnly": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": ["id"]
+  },
+  "Stream": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      }
+    },
+    "required": ["id"]
+  },
+  "Episode": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      }
+    },
+    "required": ["id"]
+  },
+  "Profile": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": ["id"]
+  }
+}
