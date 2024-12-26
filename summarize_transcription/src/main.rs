@@ -290,8 +290,6 @@ async fn handler(
     shared_resources: &SharedResources,
     event: LambdaEvent<Request>,
 ) -> Result<Response, ErrorResponse> {
-    return Err(ErrorResponse("RateLimitError", "Rate limit reached"));
-
     let payload = event.payload;
     let config = &shared_resources.config;
 
