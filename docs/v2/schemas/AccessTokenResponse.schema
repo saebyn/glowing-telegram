@@ -1,4 +1,5 @@
 {
+	"$schema": "http://json-schema.org/draft-07/schema#",
 	"$comment": "Represents the response from Glowing Telegram when the client requests the current user's access token",
 	"type": "object",
 	"properties": {
