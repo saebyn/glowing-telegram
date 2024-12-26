@@ -44,6 +44,7 @@ class StreamIngestion(pulumi.ComponentResource):
             },
             managed_policy_arns=[
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                "arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess",
             ],
             policies=[
                 aws_native.iam.RolePolicyArgs(
@@ -61,17 +62,6 @@ class StreamIngestion(pulumi.ComponentResource):
                                 ],
                                 "Resource": metadata_table.arn,
                             },
-                            # Allow X-Ray tracing
-                            {
-                                "Effect": "Allow",
-                                "Action": [
-                                    "xray:PutTraceSegments",
-                                    "xray:PutTelemetryRecords",
-                                    "xray:GetSamplingRules",
-                                    "xray:GetSamplingTargets",
-                                ],
-                                "Resource": ["*"],
-                            },
                             # Allow getting the OpenAI secret
                             {
                                 "Effect": "Allow",
@@ -88,19 +78,33 @@ class StreamIngestion(pulumi.ComponentResource):
         )
 
         # Create a Lambda function
+
+        summarize_transcription_repository = aws_native.ecr.Repository(
+            f"{name}-summarize_transcription_repository",
+            repository_name="summarize_transcription",
+            image_scanning_configuration={
+                "scan_on_push": True,
+            },
+            opts=pulumi.ResourceOptions(
+                parent=self,
+            ),
+        )
+
+        summarize_transcription_image_tag = (
+            summarize_transcription_repository.repository_uri.apply(
+                lambda url: f"{url}:latest"
+            )
+        )
+
         summarize_transcription_lambda = aws.lambda_.Function(
             f"{name}-summarize_transcription_lambda",
-            runtime=aws.lambda_.Runtime.CUSTOM_AL2023,
             timeout=15 * 60,
-            code=pulumi.AssetArchive(
-                {
-                    "bootstrap": pulumi.FileAsset(
-                        "../target/debug/summarize_transcription"
-                    )
-                }
-            ),
+            package_type="Image",
+            image_uri=summarize_transcription_image_tag,
             tracing_config={"mode": "Active"},
-            handler="doesnt.matter",
+            logging_config={
+                "log_format": "JSON",
+            },
             role=summarize_transcription_lambda_role.arn,
             environment={
                 "variables": {
@@ -267,7 +271,9 @@ The summary you generate must be not only informational for content review but a
             },
             role_arn=state_machine_role.arn,
             tracing_configuration={"enabled": True},
-            opts=pulumi.ResourceOptions(parent=self),
+            opts=pulumi.ResourceOptions(
+                parent=self, depends_on=[summarize_transcription_lambda]
+            ),
         )
 
         self.stepfunction_arn = my_state_machine.arn
