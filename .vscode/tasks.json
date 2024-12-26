@@ -10,7 +10,8 @@
       "options": [
         "api",
         "crud_api",
-        "ai_chat_lambda"
+        "ai_chat_lambda",
+        "summarize_transcription",
       ]
     },
     {

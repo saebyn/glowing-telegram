@@ -33,6 +33,10 @@ case $SERVICE in
     FUNCTION_NAME="new-ai-chat-lambda-0c271fa"
     ECR_REPOSITORY="ai-chat-lambda-ecr-781db3a"
     ;;
+  summarize_transcription)
+    FUNCTION_NAME="stream-ingestion-summarize_transcription_lambda-ac8a860"
+    ECR_REPOSITORY="summarize_transcription"
+    ;;
   *)
     echo "The SERVICE is not supported"
     exit 1
