@@ -42,11 +42,9 @@ pub struct Episode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Track {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end: Option<String>,
+    pub end: String,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start: Option<String>,
+    pub start: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

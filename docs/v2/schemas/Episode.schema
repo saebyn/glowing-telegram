@@ -19,7 +19,9 @@
 				"properties": {
 					"start": { "type": "string" },
 					"end": { "type": "string" }
-				}
+				},
+				"required": ["start", "end"],
+				"additionalProperties": false
 			}
 		},
 		"stream_id": { "type": "string" }

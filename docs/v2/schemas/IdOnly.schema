@@ -6,6 +6,7 @@
 			"type": "string"
 		}
 	},
+	"additionalProperties": false,
 	"required": ["id"],
 	"$comment": "Represents an object with only an ID"
 }

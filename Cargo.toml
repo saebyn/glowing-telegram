@@ -11,6 +11,7 @@ members = [
   "audio_transcriber",
   "summarize_transcription",
   "crud_api",
+  "types",
 ]
 
 [profile.release]

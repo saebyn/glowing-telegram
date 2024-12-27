@@ -23,9 +23,9 @@
       "label": "generate types from api schema",
       "type": "shell",
       "options": {
-        "cwd": "${workspaceFolder}/docs/v2/schemas",
+        "cwd": "${workspaceFolder}"
       },
-      "command": "quicktype -s schema --lang rs --visibility public --derive-debug --derive-clone --derive-partial-eq --skip-serializing-none -o ${workspaceFolder}/types/src/lib.rs --src ./",
+      "command": "./types/import.sh",
       "group": "build",
       "problemMatcher": []
     },
