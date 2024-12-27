@@ -98,7 +98,35 @@
 					"Next": "Summarize Transcription"
 				}
 			],
-			"Default": "Transcribe Audio to Text"
+			"Default": "Check if audio exists"
+		},
+		"Check if audio exists": {
+			"Comment": "Check if the audio exists in the item",
+			"Type": "Choice",
+			"Choices": [
+				{
+					"Variable": "$.dynamodb.Item.audio",
+					"IsPresent": true,
+					"Next": "Transcribe Audio to Text"
+				}
+			],
+			"Default": "Ingest Video"
+		},
+		"Ingest Video": {
+			"Comment": "Ingest the video using AWS Batch job",
+			"Type": "Task",
+
+			"Resource": "arn:aws:states:::batch:submitJob.sync",
+			"Parameters": {
+				"JobDefinition": "${videoIngestJobDefinitionArn}",
+				"JobQueue": "${videoIngestJobQueueArn}",
+				"Parameters": {
+					"key.$": "$.dynamodb.Item.key.S"
+				},
+				"JobName": "ingest-video"
+			},
+
+			"Next": "Transcribe Audio to Text"
 		},
 		"Transcribe Audio to Text": {
 			"Comment": "Transcribe the audio to text using AWS Batch",
@@ -142,6 +170,13 @@
 					"IntervalSeconds": 1,
 					"MaxAttempts": 3,
 					"BackoffRate": 2
+				},
+				{
+					"ErrorEquals": ["RateLimitError"],
+					"JitterStrategy": "FULL",
+					"IntervalSeconds": 10,
+					"MaxAttempts": 4,
+					"BackoffRate": 3
 				}
 			],
 			"ResultSelector": {

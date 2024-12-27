@@ -11,6 +11,14 @@ from AudioTranscriberJob import AudioTranscriberJob
 from StreamIngestion import StreamIngestion
 from API import API
 
+
+# Create secret for OpenAI API key
+openai_secret = aws.secretsmanager.Secret(
+    f"openai-secret",
+    name=f"openai-secret",
+    description="OpenAI API key",
+)
+
 video_archive = aws_native.s3.Bucket(
     "video-archive",
     accelerate_configuration={
@@ -294,6 +302,9 @@ stream_ingestion = StreamIngestion(
     metadata_table=video_metadata_table,
     video_archive_bucket=video_archive,
     streams_table=streams_table,
+    openai_secret=openai_secret,
+    video_ingestor_job_queue_arn=fargate_batch_job_queue.job_queue_arn,
+    video_ingestor_job_definition_arn=video_ingestor_job.job_definition_arn,
 )
 
 # cognito userpool setup
@@ -400,4 +411,5 @@ api = API(
     stream_series_table=stream_series_table,
     episodes_table=episodes_table,
     profiles_table=profiles_table,
+    openai_secret=openai_secret,
 )

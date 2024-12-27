@@ -18,18 +18,13 @@ class StreamIngestion(pulumi.ComponentResource):
         metadata_table: aws.dynamodb.Table,
         video_archive_bucket: aws_native.s3.Bucket,
         streams_table: aws.dynamodb.Table,
+        openai_secret: aws.secretsmanager.Secret,
+        video_ingestor_job_definition_arn: str,
+        video_ingestor_job_queue_arn: str,
         opts=None,
     ):
         super().__init__(
             "glowing_telegram:infrastructure:StreamIngestion", name, None, opts
-        )
-
-        # Create secret for OpenAI API key
-        openai_secret = aws.secretsmanager.Secret(
-            f"{name}-openai-secret",
-            name=f"{name}-openai-secret",
-            description="OpenAI API key",
-            opts=pulumi.ResourceOptions(parent=self),
         )
 
         # Create a Lambda execution role
@@ -49,6 +44,7 @@ class StreamIngestion(pulumi.ComponentResource):
             },
             managed_policy_arns=[
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                "arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess",
             ],
             policies=[
                 aws_native.iam.RolePolicyArgs(
@@ -66,17 +62,6 @@ class StreamIngestion(pulumi.ComponentResource):
                                 ],
                                 "Resource": metadata_table.arn,
                             },
-                            # Allow X-Ray tracing
-                            {
-                                "Effect": "Allow",
-                                "Action": [
-                                    "xray:PutTraceSegments",
-                                    "xray:PutTelemetryRecords",
-                                    "xray:GetSamplingRules",
-                                    "xray:GetSamplingTargets",
-                                ],
-                                "Resource": ["*"],
-                            },
                             # Allow getting the OpenAI secret
                             {
                                 "Effect": "Allow",
@@ -93,25 +78,39 @@ class StreamIngestion(pulumi.ComponentResource):
         )
 
         # Create a Lambda function
+
+        summarize_transcription_repository = aws_native.ecr.Repository(
+            f"{name}-summarize_transcription_repository",
+            repository_name="summarize_transcription",
+            image_scanning_configuration={
+                "scan_on_push": True,
+            },
+            opts=pulumi.ResourceOptions(
+                parent=self,
+            ),
+        )
+
+        summarize_transcription_image_tag = (
+            summarize_transcription_repository.repository_uri.apply(
+                lambda url: f"{url}:latest"
+            )
+        )
+
         summarize_transcription_lambda = aws.lambda_.Function(
             f"{name}-summarize_transcription_lambda",
-            runtime=aws.lambda_.Runtime.CUSTOM_AL2023,
             timeout=15 * 60,
-            code=pulumi.AssetArchive(
-                {
-                    "bootstrap": pulumi.FileAsset(
-                        "../target/debug/summarize_transcription"
-                    )
-                }
-            ),
+            package_type="Image",
+            image_uri=summarize_transcription_image_tag,
             tracing_config={"mode": "Active"},
-            handler="doesnt.matter",
+            logging_config={
+                "log_format": "JSON",
+            },
             role=summarize_transcription_lambda_role.arn,
             environment={
                 "variables": {
                     "OPENAI_SECRET_ARN": openai_secret.arn,
                     "METADATA_TABLE_NAME": metadata_table.name,
-                    "OPENAI_MODEL": "gpt-4o-2024-08-06",
+                    "OPENAI_MODEL": "gpt-4o-2024-11-20",
                     "OPENAI_INSTRUCTIONS": """
 Generate a detailed summary report for the given transcript of a 20-minute video, using the provided context summary of preceding videos to enhance continuity and depth.
 
@@ -194,6 +193,8 @@ The summary you generate must be not only informational for content review but a
                                 "Resource": [
                                     gpu_batch_job_queue_arn,
                                     audio_transcriber_job_arn,
+                                    video_ingestor_job_queue_arn,
+                                    video_ingestor_job_definition_arn,
                                 ],
                             },
                             {
@@ -226,6 +227,7 @@ The summary you generate must be not only informational for content review but a
                                 "Action": [
                                     "dynamodb:PutItem",
                                     "dynamodb:GetItem",
+                                    "dynamodb:UpdateItem",
                                 ],
                                 "Resource": metadata_table.arn,
                             },
@@ -261,13 +263,17 @@ The summary you generate must be not only informational for content review but a
                 "metadataTableName": metadata_table.name,
                 "videoBucketName": video_archive_bucket.bucket_name,
                 "streamTableName": streams_table.name,
+                "videoIngestJobQueueArn": video_ingestor_job_queue_arn,
+                "videoIngestJobDefinitionArn": video_ingestor_job_definition_arn,
                 "summarizeTranscriptionFunctionArn": summarize_transcription_lambda.qualified_arn,
                 "audioTranscriberJobQueueArn": gpu_batch_job_queue_arn,
                 "audioTranscriberJobDefinitionArn": audio_transcriber_job_arn,
             },
             role_arn=state_machine_role.arn,
             tracing_configuration={"enabled": True},
-            opts=pulumi.ResourceOptions(parent=self),
+            opts=pulumi.ResourceOptions(
+                parent=self, depends_on=[summarize_transcription_lambda]
+            ),
         )
 
         self.stepfunction_arn = my_state_machine.arn

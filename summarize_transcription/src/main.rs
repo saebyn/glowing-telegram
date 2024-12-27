@@ -6,7 +6,8 @@
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
 use aws_sdk_dynamodb::types::AttributeValue;
 use figment::Figment;
-use lambda_runtime::{service_fn, Error, LambdaEvent};
+use lambda_runtime::{service_fn, Diagnostic, Error, LambdaEvent};
+use openai_dive::v1::error::APIError;
 use openai_dive::v1::resources::shared::FinishReason::StopSequenceReached;
 use openai_dive::v1::{
     api::Client,
@@ -53,6 +54,18 @@ struct Request {
 struct Response {
     transcription_context: String,
     summarization_context: String,
+}
+
+#[derive(Debug)]
+struct ErrorResponse(&'static str, &'static str);
+
+impl From<ErrorResponse> for Diagnostic {
+    fn from(error: ErrorResponse) -> Self {
+        Self {
+            error_type: error.0.to_string(),
+            error_message: error.1.to_string(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -232,6 +245,21 @@ impl From<SummarizationOutput> for AttributeValue {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
+    tracing_subscriber::fmt()
+        .json()
+        .with_max_level(tracing::Level::INFO)
+        // this needs to be set to remove duplicated information in the log.
+        .with_current_span(false)
+        // this needs to be set to false, otherwise ANSI color codes will
+        // show up in a confusing manner in CloudWatch logs.
+        .with_ansi(false)
+        // disabling time is handy because CloudWatch will add the ingestion time.
+        .without_time()
+        // remove the name of the function from every log entry
+        .with_target(false)
+        .init();
+
     let config = load_config().expect("failed to load config");
     let region_provider =
         RegionProviderChain::default_provider().or_else("us-east-1");
@@ -261,24 +289,16 @@ async fn main() -> Result<(), Error> {
 async fn handler(
     shared_resources: &SharedResources,
     event: LambdaEvent<Request>,
-) -> Result<Response, Error> {
+) -> Result<Response, ErrorResponse> {
     let payload = event.payload;
     let config = &shared_resources.config;
 
     let transcription: Vec<TranscriptionSegment> =
         serde_dynamo::from_attribute_value(payload.transcription)
-            .expect("failed to deserialize transcription");
+            .or(Err(ErrorResponse("InvalidInput", "Invalid transcription")))?;
 
     // Get the openai api key from secrets manager
-    let openai_secret = shared_resources
-        .secrets_manager
-        .get_secret_value()
-        .secret_id(&shared_resources.config.openai_secret_arn)
-        .send()
-        .await
-        .expect("failed to get secret")
-        .secret_string
-        .expect("secret not found");
+    let openai_secret = fetch_openai_secret(shared_resources).await?;
 
     // Call the openai api with the transcription result and summarization_context
     let openai_client = Client::new(openai_secret);
@@ -286,8 +306,12 @@ async fn handler(
     let parameters = ChatCompletionParametersBuilder::default()
         .model(config.openai_model.clone())
         .response_format(ChatCompletionResponseFormat::JsonSchema(
-            serde_json::from_str(RESPONSE_JSON_SCHEMA)
-                .expect("failed to parse json schema"),
+            serde_json::from_str(RESPONSE_JSON_SCHEMA).or(Err(
+                ErrorResponse(
+                    "InvalidResponseSchema",
+                    "Invalid response schema from OpenAI",
+                ),
+            ))?,
         ))
         .messages(vec![
             ChatMessage::System {
@@ -303,61 +327,106 @@ async fn handler(
                         transcription,
                         summarization_context: payload.summarization_context,
                     })
-                    .expect("failed to serialize input"),
+                    .or(Err(ErrorResponse(
+                        "InvalidInput",
+                        "Invalid input for summarization task",
+                    )))?,
                 ),
             },
         ])
         .build()
-        .expect("failed to build chat parameters");
+        .or(Err(ErrorResponse(
+            "InvalidInput",
+            "Invalid input for summarization task parameters: cannot build parameters",
+        )))?;
 
-    let response = openai_client
-        .chat()
-        .create(parameters)
-        .await
-        .expect("failed to call openai api");
+    let response = match openai_client.chat().create(parameters).await {
+        Ok(response) => response,
+        Err(APIError::RateLimitError(message)) => {
+            tracing::warn!("Rate limit reached: {}", message);
+            return Err(ErrorResponse("RateLimitError", "Rate limit reached"));
+        }
+        Err(err) => {
+            tracing::error!("Failed to complete chat: {:?}", err);
+            return Err(ErrorResponse(
+                "ServerError",
+                "Failed to call OpenAI API",
+            ));
+        }
+    };
 
     // Check that we got a choice from the openai api
-    let choice = response
-        .choices
-        .into_iter()
-        .next()
-        .expect("no choice found");
+    let choice = response.choices.into_iter().next().ok_or(ErrorResponse(
+        "InvalidResponse",
+        "Invalid response from OpenAI",
+    ))?;
 
     // Check that the finish_reason is StopSequenceReached
     assert_eq!(choice.finish_reason.unwrap(), StopSequenceReached);
 
     // get the assistant's response
-    let message = match choice.message {
-        ChatMessage::Assistant { content, .. } => match content {
-            Some(content) => match content {
-                ChatMessageContent::Text(text) => text,
-                _ => panic!("expected text content"),
-            },
-            None => panic!("expected content"),
-        },
-        _ => panic!("expected assistant message"),
+    let ChatMessage::Assistant {
+        content: Some(ChatMessageContent::Text(text)),
+        ..
+    } = choice.message
+    else {
+        return Err(ErrorResponse(
+            "InvalidResponse",
+            "Invalid response from OpenAI",
+        ));
     };
 
     // Parse the result as a SummarizationOutput
-    let result = serde_json::from_str::<SummarizationOutput>(&message)
-        .expect("failed to parse result");
+    let result =
+        serde_json::from_str::<SummarizationOutput>(&text).or(Err(
+            ErrorResponse("InvalidResponse", "Invalid response from OpenAI"),
+        ))?;
 
     let summarization_context = result.summary_context.clone();
 
-    shared_resources
-        .dynamodb
-        .update_item()
-        .table_name(&shared_resources.config.metadata_table_name)
-        .key("key", AttributeValue::S(payload.input_key))
-        .update_expression("SET #summary = :summary")
-        .expression_attribute_names("#summary", "summary")
-        .expression_attribute_values(":summary", result.into())
-        .send()
-        .await
-        .expect("failed to save result");
+    update_transcription_summary(shared_resources, &payload.input_key, result)
+        .await?;
 
     Ok(Response {
         summarization_context,
         transcription_context: payload.transcription_context,
     })
+}
+
+async fn fetch_openai_secret(
+    shared_resources: &SharedResources,
+) -> Result<String, ErrorResponse> {
+    let openai_secret = shared_resources
+        .secrets_manager
+        .get_secret_value()
+        .secret_id(&shared_resources.config.openai_secret_arn)
+        .send()
+        .await
+        .or(Err(ErrorResponse("SecretNotFound", "Secret not found")))?
+        .secret_string
+        .ok_or(ErrorResponse("SecretNotFound", "Secret not found"))?;
+    Ok(openai_secret)
+}
+
+async fn update_transcription_summary(
+    shared_resources: &SharedResources,
+    input_key: &str,
+    result: SummarizationOutput,
+) -> Result<(), ErrorResponse> {
+    shared_resources
+        .dynamodb
+        .update_item()
+        .table_name(&shared_resources.config.metadata_table_name)
+        .key("key", AttributeValue::S(input_key.to_string()))
+        .update_expression("SET #summary = :summary")
+        .expression_attribute_names("#summary", "summary")
+        .expression_attribute_values(":summary", result.into())
+        .send()
+        .await
+        .or(Err(ErrorResponse(
+            "ServerError",
+            "Failed to update the summary in DynamoDB",
+        )))?;
+
+    Ok(())
 }
