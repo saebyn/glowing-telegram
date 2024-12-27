@@ -103,6 +103,7 @@ class VideoIngestorJob(pulumi.ComponentResource):
                                 "Action": [
                                     "dynamodb:PutItem",
                                     "dynamodb:GetItem",
+                                    "dynamodb:UpdateItem",
                                 ],
                                 "Resource": [
                                     pulumi.Output.format("{0}", metadata_table.arn),
