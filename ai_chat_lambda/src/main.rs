@@ -22,6 +22,7 @@ use openai_dive::v1::{
     },
 };
 use serde::{Deserialize, Serialize};
+use types::SimpleChatMessage;
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -33,13 +34,6 @@ fn load_config() -> Result<Config, figment::Error> {
     let figment = Figment::new().merge(figment::providers::Env::raw());
 
     figment.extract()
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct SimpleChatMessage {
-    content: String,
-    // TODO how do we make this require specific values?
-    role: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -146,7 +140,7 @@ async fn handler(
             .payload
             .messages
             .into_iter()
-            .chain(std::iter::once(SimpleChatMessage::from(response)))
+            .chain(std::iter::once(convert_chat_completion(&response)))
             .collect(),
     })
 }
@@ -160,8 +154,8 @@ fn build_parameters(
         response_format: Some(ChatCompletionResponseFormat::JsonObject),
         messages: messages
             .iter()
-            .map(|m| match m.role.as_str() {
-                "system" => ChatMessage::System {
+            .map(|m| match m.role {
+                types::Role::System => ChatMessage::System {
                     name: None,
                     content: ChatMessageContent::Text(m.content.clone()),
                 },
@@ -175,51 +169,54 @@ fn build_parameters(
     }
 }
 
-impl From<ChatCompletionResponse> for SimpleChatMessage {
-    fn from(response: ChatCompletionResponse) -> Self {
-        // TODO if there is more content to be generated, we will get it here
-        match &response.choices[0].finish_reason {
-            Some(reason) => {
-                tracing::info!("Finish reason: {:?}", reason);
-            }
-            None => {
-                tracing::info!("No finish reason provided");
-            }
+fn convert_chat_completion(
+    response: &ChatCompletionResponse,
+) -> SimpleChatMessage {
+    // TODO if there is more content to be generated, we will get it here
+    match &response.choices[0].finish_reason {
+        Some(reason) => {
+            tracing::info!("Finish reason: {:?}", reason);
         }
-
-        let (role, content) = match &response.choices[0].message {
-            ChatMessage::User { content, .. } => {
-                ("user", Some(content.clone()))
-            }
-            ChatMessage::System { content, .. } => {
-                ("system", Some(content.clone()))
-            }
-            ChatMessage::Assistant { content, .. } => {
-                ("assistant", content.clone())
-            }
-            ChatMessage::Developer { content, .. } => {
-                ("developer", Some(content.clone()))
-            }
-            ChatMessage::Tool { content, .. } => {
-                ("tool", Some(ChatMessageContent::Text(content.to_string())))
-            }
-        };
-
-        Self {
-            content: match content {
-                None
-                | Some(
-                    openai_dive::v1::resources::chat::ChatMessageContent::None,
-                ) => String::new(),
-
-                Some(ChatMessageContent::Text(text)) => text,
-
-                Some(ChatMessageContent::ContentPart(content)) => {
-                    format!("{content:?}")
-                }
-            },
-
-            role: role.to_string(),
+        None => {
+            tracing::info!("No finish reason provided");
         }
+    }
+
+    let (role, content) = match &response.choices[0].message {
+        ChatMessage::User { content, .. } => ("user", Some(content.clone())),
+        ChatMessage::System { content, .. } => {
+            ("system", Some(content.clone()))
+        }
+        ChatMessage::Assistant { content, .. } => {
+            ("assistant", content.clone())
+        }
+        ChatMessage::Developer { content, .. } => {
+            ("developer", Some(content.clone()))
+        }
+        ChatMessage::Tool { content, .. } => {
+            ("tool", Some(ChatMessageContent::Text(content.to_string())))
+        }
+    };
+
+    SimpleChatMessage {
+        content: match content {
+            None
+            | Some(
+                openai_dive::v1::resources::chat::ChatMessageContent::None,
+            ) => String::new(),
+
+            Some(ChatMessageContent::Text(text)) => text,
+
+            Some(ChatMessageContent::ContentPart(content)) => {
+                format!("{content:?}")
+            }
+        },
+
+        role: match role {
+            "user" => types::Role::User,
+            "assistant" => types::Role::Assistant,
+            "tool" => types::Role::Tool,
+            _ => types::Role::System,
+        },
     }
 }
