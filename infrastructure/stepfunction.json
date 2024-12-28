@@ -174,7 +174,7 @@
 				{
 					"ErrorEquals": ["RateLimitError"],
 					"JitterStrategy": "FULL",
-					"IntervalSeconds": 10,
+					"IntervalSeconds": 30,
 					"MaxAttempts": 4,
 					"BackoffRate": 3
 				}
