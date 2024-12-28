@@ -1,0 +1,32 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "uuid"
+		},
+		"title": {
+			"type": "string"
+		},
+		"description": {
+			"type": "string"
+		},
+		"tracks": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"start": { "type": "string" },
+					"end": { "type": "string" }
+				},
+				"required": ["start", "end"],
+				"additionalProperties": false
+			}
+		},
+		"stream_id": { "type": "string" }
+	},
+	"required": ["id"],
+	"additionalProperties": false,
+	"$comment": "Represents an episode object"
+}

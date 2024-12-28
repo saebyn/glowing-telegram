@@ -6,6 +6,7 @@ use serde::Deserialize;
 use std::env;
 use std::process::Stdio;
 use tokio::{io::AsyncWriteExt, process::Command};
+use types::Transcription;
 
 #[derive(Deserialize, Debug, Clone)]
 struct Config {
@@ -106,91 +107,77 @@ async fn main() {
         .update_expression("SET transcription = :t")
         .expression_attribute_values(
             ":t",
-            AttributeValue::from(whisper_output),
+            convert_transcription_to_attributevalue(whisper_output),
         )
         .send()
         .await
         .expect("failed to write to dynamodb");
 }
 
-#[derive(Debug, Deserialize)]
-struct WhisperSegment {
-    pub id: i32,
-    pub seek: i32,
-    pub start: f32,
-    pub end: f32,
-    pub text: String,
-    pub tokens: Vec<i32>,
-    pub temperature: f32,
-    pub avg_logprob: f32,
-    pub compression_ratio: f32,
-    pub no_speech_prob: f32,
-}
+fn convert_transcription_to_attributevalue(
+    transcription: Transcription,
+) -> AttributeValue {
+    let segments = transcription
+        .segments
+        .iter()
+        .map(|segment| {
+            let mut map = std::collections::HashMap::new();
 
-#[derive(Debug, Deserialize)]
-struct WhisperOutput {
-    pub text: String,
-    pub segments: Vec<WhisperSegment>,
-    pub language: String,
-}
+            map.insert(
+                "start".to_string(),
+                AttributeValue::N(segment.start.to_string()),
+            );
+            map.insert(
+                "end".to_string(),
+                AttributeValue::N(segment.end.to_string()),
+            );
+            map.insert(
+                "text".to_string(),
+                AttributeValue::S(segment.text.clone()),
+            );
+            map.insert(
+                "tokens".to_string(),
+                AttributeValue::L(
+                    segment
+                        .tokens
+                        .iter()
+                        .map(|token| AttributeValue::N(token.to_string()))
+                        .collect(),
+                ),
+            );
+            map.insert(
+                "temperature".to_string(),
+                AttributeValue::N(segment.temperature.to_string()),
+            );
+            map.insert(
+                "avg_logprob".to_string(),
+                AttributeValue::N(segment.avg_logprob.to_string()),
+            );
+            map.insert(
+                "compression_ratio".to_string(),
+                AttributeValue::N(segment.compression_ratio.to_string()),
+            );
+            map.insert(
+                "no_speech_prob".to_string(),
+                AttributeValue::N(segment.no_speech_prob.to_string()),
+            );
 
-impl From<WhisperOutput> for AttributeValue {
-    fn from(output: WhisperOutput) -> Self {
-        let segments = output
-            .segments
-            .iter()
-            .map(|segment| {
-                let mut map = std::collections::HashMap::new();
-                map.insert(
-                    "start".to_string(),
-                    Self::N(segment.start.to_string()),
-                );
-                map.insert(
-                    "end".to_string(),
-                    Self::N(segment.end.to_string()),
-                );
-                map.insert("text".to_string(), Self::S(segment.text.clone()));
-                map.insert(
-                    "tokens".to_string(),
-                    Self::L(
-                        segment
-                            .tokens
-                            .iter()
-                            .map(|token| Self::N(token.to_string()))
-                            .collect(),
-                    ),
-                );
-                map.insert(
-                    "temperature".to_string(),
-                    Self::N(segment.temperature.to_string()),
-                );
-                map.insert(
-                    "avg_logprob".to_string(),
-                    Self::N(segment.avg_logprob.to_string()),
-                );
-                map.insert(
-                    "compression_ratio".to_string(),
-                    Self::N(segment.compression_ratio.to_string()),
-                );
-                map.insert(
-                    "no_speech_prob".to_string(),
-                    Self::N(segment.no_speech_prob.to_string()),
-                );
+            AttributeValue::M(map)
+        })
+        .collect();
 
-                Self::M(map)
-            })
-            .collect();
-
-        Self::M(
-            vec![
-                ("text".to_string(), Self::S(output.text)),
-                ("segments".to_string(), Self::L(segments)),
-                ("language".to_string(), Self::S(output.language)),
-            ]
-            .into_iter()
-            .collect(),
-        )
-    }
+    AttributeValue::M(
+        vec![
+            ("text".to_string(), AttributeValue::S(transcription.text)),
+            ("segments".to_string(), AttributeValue::L(segments)),
+            (
+                "language".to_string(),
+                AttributeValue::S(transcription.language),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    )
 }
 
 async fn run_whisper_on_s3_object(
@@ -198,7 +185,7 @@ async fn run_whisper_on_s3_object(
     config: &Config,
     input_key: &str,
     options: WhisperOptions,
-) -> Result<WhisperOutput, AudioTranscriberError> {
+) -> Result<Transcription, AudioTranscriberError> {
     // Get the audio file from S3
     let mut object = client
         .get_object()
@@ -219,7 +206,7 @@ async fn run_whisper_on_s3_object(
 async fn run_whisper_on_bytestream(
     options: WhisperOptions,
     bytestream: &mut ByteStream,
-) -> Result<WhisperOutput, AudioTranscriberError> {
+) -> Result<Transcription, AudioTranscriberError> {
     let temp_dir: tempfile::TempDir = tempfile::tempdir().map_err(|err| {
         tracing::error!("Error creating temp dir: {}", err);
         AudioTranscriberError {
@@ -294,7 +281,7 @@ async fn run_whisper_on_bytestream(
 
     tracing::debug!("Transcription JSON: {}", transcription_json);
 
-    serde_json::from_str::<WhisperOutput>(&transcription_json).map_err(|err| {
+    serde_json::from_str::<Transcription>(&transcription_json).map_err(|err| {
         tracing::error!("Error parsing transcription json: {}", err);
         AudioTranscriberError {
             message: "Error parsing transcription json".to_string(),

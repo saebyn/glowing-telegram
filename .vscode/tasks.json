@@ -22,6 +22,16 @@
   ],
   "tasks": [
     {
+      "label": "generate types from api schema",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "command": "./types/import.sh",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "deploy lambda",
       "type": "shell",
       "options": {

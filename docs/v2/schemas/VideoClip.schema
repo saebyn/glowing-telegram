@@ -1,0 +1,147 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$defs": {
+		"TranscriptSegment": {
+			"type": "object",
+			"properties": {
+				"start": { "type": "number" },
+				"end": { "type": "number" },
+				"avg_logprob": { "type": "number" },
+				"compression_ratio": { "type": "number" },
+				"no_speech_prob": { "type": "number" },
+				"temperature": { "type": "number" },
+				"text": { "type": "string" },
+				"tokens": {
+					"type": "array",
+					"items": { "type": "number" }
+				}
+			},
+			"required": [
+				"start",
+				"end",
+				"avg_logprob",
+				"compression_ratio",
+				"no_speech_prob",
+				"temperature",
+				"text",
+				"tokens"
+			],
+			"additionalProperties": false
+		},
+		"Transcription": {
+			"type": "object",
+			"properties": {
+				"language": { "type": "string" },
+				"text": { "type": "string" },
+				"segments": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"title": "TranscriptSegment",
+						"$ref": "#/$defs/TranscriptSegment"
+					}
+				}
+			},
+			"required": ["language", "text", "segments"],
+			"additionalProperties": false
+		}
+	},
+	"type": "object",
+	"properties": {
+		"id": { "type": "string" },
+		"key": { "type": "string", "description": "The S3 key of the video clip." },
+		"keyframes": {
+			"type": "array",
+			"description": "A list of paths to images that are keyframes in the video clip.",
+			"items": { "type": "string" }
+		},
+		"audio": {
+			"description": "The path to the audio file extracted from the video clip.",
+			"type": "string"
+		},
+		"silence": {
+			"type": "array",
+			"description": "The list of detected silence intervals in the video clip.",
+			"items": {
+				"type": "object",
+				"properties": {
+					"start": { "type": "number" },
+					"end": { "type": "number" }
+				}
+			}
+		},
+		"start_time": {
+			"description": "The start time of the video clip in the context of the stream in seconds.",
+			"type": "number"
+		},
+		"stream_id": { "type": "string" },
+		"metadata": {
+			"type": "object",
+			"properties": {
+				"format": {
+					"type": "object",
+					"properties": {
+						"duration": {
+							"description": "The duration of the video clip in seconds.",
+							"type": "number"
+						}
+					}
+				}
+			}
+		},
+		"transcription": {
+			"type": "object",
+			"$ref": "#/$defs/Transcription"
+		},
+		"summary": {
+			"type": "object",
+			"properties": {
+				"attentions": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"timestamp_start": { "type": "number" },
+							"timestamp_end": { "type": "number" },
+							"description": { "type": "string" },
+							"reasoning": { "type": "string" }
+						}
+					}
+				},
+				"highlights": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"timestamp_start": { "type": "number" },
+							"timestamp_end": { "type": "number" },
+							"description": { "type": "string" },
+							"reasoning": { "type": "string" }
+						}
+					}
+				},
+				"keywords": {
+					"type": "array",
+					"items": { "type": "string" }
+				},
+				"summary_context": { "type": "string" },
+				"summary_main_discussion": { "type": "string" },
+				"title": { "type": "string" },
+				"transcription_errors": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"timestamp_start": { "type": "number" },
+							"description": { "type": "string" },
+							"reasoning": { "type": "string" }
+						}
+					}
+				}
+			}
+		}
+	},
+	"additionalProperties": false,
+	"required": ["id", "key"],
+	"$comment": "Represents a video clip object aka a video segment aka video metadata"
+}

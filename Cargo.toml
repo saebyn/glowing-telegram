@@ -10,7 +10,9 @@ members = [
   "video_ingestor",
   "audio_transcriber",
   "summarize_transcription",
-  "crud_api", "ai_chat_lambda",
+  "crud_api",
+  "ai_chat_lambda",
+  "types",
 ]
 
 [profile.release]

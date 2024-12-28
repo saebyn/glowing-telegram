@@ -1,0 +1,158 @@
+{
+	"type": "object",
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"definitions": {
+		"Skip": {
+			"type": "object",
+			"properties": {
+				"date": {
+					"type": "string",
+					"format": "date"
+				},
+				"reason": {
+					"type": "string"
+				}
+			},
+			"required": ["date", "reason"],
+			"additionalProperties": false
+		},
+
+		"Recurrence": {
+			"type": "object",
+			"properties": {
+				"type": {
+					"type": "string",
+					"enum": ["weekly"]
+				},
+				"interval": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"days": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"sunday",
+							"monday",
+							"tuesday",
+							"wednesday",
+							"thursday",
+							"friday",
+							"saturday"
+						]
+					}
+				}
+			},
+			"required": ["type", "interval", "days"],
+			"additionalProperties": false
+		},
+
+		"TwitchCategory": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"box_art_url": {
+					"type": "string",
+					"format": "uri"
+				}
+			},
+			"required": ["id", "name"],
+			"additionalProperties": false
+		}
+	},
+	"properties": {
+		"id": {
+			"type": "string"
+		},
+		"category": {
+			"type": "integer"
+		},
+		"created_at": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"description": {
+			"type": "string"
+		},
+		"is_active": {
+			"type": "boolean"
+		},
+		"max_episode_order_index": {
+			"type": "integer"
+		},
+		"notify_subscribers": {
+			"type": "boolean"
+		},
+		"playlist_id": {
+			"type": "string"
+		},
+		"prep_notes": {
+			"type": "string"
+		},
+		"skips": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"$ref": "#/definitions/Skip"
+			}
+		},
+		"recurrence": {
+			"type": "object",
+			"$ref": "#/definitions/Recurrence"
+		},
+		"timezone": {
+			"type": "string"
+		},
+		"start_date": {
+			"type": "string",
+			"format": "date"
+		},
+		"start_time": {
+			"type": "string"
+		},
+		"end_date": {
+			"type": "string",
+			"format": "date"
+		},
+		"end_time": {
+			"type": "string"
+		},
+		"tags": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"thumbnail_url": {
+			"type": "string",
+			"format": "uri"
+		},
+		"title": {
+			"type": "string"
+		},
+		"stream_title_template": {
+			"type": "string"
+		},
+		"twitch_category": {
+			"type": "object",
+			"$ref": "#/definitions/TwitchCategory"
+		},
+		"updated_at": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"stream_count": {
+			"type": "integer",
+			"minimum": 0
+		}
+	},
+	"required": ["created_at", "title", "id"],
+	"$comment": "Represents a series object",
+	"additionalProperties": false
+}
