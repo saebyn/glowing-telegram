@@ -21,7 +21,7 @@
 		"updated_at": { "type": "string", "format": "date-time" },
 		"stream_platform": { "type": "string" },
 		"thumbnail_url": { "type": "string" },
-		"video_clip_count": { "type": "number" }
+		"video_clip_count": { "type": "integer" }
 	},
 	"required": ["id"],
 	"$comment": "Represents a stream object",

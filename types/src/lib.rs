@@ -58,6 +58,126 @@ pub struct Profile {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Series {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<i64>,
+
+    pub created_at: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_date: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_time: Option<String>,
+
+    pub id: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_active: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_episode_order_index: Option<i64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify_subscribers: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub playlist_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prep_notes: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recurrence: Option<Recurrence>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skips: Option<Vec<Skip>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_date: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_time: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_count: Option<i64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_title_template: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_url: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timezone: Option<String>,
+
+    pub title: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub twitch_category: Option<TwitchCategory>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Recurrence {
+    pub days: Vec<Day>,
+
+    pub interval: i64,
+
+    #[serde(rename = "type")]
+    pub recurrence_type: Type,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Day {
+    Friday,
+
+    Monday,
+
+    Saturday,
+
+    Sunday,
+
+    Thursday,
+
+    Tuesday,
+
+    Wednesday,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Type {
+    Weekly,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Skip {
+    pub date: String,
+
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TwitchCategory {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub box_art_url: Option<String>,
+
+    pub id: String,
+
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimpleChatMessage {
     pub content: String,
 
@@ -116,7 +236,7 @@ pub struct Stream {
     pub updated_at: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub video_clip_count: Option<f64>,
+    pub video_clip_count: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -145,21 +265,27 @@ pub struct TwitchCallbackRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VideoClip {
+    /// The path to the audio file extracted from the video clip.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio: Option<String>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub key: Option<String>,
+    pub id: String,
 
+    /// The S3 key of the video clip.
+    pub key: String,
+
+    /// A list of paths to images that are keyframes in the video clip.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keyframes: Option<Vec<String>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
 
+    /// The list of detected silence intervals in the video clip.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub silence: Option<Vec<Silence>>,
 
+    /// The start time of the video clip in the context of the stream in seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_time: Option<f64>,
 
@@ -181,6 +307,7 @@ pub struct Metadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Format {
+    /// The duration of the video clip in seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
 }
@@ -221,10 +348,10 @@ pub struct Summary {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Attention {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<f64>,
+    pub description: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<f64>,
+    pub reasoning: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp_end: Option<f64>,
@@ -236,10 +363,10 @@ pub struct Attention {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Highlight {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<f64>,
+    pub description: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<f64>,
+    pub reasoning: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp_end: Option<f64>,
@@ -251,10 +378,10 @@ pub struct Highlight {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TranscriptionError {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<f64>,
+    pub description: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<f64>,
+    pub reasoning: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp_start: Option<f64>,
@@ -262,36 +389,28 @@ pub struct TranscriptionError {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transcription {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub language: Option<String>,
+    pub language: String,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub segments: Option<Vec<SegmentElement>>,
+    pub segments: Vec<TranscriptSegment>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub text: Option<String>,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SegmentElement {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub avg_logprob: Option<f64>,
+pub struct TranscriptSegment {
+    pub avg_logprob: f64,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub compression_ratio: Option<f64>,
+    pub compression_ratio: f64,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end: Option<f64>,
+    pub end: f64,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub no_speech_prob: Option<f64>,
+    pub no_speech_prob: f64,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start: Option<f64>,
+    pub start: f64,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f64>,
+    pub temperature: f64,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub text: Option<String>,
+    pub text: String,
+
+    pub tokens: Vec<f64>,
 }
