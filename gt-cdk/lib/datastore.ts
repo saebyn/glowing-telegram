@@ -6,6 +6,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 
 export default class DatastoreConstruct extends Construct {
   public readonly videoArchive: s3.IBucket;
+  public readonly outputBucket: s3.IBucket;
   public readonly episodesTable: dynamodb.ITable;
   public readonly profilesTable: dynamodb.ITable;
   public readonly streamSeriesTable: dynamodb.ITable;
@@ -19,6 +20,12 @@ export default class DatastoreConstruct extends Construct {
       this,
       'VideoArchive',
       'saebyn-video-archive',
+    );
+
+    this.outputBucket = s3.Bucket.fromBucketName(
+      this,
+      'OutputBucket',
+      'output-bucket-ded3bd2',
     );
 
     this.episodesTable = dynamodb.Table.fromTableName(
