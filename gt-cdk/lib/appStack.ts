@@ -5,6 +5,7 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import APIConstruct from './api';
 import UserManagementConstruct from './userManagement';
 import DatastoreConstruct from './datastore';
+import AudioTranscriberJobConstruct from './batch/audioTranscriberJob';
 
 export default class GtCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -27,6 +28,15 @@ export default class GtCdkStack extends cdk.Stack {
       this,
       'OpenaiSecret',
       'openai-secret',
+    );
+
+    const audioTranscriber = new AudioTranscriberJobConstruct(
+      this,
+      'AudioTranscriberJob',
+      {
+        outputBucket: dataStore.outputBucket,
+        videoMetadataTable: dataStore.videoMetadataTable,
+      },
     );
 
     new APIConstruct(this, 'API', {
