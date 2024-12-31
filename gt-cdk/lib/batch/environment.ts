@@ -4,6 +4,10 @@ import { Construct } from 'constructs';
 import * as batch from 'aws-cdk-lib/aws-batch';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 
+interface BatchEnvironmentConstructProps {
+  vpc: ec2.IVpc;
+}
+
 /**
  * AWS Batch environment construct
  */
@@ -11,10 +15,14 @@ export default class BatchEnvironmentConstruct extends Construct {
   cpuJobQueue: batch.IJobQueue;
   gpuJobQueue: cdk.aws_batch.JobQueue;
 
-  constructor(scope: Construct, id: string) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: BatchEnvironmentConstructProps,
+  ) {
     super(scope, id);
 
-    const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { isDefault: true });
+    const vpc = props.vpc;
 
     const sg = new ec2.SecurityGroup(this, 'SecurityGroup', {
       vpc,

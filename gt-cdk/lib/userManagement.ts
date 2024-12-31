@@ -9,6 +9,8 @@ export default class UserpoolConstruct extends Construct {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
+    // TODO import the resources from the existing Pulumi stack
+
     this.userPool = cognito.UserPool.fromUserPoolId(
       this,
       'UserPool',

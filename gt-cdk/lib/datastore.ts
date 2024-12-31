@@ -16,6 +16,8 @@ export default class DatastoreConstruct extends Construct {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
+    // TODO import the resources from the existing Pulumi stack
+
     this.videoArchive = s3.Bucket.fromBucketName(
       this,
       'VideoArchive',
