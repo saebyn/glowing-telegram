@@ -26,20 +26,16 @@ export default class AudioTranscriberJobConstruct extends Construct {
   ) {
     super(scope, id);
 
-    const executionRole = new iam.Role(
-      this,
-      'AudioTranscriberJobExecutionRole',
-      {
-        assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-        managedPolicies: [
-          iam.ManagedPolicy.fromAwsManagedPolicyName(
-            'service-role/AmazonECSTaskExecutionRolePolicy',
-          ),
-        ],
-      },
-    );
+    const executionRole = new iam.Role(this, 'JobExecutionRole', {
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          'service-role/AmazonECSTaskExecutionRolePolicy',
+        ),
+      ],
+    });
 
-    const jobRole = new iam.Role(this, 'AudioTranscriberJobRole', {
+    const jobRole = new iam.Role(this, 'JobRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
 
