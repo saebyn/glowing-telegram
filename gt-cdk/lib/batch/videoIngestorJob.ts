@@ -7,11 +7,16 @@ import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
 
 interface VideoIngestorConstructProps {
   videoArchiveBucket: s3.IBucket;
   outputBucket: s3.IBucket;
   videoMetadataTable: dynamodb.ITable;
+
+  jobQueue: batch.IJobQueue;
 }
 
 /**
@@ -82,5 +87,40 @@ export default class VideoIngestorConstruct extends Construct {
       },
       retryAttempts: 1,
     });
+
+    const videoUploadEventRule = new events.Rule(this, 'NewVideoRule', {
+      eventPattern: {
+        source: ['aws.s3'],
+        detailType: ['Object Created'],
+        detail: {
+          bucket: {
+            name: props.videoArchiveBucket.bucketName,
+          },
+        },
+      },
+      enabled: true,
+    });
+
+    const deadLetterQueue = new sqs.Queue(this, 'DeadLetterQueue', {
+      retentionPeriod: cdk.Duration.days(14),
+    });
+
+    videoUploadEventRule.addTarget(
+      new eventsTargets.BatchJob(
+        props.jobQueue.jobQueueArn,
+        props.jobQueue,
+        this.jobDefinition.jobDefinitionArn,
+        this.jobDefinition,
+        {
+          deadLetterQueue,
+
+          event: events.RuleTargetInput.fromObject({
+            Parameters: {
+              key: events.EventField.fromPath('$.detail.object.key'),
+            },
+          }),
+        },
+      ),
+    );
   }
 }
