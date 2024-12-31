@@ -8,6 +8,7 @@ import DatastoreConstruct from './datastore';
 import AudioTranscriberJobConstruct from './batch/audioTranscriberJob';
 import StreamIngestion from './streamIngestion';
 import BatchEnvironmentConstruct from './batch/environment';
+import VideoIngestorConstruct from './batch/videoIngestorJob';
 
 export default class GtCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -57,14 +58,12 @@ export default class GtCdkStack extends cdk.Stack {
       },
     );
 
-    const videoIngester = new AudioTranscriberJobConstruct(
-      this,
-      'VideoIngesterJob',
-      {
-        outputBucket: dataStore.outputBucket,
-        videoMetadataTable: dataStore.videoMetadataTable,
-      },
-    );
+    const videoIngester = new VideoIngestorConstruct(this, 'VideoIngesterJob', {
+      jobQueue: batchEnvironment.cpuJobQueue,
+      outputBucket: dataStore.outputBucket,
+      videoMetadataTable: dataStore.videoMetadataTable,
+      videoArchiveBucket: dataStore.videoArchive,
+    });
 
     const streamIngestion = new StreamIngestion(this, 'StreamIngestion', {
       audioTranscriberJob: audioTranscriber.jobDefinition,
