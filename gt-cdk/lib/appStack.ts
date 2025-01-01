@@ -63,6 +63,8 @@ export default class GtCdkStack extends cdk.Stack {
       outputBucket: dataStore.outputBucket,
       videoMetadataTable: dataStore.videoMetadataTable,
       videoArchiveBucket: dataStore.videoArchive,
+      // TODO enable this once I tear down the Pulumi stack
+      enableAutomaticIngestion: false,
     });
 
     const streamIngestion = new StreamIngestion(this, 'StreamIngestion', {

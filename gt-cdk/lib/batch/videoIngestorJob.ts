@@ -17,6 +17,8 @@ interface VideoIngestorConstructProps {
   videoMetadataTable: dynamodb.ITable;
 
   jobQueue: batch.IJobQueue;
+
+  enableAutomaticIngestion: boolean;
 }
 
 /**
@@ -98,7 +100,7 @@ export default class VideoIngestorConstruct extends Construct {
           },
         },
       },
-      enabled: true,
+      enabled: props.enableAutomaticIngestion,
     });
 
     const deadLetterQueue = new sqs.Queue(this, 'DeadLetterQueue', {
