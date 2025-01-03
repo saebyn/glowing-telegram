@@ -16,48 +16,81 @@ export default class DatastoreConstruct extends Construct {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
-    // TODO import the resources from the existing Pulumi stack
+    this.videoArchive = new s3.Bucket(this, 'VideoArchive', {
+      versioned: true,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      eventBridgeEnabled: true,
+      lifecycleRules: [
+        {
+          id: 'delete_old_markers',
+          abortIncompleteMultipartUploadAfter: cdk.Duration.days(1),
+        },
+        {
+          id: 'glacier archive',
+          transitions: [
+            {
+              storageClass: s3.StorageClass.INFREQUENT_ACCESS,
+              transitionAfter: cdk.Duration.days(30),
+            },
+            {
+              storageClass: s3.StorageClass.GLACIER_INSTANT_RETRIEVAL,
+              transitionAfter: cdk.Duration.days(60),
+            },
+            {
+              storageClass: s3.StorageClass.GLACIER,
+              transitionAfter: cdk.Duration.days(150),
+            },
+          ],
+        },
+      ],
+      objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
 
-    this.videoArchive = s3.Bucket.fromBucketName(
-      this,
-      'VideoArchive',
-      'saebyn-video-archive',
-    );
+    this.outputBucket = new s3.Bucket(this, 'OutputBucket', {
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
 
-    this.outputBucket = s3.Bucket.fromBucketName(
-      this,
-      'OutputBucket',
-      'output-bucket-ded3bd2',
-    );
+    this.episodesTable = new dynamodb.Table(this, 'EpisodesTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
 
-    this.episodesTable = dynamodb.Table.fromTableName(
-      this,
-      'EpisodesTable',
-      'episodes-03b1f6f',
-    );
+    this.profilesTable = new dynamodb.Table(this, 'ProfilesTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
 
-    this.profilesTable = dynamodb.Table.fromTableName(
-      this,
-      'ProfilesTable',
-      'profiles-323335b',
-    );
+    this.streamSeriesTable = new dynamodb.Table(this, 'StreamSeriesTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
 
-    this.streamSeriesTable = dynamodb.Table.fromTableName(
-      this,
-      'StreamSeriesTable',
-      'stream-series-09d6bad',
-    );
+    this.streamsTable = new dynamodb.Table(this, 'StreamsTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
 
-    this.streamsTable = dynamodb.Table.fromTableName(
-      this,
-      'StreamsTable',
-      'streams-963700c',
-    );
+    const videoMetadataTable = new dynamodb.Table(this, 'VideoMetadataTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'key', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
 
-    this.videoMetadataTable = dynamodb.Table.fromTableName(
-      this,
-      'VideoMetadataTable',
-      'metadata-table-aa16405',
-    );
+    videoMetadataTable.addGlobalSecondaryIndex({
+      indexName: 'stream_id-index',
+      partitionKey: {
+        name: 'stream_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    this.videoMetadataTable = videoMetadataTable;
   }
 }

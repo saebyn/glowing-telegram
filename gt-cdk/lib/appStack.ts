@@ -34,12 +34,10 @@ export default class GtCdkStack extends cdk.Stack {
 
     const dataStore = new DatastoreConstruct(this, 'Datastore');
 
-    // TODO import the resource from the existing Pulumi stack
-    const openaiSecret = secretsmanager.Secret.fromSecretNameV2(
-      this,
-      'OpenaiSecret',
-      'openai-secret',
-    );
+    const openaiSecret = new secretsmanager.Secret(this, 'OpenAISecret', {
+      description: 'OpenAI API key',
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
 
     const batchEnvironment = new BatchEnvironmentConstruct(
       this,
