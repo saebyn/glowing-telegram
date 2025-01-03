@@ -61,7 +61,7 @@ export default class VideoIngestorConstruct extends Construct {
       this,
       'JobContainerDefinition',
       {
-        cpu: 512,
+        cpu: 0.5,
         memory: cdk.Size.mebibytes(1024),
         assignPublicIp: true,
         jobRole,
@@ -96,7 +96,7 @@ export default class VideoIngestorConstruct extends Construct {
         detailType: ['Object Created'],
         detail: {
           bucket: {
-            name: props.videoArchiveBucket.bucketName,
+            name: [props.videoArchiveBucket.bucketName],
           },
         },
       },

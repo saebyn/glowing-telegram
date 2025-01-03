@@ -52,7 +52,7 @@ export default class AudioTranscriberJobConstruct extends Construct {
       this,
       'AudioTranscriberJobContainer',
       {
-        cpu: 1024,
+        cpu: 1,
         memory: cdk.Size.gibibytes(8),
         gpu: 1,
 
