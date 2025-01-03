@@ -27,15 +27,15 @@ fi
 case $SERVICE in
   crud_api)
     FUNCTION_NAME="new-crud-lambda-ec79885"
-    ECR_REPOSITORY="crud-lambda-ecr-b5e445c"
+    ECR_REPOSITORY="glowing-telegram/crud-lambda"
     ;;
   ai_chat_lambda)
     FUNCTION_NAME="new-ai-chat-lambda-0c271fa"
-    ECR_REPOSITORY="ai-chat-lambda-ecr-781db3a"
+    ECR_REPOSITORY="glowing-telegram/ai-chat-lambda"
     ;;
   summarize_transcription)
     FUNCTION_NAME="stream-ingestion-summarize_transcription_lambda-ac8a860"
-    ECR_REPOSITORY="summarize_transcription"
+    ECR_REPOSITORY="glowing-telegram/summarize-transcription-lambda"
     ;;
   *)
     echo "The SERVICE is not supported"
@@ -75,6 +75,6 @@ docker push $ECR_DOMAIN/$ECR_REPOSITORY:latest
 
 # Make the lambda function use the new image
 echo "Updating Lambda function to use the new image"
-aws lambda update-function-code \
-    --function-name $FUNCTION_NAME\
-    --image-uri $ECR_DOMAIN/$ECR_REPOSITORY:latest
+#aws lambda update-function-code \
+#    --function-name $FUNCTION_NAME\
+#    --image-uri $ECR_DOMAIN/$ECR_REPOSITORY:latest
