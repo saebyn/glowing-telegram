@@ -26,16 +26,24 @@ fi
 # Map the SERVICE to the Lambda function name and ECR repository name
 case $SERVICE in
   crud_api)
-    FUNCTION_NAME="new-crud-lambda-ec79885"
+    FUNCTION_NAME="AppStack-APICrudLambda1ABF4DB4-Fx7l4uhYPntz"
     ECR_REPOSITORY="glowing-telegram/crud-lambda"
     ;;
   ai_chat_lambda)
-    FUNCTION_NAME="new-ai-chat-lambda-0c271fa"
+    FUNCTION_NAME="AppStack-APIAiChatLambda6FCC65B9-cKJPcgIBdSRA"
     ECR_REPOSITORY="glowing-telegram/ai-chat-lambda"
     ;;
   summarize_transcription)
-    FUNCTION_NAME="stream-ingestion-summarize_transcription_lambda-ac8a860"
+    FUNCTION_NAME="AppStack-StreamIngestionSummarizeTranscriptionLamb-DvNQhxeKUk43"
     ECR_REPOSITORY="glowing-telegram/summarize-transcription-lambda"
+    ;;
+  audio_transcriber)
+    FUNCTION_NAME=""
+    ECR_REPOSITORY="glowing-telegram/audio-transcription"
+    ;;
+  video_ingestor)
+    FUNCTION_NAME=""
+    ECR_REPOSITORY="glowing-telegram/video-ingestor"
     ;;
   *)
     echo "The SERVICE is not supported"
@@ -58,6 +66,12 @@ fi
 # Generate the ECR URI
 ECR_DOMAIN=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
+# Check that docker is up
+if ! docker info > /dev/null 2>&1; then
+  echo "Docker is not running"
+  exit 1
+fi
+
 # Login to ECR
 aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_DOMAIN
 
@@ -73,8 +87,12 @@ docker tag $SERVICE:latest $ECR_DOMAIN/$ECR_REPOSITORY:latest
 echo "Pushing Docker image for $SERVICE"
 docker push $ECR_DOMAIN/$ECR_REPOSITORY:latest
 
+if [ -z "$FUNCTION_NAME" ]; then
+  exit 0
+fi
+
 # Make the lambda function use the new image
 echo "Updating Lambda function to use the new image"
-#aws lambda update-function-code \
-#    --function-name $FUNCTION_NAME\
-#    --image-uri $ECR_DOMAIN/$ECR_REPOSITORY:latest
+aws lambda update-function-code \
+    --function-name $FUNCTION_NAME\
+    --image-uri $ECR_DOMAIN/$ECR_REPOSITORY:latest

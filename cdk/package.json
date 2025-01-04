@@ -2,7 +2,7 @@
   "name": "gt-cdk",
   "version": "0.1.0",
   "bin": {
-    "gt-cdk": "bin/gt-cdk.js"
+    "cdk": "bin/gt-cdk.js"
   },
   "scripts": {
     "build": "tsc",
