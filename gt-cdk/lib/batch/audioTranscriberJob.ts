@@ -60,7 +60,7 @@ export default class AudioTranscriberJobConstruct extends Construct {
 
         environment: {
           INPUT_BUCKET: props.outputBucket.bucketName,
-          DYANMODB_TABLE: props.videoMetadataTable.tableName,
+          DYNAMODB_TABLE: props.videoMetadataTable.tableName,
           NVIDIA_DRIVER_CAPABILITIES: 'all',
           RUST_LOG: 'info',
         },
