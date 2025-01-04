@@ -8,10 +8,11 @@
       "type": "pickString",
       "description": "The name of the service to run",
       "options": [
-        "api",
         "crud_api",
         "ai_chat_lambda",
         "summarize_transcription",
+        "audio_transcriber",
+        "video_ingestor"
       ]
     },
     {
@@ -32,7 +33,7 @@
       "problemMatcher": []
     },
     {
-      "label": "deploy lambda",
+      "label": "build and deploy container",
       "type": "shell",
       "options": {
         "cwd": "${workspaceFolder}",
@@ -42,7 +43,7 @@
           "AWS_ACCOUNT_ID": "159222827421",
         }
       },
-      "command": "./infrastructure/push_lambda.sh ${input:service}",
+      "command": "./scripts/push_image.sh ${input:service}",
       "group": "build",
       "problemMatcher": []
     },
@@ -56,58 +57,6 @@
         }
       },
       "command": "cargo watch -x run",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "diesel > migration run",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}/${input:service}",
-      },
-      "command": "diesel migration run",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "diesel > migration redo",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}/${input:service}",
-      },
-      "command": "diesel migration redo",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "diesel > migration revert",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}/${input:service}",
-      },
-      "command": "diesel migration revert",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "diesel > migration generate",
-      "type": "shell",
-      "options": {
-        "cwd": "${workspaceFolder}/${input:service}",
-      },
-      "command": "diesel migration generate ${input:migration_name}",
       "group": {
         "kind": "build",
         "isDefault": true
