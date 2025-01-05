@@ -10,7 +10,7 @@ pub struct Credentials {
 
 // implement the TokenResponse trait for a custom struct that matches Twitch's response.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
-pub struct TwitchTokenResponse<TT> {
+pub struct TokenResponse<TT> {
     pub access_token: oauth2::AccessToken,
     pub refresh_token: Option<oauth2::RefreshToken>,
     token_type: TT,
@@ -24,7 +24,7 @@ pub struct TwitchTokenResponse<TT> {
     scopes: Option<Vec<oauth2::Scope>>,
 }
 
-impl<TT> oauth2::TokenResponse<TT> for TwitchTokenResponse<TT>
+impl<TT> oauth2::TokenResponse<TT> for TokenResponse<TT>
 where
     TT: oauth2::TokenType,
 {
@@ -51,7 +51,7 @@ where
 
 type Client = oauth2::Client<
     oauth2::basic::BasicErrorResponse,
-    TwitchTokenResponse<oauth2::basic::BasicTokenType>,
+    TokenResponse<oauth2::basic::BasicTokenType>,
     oauth2::basic::BasicTokenType,
     oauth2::basic::BasicTokenIntrospectionResponse,
     oauth2::revocation::StandardRevocableToken,

@@ -113,6 +113,13 @@ export interface TwitchCallbackRequest {
     state: string;
 }
 
+export interface TwitchCallbackResponse {
+    /**
+     * The URL to redirect the client to after the authorization flow is complete.
+     */
+    url: string;
+}
+
 export interface VideoClip {
     /**
      * The path to the audio file extracted from the video clip.

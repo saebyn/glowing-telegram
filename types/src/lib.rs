@@ -268,6 +268,12 @@ pub struct TwitchCallbackRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TwitchCallbackResponse {
+    /// The URL to redirect the client to after the authorization flow is complete.
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VideoClip {
     /// The path to the audio file extracted from the video clip.
     #[serde(skip_serializing_if = "Option::is_none")]

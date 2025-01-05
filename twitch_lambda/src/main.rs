@@ -19,7 +19,7 @@ use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 use tracing::instrument;
 use types::{
     AccessTokenResponse, AuthorizationUrlResponse, TwitchAuthRequest,
-    TwitchCallbackRequest,
+    TwitchCallbackRequest, TwitchCallbackResponse,
 };
 
 mod twitch;
@@ -293,16 +293,19 @@ async fn twitch_callback_handler(
         }
     };
 
+    let response_body = TwitchCallbackResponse {
+        url: secret_json_object
+            .get("redirect_url")
+            .unwrap_or(&serde_json::Value::Null)
+            .as_str()
+            .unwrap_or("")
+            .to_string(),
+    };
+
     (
-        StatusCode::FOUND,
-        [(
-            header::LOCATION,
-            secret_json_object
-                .get("redirect_url")
-                .unwrap()
-                .as_str()
-                .unwrap(),
-        )],
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        Json(json!(response_body)),
     )
         .into_response()
 }
@@ -432,22 +435,26 @@ async fn update_secret_fields(
         .send()
         .await
     {
-        Ok(secret) => secret.secret_string.unwrap_or("{}".to_string()),
+        Ok(secret) => secret.secret_string.unwrap_or_else(|| "{}".to_string()),
         Err(e) => {
+            let e_message = e.to_string();
             tracing::error!("failed to get secret: {:?}", e);
             // if the secret doesn't exist, create it
-            if e.to_string().contains("ResourceNotFoundException") {
+            if e.into_service_error().is_resource_not_found_exception() {
                 secrets_manager
                     .create_secret()
                     .name(secret_id)
                     .secret_string("{}")
                     .send()
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| {
+                        tracing::error!("failed to create secret: {:?}", e);
+                        e.to_string()
+                    })?;
 
                 "{}".to_string()
             } else {
-                return Err(e.to_string());
+                return Err(e_message);
             }
         }
     };
@@ -467,7 +474,7 @@ async fn update_secret_fields(
     }
 
     secrets_manager
-        .update_secret()
+        .put_secret_value()
         .secret_id(secret_id)
         .secret_string(
             serde_json::to_string(&parsed_secret)
