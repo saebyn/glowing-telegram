@@ -46,7 +46,7 @@ case $SERVICE in
     ECR_REPOSITORY="glowing-telegram/video-ingestor"
     ;;
   twitch_lambda)
-    FUNCTION_NAME=""
+    FUNCTION_NAME="AppStack-APITwitchLambda2D310BDC-j4oOL948PVWw"
     ECR_REPOSITORY="glowing-telegram/twitch-lambda"
     ;;
   *)
