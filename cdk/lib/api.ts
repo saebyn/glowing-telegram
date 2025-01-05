@@ -8,7 +8,6 @@ import {
   HttpLambdaIntegration,
 } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import type { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
