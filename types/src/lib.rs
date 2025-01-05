@@ -16,6 +16,8 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccessTokenResponse {
     pub access_token: String,
+
+    pub broadcaster_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
