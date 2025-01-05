@@ -6,8 +6,14 @@
 		"redirect_uri": {
 			"type": "string",
 			"format": "uri"
+		},
+		"scopes": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
 		}
 	},
-	"required": ["redirect_uri"],
+	"required": ["redirect_uri", "scopes"],
 	"additionalProperties": false
 }

@@ -103,6 +103,7 @@ export interface StreamIngestionRequest {
 
 export interface TwitchAuthRequest {
     redirect_uri: string;
+    scopes:       string[];
 }
 
 export interface TwitchCallbackRequest {

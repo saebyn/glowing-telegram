@@ -252,6 +252,8 @@ pub struct StreamIngestionRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TwitchAuthRequest {
     pub redirect_uri: String,
+
+    pub scopes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

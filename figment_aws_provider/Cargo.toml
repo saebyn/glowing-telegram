@@ -1,0 +1,32 @@
+[package]
+name = "figment_aws_provider"
+version = "0.1.0"
+edition = "2021"
+authors = ["saebyn <saebynx@gmail.com>"]
+description = "A Figment provider to load AWS secrets from AWS Secrets Manager"
+license = "AGPL-3.0"
+
+[dependencies.tokio]
+version = ">= 1.40.0"
+features = ["full"]
+
+[dependencies.aws-config]
+version = ">= 1.5.5"
+
+[dependencies.aws-sdk-secretsmanager]
+version = ">= 1.53.0"
+
+[dependencies.figment]
+version = "^0.10, >=0.10.12"
+features = ["parse-value"]
+
+[dev_dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dev_dependencies.figment]
+version = "^0.10, >=0.10.12"
+features = ["env", "test", "toml"]
+
+[lints]
+workspace = true
