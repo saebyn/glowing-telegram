@@ -75,7 +75,7 @@ export default class APIConstruct extends Construct {
         environment: {
           VIDEO_METADATA_TABLE: props.videoMetadataTable.tableName,
           STREAMS_TABLE: props.streamsTable.tableName,
-          STREAM_SERIES_TABLE: props.streamSeriesTable.tableName,
+          SERIES_TABLE: props.streamSeriesTable.tableName,
           EPISODES_TABLE: props.episodesTable.tableName,
           PROFILES_TABLE: props.profilesTable.tableName,
         },
