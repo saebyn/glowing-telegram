@@ -88,7 +88,8 @@ pub async fn validate_token(
         .get("https://id.twitch.tv/oauth2/validate")
         .header("Authorization", format!("OAuth {token}"))
         .send()
-        .await?;
+        .await?
+        .error_for_status()?;
 
     let body = response.json::<ValidationResponse>().await?;
 
