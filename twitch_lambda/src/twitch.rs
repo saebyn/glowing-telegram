@@ -1,7 +1,6 @@
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use serde::Deserialize;
 
-// TODO need a figment provider for secrets manager
 #[derive(Debug, Clone, Deserialize)]
 pub struct Credentials {
     pub id: String,
