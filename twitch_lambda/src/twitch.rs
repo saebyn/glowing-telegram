@@ -74,3 +74,23 @@ pub fn get_oauth_client(
 
     Ok(client)
 }
+
+#[derive(Deserialize, Debug)]
+pub struct ValidationResponse {
+    pub user_id: String,
+}
+
+pub async fn validate_token(
+    token: &str,
+) -> Result<ValidationResponse, reqwest::Error> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://id.twitch.tv/oauth2/validate")
+        .header("Authorization", format!("OAuth {token}"))
+        .send()
+        .await?;
+
+    let body = response.json::<ValidationResponse>().await?;
+
+    Ok(body)
+}

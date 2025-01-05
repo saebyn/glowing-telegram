@@ -16,6 +16,7 @@ use serde::Deserialize;
 use serde_json::json;
 use std::{collections::HashMap, sync::Arc};
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
+use tracing::instrument;
 use types::{
     AccessTokenResponse, AuthorizationUrlResponse, TwitchAuthRequest,
     TwitchCallbackRequest,
@@ -306,6 +307,7 @@ async fn twitch_callback_handler(
         .into_response()
 }
 
+#[instrument(skip(state))]
 async fn obtain_twitch_access_token_handler(
     State(state): State<AppState>,
     CognitoUserId(cognito_user_id): CognitoUserId,
@@ -333,25 +335,58 @@ async fn obtain_twitch_access_token_handler(
         Ok(secret_string) => secret_string,
         Err(e) => {
             tracing::error!("failed to parse secret string: {:?}", e);
-            serde_json::Value::Object(serde_json::Map::new())
+            return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
         }
     };
 
     // TODO check if the token is expired and refresh it
+    let access_token = secret_json_object
+        .get("access_token")
+        .and_then(|t| t.as_str());
 
-    let response_body = AccessTokenResponse {
-        access_token: secret_json_object
-            .get("access_token")
-            .map_or("", |t| t.as_str().unwrap_or(""))
-            .to_string(),
-    };
+    if access_token.is_none() {
+        tracing::warn!("access_token not found in secret");
+        return (StatusCode::UNAUTHORIZED,).into_response();
+    }
 
-    (
-        StatusCode::OK,
-        [(header::CONTENT_TYPE, "application/json")],
-        Json(json!(response_body)),
-    )
-        .into_response()
+    if let Ok(validation_response) =
+        twitch::validate_token(access_token.unwrap()).await
+    {
+        let response_body = AccessTokenResponse {
+            access_token: secret_json_object
+                .get("access_token")
+                .map_or("", |t| t.as_str().unwrap_or(""))
+                .to_string(),
+
+            broadcaster_id: validation_response.user_id,
+        };
+
+        return (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!(response_body)),
+        )
+            .into_response();
+    }
+
+    // if the token is invalid, return unauthorized
+    tracing::warn!("invalid access token");
+
+    // clear the access token and refresh token from the secrets manager secret
+    match state
+        .secrets_manager
+        .put_secret_value()
+        .secret_id(&secret_id)
+        .secret_string("{}")
+        .send()
+        .await
+    {
+        Ok(_) => (StatusCode::UNAUTHORIZED,).into_response(),
+        Err(e) => {
+            tracing::error!("failed to clear access token: {:?}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
+        }
+    }
 }
 
 // axum extractor to get cognito user id from the request
@@ -369,12 +404,14 @@ where
         parts: &mut axum::http::request::Parts,
         _state: &S,
     ) -> Result<Self, Self::Rejection> {
+        tracing::info!("extracting cognito user id");
         parts
             .request_context_ref()
             .and_then(|ctx| ctx.authorizer())
             .and_then(|auth| {
-                auth.fields
-                    .get("claims")
+                auth.jwt
+                    .as_ref()
+                    .map(|jwt| &jwt.claims)
                     .and_then(|claims| claims.get("sub"))
             })
             .map_or(
@@ -389,13 +426,13 @@ async fn update_secret_fields(
     secret_id: &str,
     fields: HashMap<String, String>,
 ) -> Result<(), String> {
-    let secret = match secrets_manager
+    let fetched_secret_string = match secrets_manager
         .get_secret_value()
         .secret_id(secret_id)
         .send()
         .await
     {
-        Ok(secret) => secret,
+        Ok(secret) => secret.secret_string.unwrap_or("{}".to_string()),
         Err(e) => {
             tracing::error!("failed to get secret: {:?}", e);
             // if the secret doesn't exist, create it
@@ -407,14 +444,16 @@ async fn update_secret_fields(
                     .send()
                     .await
                     .map_err(|e| e.to_string())?;
-                return Ok(());
+
+                "{}".to_string()
+            } else {
+                return Err(e.to_string());
             }
-            return Err(e.to_string());
         }
     };
 
-    let mut secret_string = match serde_json::from_str::<serde_json::Value>(
-        secret.secret_string.as_deref().unwrap_or("{}"),
+    let mut parsed_secret = match serde_json::from_str::<serde_json::Value>(
+        &fetched_secret_string,
     ) {
         Ok(secret_string) => secret_string,
         Err(e) => {
@@ -424,14 +463,14 @@ async fn update_secret_fields(
     };
 
     for (key, value) in fields {
-        secret_string[key] = serde_json::Value::String(value);
+        parsed_secret[key] = serde_json::Value::String(value);
     }
 
     secrets_manager
         .update_secret()
         .secret_id(secret_id)
         .secret_string(
-            serde_json::to_string(&secret_string)
+            serde_json::to_string(&parsed_secret)
                 .map_err(|e| e.to_string())?,
         )
         .send()
