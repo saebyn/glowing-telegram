@@ -37,6 +37,7 @@ export default class APIConstruct extends Construct {
 
     const twitchService = new ServiceLambdaConstruct(this, 'TwitchLambda', {
       lambdaOptions: {
+        description: 'Twitch OAuth Lambda for Glowing-Telegram',
         timeout: cdk.Duration.seconds(30),
         environment: {
           USER_SECRET_PATH: 'gt/twitch/user',
@@ -61,6 +62,7 @@ export default class APIConstruct extends Construct {
               service: 'secretsmanager',
               resource: 'secret',
               resourceName: 'gt/twitch/user/*',
+              arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
             },
             cdk.Stack.of(this),
           ),
@@ -71,6 +73,7 @@ export default class APIConstruct extends Construct {
     // configure crud lambda
     const crudService = new ServiceLambdaConstruct(this, 'CrudLambda', {
       lambdaOptions: {
+        description: 'CRUD operations for the Glowing-Telegram API',
         timeout: cdk.Duration.seconds(30),
         environment: {
           VIDEO_METADATA_TABLE: props.videoMetadataTable.tableName,
@@ -115,6 +118,7 @@ export default class APIConstruct extends Construct {
     // configure ai chat lambda
     const aiChatService = new ServiceLambdaConstruct(this, 'AiChatLambda', {
       lambdaOptions: {
+        description: 'AI Chat Lambda for Glowing-Telegram',
         timeout: cdk.Duration.minutes(3),
         environment: {
           OPENAI_SECRET: props.openaiSecret.secretArn,
@@ -137,7 +141,6 @@ export default class APIConstruct extends Construct {
 
     const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       defaultAuthorizer: authorizer,
-      apiName: 'gt-api',
 
       corsPreflight: {
         allowOrigins: ['http://localhost:5173'],
