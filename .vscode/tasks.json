@@ -12,7 +12,8 @@
         "ai_chat_lambda",
         "summarize_transcription",
         "audio_transcriber",
-        "video_ingestor"
+        "video_ingestor",
+        "twitch_lambda"
       ]
     },
     {

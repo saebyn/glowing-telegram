@@ -8,10 +8,9 @@ import {
   HttpLambdaIntegration,
 } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import type { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
-import type { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import ServiceLambdaConstruct from './util/serviceLambda';
 
 interface APIConstructProps {
@@ -23,21 +22,63 @@ interface APIConstructProps {
   streamSeriesTable: ITable;
   episodesTable: ITable;
   profilesTable: ITable;
-  openaiSecret: ISecret;
+  openaiSecret: secretsmanager.ISecret;
 }
 
 export default class APIConstruct extends Construct {
   constructor(scope: Construct, id: string, props: APIConstructProps) {
     super(scope, id);
 
+    // twitch lambda
+    const twitchAppSecret = new secretsmanager.Secret(this, 'TwitchAppSecret', {
+      description: 'Twitch App Secret for API access in glowing-telegram',
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    const twitchService = new ServiceLambdaConstruct(this, 'TwitchLambda', {
+      lambdaOptions: {
+        description: 'Twitch OAuth Lambda for Glowing-Telegram',
+        timeout: cdk.Duration.seconds(30),
+        environment: {
+          USER_SECRET_PATH: 'gt/twitch/user',
+          TWITCH_SECRET_ARN: twitchAppSecret.secretArn,
+        },
+      },
+      name: 'twitch-lambda',
+    });
+
+    twitchAppSecret.grantRead(twitchService.lambda);
+    twitchService.lambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          // put, create, get secret values
+          'secretsmanager:GetSecretValue',
+          'secretsmanager:PutSecretValue',
+          'secretsmanager:CreateSecret',
+        ],
+        resources: [
+          cdk.Arn.format(
+            {
+              service: 'secretsmanager',
+              resource: 'secret',
+              resourceName: 'gt/twitch/user/*',
+              arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
+            },
+            cdk.Stack.of(this),
+          ),
+        ],
+      }),
+    );
+
     // configure crud lambda
     const crudService = new ServiceLambdaConstruct(this, 'CrudLambda', {
       lambdaOptions: {
+        description: 'CRUD operations for the Glowing-Telegram API',
         timeout: cdk.Duration.seconds(30),
         environment: {
           VIDEO_METADATA_TABLE: props.videoMetadataTable.tableName,
           STREAMS_TABLE: props.streamsTable.tableName,
-          STREAM_SERIES_TABLE: props.streamSeriesTable.tableName,
+          SERIES_TABLE: props.streamSeriesTable.tableName,
           EPISODES_TABLE: props.episodesTable.tableName,
           PROFILES_TABLE: props.profilesTable.tableName,
         },
@@ -77,6 +118,7 @@ export default class APIConstruct extends Construct {
     // configure ai chat lambda
     const aiChatService = new ServiceLambdaConstruct(this, 'AiChatLambda', {
       lambdaOptions: {
+        description: 'AI Chat Lambda for Glowing-Telegram',
         timeout: cdk.Duration.minutes(3),
         environment: {
           OPENAI_SECRET: props.openaiSecret.secretArn,
@@ -99,7 +141,6 @@ export default class APIConstruct extends Construct {
 
     const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       defaultAuthorizer: authorizer,
-      apiName: 'gt-api',
 
       corsPreflight: {
         allowOrigins: ['http://localhost:5173'],
@@ -150,6 +191,16 @@ export default class APIConstruct extends Construct {
         apigwv2.HttpMethod.POST,
         apigwv2.HttpMethod.PUT,
       ],
+    });
+
+    // POST/GET /auth/twitch/* - run twitch lambda
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'TwitchIntegration',
+        twitchService.lambda,
+      ),
+      path: '/auth/twitch/{proxy+}',
+      methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.GET],
     });
 
     // POST /ai/chat - run ai chat lambda

@@ -14,6 +14,7 @@ export default class RepoStack extends cdk.Stack {
         'summarize-transcription-lambda',
         'audio-transcription',
         'video-ingestor',
+        'twitch-lambda',
       ],
     });
   }

@@ -1,0 +1,14 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"$comment": "Represents the response from Glowing Telegram when the client completes the Twitch authorization flow.",
+	"properties": {
+		"url": {
+      "type": "string",
+      "format": "uri",
+      "description": "The URL to redirect the client to after the authorization flow is complete."
+    }
+	},
+	"required": ["url"],
+	"additionalProperties": false
+}

@@ -16,6 +16,8 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccessTokenResponse {
     pub access_token: String,
+
+    pub broadcaster_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -252,6 +254,8 @@ pub struct StreamIngestionRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TwitchAuthRequest {
     pub redirect_uri: String,
+
+    pub scopes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -261,6 +265,12 @@ pub struct TwitchCallbackRequest {
     pub scope: Vec<String>,
 
     pub state: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TwitchCallbackResponse {
+    /// The URL to redirect the client to after the authorization flow is complete.
+    pub url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

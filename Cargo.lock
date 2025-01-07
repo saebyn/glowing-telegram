@@ -3765,6 +3765,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "twitch_lambda"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-secretsmanager",
+ "aws_lambda_events",
+ "axum",
+ "axum-aws-lambda",
+ "chrono",
+ "figment",
+ "lambda_http",
+ "lambda_runtime",
+ "oauth2",
+ "redact",
+ "reqwest 0.12.5",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "types",
+ "uuid",
+]
+
+[[package]]
 name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
