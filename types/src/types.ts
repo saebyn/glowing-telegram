@@ -1,5 +1,6 @@
 export interface AccessTokenResponse {
-    access_token: string;
+    access_token:   string;
+    broadcaster_id: string;
 }
 
 export interface AuthorizationURLResponse {
@@ -103,12 +104,20 @@ export interface StreamIngestionRequest {
 
 export interface TwitchAuthRequest {
     redirect_uri: string;
+    scopes:       string[];
 }
 
 export interface TwitchCallbackRequest {
     code:  string;
     scope: string[];
     state: string;
+}
+
+export interface TwitchCallbackResponse {
+    /**
+     * The URL to redirect the client to after the authorization flow is complete.
+     */
+    url: string;
 }
 
 export interface VideoClip {
