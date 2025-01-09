@@ -533,6 +533,7 @@ fn build_filter_expressions(
     let mut filter_expressions = Vec::new();
     let mut expression_attribute_names = HashMap::new();
     let mut expression_attribute_values = HashMap::new();
+    let mut value_index = 0;
 
     // Iterate over the filters and build the filter expression
     for (i, (key, value)) in filters.iter().enumerate() {
@@ -561,7 +562,11 @@ fn build_filter_expressions(
         let inner_filter_expr = values
             .iter()
             .map(|value| {
-                let attribute_value = format!(":v{i}");
+                let attribute_value = format!(":v{value_index}");
+                // Increment the value index for the next value, so
+                // that we can generate unique attribute value names
+                // for each value in the filter
+                value_index += 1;
 
                 expression_attribute_names
                     .insert(attribute_name.clone(), base_key.to_string());
