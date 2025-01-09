@@ -26,10 +26,10 @@
   "devDependencies": {
     "@eslint/compat": "^1.2.4",
     "@eslint/eslintrc": "^3.2.0",
-    "@eslint/js": "^9.16.0",
+    "@eslint/js": "^9.17.0",
     "@mui/icons-material": "^6",
     "@mui/material": "^6",
-    "@mui/x-date-pickers": "7.23.1",
+    "@mui/x-date-pickers": "7.23.3",
     "@storybook/addon-essentials": "^8.4.7",
     "@storybook/addon-interactions": "^8.4.7",
     "@storybook/addon-links": "^8.4.7",
@@ -42,8 +42,8 @@
     "@types/node": "^22",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@typescript-eslint/eslint-plugin": "^8.18.0",
-    "@typescript-eslint/parser": "^8.18.0",
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/ui": "^2.1.8",
     "date-fns": "2.30.0",
@@ -52,12 +52,12 @@
     "eslint-plugin-react": "latest",
     "eslint-plugin-react-hooks": "latest",
     "eslint-plugin-storybook": "latest",
-    "globals": "^15.13.0",
+    "globals": "^15.14.0",
     "jsdom": "^25.0.1",
     "prettier": "latest",
     "storybook": "^8.0.10",
     "typescript": "^5.7.2",
-    "vite": "^6.0.3",
+    "vite": "^6.0.7",
     "vitest": "^2.0.5"
   }
 }
