@@ -35,8 +35,9 @@ export default class BatchEnvironmentConstruct extends Construct {
       {
         vpc,
         securityGroups: [sg],
-        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
         maxvCpus: 16,
+        replaceComputeEnvironment: true,
       },
     );
 
@@ -46,13 +47,14 @@ export default class BatchEnvironmentConstruct extends Construct {
       {
         vpc,
         securityGroups: [sg],
-        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
         minvCpus: 0,
         maxvCpus: 16,
         instanceTypes: [new ec2.InstanceType('g4dn')],
         spot: true,
         allocationStrategy:
           batch.AllocationStrategy.SPOT_PRICE_CAPACITY_OPTIMIZED,
+        replaceComputeEnvironment: true,
       },
     );
 

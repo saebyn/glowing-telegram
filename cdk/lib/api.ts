@@ -171,6 +171,8 @@ export default class APIConstruct extends Construct {
               'StateMachineArn',
               props.streamIngestionFunction.stateMachineArn,
             ),
+
+          subtype: apigwv2.HttpIntegrationSubtype.STEPFUNCTIONS_START_EXECUTION,
         },
       ),
       path: '/stream',
