@@ -165,7 +165,8 @@ The summary you generate must be not only informational for content review but a
             '$.streamRecord.Item.prefix.S',
           ),
         },
-        iamResources: [props.videoArchive.arnForObjects('*')],
+        iamAction: 's3:ListBucket',
+        iamResources: [props.videoArchive.bucketArn],
         resultPath: '$.listResult',
       },
     );
@@ -182,26 +183,28 @@ The summary you generate must be not only informational for content review but a
       resultPath: '$',
     });
 
+    const getItemFromDynamoDBConfig = {
+      table: props.videoMetadataTable,
+      key: {
+        key: tasks.DynamoAttributeValue.fromString(
+          stepfunctions.JsonPath.stringAt(
+            'States.ArrayGetItem($.videoKeys, $.iterator.index)',
+          ),
+        ),
+      },
+      projectionExpression: [
+        new tasks.DynamoProjectionExpression().withAttribute('#k'),
+        new tasks.DynamoProjectionExpression().withAttribute('audio'),
+        new tasks.DynamoProjectionExpression().withAttribute('transcription'),
+      ],
+      expressionAttributeNames: { '#k': 'key' },
+      resultPath: '$.dynamodb',
+    };
+
     const getItemFromDynamoDB = new tasks.DynamoGetItem(
       this,
       'GetItem from DynamoDB',
-      {
-        table: props.videoMetadataTable,
-        key: {
-          key: tasks.DynamoAttributeValue.fromString(
-            stepfunctions.JsonPath.stringAt(
-              'States.ArrayGetItem($.videoKeys, $.iterator.index)',
-            ),
-          ),
-        },
-        projectionExpression: [
-          new tasks.DynamoProjectionExpression().withAttribute('#k'),
-          new tasks.DynamoProjectionExpression().withAttribute('audio'),
-          new tasks.DynamoProjectionExpression().withAttribute('transcription'),
-        ],
-        expressionAttributeNames: { '#k': 'key' },
-        resultPath: '$.dynamodb',
-      },
+      getItemFromDynamoDBConfig,
     );
 
     const loopOverVideos = new stepfunctions.Choice(this, 'Loop over Videos')
@@ -220,7 +223,7 @@ The summary you generate must be not only informational for content review but a
       {
         jobName: 'transcribe-audio',
         jobDefinitionArn: props.audioTranscriberJob.jobDefinitionArn,
-        jobQueueArn: props.cpuBatchJobQueue.jobQueueArn,
+        jobQueueArn: props.gpuBatchJobQueue.jobQueueArn,
         payload: stepfunctions.TaskInput.fromObject({
           'input_key.$': '$.dynamodb.Item.audio.S',
           'item_key.$': '$.dynamodb.Item.key.S',
@@ -280,7 +283,15 @@ The summary you generate must be not only informational for content review but a
               }),
               jobName: 'ingest-video',
               resultPath: stepfunctions.JsonPath.DISCARD,
-            }).next(transcribeAudioToText),
+            })
+              .next(
+                new tasks.DynamoGetItem(
+                  this,
+                  'GetItem from DynamoDB with audio',
+                  getItemFromDynamoDBConfig,
+                ),
+              )
+              .next(transcribeAudioToText),
           ),
       );
 
