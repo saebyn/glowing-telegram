@@ -22,4 +22,27 @@ This is a tool for managing stream recordings, ingesting them into a database, p
 
 ## Architecture
 
-The tool is composed of a web interface, a database, and a set of microservices. The web interface is a React app that communicates with the microservices via a REST API. The microservices are written in a combination of Rust and Python. The database is a PostgreSQL database. The microservices do not share state, and most of them are stateless. Metadata about the stream is stored in the database, and the microservices use that metadata to perform their tasks. Video and audio data is stored in mounted volumes, and the microservices use the metadata to locate the data.
+The tool is broken down into several repositories:
+
+1. `glowing-telegram` - The backend for the tool (this repository)
+1. [glowing-telegram-frontend](https:://github.com/saebyn/glowing-telegram-frontend) - The frontend for the tool
+1. [glowing-telegram-video-editor](https://github.com/saebyn/glowing-telegram-video-editor) - A React component for reviewing stream videos and generating episodes
+
+This repository contains these directories:
+
+1. `ai_chat_lambda` - A lambda function for that wraps the OpenAI API for chat completion
+1. `audio_transcriber` - An executable for transcribing audio files with OpenAI's Whisper Python library
+1. `cdk` - An AWS CDK project for deploying the backend to AWS
+1. `crud_api` - A lambda function for managing the CRUD operations for the DynamoDB tables
+1. `docs` - Documentation for the project
+1. `gt_ffmpeg` - A library for interacting with FFmpeg
+1. `scripts` - Scripts for managing the project, migrating data from the old database, and other tasks
+1. `summarize_transcription` - A lambda function for summarizing the transcriptions of the episodes using OpenAI's API
+1. `twitch_bot` - An unfinished Twitch bot for interacting with Twitch chat and storing messages in the database, implemented in Elixir
+1. `twitch_lambda` - A lambda function for ingesting authenticating with Twitch
+1. `types` - Shared types for the project generated from the JSON schemas in the `docs` directory, also used by the frontend
+1. `video_ingestor` - An executable for analyzing video files for silence detection, storing the speech audio track and keyframes of the video to S3, and storing the metadata in the database
+
+## Development
+
+I should probably write some instructions here, but I haven't yet. If you're interested in contributing, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Twitter](https://twitter.com/saebyn).

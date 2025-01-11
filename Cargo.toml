@@ -4,9 +4,7 @@ license = "AGPL-3.0"
 resolver = "2"
 
 members = [
-  "api",
   "gt_ffmpeg",
-  "task_worker",
   "video_ingestor",
   "audio_transcriber",
   "summarize_transcription",

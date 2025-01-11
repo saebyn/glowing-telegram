@@ -8,6 +8,7 @@
 **/.ipynb_checkpoints
 
 openai_key.txt
+*_key.txt
 
 # Ignore .env files
 **/.env
