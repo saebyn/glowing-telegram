@@ -4,6 +4,11 @@ license = "AGPL-3.0"
 description = "Video Ingestor for the Glowing Telegram project"
 version = "0.1.0"
 edition = "2021"
+authors = ["saebyn <saebynx@gmail.com>"]
+repository = "https://github.com/saebyn/glowing-telegram"
+readme = "../README.md"
+keywords = ["rust", "glowing-telegram", "video", "ingestor"]
+categories = ["web-programming"]
 
 [dependencies]
 gt_ffmpeg = { path = "../gt_ffmpeg" }
