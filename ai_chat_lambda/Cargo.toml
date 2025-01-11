@@ -2,6 +2,13 @@
 name = "ai_chat_lambda"
 version = "0.1.0"
 edition = "2021"
+authors = ["saebyn <saebynx@gmail.com>"]
+description = "AI Chat Lambda"
+repository = "https://github.com/saebyn/glowing-telegram"
+license = "AGPL-3.0"
+readme = "../README.md"
+keywords = ["rust", "aws", "lambda", "chat", "ai", "glowing-telegram"]
+categories = ["web-programming"]
 
 [dependencies]
 aws-config = "1.5.5"

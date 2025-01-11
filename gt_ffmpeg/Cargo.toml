@@ -3,6 +3,12 @@ name = "gt_ffmpeg"
 description = "FFmpeg wrapper for the Glowing Telegram project"
 version = "0.1.0"
 edition = "2021"
+authors = ["saebyn <saebynx@gmail.com>"]
+repository = "https://github.com/saebyn/glowing-telegram"
+license = "AGPL-3.0"
+readme = "../README.md"
+keywords = ["rust", "ffmpeg", "glowing-telegram"]
+categories = ["web-programming"]
 
 [dependencies]
 tokio = { version = "1.39", features = ["full"] }
