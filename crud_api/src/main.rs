@@ -40,6 +40,7 @@ struct Config {
     streams_table: String,
     series_table: String,
     profiles_table: String,
+    tasks_table: String,
 }
 
 fn load_config() -> Result<Config, figment::Error> {
@@ -185,6 +186,7 @@ fn get_table_config<'a>(
             "series" => &state.config.series_table,
             "video_clips" => &state.config.video_metadata_table,
             "profiles" => &state.config.profiles_table,
+            "tasks" => &state.config.tasks_table,
             _ => panic!("unsupported resource: {resource}"),
         },
         partition_key: match resource {

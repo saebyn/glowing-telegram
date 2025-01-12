@@ -1,6 +1,4 @@
 [workspace]
-repository = "https://github.com/saebyn/glowing-telegram"
-license = "AGPL-3.0"
 resolver = "2"
 
 members = [
