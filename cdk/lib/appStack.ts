@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+
 import APIConstruct from './api';
 import UserManagementConstruct from './userManagement';
 import DatastoreConstruct from './datastore';
@@ -9,6 +10,7 @@ import AudioTranscriberJobConstruct from './batch/audioTranscriberJob';
 import StreamIngestion from './streamIngestion';
 import BatchEnvironmentConstruct from './batch/environment';
 import VideoIngestorConstruct from './batch/videoIngestorJob';
+import TaskMonitoringConstruct from './taskMonitoring';
 
 export default class GtCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -61,8 +63,7 @@ export default class GtCdkStack extends cdk.Stack {
       outputBucket: dataStore.outputBucket,
       videoMetadataTable: dataStore.videoMetadataTable,
       videoArchiveBucket: dataStore.videoArchive,
-      // TODO enable this once I tear down the Pulumi stack
-      enableAutomaticIngestion: false,
+      enableAutomaticIngestion: true,
     });
 
     const streamIngestion = new StreamIngestion(this, 'StreamIngestion', {
@@ -86,6 +87,12 @@ export default class GtCdkStack extends cdk.Stack {
       streamSeriesTable: dataStore.streamSeriesTable,
       episodesTable: dataStore.episodesTable,
       profilesTable: dataStore.profilesTable,
+      tasksTable: dataStore.tasksTable,
+    });
+
+    new TaskMonitoringConstruct(this, 'TaskMonitoring', {
+      tasksTable: dataStore.tasksTable,
+      streamIngestionStepFunction: streamIngestion.stepFunction,
     });
   }
 }

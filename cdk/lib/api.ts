@@ -8,6 +8,7 @@ import {
   HttpLambdaIntegration,
 } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import type { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
+import type * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
@@ -22,6 +23,7 @@ interface APIConstructProps {
   streamSeriesTable: ITable;
   episodesTable: ITable;
   profilesTable: ITable;
+  tasksTable: ITable;
   openaiSecret: secretsmanager.ISecret;
 }
 
@@ -81,6 +83,7 @@ export default class APIConstruct extends Construct {
           SERIES_TABLE: props.streamSeriesTable.tableName,
           EPISODES_TABLE: props.episodesTable.tableName,
           PROFILES_TABLE: props.profilesTable.tableName,
+          TASKS_TABLE: props.tasksTable.tableName,
         },
       },
       name: 'crud-lambda',
@@ -104,6 +107,7 @@ export default class APIConstruct extends Construct {
           props.streamSeriesTable.tableArn,
           props.episodesTable.tableArn,
           props.profilesTable.tableArn,
+          props.tasksTable.tableArn,
 
           // Allow access to the indexes
           `${props.videoMetadataTable.tableArn}/index/*`,
@@ -111,6 +115,7 @@ export default class APIConstruct extends Construct {
           `${props.streamSeriesTable.tableArn}/index/*`,
           `${props.episodesTable.tableArn}/index/*`,
           `${props.profilesTable.tableArn}/index/*`,
+          `${props.tasksTable.tableArn}/index/*`,
         ],
       }),
     );

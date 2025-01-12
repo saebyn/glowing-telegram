@@ -338,7 +338,7 @@ pub async fn update(
     let (
         update_expression,
         expression_attribute_names,
-        expression_attribute_values,
+        mut expression_attribute_values,
     ) = item
         .iter()
         .filter(|(k, _)| *k != table_config.partition_key)
@@ -352,7 +352,17 @@ pub async fn update(
                 (exprs, names, values)
             },
         );
+
     let update_expression = format!("SET {}", update_expression.join(", "));
+
+    expression_attribute_values.insert(
+        ":created_at".to_string(),
+        AttributeValue::S(updated_at.to_string()),
+    );
+
+    let update_expression = format!(
+        "{update_expression}, created_at = if_not_exists(created_at, :created_at)"
+    );
 
     tracing::debug!(
         "Update expression: {:?}, Expression attribute names: {:?}, Expression attribute values: {:?}",
