@@ -33,12 +33,12 @@ export default class TaskMonitoringConstruct extends Construct {
 import json
 import os
 import boto3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 def handler(event, context):
     dynamodb = boto3.resource('dynamodb')
 
-    now = datetime.now().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     ttl = datetime.now() + timedelta(days=7)
     ttl_value = int(ttl.timestamp())
