@@ -12,7 +12,7 @@ license.workspace = true
 
 [dependencies]
 aws-config = { workspace = true }
-aws-sdk-secretsmanager = { version = "1.53.0" }
+aws-sdk-secretsmanager = { workspace = true }
 lambda_runtime = { workspace = true }
 lambda_http = { workspace = true }
 tower-http = { workspace = true }

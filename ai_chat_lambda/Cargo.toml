@@ -12,7 +12,7 @@ categories = ["web-programming"]
 
 [dependencies]
 aws-config = { workspace = true }
-aws-sdk-secretsmanager = "1.53.0"
+aws-sdk-secretsmanager = { workspace = true }
 openai_dive = { workspace = true }
 lambda_runtime = { workspace = true }
 serde = { workspace = true }
