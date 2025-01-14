@@ -5,6 +5,6 @@
 	"main": "src/types.ts",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/saebyn/glowing-telegram.git"
+		"url": "git+https://github.com/saebyn/glowing-telegram.git"
 	}
 }

@@ -6,11 +6,6 @@ on:
   push: 
     branches: ["main"]
 
-permissions:
-  id-token: write
-  contents: read
-  packages: write
-
 jobs:
   # This job publishes the TypeScript types to the GitHub Package Registry
   # it runs the "./types/import.sh" script which generates the types in types/
@@ -20,6 +15,10 @@ jobs:
   # of the release, or the sha of the commit in the case of a push
   publish_ts_types:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -48,7 +47,7 @@ jobs:
           registry-url: "https://npm.pkg.github.com"
 
       - name: Publish to GitHub Package Registry
-        run: npm publish --provenance --access public
+        run: npm publish --provenance
         working-directory: types
         env:
-          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
