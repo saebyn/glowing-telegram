@@ -1,5 +1,5 @@
 {
-	"name": "@saebyn/glowing-telegram-types",
+	"name": "glowing-telegram-types",
 	"license": "AGPL-3.0-only",
 	"version": "0.1.0",
 	"main": "src/types.ts",
