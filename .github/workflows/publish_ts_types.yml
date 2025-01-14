@@ -15,15 +15,21 @@ jobs:
   # of the release, or the sha of the commit in the case of a push
   publish_ts_types:
     runs-on: ubuntu-latest
+
     permissions:
       id-token: write
       contents: read
       packages: write
+
+    defaults:
+      run:
+        working-directory: types
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Generate TypeScript types
-        run: ./types/import.sh
+        run: ./import.sh
 
       - name: Update package.json version
         run: |
@@ -38,8 +44,6 @@ jobs:
 
             mv package.json.tmp package.json
           fi
-        working-directory: types
-
 
       - name: Use Node.js
         uses: actions/setup-node@v4
@@ -48,6 +52,5 @@ jobs:
 
       - name: Publish to GitHub Package Registry
         run: npm publish --provenance
-        working-directory: types
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
