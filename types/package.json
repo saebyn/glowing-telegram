@@ -1,6 +1,10 @@
 {
-	"name": "glowing-telegram-types",
+	"name": "@saebyn/glowing-telegram-types",
 	"license": "AGPL-3.0-only",
 	"version": "0.1.0",
-	"main": "types.ts"
+	"main": "src/types.ts",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/saebyn/glowing-telegram.git"
+	}
 }

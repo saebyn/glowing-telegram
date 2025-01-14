@@ -1,0 +1,48 @@
+name: "Publish TypeScript types to GitHub Package Registry"
+
+on:
+  release: 
+    types: ["published"]
+  push: 
+    branches: ["main"]
+
+jobs:
+  # This job publishes the TypeScript types to the GitHub Package Registry
+  # it runs the "./types/import.sh" script which generates the types in types/
+  # we publish the types to the GitHub Package Registry
+  # the package is versioned with the "version" field in package.json
+  # so we need to update the version in package.json here to match the version
+  # of the release, or the sha of the commit in the case of a push
+  publish_ts_types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: "npm"
+          node-version: "22"
+          registry-url: "https://npm.pkg.github.com"
+
+      - name: Generate TypeScript types
+        run: ./types/import.sh
+
+      - name: Update package.json version
+        run: |
+          if [ -n "$GITHUB_REF" ]; then
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              version=$(echo $GITHUB_REF | sed 's/refs\/tags\///')
+            else
+              version=$(echo $GITHUB_SHA | cut -c1-7)
+            fi
+            jq ".version = \"$version\"" package.json > package.json.tmp
+            mv package.json.tmp package.json
+          fi
+        working-directory: types
+
+      - name: Publish to GitHub Package Registry
+        run: npm publish --provenance --access public
+        working-directory: types
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
