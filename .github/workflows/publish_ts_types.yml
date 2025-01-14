@@ -8,6 +8,8 @@ on:
 
 permissions:
   id-token: write
+  contents: read
+  packages: write
 
 jobs:
   # This job publishes the TypeScript types to the GitHub Package Registry
