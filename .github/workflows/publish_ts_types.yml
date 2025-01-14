@@ -6,6 +6,9 @@ on:
   push: 
     branches: ["main"]
 
+permissions:
+  id-token: write
+
 jobs:
   # This job publishes the TypeScript types to the GitHub Package Registry
   # it runs the "./types/import.sh" script which generates the types in types/
