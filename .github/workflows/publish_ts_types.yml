@@ -35,7 +35,7 @@ jobs:
           always-auth: true
 
       - name: cat the .npmrc file
-        run: cat $HOME/.npmrc
+        run: cat $NPM_CONFIG_USERCONFIG
 
       - name: Install dependencies
         run: npm ci
