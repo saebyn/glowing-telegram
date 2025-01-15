@@ -34,8 +34,11 @@ jobs:
           registry-url: "https://npm.pkg.github.com"
           always-auth: true
 
-      - name: Move .npmrc
-        run: mv ../.npmrc .
+      - name: list files
+        run: ls -la
+
+      - name: list files above
+        run: ls -la ..
 
       - name: Install dependencies
         run: npm ci
