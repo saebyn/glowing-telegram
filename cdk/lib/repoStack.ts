@@ -39,8 +39,8 @@ export default class RepoStack extends cdk.Stack {
     });
 
     const principal = new iam.OpenIdConnectPrincipal(provider, {
-      StringEquals: {
-        'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/${githubRepo}`,
+      StringLike: {
+        'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/${githubRepo}:environment:*`,
         'token.actions.githubusercontent.com:aud': audience,
       },
     });
@@ -53,6 +53,10 @@ export default class RepoStack extends cdk.Stack {
             new iam.PolicyStatement({
               actions: ['s3:PutObject'],
               resources: [this.frontendAssetBucket.arnForObjects('*')],
+            }),
+            new iam.PolicyStatement({
+              actions: ['s3:ListBucket'],
+              resources: [this.frontendAssetBucket.bucketArn],
             }),
           ],
         }),
