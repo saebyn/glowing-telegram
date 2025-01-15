@@ -32,10 +32,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           registry-url: "https://npm.pkg.github.com"
-          always-auth: true
-
-      - name: cat the .npmrc file
-        run: cat $NPM_CONFIG_USERCONFIG
 
       - name: Install dependencies
         run: npm ci
