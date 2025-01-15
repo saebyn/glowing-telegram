@@ -32,6 +32,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           registry-url: "https://npm.pkg.github.com"
+          always-auth: true
 
       - name: Install dependencies
         run: npm ci
@@ -52,6 +53,9 @@ jobs:
 
             mv package.json.tmp package.json
           fi
+
+      - name: listing files
+        run: ls -la
 
       - name: Publish to GitHub Package Registry
         run: npm publish --provenance
