@@ -28,6 +28,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          registry-url: "https://npm.pkg.github.com"
+
+      - name: Install dependencies
+        run: npm ci
+        
       - name: Generate TypeScript types
         run: ./import.sh
 
@@ -44,11 +52,6 @@ jobs:
 
             mv package.json.tmp package.json
           fi
-
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          registry-url: "https://npm.pkg.github.com"
 
       - name: Publish to GitHub Package Registry
         run: npm publish --provenance
