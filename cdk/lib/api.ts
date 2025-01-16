@@ -28,6 +28,8 @@ interface APIConstructProps {
 }
 
 export default class APIConstruct extends Construct {
+  public readonly httpApi: apigwv2.HttpApi;
+
   constructor(scope: Construct, id: string, props: APIConstructProps) {
     super(scope, id);
 
@@ -161,6 +163,8 @@ export default class APIConstruct extends Construct {
         maxAge: cdk.Duration.days(1),
       },
     });
+
+    this.httpApi = httpApi;
 
     // configure routes
 

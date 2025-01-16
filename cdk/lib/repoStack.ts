@@ -6,7 +6,7 @@ import RepoConstruct from './util/repoConstruct';
 
 export default class RepoStack extends cdk.Stack {
   public readonly frontendAssetBucket: s3.IBucket;
-  githubRole: iam.IRole;
+  public readonly githubRole: iam.IRole;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
