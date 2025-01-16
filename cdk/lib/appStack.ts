@@ -15,16 +15,9 @@ import BatchEnvironmentConstruct from './batch/environment';
 import VideoIngestorConstruct from './batch/videoIngestorJob';
 import TaskMonitoringConstruct from './taskMonitoring';
 
-export interface AppStackProps {
-  frontendAssetBucket: s3.IBucket;
-  frontendVersion: string;
-}
-
 export default class GtCdkStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props: AppStackProps) {
-    const { frontendAssetBucket, frontendVersion, ...restProps } = props;
-
-    super(scope, id, restProps);
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
 
     const vpc = new ec2.Vpc(this, 'Vpc', {
       natGateways: 0,
@@ -103,14 +96,6 @@ export default class GtCdkStack extends cdk.Stack {
     new TaskMonitoringConstruct(this, 'TaskMonitoring', {
       tasksTable: dataStore.tasksTable,
       streamIngestionStepFunction: streamIngestion.stepFunction,
-    });
-
-    new cloudfront.Distribution(this, 'FrontendDistribution', {
-      defaultBehavior: {
-        origin: origins.S3BucketOrigin.withBucketDefaults(frontendAssetBucket, {
-          originPath: `/${frontendVersion}`,
-        }),
-      },
     });
   }
 }
