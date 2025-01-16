@@ -22,6 +22,7 @@ export default class FrontendStack extends cdk.Stack {
     });
 
     new cloudfront.Distribution(this, 'FrontendDistribution', {
+      defaultRootObject: 'index.html',
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(
           this.assetBucket,
