@@ -1,15 +1,20 @@
 import * as cdk from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
-import * as s3 from 'aws-cdk-lib/aws-s3';
+import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import RepoConstruct from './util/repoConstruct';
 
+interface RepoStackProps extends cdk.StackProps {
+  frontendAssetBucket: s3.IBucket;
+}
+
 export default class RepoStack extends cdk.Stack {
   public readonly frontendAssetBucket: s3.IBucket;
-  githubRole: iam.IRole;
+  public readonly githubRole: iam.IRole;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
-    super(scope, id, props);
+  constructor(scope: Construct, id: string, props: RepoStackProps) {
+    const { frontendAssetBucket, ...restProps } = props;
+    super(scope, id, restProps);
 
     new RepoConstruct(this, 'RepoConstruct', {
       namespace: 'glowing-telegram',
@@ -21,11 +26,6 @@ export default class RepoStack extends cdk.Stack {
         'video-ingestor',
         'twitch-lambda',
       ],
-    });
-
-    this.frontendAssetBucket = new s3.Bucket(this, 'FrontendAssetBucket', {
-      versioned: false,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     const audience = 'sts.amazonaws.com';
@@ -52,11 +52,11 @@ export default class RepoStack extends cdk.Stack {
           statements: [
             new iam.PolicyStatement({
               actions: ['s3:PutObject'],
-              resources: [this.frontendAssetBucket.arnForObjects('*')],
+              resources: [frontendAssetBucket.arnForObjects('*')],
             }),
             new iam.PolicyStatement({
               actions: ['s3:ListBucket'],
-              resources: [this.frontendAssetBucket.bucketArn],
+              resources: [frontendAssetBucket.bucketArn],
             }),
           ],
         }),
