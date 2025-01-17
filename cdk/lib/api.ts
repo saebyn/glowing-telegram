@@ -25,6 +25,8 @@ interface APIConstructProps {
   profilesTable: ITable;
   tasksTable: ITable;
   openaiSecret: secretsmanager.ISecret;
+
+  domainName: string;
 }
 
 export default class APIConstruct extends Construct {
@@ -150,7 +152,7 @@ export default class APIConstruct extends Construct {
       defaultAuthorizer: authorizer,
 
       corsPreflight: {
-        allowOrigins: ['http://localhost:5173'],
+        allowOrigins: ['http://localhost:5173', `https://${props.domainName}`],
         allowMethods: [apigwv2.CorsHttpMethod.ANY],
         allowHeaders: ['authorization', 'content-type', 'accept'],
         exposeHeaders: [

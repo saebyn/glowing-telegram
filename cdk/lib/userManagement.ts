@@ -3,12 +3,16 @@ import { Construct } from 'constructs';
 
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 
+interface UserpoolConstructProps {
+  domainName: string;
+}
+
 export default class UserpoolConstruct extends Construct {
   public readonly userPool: cognito.IUserPool;
   public readonly userPoolDomain: cognito.IUserPoolDomain;
   public readonly userPoolClient: cognito.IUserPoolClient;
 
-  constructor(scope: Construct, id: string) {
+  constructor(scope: Construct, id: string, props: UserpoolConstructProps) {
     super(scope, id);
 
     this.userPool = new cognito.UserPool(this, 'UserPool', {
@@ -61,12 +65,12 @@ export default class UserpoolConstruct extends Construct {
       generateSecret: false,
       oAuth: {
         callbackUrls: [
+          `https://${props.domainName}/auth-callback`,
+          `https://${props.domainName}/`,
           'http://localhost:5173/auth-callback',
-          'https://localhost:5173/auth-callback',
           'http://localhost:5173/',
-          'https://localhost:5173/',
         ],
-        logoutUrls: ['http://localhost:5173/', 'https://localhost:5173/'],
+        logoutUrls: [`https://${props.domainName}/`, 'http://localhost:5173/'],
         flows: {
           authorizationCodeGrant: true,
           implicitCodeGrant: false,
