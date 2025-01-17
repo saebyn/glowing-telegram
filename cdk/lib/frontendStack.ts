@@ -10,6 +10,7 @@ interface FrontendStackProps extends cdk.StackProps {
 
 export default class FrontendStack extends cdk.Stack {
   public readonly assetBucket: s3.IBucket;
+  public readonly domainName: string;
 
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     const { frontendVersion, ...restProps } = props;
@@ -21,16 +22,33 @@ export default class FrontendStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    new cloudfront.Distribution(this, 'FrontendDistribution', {
-      defaultRootObject: 'index.html',
-      defaultBehavior: {
-        origin: origins.S3BucketOrigin.withOriginAccessControl(
-          this.assetBucket,
-          {
-            originPath: `/${frontendVersion}`,
-          },
-        ),
+    const origin = origins.S3BucketOrigin.withOriginAccessControl(
+      this.assetBucket,
+      {
+        originPath: `/${frontendVersion}`,
       },
-    });
+    );
+
+    const distribution = new cloudfront.Distribution(
+      this,
+      'FrontendDistribution',
+      {
+        defaultRootObject: 'index.html',
+        defaultBehavior: {
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          origin,
+        },
+        errorResponses: [
+          {
+            httpStatus: 403,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+          },
+        ],
+      },
+    );
+
+    this.domainName = distribution.distributionDomainName;
   }
 }

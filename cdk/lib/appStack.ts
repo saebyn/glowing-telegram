@@ -15,9 +15,15 @@ import BatchEnvironmentConstruct from './batch/environment';
 import VideoIngestorConstruct from './batch/videoIngestorJob';
 import TaskMonitoringConstruct from './taskMonitoring';
 
-export default class GtCdkStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
-    super(scope, id, props);
+interface AppStackProps extends cdk.StackProps {
+  domainName: string;
+}
+
+export default class AppStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props: AppStackProps) {
+    const { domainName, ...restProps } = props;
+
+    super(scope, id, restProps);
 
     const vpc = new ec2.Vpc(this, 'Vpc', {
       natGateways: 0,
@@ -35,7 +41,9 @@ export default class GtCdkStack extends cdk.Stack {
       ],
     });
 
-    const userManagement = new UserManagementConstruct(this, 'UserManagement');
+    const userManagement = new UserManagementConstruct(this, 'UserManagement', {
+      domainName,
+    });
 
     const dataStore = new DatastoreConstruct(this, 'Datastore');
 
@@ -91,6 +99,8 @@ export default class GtCdkStack extends cdk.Stack {
       episodesTable: dataStore.episodesTable,
       profilesTable: dataStore.profilesTable,
       tasksTable: dataStore.tasksTable,
+
+      domainName,
     });
 
     new TaskMonitoringConstruct(this, 'TaskMonitoring', {

@@ -14,4 +14,6 @@ new RepoStack(app, 'RepoStack', {
   frontendAssetBucket: frontendStack.assetBucket,
 });
 
-new AppStack(app, 'AppStack', {});
+new AppStack(app, 'AppStack', {
+  domainName: frontendStack.domainName,
+});
