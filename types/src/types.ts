@@ -7,6 +7,127 @@ export interface AuthorizationURLResponse {
     url: string;
 }
 
+export interface CutList {
+    /**
+     * List of input media sources
+     */
+    inputMedia: InputMedia[];
+    /**
+     * Ordered media sections to form the output timeline sequence
+     */
+    outputTrack: OutputTrack[];
+    /**
+     * One or more overlay tracks
+     */
+    overlayTracks?: OverlayTrack[];
+    /**
+     * Schema version
+     */
+    version: "1.0.0";
+}
+
+export interface InputMedia {
+    /**
+     * Path of the media
+     */
+    s3Location: string;
+    /**
+     * Start/end frames to select
+     */
+    sections: Section[];
+}
+
+export interface Section {
+    /**
+     * End frame is exclusive
+     */
+    endFrame:   number;
+    startFrame: number;
+}
+
+export interface OutputTrack {
+    /**
+     * Index of the media source
+     */
+    mediaIndex: number;
+    /**
+     * Index of the section in the media source
+     */
+    sectionIndex: number;
+    /**
+     * Transition to apply at the start of the section
+     */
+    transitionIn?: TransitionInObject;
+    /**
+     * Transition to apply at the end of the section
+     */
+    transitionOut?: TransitionOutObject;
+}
+
+/**
+ * Transition to apply at the start of the section
+ *
+ * Transition to apply at the start or end of a media section
+ */
+export interface TransitionInObject {
+    /**
+     * Duration of the transition in frames, relative to the start/end of the section
+     */
+    duration: number;
+    /**
+     * Transition type
+     */
+    type: TransitionInType;
+    [property: string]: unknown;
+}
+
+/**
+ * Transition type
+ */
+export type TransitionInType = "fade" | "cut";
+
+/**
+ * Transition to apply at the end of the section
+ *
+ * Transition to apply at the start of the section
+ *
+ * Transition to apply at the start or end of a media section
+ */
+export interface TransitionOutObject {
+    /**
+     * Duration of the transition in frames, relative to the start/end of the section
+     */
+    duration: number;
+    /**
+     * Transition type
+     */
+    type: TransitionInType;
+    [property: string]: unknown;
+}
+
+export interface OverlayTrack {
+    /**
+     * Index of the media source
+     */
+    mediaIndex: number;
+    /**
+     * Index of the section in the media source
+     */
+    sectionIndex: number;
+    /**
+     * Start frame on the overlay track
+     */
+    startFrame: number;
+    /**
+     * X position of the overlay
+     */
+    x?: number;
+    /**
+     * Y position of the overlay
+     */
+    y?: number;
+}
+
 export interface Episode {
     description?: string;
     id:           string;
