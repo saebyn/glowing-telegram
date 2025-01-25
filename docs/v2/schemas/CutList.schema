@@ -10,7 +10,7 @@
       "type": "object",
       "properties": {
         "type": { "type": "string", "description": "Transition type", "enum": ["fade", "cut"] },
-        "duration": { "type": "number", "minimum": 0, "description": "Duration of the transition in frames, relative to the start/end of the section" }
+        "duration": { "type": "integer", "minimum": 0, "description": "Duration of the transition in frames, relative to the start/end of the section" }
       },
       "required": ["type","duration"]
     }
@@ -37,8 +37,8 @@
             "items": {
               "type": "object",
               "properties": {
-                "startFrame": { "type": "number", "minimum": 0 },
-                "endFrame": { "type": "number", "minimum": 1, "description": "End frame is exclusive" }
+                "startFrame": { "type": "integer", "minimum": 0 },
+                "endFrame": { "type": "integer", "minimum": 1, "description": "End frame is exclusive" }
               },
               "required": ["startFrame","endFrame"],
               "additionalProperties": false
@@ -80,9 +80,9 @@
       "items": {
         "type": "object",
         "properties": {
-          "startFrame": { "type": "number", "minimum": 0, "description": "Start frame on the overlay track" },
-          "mediaIndex": { "type": "number", "description": "Index of the media source", "minimum": 0 },
-          "sectionIndex": { "type": "number", "description": "Index of the section in the media source", "minimum": 0 },
+          "startFrame": { "type": "integer", "minimum": 0, "description": "Start frame on the overlay track" },
+          "mediaIndex": { "type": "integer", "description": "Index of the media source", "minimum": 0 },
+          "sectionIndex": { "type": "integer", "description": "Index of the section in the media source", "minimum": 0 },
           "x": { "type": "number", "description": "X position of the overlay" },
           "y": { "type": "number", "description": "Y position of the overlay" }
         },

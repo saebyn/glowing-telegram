@@ -56,9 +56,9 @@ pub struct InputMedia {
 #[serde(rename_all = "camelCase")]
 pub struct Section {
     /// End frame is exclusive
-    pub end_frame: f64,
+    pub end_frame: i64,
 
-    pub start_frame: f64,
+    pub start_frame: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -85,7 +85,7 @@ pub struct OutputTrack {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransitionInClass {
     /// Duration of the transition in frames, relative to the start/end of the section
-    pub duration: f64,
+    pub duration: i64,
 
     /// Transition type
     #[serde(rename = "type")]
@@ -109,7 +109,7 @@ pub enum TransitionInType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransitionOutClass {
     /// Duration of the transition in frames, relative to the start/end of the section
-    pub duration: f64,
+    pub duration: i64,
 
     /// Transition type
     #[serde(rename = "type")]
@@ -120,13 +120,13 @@ pub struct TransitionOutClass {
 #[serde(rename_all = "camelCase")]
 pub struct OverlayTrack {
     /// Index of the media source
-    pub media_index: f64,
+    pub media_index: i64,
 
     /// Index of the section in the media source
-    pub section_index: f64,
+    pub section_index: i64,
 
     /// Start frame on the overlay track
-    pub start_frame: f64,
+    pub start_frame: i64,
 
     /// X position of the overlay
     #[serde(skip_serializing_if = "Option::is_none")]
