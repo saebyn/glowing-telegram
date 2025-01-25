@@ -26,6 +26,124 @@ pub struct AuthorizationUrlResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CutList {
+    /// List of input media sources
+    pub input_media: Vec<InputMedia>,
+
+    /// Ordered media sections to form the output timeline sequence
+    pub output_track: Vec<OutputTrack>,
+
+    /// One or more overlay tracks
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overlay_tracks: Option<Vec<OverlayTrack>>,
+
+    /// Schema version
+    pub version: Version,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InputMedia {
+    /// Path of the media
+    pub s3_location: String,
+
+    /// Start/end frames to select
+    pub sections: Vec<Section>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Section {
+    /// End frame is exclusive
+    pub end_frame: i64,
+
+    pub start_frame: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputTrack {
+    /// Index of the media source
+    pub media_index: i64,
+
+    /// Index of the section in the media source
+    pub section_index: i64,
+
+    /// Transition to apply at the start of the section
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transition_in: Option<TransitionInClass>,
+
+    /// Transition to apply at the end of the section
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transition_out: Option<TransitionOutClass>,
+}
+
+/// Transition to apply at the start of the section
+///
+/// Transition to apply at the start or end of a media section
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TransitionInClass {
+    /// Duration of the transition in frames, relative to the start/end of the section
+    pub duration: i64,
+
+    /// Transition type
+    #[serde(rename = "type")]
+    pub transition_type: TransitionInType,
+}
+
+/// Transition type
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransitionInType {
+    Cut,
+
+    Fade,
+}
+
+/// Transition to apply at the end of the section
+///
+/// Transition to apply at the start of the section
+///
+/// Transition to apply at the start or end of a media section
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TransitionOutClass {
+    /// Duration of the transition in frames, relative to the start/end of the section
+    pub duration: i64,
+
+    /// Transition type
+    #[serde(rename = "type")]
+    pub transition_type: TransitionInType,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverlayTrack {
+    /// Index of the media source
+    pub media_index: i64,
+
+    /// Index of the section in the media source
+    pub section_index: i64,
+
+    /// Start frame on the overlay track
+    pub start_frame: i64,
+
+    /// X position of the overlay
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub x: Option<f64>,
+
+    /// Y position of the overlay
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub y: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Version {
+    #[serde(rename = "1.0.0")]
+    The100,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Episode {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -135,7 +253,7 @@ pub struct Recurrence {
     pub interval: i64,
 
     #[serde(rename = "type")]
-    pub recurrence_type: Type,
+    pub recurrence_type: RecurrenceType,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -158,7 +276,7 @@ pub enum Day {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Type {
+pub enum RecurrenceType {
     Weekly,
 }
 

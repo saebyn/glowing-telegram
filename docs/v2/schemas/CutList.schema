@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/CutList.schema.json",
+  "title": "CutList",
+  "type": "object",
+  "definitions": {
+    "transition": {
+      "title": "Transition",
+      "description": "Transition to apply at the start or end of a media section",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "description": "Transition type", "enum": ["fade", "cut"] },
+        "duration": { "type": "integer", "minimum": 0, "description": "Duration of the transition in frames, relative to the start/end of the section" }
+      },
+      "required": ["type","duration"]
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version",
+      "const": "1.0.0"
+    },
+    "inputMedia": {
+      "type": "array",
+      "description": "List of input media sources",
+      "items": {
+        "type": "object",
+        "properties": {
+          "s3Location": {
+            "type": "string",
+            "description": "Path of the media"
+          },
+          "sections": {
+            "type": "array",
+            "description": "Start/end frames to select",
+            "items": {
+              "type": "object",
+              "properties": {
+                "startFrame": { "type": "integer", "minimum": 0 },
+                "endFrame": { "type": "integer", "minimum": 1, "description": "End frame is exclusive" }
+              },
+              "required": ["startFrame","endFrame"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": ["s3Location","sections"],
+        "minItems": 1
+      }
+    },
+    "outputTrack": {
+      "type": "array",
+      "description": "Ordered media sections to form the output timeline sequence",
+      "items": {
+        "type": "object",
+        "properties": {
+          "mediaIndex": { "type": "integer", "description": "Index of the media source", "minimum": 0 },
+          "sectionIndex": { "type": "integer", "description": "Index of the section in the media source", "minimum": 0 },
+          "transitionIn": {
+            "type": "object",
+            "description": "Transition to apply at the start of the section",
+            "$ref": "#/definitions/transition"
+          },
+          "transitionOut": {
+            "type": "object",
+            "description": "Transition to apply at the end of the section",
+            "$ref": "#/definitions/transition"
+          }
+        },
+        "required": ["mediaIndex","sectionIndex"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "overlayTracks": {
+      "type": "array",
+      "description": "One or more overlay tracks",
+      "items": {
+        "type": "object",
+        "properties": {
+          "startFrame": { "type": "integer", "minimum": 0, "description": "Start frame on the overlay track" },
+          "mediaIndex": { "type": "integer", "description": "Index of the media source", "minimum": 0 },
+          "sectionIndex": { "type": "integer", "description": "Index of the section in the media source", "minimum": 0 },
+          "x": { "type": "number", "description": "X position of the overlay" },
+          "y": { "type": "number", "description": "Y position of the overlay" }
+        },
+        "required": ["startFrame","mediaIndex","sectionIndex"],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    }
+  },
+  "required": ["inputMedia","outputTrack","version"],
+  "additionalProperties": false
+}
