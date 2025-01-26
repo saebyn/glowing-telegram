@@ -117,19 +117,19 @@ async fn main() {
     let silence_result = silence_result.expect("failed to extract silence");
     let transcode_result = transcode_result.expect("failed to transcode");
 
-    // Insert the metadata into the DynamoDB table
-    save_results_to_dynamodb(
-        &aws_config,
-        &config.dynamodb_table,
+    let results = IngestionResults {
         input_key,
-        metadata_result,
-        audio_result,
-        keyframes_result,
-        silence_result,
-        transcode_result,
-    )
-    .await
-    .expect("failed to insert metadata into DynamoDB");
+        metadata: metadata_result,
+        audio: audio_result,
+        keyframes: keyframes_result,
+        silence: silence_result,
+        transcode: transcode_result,
+    };
+
+    // Insert the metadata into the DynamoDB table
+    save_results_to_dynamodb(&aws_config, &config.dynamodb_table, results)
+        .await
+        .expect("failed to insert metadata into DynamoDB");
 }
 
 fn format_object(value: &serde_json::Value) -> AttributeValue {
@@ -245,28 +245,24 @@ async fn download_s3_object_to_tempfile(
 async fn save_results_to_dynamodb(
     aws_config: &SdkConfig,
     table_name: &str,
-    input_key: String,
-    metadata_result: FFProbeOutput,
-    audio_result: String,
-    keyframes_result: Vec<String>,
-    silence_result: Vec<Segment>,
-    transcode_result: Vec<HLSEntry>,
+    results: IngestionResults,
 ) -> Result<(), aws_sdk_dynamodb::Error> {
     let dynamodb_client = aws_sdk_dynamodb::Client::new(aws_config);
 
     dynamodb_client
         .update_item()
         .table_name(table_name)
-        .key("key", AttributeValue::S(input_key.clone()))
+        .key("key", AttributeValue::S(results.input_key.clone()))
         .update_expression(
             "SET metadata = :metadata, audio = :audio, keyframes = :keyframes, silence = :silence, transcode = :transcode",
         )
-        .expression_attribute_values(":metadata", format_metadata(&metadata_result))
-        .expression_attribute_values(":audio", AttributeValue::S(audio_result.to_string()))
+        .expression_attribute_values(":metadata", format_metadata(&results.metadata))
+        .expression_attribute_values(":audio", AttributeValue::S(results.audio.to_string()))
         .expression_attribute_values(
             ":keyframes",
             AttributeValue::Ss(
-                keyframes_result
+                results
+                    .keyframes
                     .into_iter()
                     .map(|s| s.parse().unwrap())
                     .collect(),
@@ -275,7 +271,8 @@ async fn save_results_to_dynamodb(
         .expression_attribute_values(
             ":silence",
             AttributeValue::L(
-                silence_result
+                results
+                    .silence
                     .into_iter()
                     .map(|segment| {
                         AttributeValue::M(
@@ -303,7 +300,8 @@ async fn save_results_to_dynamodb(
         .expression_attribute_values(
             ":transcode",
             AttributeValue::L(
-                transcode_result
+                results
+                    .transcode
                     .into_iter()
                     .map(|entry| {
                         AttributeValue::M(
@@ -330,6 +328,16 @@ async fn save_results_to_dynamodb(
         .await?;
 
     Ok(())
+}
+
+#[derive(Debug)]
+struct IngestionResults {
+    input_key: String,
+    metadata: FFProbeOutput,
+    audio: String,
+    keyframes: Vec<String>,
+    silence: Vec<Segment>,
+    transcode: Vec<HLSEntry>,
 }
 
 fn do_audio_extraction_task(
