@@ -1,16 +1,17 @@
 use aws_config::{
-    meta::region::RegionProviderChain, BehaviorVersion, SdkConfig,
+    BehaviorVersion, SdkConfig, meta::region::RegionProviderChain,
 };
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_s3::{
     operation::get_object::GetObjectOutput, primitives::ByteStream,
 };
-use figment::{providers::Env, Figment};
+use figment::{Figment, providers::Env};
 use gt_ffmpeg::{
     audio_extraction,
     ffprobe::{self, FFProbeOutput},
     keyframes_extraction,
     silence_detection::Segment,
+    transcode::HLSEntry,
 };
 use serde::Deserialize;
 use std::{collections::HashMap, env};
@@ -23,6 +24,7 @@ struct Config {
     output_bucket: String,
     keyframes_prefix: String,
     audio_prefix: String,
+    transcode_prefix: String,
 
     dynamodb_table: String,
 
@@ -70,7 +72,13 @@ async fn main() {
 
     // In parallel, do audio extraction to a temp file, extract keyframes, use ffprobe to get metadata
     // Await the tasks to ensure they complete
-    let (audio_result, keyframes_result, metadata_result, silence_result) = tokio::join!(
+    let (
+        audio_result,
+        keyframes_result,
+        metadata_result,
+        silence_result,
+        transcode_result,
+    ) = tokio::join!(
         do_audio_extraction_task(
             &aws_config,
             config.speech_track_number,
@@ -92,6 +100,13 @@ async fn main() {
             config.speech_track_number,
             config.noise_tolerance,
             config.silence_duration
+        ),
+        do_transcode_task(
+            &aws_config,
+            config.transcode_prefix.clone(),
+            input_video_file_path.clone(),
+            config.output_bucket.clone(),
+            input_key.clone()
         )
     );
 
@@ -100,19 +115,21 @@ async fn main() {
         keyframes_result.expect("failed to extract keyframes");
     let metadata_result = metadata_result.expect("failed to get metadata");
     let silence_result = silence_result.expect("failed to extract silence");
+    let transcode_result = transcode_result.expect("failed to transcode");
+
+    let results = IngestionResults {
+        input_key,
+        metadata: metadata_result,
+        audio: audio_result,
+        keyframes: keyframes_result,
+        silence: silence_result,
+        transcode: transcode_result,
+    };
 
     // Insert the metadata into the DynamoDB table
-    save_results_to_dynamodb(
-        &aws_config,
-        &config.dynamodb_table,
-        input_key,
-        metadata_result,
-        audio_result,
-        keyframes_result,
-        silence_result,
-    )
-    .await
-    .expect("failed to insert metadata into DynamoDB");
+    save_results_to_dynamodb(&aws_config, &config.dynamodb_table, results)
+        .await
+        .expect("failed to insert metadata into DynamoDB");
 }
 
 fn format_object(value: &serde_json::Value) -> AttributeValue {
@@ -228,27 +245,24 @@ async fn download_s3_object_to_tempfile(
 async fn save_results_to_dynamodb(
     aws_config: &SdkConfig,
     table_name: &str,
-    input_key: String,
-    metadata_result: FFProbeOutput,
-    audio_result: String,
-    keyframes_result: Vec<String>,
-    silence_result: Vec<Segment>,
+    results: IngestionResults,
 ) -> Result<(), aws_sdk_dynamodb::Error> {
     let dynamodb_client = aws_sdk_dynamodb::Client::new(aws_config);
 
     dynamodb_client
         .update_item()
         .table_name(table_name)
-        .key("key", AttributeValue::S(input_key.clone()))
+        .key("key", AttributeValue::S(results.input_key.clone()))
         .update_expression(
-            "SET metadata = :metadata, audio = :audio, keyframes = :keyframes, silence = :silence",
+            "SET metadata = :metadata, audio = :audio, keyframes = :keyframes, silence = :silence, transcode = :transcode",
         )
-        .expression_attribute_values(":metadata", format_metadata(&metadata_result))
-        .expression_attribute_values(":audio", AttributeValue::S(audio_result.to_string()))
+        .expression_attribute_values(":metadata", format_metadata(&results.metadata))
+        .expression_attribute_values(":audio", AttributeValue::S(results.audio.to_string()))
         .expression_attribute_values(
             ":keyframes",
             AttributeValue::Ss(
-                keyframes_result
+                results
+                    .keyframes
                     .into_iter()
                     .map(|s| s.parse().unwrap())
                     .collect(),
@@ -257,7 +271,8 @@ async fn save_results_to_dynamodb(
         .expression_attribute_values(
             ":silence",
             AttributeValue::L(
-                silence_result
+                results
+                    .silence
                     .into_iter()
                     .map(|segment| {
                         AttributeValue::M(
@@ -282,10 +297,47 @@ async fn save_results_to_dynamodb(
                     .collect(),
             ),
         )
+        .expression_attribute_values(
+            ":transcode",
+            AttributeValue::L(
+                results
+                    .transcode
+                    .into_iter()
+                    .map(|entry| {
+                        AttributeValue::M(
+                            vec![
+                                (
+                                    "path".to_string(),
+                                    AttributeValue::S(entry.path),
+                                ),
+                                (
+                                    "duration".to_string(),
+                                    AttributeValue::N(
+                                        entry.duration.to_string(),
+                                    ),
+                                ),
+                            ]
+                            .into_iter()
+                            .collect(),
+                        )
+                    })
+                    .collect(),
+            ),
+        )
         .send()
         .await?;
 
     Ok(())
+}
+
+#[derive(Debug)]
+struct IngestionResults {
+    input_key: String,
+    metadata: FFProbeOutput,
+    audio: String,
+    keyframes: Vec<String>,
+    silence: Vec<Segment>,
+    transcode: Vec<HLSEntry>,
 }
 
 fn do_audio_extraction_task(
@@ -422,5 +474,72 @@ fn do_silence_detection_task(
         }
 
         segments
+    })
+}
+
+fn do_transcode_task(
+    aws_config: &SdkConfig,
+    transcode_prefix: String,
+    input_video_file_path: String,
+    output_bucket: String,
+    input_key: String,
+) -> tokio::task::JoinHandle<Vec<gt_ffmpeg::transcode::HLSEntry>> {
+    let s3_client = aws_sdk_s3::Client::new(aws_config);
+
+    tokio::spawn(async move {
+        // Create a temporary directory to store the transcode segments.
+        let transcode_temp_dir =
+            tempfile::tempdir().expect("failed to create temp dir");
+
+        // Transcode the video file into HLS .ts segments
+        let transcode_files = gt_ffmpeg::transcode::hls(
+            transcode_temp_dir.path().to_str().unwrap(),
+            &input_video_file_path,
+        )
+        .await
+        .expect("failed to transcode");
+
+        let mut transcode_keys = Vec::new();
+
+        // Upload the transcoded files to an S3 bucket
+        for transcode_file in transcode_files {
+            let transcode_path = std::path::Path::new(&transcode_file.path);
+            let transcode_basename = transcode_path
+                .file_name()
+                .expect("failed to get transcode filename")
+                .to_str()
+                .expect("failed to convert transcode filename to string")
+                .to_string();
+
+            let transcode_key =
+                format!("{transcode_prefix}/{input_key}/{transcode_basename}");
+
+            tracing::info!(
+                "Uploading transcode: {} to {}",
+                transcode_file.path,
+                transcode_key
+            );
+
+            s3_client
+                .put_object()
+                .bucket(&output_bucket)
+                .key(&transcode_key)
+                .body(
+                    ByteStream::from_path(transcode_file.path).await.unwrap(),
+                )
+                .metadata("duration", transcode_file.duration.to_string())
+                .metadata("Content-Type", "video/MP2T")
+                .send()
+                .await
+                .expect("failed to upload transcode");
+
+            transcode_keys.push(HLSEntry {
+                path: transcode_key.clone(),
+                duration: transcode_file.duration,
+            });
+        }
+
+        // Return the S3 keys of the transcoded files
+        transcode_keys
     })
 }

@@ -3,3 +3,4 @@ pub mod ffprobe;
 pub mod keyframes_extraction;
 pub mod serde;
 pub mod silence_detection;
+pub mod transcode;

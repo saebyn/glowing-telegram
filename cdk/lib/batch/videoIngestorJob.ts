@@ -61,8 +61,8 @@ export default class VideoIngestorConstruct extends Construct {
       this,
       'JobContainerDefinition',
       {
-        cpu: 0.5,
-        memory: cdk.Size.mebibytes(1024),
+        cpu: 4,
+        memory: cdk.Size.gibibytes(8),
         assignPublicIp: true,
         jobRole,
         executionRole,
@@ -72,6 +72,7 @@ export default class VideoIngestorConstruct extends Construct {
           INPUT_BUCKET: props.videoArchiveBucket.bucketName,
           OUTPUT_BUCKET: props.outputBucket.bucketName,
           KEYFRAMES_PREFIX: 'keyframes',
+          TRANSCODE_PREFIX: 'transcode',
           AUDIO_PREFIX: 'audio',
           DYNAMODB_TABLE: props.videoMetadataTable.tableName,
           SPEECH_TRACK_NUMBER: '2',
