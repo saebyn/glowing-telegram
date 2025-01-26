@@ -11,6 +11,7 @@ use gt_ffmpeg::{
     ffprobe::{self, FFProbeOutput},
     keyframes_extraction,
     silence_detection::Segment,
+    transcode::HLSEntry,
 };
 use serde::Deserialize;
 use std::{collections::HashMap, env};
@@ -249,7 +250,7 @@ async fn save_results_to_dynamodb(
     audio_result: String,
     keyframes_result: Vec<String>,
     silence_result: Vec<Segment>,
-    transcode_result: Vec<String>,
+    transcode_result: Vec<HLSEntry>,
 ) -> Result<(), aws_sdk_dynamodb::Error> {
     let dynamodb_client = aws_sdk_dynamodb::Client::new(aws_config);
 
@@ -304,7 +305,24 @@ async fn save_results_to_dynamodb(
             AttributeValue::L(
                 transcode_result
                     .into_iter()
-                    .map(AttributeValue::S)
+                    .map(|entry| {
+                        AttributeValue::M(
+                            vec![
+                                (
+                                    "path".to_string(),
+                                    AttributeValue::S(entry.path),
+                                ),
+                                (
+                                    "duration".to_string(),
+                                    AttributeValue::N(
+                                        entry.duration.to_string(),
+                                    ),
+                                ),
+                            ]
+                            .into_iter()
+                            .collect(),
+                        )
+                    })
                     .collect(),
             ),
         )
@@ -457,7 +475,7 @@ fn do_transcode_task(
     input_video_file_path: String,
     output_bucket: String,
     input_key: String,
-) -> tokio::task::JoinHandle<Vec<String>> {
+) -> tokio::task::JoinHandle<Vec<gt_ffmpeg::transcode::HLSEntry>> {
     let s3_client = aws_sdk_s3::Client::new(aws_config);
 
     tokio::spawn(async move {
@@ -507,7 +525,10 @@ fn do_transcode_task(
                 .await
                 .expect("failed to upload transcode");
 
-            transcode_keys.push(transcode_key.clone());
+            transcode_keys.push(HLSEntry {
+                path: transcode_key.clone(),
+                duration: transcode_file.duration,
+            });
         }
 
         // Return the S3 keys of the transcoded files
