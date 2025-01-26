@@ -13,7 +13,8 @@
         "summarize_transcription",
         "audio_transcriber",
         "video_ingestor",
-        "twitch_lambda"
+        "twitch_lambda",
+        "media_lambda",
       ]
     },
     {

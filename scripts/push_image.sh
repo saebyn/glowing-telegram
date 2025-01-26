@@ -49,6 +49,10 @@ case $SERVICE in
     FUNCTION_NAME="AppStack-APITwitchLambda2D310BDC-j4oOL948PVWw"
     ECR_REPOSITORY="glowing-telegram/twitch-lambda"
     ;;
+  media_lambda)
+    FUNCTION_NAME="AppStack-APIMediaLambda49B8BF42-OpGZoEY6PnmG"
+    ECR_REPOSITORY="glowing-telegram/media-lambda"
+    ;;
   *)
     echo "The SERVICE is not supported"
     exit 1
