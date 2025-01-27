@@ -30,7 +30,7 @@ uuid = { workspace = true }
 types = { workspace = true }
 reqwest = { workspace = true }
 redact = { workspace = true }
-oauth2 = { version = "4", features = ["reqwest", "rustls-tls"] }
+oauth2 = { version = "5", features = ["reqwest", "rustls-tls"] }
 
 [lints]
 workspace = true
