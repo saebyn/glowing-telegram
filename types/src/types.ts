@@ -34,10 +34,10 @@ export interface InputMedia {
     /**
      * Start/end frames to select
      */
-    sections: Section[];
+    sections: MediaSection[];
 }
 
-export interface Section {
+export interface MediaSection {
     /**
      * End frame is exclusive
      */

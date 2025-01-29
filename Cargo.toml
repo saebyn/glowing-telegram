@@ -9,6 +9,7 @@ members = [
   "ai_chat_lambda",
   "types",
   "twitch_lambda",
+  "render_job",
 ]
 
 [workspace.package]

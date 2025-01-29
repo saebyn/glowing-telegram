@@ -39,7 +39,7 @@ pub struct CutList {
     pub overlay_tracks: Option<Vec<OverlayTrack>>,
 
     /// Schema version
-    pub version: Version,
+    pub version: CutListVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -49,12 +49,12 @@ pub struct InputMedia {
     pub s3_location: String,
 
     /// Start/end frames to select
-    pub sections: Vec<Section>,
+    pub sections: Vec<MediaSection>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Section {
+pub struct MediaSection {
     /// End frame is exclusive
     pub end_frame: i64,
 
@@ -138,7 +138,7 @@ pub struct OverlayTrack {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Version {
+pub enum CutListVersion {
     #[serde(rename = "1.0.0")]
     The100,
 }
