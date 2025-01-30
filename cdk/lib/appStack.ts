@@ -1,10 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
-import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 
 import APIConstruct from './api';
 import UserManagementConstruct from './userManagement';
@@ -14,6 +11,7 @@ import StreamIngestion from './streamIngestion';
 import BatchEnvironmentConstruct from './batch/environment';
 import VideoIngestorConstruct from './batch/videoIngestorJob';
 import TaskMonitoringConstruct from './taskMonitoring';
+import MediaServeConstruct from './mediaServeConstruct';
 
 interface AppStackProps extends cdk.StackProps {
   domainName: string;
@@ -106,6 +104,12 @@ export default class AppStack extends cdk.Stack {
     new TaskMonitoringConstruct(this, 'TaskMonitoring', {
       tasksTable: dataStore.tasksTable,
       streamIngestionStepFunction: streamIngestion.stepFunction,
+    });
+
+    new MediaServeConstruct(this, 'MediaServe', {
+      mediaOutputBucket: dataStore.outputBucket,
+      videoMetadataTable: dataStore.videoMetadataTable,
+      domainName,
     });
   }
 }

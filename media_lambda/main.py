@@ -1,6 +1,6 @@
 import boto3
-from boto3.dynamodb.conditions import Attr
 import os
+import re
 
 VIDEO_METADATA_TABLE = os.environ["VIDEO_METADATA_TABLE"]
 STREAM_ID_INDEX = os.environ["STREAM_ID_INDEX"]
@@ -16,9 +16,16 @@ M3U8_SEGMENT = """#EXTINF:{duration}\n{path}"""
 M3U8_FOOTER = """#EXT-X-ENDLIST\n"""
 
 
-def handler(event, _context):
-    path_parameters = event["pathParameters"]
-    stream_id = path_parameters["streamId"]
+def handler(event, context):
+    """ """
+    path = event["rawPath"]
+    stream_id = re.match(r"/playlist/([^/]+).m3u8", path).group(1)
+
+    if not stream_id:
+        return {
+            "statusCode": 400,
+            "body": "Invalid stream ID",
+        }
 
     # Use the DynamoDB client to get the video metadata
     dynamodb = boto3.client("dynamodb")
@@ -71,7 +78,9 @@ def handler(event, _context):
         [
             M3U8_HEADER,
             *[
-                M3U8_SEGMENT.format(path=segment["path"], duration=segment["duration"])
+                M3U8_SEGMENT.format(
+                    path=rewrite_path(segment["path"]), duration=segment["duration"]
+                )
                 for segment in transcoded_video_segments
             ],
             M3U8_FOOTER,
@@ -80,6 +89,12 @@ def handler(event, _context):
 
     return {
         "statusCode": 200,
-        "headers": {"Content-Type": "audio/mpegurl"},
+        "headers": {
+            "Content-Type": "audio/mpegurl",
+        },
         "body": m3u8_playlist_text,
     }
+
+
+def rewrite_path(path):
+    return path.replace("transcode/", "/")

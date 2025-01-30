@@ -50,7 +50,7 @@ case $SERVICE in
     ECR_REPOSITORY="glowing-telegram/twitch-lambda"
     ;;
   media_lambda)
-    FUNCTION_NAME="AppStack-APIMediaLambda49B8BF42-OpGZoEY6PnmG"
+    FUNCTION_NAME="AppStack-MediaServePlaylistMediaLambda657BA445-dkfapvOB8vdT"
     ECR_REPOSITORY="glowing-telegram/media-lambda"
     ;;
   *)
