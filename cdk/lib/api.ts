@@ -139,21 +139,6 @@ export default class APIConstruct extends Construct {
 
     props.openaiSecret.grantRead(aiChatService.lambda);
 
-    // let's set up the media_lambda
-    const mediaLambda = new ServiceLambdaConstruct(this, 'MediaLambda', {
-      lambdaOptions: {
-        description: 'Media Lambda for Glowing-Telegram',
-        timeout: cdk.Duration.seconds(10),
-        environment: {
-          VIDEO_METADATA_TABLE: props.videoMetadataTable.tableName,
-          STREAM_ID_INDEX: 'stream_id-index',
-        },
-      },
-      name: 'media-lambda',
-    });
-
-    props.videoMetadataTable.grantReadData(mediaLambda.lambda);
-
     // configure authorizer
     const authorizer = new HttpUserPoolAuthorizer(
       'Authorizer',
@@ -239,16 +224,6 @@ export default class APIConstruct extends Construct {
       ),
       path: '/ai/chat',
       methods: [apigwv2.HttpMethod.POST],
-    });
-
-    // GET /media/{streamId}/playlist - get HLS playlist
-    httpApi.addRoutes({
-      integration: new HttpLambdaIntegration(
-        'MediaIntegration',
-        mediaLambda.lambda,
-      ),
-      path: '/media/{streamId}/playlist',
-      methods: [apigwv2.HttpMethod.GET],
     });
   }
 }
