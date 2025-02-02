@@ -84,7 +84,7 @@ export default class VideoIngestorConstruct extends Construct {
 
     this.jobDefinition = new batch.EcsJobDefinition(this, 'JobDefinition', {
       container: containerDefinition,
-      timeout: cdk.Duration.minutes(15),
+      timeout: cdk.Duration.minutes(45),
       parameters: {
         key: '<key>',
       },
