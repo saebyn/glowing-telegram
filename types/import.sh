@@ -2,7 +2,7 @@
 cd "$(dirname "$0")"
 
 # Generate types from schemas for Rust
-./node_modules/.bin/quicktype -s schema --lang rs --visibility public --derive-debug --derive-clone --derive-partial-eq --skip-serializing-none -o src/lib.rs --src ../docs/v2/schemas/
+./node_modules/.bin/quicktype -s schema --lang rs --visibility public --derive-debug --derive-clone --derive-partial-eq --skip-serializing-none -o src/types.rs --src ../docs/v2/schemas/
 
 # Generate types from schemas for TypeScript
 ./node_modules/.bin/quicktype -s schema --lang ts --prefer-unions --prefer-const-values --just-types --no-date-times -o src/types.ts --src ../docs/v2/schemas/
