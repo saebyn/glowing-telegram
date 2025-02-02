@@ -4,7 +4,12 @@
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO
     // 1. get the record id from the command line for the project
-    let record_id = "1";
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: {} <record_id>", args[0]);
+        std::process::exit(1);
+    }
+    let record_id = &args[1];
     // 2. transform the cut job record into the type `CutList`
     let cut_list = get_cut_list(record_id).await?;
     // 3. download the input files from the input into a temporary directory
