@@ -14,7 +14,7 @@ categories = ["web-programming"]
 aws-config = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }
-serde_dynamo = "4.2.14"
+serde_dynamo = { workspace = true }
 openai_dive = { workspace = true }
 lambda_runtime = { workspace = true }
 serde = { workspace = true }

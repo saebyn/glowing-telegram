@@ -34,10 +34,10 @@ export interface InputMedia {
     /**
      * Start/end frames to select
      */
-    sections: Section[];
+    sections: MediaSection[];
 }
 
-export interface Section {
+export interface MediaSection {
     /**
      * End frame is exclusive
      */
@@ -129,11 +129,31 @@ export interface OverlayTrack {
 }
 
 export interface Episode {
+    cut_list?:    CutListClass;
     description?: string;
     id:           string;
     stream_id?:   string;
     title?:       string;
     tracks?:      Track[];
+}
+
+export interface CutListClass {
+    /**
+     * List of input media sources
+     */
+    inputMedia: InputMedia[];
+    /**
+     * Ordered media sections to form the output timeline sequence
+     */
+    outputTrack: OutputTrack[];
+    /**
+     * One or more overlay tracks
+     */
+    overlayTracks?: OverlayTrack[];
+    /**
+     * Schema version
+     */
+    version: "1.0.0";
 }
 
 export interface Track {

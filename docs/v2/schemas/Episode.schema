@@ -24,7 +24,11 @@
 				"additionalProperties": false
 			}
 		},
-		"stream_id": { "type": "string" }
+		"stream_id": { "type": "string" },
+		"cut_list": {
+			"type": "object",
+			"$ref": "./CutList.schema"
+		}
 	},
 	"required": ["id"],
 	"additionalProperties": false,

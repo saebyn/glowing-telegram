@@ -29,6 +29,7 @@ export default class DatastoreConstruct extends Construct {
         },
         {
           id: 'glacier archive',
+          tagFilters: { archive: 'true' },
           transitions: [
             {
               storageClass: s3.StorageClass.INFREQUENT_ACCESS,

@@ -9,6 +9,7 @@ members = [
   "ai_chat_lambda",
   "types",
   "twitch_lambda",
+  "render_job",
 ]
 
 [workspace.package]
@@ -25,6 +26,7 @@ aws-config = "1.5.5"
 aws-sdk-secretsmanager = { version = "1.53.0" }
 aws-sdk-s3 = { version = "1.49.0" }
 aws-sdk-dynamodb = { version = "1.53.0" }
+serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
 aws_lambda_events = "0.16"
 axum-aws-lambda = "0.9.0"
 lambda_runtime = "0.13"

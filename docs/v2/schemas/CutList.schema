@@ -17,6 +17,7 @@
   },
   "properties": {
     "version": {
+      "title": "CutListVersion",
       "type": "string",
       "description": "Schema version",
       "const": "1.0.0"
@@ -35,6 +36,7 @@
             "type": "array",
             "description": "Start/end frames to select",
             "items": {
+              "title": "MediaSection",
               "type": "object",
               "properties": {
                 "startFrame": { "type": "integer", "minimum": 0 },
