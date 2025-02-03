@@ -17,6 +17,6 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 tempfile = "3"
 chrono = { workspace = true }
-iso8601 = { version = "0.6.1", features = ["serde", "chrono"] }
+iso8601 = { version = "0.6.2", features = ["serde", "chrono"] }
 regex = "1.10.6"
 types = { workspace = true }
