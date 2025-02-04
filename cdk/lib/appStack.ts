@@ -2,6 +2,8 @@ import * as cdk from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 
 import APIConstruct from './api';
 import UserManagementConstruct from './userManagement';
@@ -111,5 +113,10 @@ export default class AppStack extends cdk.Stack {
       videoMetadataTable: dataStore.videoMetadataTable,
       domainName,
     });
+
+    // TODO create a lambda and an event rule to run it every hour
+    // TODO change the twitch_lambda crate to create a separate binary
+    // for the lambda, then package it as a separate docker image
+    // TODO add a new repo for this lambda
   }
 }
