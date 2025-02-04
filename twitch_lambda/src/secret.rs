@@ -63,14 +63,19 @@ pub async fn set_tokens(
     secret_id: &str,
     access_token: &str,
     refresh_token: &str,
-    valid_until: f64,
+    valid_for_duration: Option<std::time::Duration>,
 ) -> Result<(), String> {
     let secret = get(secrets_manager, secret_id).await?;
 
     let secret = TwitchSessionSecret {
         access_token: Some(access_token.to_string()),
         refresh_token: Some(refresh_token.to_string()),
-        valid_until: Some(valid_until),
+        valid_until: valid_for_duration.map(|d| {
+            let now = std::time::SystemTime::now();
+            (now + d)
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0.0, |d| d.as_secs_f64())
+        }),
         ..secret
     };
 
