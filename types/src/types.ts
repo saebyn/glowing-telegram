@@ -261,6 +261,15 @@ export interface TwitchCallbackResponse {
     url: string;
 }
 
+export interface TwitchSessionSecret {
+    access_token?:  string;
+    csrf_token:     string;
+    redirect_url:   string;
+    refresh_token?: string;
+    scopes:         string[];
+    valid_until?:   number;
+}
+
 export interface VideoClip {
     /**
      * The path to the audio file extracted from the video clip.

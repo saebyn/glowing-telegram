@@ -412,6 +412,24 @@ pub struct TwitchCallbackResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TwitchSessionSecret {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+
+    pub csrf_token: String,
+
+    pub redirect_url: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+
+    pub scopes: Vec<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valid_until: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VideoClip {
     /// The path to the audio file extracted from the video clip.
     #[serde(skip_serializing_if = "Option::is_none")]
