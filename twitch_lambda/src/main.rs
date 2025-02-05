@@ -8,13 +8,15 @@ use axum::{
 };
 use lambda_http::tower;
 
-use serde_json::json;
+use lambda_runtime::{LambdaEvent, service_fn};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use structs::AppState;
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 
 use crate::structs::TwitchCredentials;
 
+mod global_refresh;
 mod handlers;
 mod secret;
 mod structs;
@@ -75,7 +77,11 @@ async fn main() {
         config,
     };
 
-    initialize_api(state).await;
+    if state.config.is_global_refresh_service {
+        do_user_token_check(state).await;
+    } else {
+        initialize_api(state).await;
+    }
 }
 
 async fn initialize_api(state: AppState) {
@@ -106,10 +112,6 @@ async fn initialize_api(state: AppState) {
             "/auth/twitch/token",
             get(handlers::obtain_twitch_access_token_handler),
         )
-        .route(
-            "/internal/refresh_user_tokens",
-            post(handlers::refresh_user_tokens_handler),
-        )
         .fallback(|| async {
             (
                 StatusCode::NOT_FOUND,
@@ -129,4 +131,16 @@ async fn initialize_api(state: AppState) {
         .service(app);
 
     lambda_http::run(app).await.unwrap();
+}
+
+async fn do_user_token_check(state: AppState) {
+    lambda_runtime::run(service_fn(|_event: LambdaEvent<Value>| async {
+        global_refresh::refresh_user_tokens(state.clone())
+            .await
+            .unwrap();
+
+        Ok::<serde_json::Value, lambda_runtime::Error>(json!({}))
+    }))
+    .await
+    .unwrap();
 }

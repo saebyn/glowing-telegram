@@ -21,6 +21,8 @@ impl UserSecretPathProvider {
 pub struct Config {
     pub twitch_secret_arn: String,
 
+    pub is_global_refresh_service: bool,
+
     pub user_secret_path: UserSecretPathProvider,
 }
 
