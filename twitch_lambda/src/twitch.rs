@@ -1,13 +1,6 @@
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct Credentials {
-    pub id: String,
-    pub secret: redact::Secret<String>,
-    pub redirect_url: String,
-}
-
 // implement the TokenResponse trait for a custom struct that matches Twitch's response.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct TokenResponse<TT> {
@@ -59,7 +52,7 @@ type Client = oauth2::Client<
 >;
 
 pub fn get_oauth_client(
-    config: &Credentials,
+    config: &crate::structs::TwitchCredentials,
 ) -> Result<Client, oauth2::url::ParseError> {
     let client = oauth2::Client::new(
         ClientId::new(config.id.to_string()),

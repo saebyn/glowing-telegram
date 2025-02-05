@@ -8,7 +8,8 @@ import {
   HttpLambdaIntegration,
 } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import type { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
-import type * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
@@ -48,6 +49,7 @@ export default class APIConstruct extends Construct {
         environment: {
           USER_SECRET_PATH: 'gt/twitch/user',
           TWITCH_SECRET_ARN: twitchAppSecret.secretArn,
+          IS_GLOBAL_REFRESH_SERVICE: 'false',
         },
       },
       name: 'twitch-lambda',
@@ -75,6 +77,58 @@ export default class APIConstruct extends Construct {
         ],
       }),
     );
+
+    // create a lambda and an event rule to run it every hour to refresh the twitch tokens for all users
+    const tokenRefreshLambda = new ServiceLambdaConstruct(
+      this,
+      'TokenRefreshLambda',
+      {
+        name: 'twitch-lambda',
+        lambdaOptions: {
+          description: 'Twitch Token Refresh Lambda for Glowing-Telegram',
+          timeout: cdk.Duration.minutes(5),
+          environment: {
+            USER_SECRET_PATH: 'gt/twitch/user',
+            TWITCH_SECRET_ARN: twitchAppSecret.secretArn,
+            IS_GLOBAL_REFRESH_SERVICE: 'true',
+          },
+        },
+      },
+    );
+
+    // grant the lambda permissions to read the secret
+    twitchAppSecret.grantRead(tokenRefreshLambda.lambda);
+    tokenRefreshLambda.lambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'secretsmanager:GetSecretValue',
+          'secretsmanager:PutSecretValue',
+        ],
+        resources: [
+          cdk.Arn.format(
+            {
+              service: 'secretsmanager',
+              resource: 'secret',
+              resourceName: 'gt/twitch/user/*',
+              arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
+            },
+            cdk.Stack.of(this),
+          ),
+        ],
+      }),
+    );
+    tokenRefreshLambda.lambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['secretsmanager:ListSecrets'],
+        resources: ['*'],
+      }),
+    );
+
+    // configure the event rule to run every hour
+    new events.Rule(this, 'TokenRefreshRule', {
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      enabled: true,
+    }).addTarget(new eventTargets.LambdaFunction(tokenRefreshLambda.lambda));
 
     // configure crud lambda
     const crudService = new ServiceLambdaConstruct(this, 'CrudLambda', {
