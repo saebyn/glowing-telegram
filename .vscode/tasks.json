@@ -15,6 +15,7 @@
         "video_ingestor",
         "twitch_lambda",
         "media_lambda",
+        "render_job"
       ]
     },
     {

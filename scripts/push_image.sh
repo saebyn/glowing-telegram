@@ -53,6 +53,10 @@ case $SERVICE in
     FUNCTION_NAME="AppStack-MediaServePlaylistMediaLambda657BA445-dkfapvOB8vdT"
     ECR_REPOSITORY="glowing-telegram/media-lambda"
     ;;
+  render_job)
+    FUNCTION_NAME=""
+    ECR_REPOSITORY="glowing-telegram/render-job"
+    ;;
   *)
     echo "The SERVICE is not supported"
     exit 1

@@ -231,6 +231,7 @@ pub fn build_ffmpeg_command(
     cmd
 }
 
+#[cfg(test)]
 mod test {
     use types::{
         CutList, InputMedia, MediaSection, OutputTrack, OverlayTrack,
