@@ -152,8 +152,8 @@ pub async fn download_file(
     tokio::fs::create_dir_all(containing_dir)
         .await
         .map_err(|e| {
-            tracing::error!("Error creating directory: {:?}", e);
-            "Error creating directory"
+            tracing::error!("Error creating directory {:?}: {:?}", containing_dir, e);
+            format!("Error creating directory {:?}", containing_dir)
         })?;
 
     let mut file =
