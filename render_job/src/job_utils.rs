@@ -145,7 +145,7 @@ pub async fn download_file(
     let containing_dir = match temp_file_path.parent() {
         Some(dir) => dir,
         None => {
-            return Err("Error getting parent directory".to_string());
+            return Err(format!("Error getting parent directory for path: {:?}", temp_file_path));
         }
     };
 
