@@ -12,6 +12,7 @@ import BatchEnvironmentConstruct from './batch/environment';
 import VideoIngestorConstruct from './batch/videoIngestorJob';
 import TaskMonitoringConstruct from './taskMonitoring';
 import MediaServeConstruct from './mediaServeConstruct';
+import RenderJobConstruct from './batch/renderJob';
 
 interface AppStackProps extends cdk.StackProps {
   domainName: string;
@@ -86,8 +87,19 @@ export default class AppStack extends cdk.Stack {
       openaiSecret,
     });
 
+    const renderJob = new RenderJobConstruct(this, 'RenderJob', {
+      inputBucket: dataStore.outputBucket,
+      outputBucket: dataStore.outputBucket,
+      episodeTable: dataStore.episodesTable,
+      jobQueue: batchEnvironment.cpuJobQueue,
+    });
+
     new APIConstruct(this, 'API', {
       streamIngestionFunction: streamIngestion.stepFunction,
+      renderJob: {
+        jobQueue: batchEnvironment.cpuJobQueue,
+        jobDefinition: renderJob.jobDefinition,
+      },
       userPool: userManagement.userPool,
       userPoolClients: [userManagement.userPoolClient],
       openaiSecret,
