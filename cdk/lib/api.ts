@@ -11,9 +11,11 @@ import type { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import ServiceLambdaConstruct from './util/serviceLambda';
+import TrackCutListProcessingLambda from './trackCutListProcessingLambda';
 
 interface APIConstructProps {
   userPool: cognito.IUserPool;
@@ -30,8 +32,8 @@ interface APIConstructProps {
   domainName: string;
 
   renderJob: {
-    jobQueue: cdk.IResource;
-    jobDefinition: cdk.IResource;
+    jobQueue: batch.IJobQueue;
+    jobDefinition: batch.IJobDefinition;
   };
 }
 
@@ -227,6 +229,12 @@ export default class APIConstruct extends Construct {
 
     this.httpApi = httpApi;
 
+    const trackCutListProcessingLambda = new TrackCutListProcessingLambda(this, 'InlinePythonLambda', {
+      episodesTable: props.episodesTable,
+      renderJobQueue: props.renderJob.jobQueue,
+      renderJobDefinition: props.renderJob.jobDefinition,
+    });
+
     // configure routes
 
     // POST /stream - run stream ingestion step function
@@ -282,6 +290,16 @@ export default class APIConstruct extends Construct {
         aiChatService.lambda,
       ),
       path: '/ai/chat',
+      methods: [apigwv2.HttpMethod.POST],
+    });
+
+    // POST /render - trigger the inline Python Lambda function
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'InlinePythonLambdaIntegration',
+        trackCutListProcessingLambda.lambda,
+      ),
+      path: '/render',
       methods: [apigwv2.HttpMethod.POST],
     });
   }
