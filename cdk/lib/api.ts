@@ -28,6 +28,11 @@ interface APIConstructProps {
   openaiSecret: secretsmanager.ISecret;
 
   domainName: string;
+
+  renderJob: {
+    jobQueue: cdk.IResource;
+    jobDefinition: cdk.IResource;
+  };
 }
 
 export default class APIConstruct extends Construct {
