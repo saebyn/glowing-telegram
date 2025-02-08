@@ -26,6 +26,36 @@
   ],
   "tasks": [
     {
+      "label": "cdk deploy '*'",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/cdk",
+        "env": {
+          "AWS_PROFILE": "glowing-telegram-admin",
+          "AWS_REGION": "us-west-2",
+          "AWS_ACCOUNT_ID": "159222827421",
+        }
+      },
+      "command": "cdk deploy '*'",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "cdk diff",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/cdk",
+        "env": {
+          "AWS_PROFILE": "glowing-telegram-admin",
+          "AWS_REGION": "us-west-2",
+          "AWS_ACCOUNT_ID": "159222827421",
+        }
+      },
+      "command": "cdk diff",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "generate types from api schema",
       "type": "shell",
       "options": {
