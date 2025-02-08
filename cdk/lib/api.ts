@@ -15,7 +15,7 @@ import * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import ServiceLambdaConstruct from './util/serviceLambda';
-import TrackCutListProcessingLambda from './trackCutListProcessingLambda';
+import RenderJobSubmissionLambda from './renderJobSubmissionLambda';
 
 interface APIConstructProps {
   userPool: cognito.IUserPool;
@@ -229,8 +229,7 @@ export default class APIConstruct extends Construct {
 
     this.httpApi = httpApi;
 
-    const trackCutListProcessingLambda = new TrackCutListProcessingLambda(this, 'InlinePythonLambda', {
-      episodesTable: props.episodesTable,
+    const trackCutListProcessingLambda = new RenderJobSubmissionLambda(this, 'InlinePythonLambda', {
       renderJobQueue: props.renderJob.jobQueue,
       renderJobDefinition: props.renderJob.jobDefinition,
     });
@@ -293,10 +292,10 @@ export default class APIConstruct extends Construct {
       methods: [apigwv2.HttpMethod.POST],
     });
 
-    // POST /render - trigger the inline Python Lambda function
+    // POST /render - trigger the render job
     httpApi.addRoutes({
       integration: new HttpLambdaIntegration(
-        'InlinePythonLambdaIntegration',
+        'TrackCutListProcessingIntegration',
         trackCutListProcessingLambda.lambda,
       ),
       path: '/render',
