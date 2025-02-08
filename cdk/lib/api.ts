@@ -229,7 +229,7 @@ export default class APIConstruct extends Construct {
 
     this.httpApi = httpApi;
 
-    const trackCutListProcessingLambda = new RenderJobSubmissionLambda(this, 'InlinePythonLambda', {
+    const renderJobSubmissionLambda = new RenderJobSubmissionLambda(this, 'RenderJobSubmissionLambda', {
       renderJobQueue: props.renderJob.jobQueue,
       renderJobDefinition: props.renderJob.jobDefinition,
     });
@@ -296,7 +296,7 @@ export default class APIConstruct extends Construct {
     httpApi.addRoutes({
       integration: new HttpLambdaIntegration(
         'TrackCutListProcessingIntegration',
-        trackCutListProcessingLambda.lambda,
+        renderJobSubmissionLambda.lambda,
       ),
       path: '/render',
       methods: [apigwv2.HttpMethod.POST],
