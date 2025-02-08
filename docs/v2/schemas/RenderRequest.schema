@@ -1,0 +1,18 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"properties": {
+    "episodeIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+	},
+	"additionalProperties": false,
+  "required": [
+    "episodeIds"
+  ],
+  "$comment": "Represents a request to render a set of episodes",
+  "title": "RenderRequest"
+}

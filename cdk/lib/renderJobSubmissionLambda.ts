@@ -25,20 +25,28 @@ import datetime
 
 batch = boto3.client('batch')
 
+# This lambda function is triggered by an API Gateway v2 HTTP API endpoint
 def handler(event, context):
     job_queue_arn = os.environ['RENDER_JOB_QUEUE']
     job_definition_arn = os.environ['RENDER_JOB_DEFINITION']
 
-    episode_ids = event['episode_ids']
+    request_body = json.loads(event['body'])
+    episode_ids = request_body['episodeIds']
 
-    batch.submit_job(
+    result = batch.submit_job(
         jobName=f'cut-list-render-job-{datetime.datetime.now().isoformat()}',
         jobQueue=job_queue_arn,
         jobDefinition=job_definition_arn,
         parameters={'record_ids': ' '.join(episode_ids)}
     )
 
-    return {'statusCode': 200, 'body': json.dumps('Job submitted successfully')}
+    response = {
+        'message': 'Job submitted successfully',
+        'jobId': result['jobId']
+    }
+
+
+    return {'statusCode': 200, 'body': json.dumps(response)}
       `),
       environment: {
         RENDER_JOB_QUEUE: props.renderJobQueue.jobQueueArn,

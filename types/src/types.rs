@@ -198,6 +198,12 @@ pub struct Profile {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderRequest {
+    pub episode_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Series {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<i64>,
