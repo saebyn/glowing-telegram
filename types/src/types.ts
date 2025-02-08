@@ -169,6 +169,10 @@ export interface Profile {
     id: string;
 }
 
+export interface RenderRequest {
+    episodeIds: string[];
+}
+
 export interface Series {
     category?:                number;
     created_at:               string;

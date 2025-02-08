@@ -39,6 +39,8 @@ components:
       $ref: "./schemas/AccessTokenResponse.schema"
     SimpleChatMessage:
       $ref: "./schemas/SimpleChatMessage.schema"
+    RenderRequest:
+      $ref: "./schemas/RenderRequest.schema"
 
   responses:
     Error:
@@ -365,3 +367,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AccessTokenResponse"
+  /render:
+    post:
+      summary: Render a video
+      tags:
+        - render
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenderRequest"
+      responses:
+        "200":
+          description: Render started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  jobId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
