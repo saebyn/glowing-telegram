@@ -11,7 +11,7 @@ import type { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as batch from 'aws-cdk-lib/aws-batch';
+import type * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import ServiceLambdaConstruct from './util/serviceLambda';
@@ -229,10 +229,14 @@ export default class APIConstruct extends Construct {
 
     this.httpApi = httpApi;
 
-    const renderJobSubmissionLambda = new RenderJobSubmissionLambda(this, 'RenderJobSubmissionLambda', {
-      renderJobQueue: props.renderJob.jobQueue,
-      renderJobDefinition: props.renderJob.jobDefinition,
-    });
+    const renderJobSubmissionLambda = new RenderJobSubmissionLambda(
+      this,
+      'RenderJobSubmissionLambda',
+      {
+        renderJobQueue: props.renderJob.jobQueue,
+        renderJobDefinition: props.renderJob.jobDefinition,
+      },
+    );
 
     // configure routes
 
