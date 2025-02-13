@@ -1,6 +1,6 @@
 import { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as batch from 'aws-cdk-lib/aws-batch';
+import type * as batch from 'aws-cdk-lib/aws-batch';
 import * as iam from 'aws-cdk-lib/aws-iam';
 
 interface RenderJobSubmissionLambdaProps {
@@ -11,13 +11,20 @@ interface RenderJobSubmissionLambdaProps {
 export default class RenderJobSubmissionLambda extends Construct {
   lambda: lambda.IFunction;
 
-  constructor(scope: Construct, id: string, props: RenderJobSubmissionLambdaProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: RenderJobSubmissionLambdaProps,
+  ) {
     super(scope, id);
 
-    const inlineLambda = new lambda.Function(this, 'RenderJobProcessingLambda', {
-      runtime: lambda.Runtime.PYTHON_3_9,
-      handler: 'index.handler',
-      code: lambda.Code.fromInline(`
+    const inlineLambda = new lambda.Function(
+      this,
+      'RenderJobProcessingLambda',
+      {
+        runtime: lambda.Runtime.PYTHON_3_9,
+        handler: 'index.handler',
+        code: lambda.Code.fromInline(`
 import json
 import boto3
 import os
@@ -48,16 +55,20 @@ def handler(event, context):
 
     return {'statusCode': 200, 'body': json.dumps(response)}
       `),
-      environment: {
-        RENDER_JOB_QUEUE: props.renderJobQueue.jobQueueArn,
-        RENDER_JOB_DEFINITION: props.renderJobDefinition.jobDefinitionArn,
+        environment: {
+          RENDER_JOB_QUEUE: props.renderJobQueue.jobQueueArn,
+          RENDER_JOB_DEFINITION: props.renderJobDefinition.jobDefinitionArn,
+        },
       },
-    });
-    
+    );
+
     inlineLambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['batch:SubmitJob'],
-        resources: [props.renderJobQueue.jobQueueArn, props.renderJobDefinition.jobDefinitionArn],
+        resources: [
+          props.renderJobQueue.jobQueueArn,
+          props.renderJobDefinition.jobDefinitionArn,
+        ],
       }),
     );
 
