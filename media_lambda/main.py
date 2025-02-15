@@ -65,24 +65,19 @@ def handler(event, context):
 
     sorted_stream_videos = sorted(stream_video_records, key=lambda x: x["key"])
 
-    transcoded_video_segments = [
-        {
-            "path": segment["M"]["path"]["S"],
-            "duration": segment["M"]["duration"]["N"],
-        }
-        for video_record in sorted_stream_videos
-        for segment in video_record["transcode"]
-    ]
+    lines = []
+
+    for video_record in sorted_stream_videos:
+        lines.append(f"#EXT-X-DISCONTINUITY")
+        for segment in video_record["transcode"]:
+            lines.append(f"#EXTINF:{segment['M']['duration']['N']}")
+            path = rewrite_path(segment["M"]["path"]["S"])
+            lines.append(path)
 
     m3u8_playlist_text = "\n".join(
         [
             M3U8_HEADER,
-            *[
-                M3U8_SEGMENT.format(
-                    path=rewrite_path(segment["path"]), duration=segment["duration"]
-                )
-                for segment in transcoded_video_segments
-            ],
+            *lines,
             M3U8_FOOTER,
         ]
     )
@@ -96,5 +91,10 @@ def handler(event, context):
     }
 
 
+import urllib.parse
+
+
 def rewrite_path(path):
-    return path.replace("transcode/", "/")
+    path = path.replace("transcode/", "/")
+    # make path url safe
+    return urllib.parse.quote(path)
