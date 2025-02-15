@@ -5,20 +5,20 @@
  * CRUD operations from the API Gateway.
  *
  */
-use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
+use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_dynamodb::Client;
 use axum::{
+    Json, Router,
     body::Body,
     extract::{Path, Query, State},
     http::{
+        Request, StatusCode,
         header::{
             self, ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_TYPE, ORIGIN,
         },
-        Request, StatusCode,
     },
     response::IntoResponse,
     routing::get,
-    Json, Router,
 };
 use dynamodb::DynamoDbTableConfig;
 use figment::Figment;
@@ -83,7 +83,8 @@ async fn main() {
     // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
     tracing_subscriber::fmt()
         .json()
-        .with_max_level(tracing::Level::INFO)
+        // allow log level to be overridden by RUST_LOG env var
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         // this needs to be set to remove duplicated information in the log.
         .with_current_span(false)
         // this needs to be set to false, otherwise ANSI color codes will
@@ -365,7 +366,7 @@ async fn create_record_handler(
                 Json(json!({
                     "message": "invalid payload: expected object or array",
                 })),
-            )
+            );
         }
     };
 
@@ -429,7 +430,7 @@ async fn update_record_handler(
             Json(response),
         ),
         Err(e) => {
-            tracing::error!("failed to update record: {e}");
+            tracing::error!("failed to update record: {:?}", e);
 
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
