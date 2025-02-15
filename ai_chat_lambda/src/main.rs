@@ -7,10 +7,10 @@
  * response. It uses the `openai_dive` library to interact with
  * the `OpenAI` API.
  */
-use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
+use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 
 use figment::Figment;
-use lambda_runtime::{service_fn, Error, LambdaEvent};
+use lambda_runtime::{Error, LambdaEvent, service_fn};
 use openai_dive::v1::error::APIError;
 use openai_dive::v1::resources::chat::{
     ChatCompletionParameters, ChatCompletionResponse,
@@ -57,7 +57,8 @@ async fn main() -> Result<(), Error> {
     // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
     tracing_subscriber::fmt()
         .json()
-        .with_max_level(tracing::Level::INFO)
+        // allow log level to be overridden by RUST_LOG env var
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         // this needs to be set to remove duplicated information in the log.
         .with_current_span(false)
         // this needs to be set to false, otherwise ANSI color codes will
@@ -126,7 +127,7 @@ async fn handler(
                     return Err(format!(
                         "Failed to complete chat: {message:?}"
                     )
-                    .into())
+                    .into());
                 }
                 _ => {
                     return Err("Unexpected error occurred while processing the chat request".into());
