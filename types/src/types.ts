@@ -132,6 +132,7 @@ export interface Episode {
     cut_list?:    CutListClass;
     description?: string;
     id:           string;
+    order_index?: number;
     stream_id?:   string;
     title?:       string;
     tracks?:      Track[];

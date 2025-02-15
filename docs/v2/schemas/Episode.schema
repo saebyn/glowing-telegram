@@ -12,6 +12,9 @@
 		"description": {
 			"type": "string"
 		},
+		"order_index": {
+			"type": "integer"
+		},
 		"tracks": {
 			"type": "array",
 			"items": {

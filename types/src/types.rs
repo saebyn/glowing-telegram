@@ -154,6 +154,9 @@ pub struct Episode {
     pub id: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub order_index: Option<i64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stream_id: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
