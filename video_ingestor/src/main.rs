@@ -495,6 +495,7 @@ fn do_transcode_task(
         let transcode_files = gt_ffmpeg::transcode::hls(
             transcode_temp_dir.path().to_str().unwrap(),
             &input_video_file_path,
+            None,
         )
         .await
         .expect("failed to transcode");
