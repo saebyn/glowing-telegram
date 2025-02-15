@@ -27,7 +27,8 @@ async fn main() {
     // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
     tracing_subscriber::fmt()
         .json()
-        .with_max_level(tracing::Level::INFO)
+        // allow log level to be overridden by RUST_LOG env var
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         // this needs to be set to remove duplicated information in the log.
         .with_current_span(false)
         // this needs to be set to false, otherwise ANSI color codes will

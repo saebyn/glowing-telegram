@@ -3,10 +3,10 @@
  *
  * The function is responsible for summarizing the transcription of an audio file using the `OpenAI` API and saving the result to `DynamoDB`.
  */
-use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
+use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_dynamodb::types::AttributeValue;
 use figment::Figment;
-use lambda_runtime::{service_fn, Diagnostic, Error, LambdaEvent};
+use lambda_runtime::{Diagnostic, Error, LambdaEvent, service_fn};
 use openai_dive::v1::error::APIError;
 use openai_dive::v1::resources::shared::FinishReason::StopSequenceReached;
 use openai_dive::v1::{
@@ -248,7 +248,8 @@ async fn main() -> Result<(), Error> {
     // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
     tracing_subscriber::fmt()
         .json()
-        .with_max_level(tracing::Level::INFO)
+        // allow log level to be overridden by RUST_LOG env var
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         // this needs to be set to remove duplicated information in the log.
         .with_current_span(false)
         // this needs to be set to false, otherwise ANSI color codes will
