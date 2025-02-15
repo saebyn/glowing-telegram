@@ -14,21 +14,36 @@ pub struct HLSEntry {
 /// # Arguments
 /// * `temp_dir` - The temporary directory to store the transcoded files.
 /// * `input` - The input video file.
+/// * `offset` - The offset in seconds to treat the input video as starting from.
 /// # Returns
 /// A list of transcoded files in the temporary directory as a vector of strings representing the file paths.
 /// # Errors
 /// This function will return an error if the transcoding process fails.
 #[tracing::instrument]
-pub async fn hls(temp_dir: &str, input: &str) -> Result<Vec<HLSEntry>> {
+pub async fn hls(
+    temp_dir: &str,
+    input: &str,
+    offset: Option<f64>,
+) -> Result<Vec<HLSEntry>> {
     tracing::info!("transcode::hls");
 
     let hls_segment_format = format!("{}/%03d.ts", temp_dir);
     let hls_playlist_path = format!("{}/index.m3u8", temp_dir);
 
-    Command::new("ffmpeg")
+    let mut command = Command::new("ffmpeg");
+
+    if let Some(offset) = offset {
+        // change the PTS of the video to start from the offset
+        // so that the HLS segments start from the offset, as these
+        // segments will be used to create the HLS playlist separately
+        // from the playlist created by FFmpeg
+        command.arg("-output_ts_offset").arg(offset.to_string());
+    }
+
+    command
         .arg("-hide_banner") // hides FFmpeg banners for cleaner logs
         .arg("-i") // flag to specify input video file
-        .arg(input)
+        .arg(input) // input video file
         .arg("-c:v") // choose video codec
         .arg("libx264") // use x264 for H.264 encoding
         .arg("-preset") // sets encoding speed vs. compression tradeoff
