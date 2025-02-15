@@ -1,7 +1,7 @@
+use aws_sdk_dynamodb::Client;
 use aws_sdk_dynamodb::types::{
     AttributeValue, KeysAndAttributes, PutRequest, ReturnValue, WriteRequest,
 };
-use aws_sdk_dynamodb::Client;
 use lambda_runtime::Error;
 use serde::Deserialize;
 use serde_json::json;
@@ -326,6 +326,12 @@ pub async fn update(
     item: &serde_json::Value,
 ) -> Result<serde_json::Value, Error> {
     let mut item = convert_json_to_hm(item);
+
+    // remove the created_at field if it exists, as the dynamodb query
+    // will use the current value if it exists, and we don't want to
+    // cause an issue with providing the field in the update expression
+    // twice.
+    item.remove("created_at");
 
     // populate the updated_at field with the current timestamp,
     // replacing the existing value if it exists
