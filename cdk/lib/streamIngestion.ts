@@ -279,7 +279,7 @@ The summary you generate must be not only informational for content review but a
               jobDefinitionArn: props.videoIngesterJob.jobDefinitionArn,
               jobQueueArn: props.cpuBatchJobQueue.jobQueueArn,
               payload: stepfunctions.TaskInput.fromObject({
-                'key.$': '$.dynamodb.Item.key.S',
+                'key.$': 'States.ArrayGetItem($.videoKeys, $.iterator.index)',
               }),
               jobName: 'ingest-video',
               resultPath: stepfunctions.JsonPath.DISCARD,
