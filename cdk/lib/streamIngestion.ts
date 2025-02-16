@@ -349,12 +349,6 @@ The summary you generate must be not only informational for content review but a
               ':streamId': tasks.DynamoAttributeValue.fromString(
                 stepfunctions.JsonPath.stringAt('$.stream_id'),
               ),
-              ':videoClipCount': tasks.DynamoAttributeValue.numberFromString(
-                stepfunctions.JsonPath.format(
-                  '{}',
-                  stepfunctions.JsonPath.stringAt('$.count'),
-                ),
-              ),
               ':ingestionVersion':
                 tasks.DynamoAttributeValue.fromString(INGESTION_VERSION),
             },
