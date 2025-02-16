@@ -11,6 +11,8 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import ServiceLambdaConstruct from './util/serviceLambda';
 
+const INGESTION_VERSION = 'v1.0.0';
+
 interface StreamIngestionConstructProps {
   audioTranscriberJob: batch.IJobDefinition;
   videoIngesterJob: batch.IJobDefinition;
@@ -183,28 +185,26 @@ The summary you generate must be not only informational for content review but a
       resultPath: '$',
     });
 
-    const getItemFromDynamoDBConfig = {
-      table: props.videoMetadataTable,
-      key: {
-        key: tasks.DynamoAttributeValue.fromString(
-          stepfunctions.JsonPath.stringAt(
-            'States.ArrayGetItem($.videoKeys, $.iterator.index)',
-          ),
-        ),
-      },
-      projectionExpression: [
-        new tasks.DynamoProjectionExpression().withAttribute('#k'),
-        new tasks.DynamoProjectionExpression().withAttribute('audio'),
-        new tasks.DynamoProjectionExpression().withAttribute('transcription'),
-      ],
-      expressionAttributeNames: { '#k': 'key' },
-      resultPath: '$.dynamodb',
-    };
-
     const getItemFromDynamoDB = new tasks.DynamoGetItem(
       this,
       'GetItem from DynamoDB',
-      getItemFromDynamoDBConfig,
+      {
+        table: props.videoMetadataTable,
+        key: {
+          key: tasks.DynamoAttributeValue.fromString(
+            stepfunctions.JsonPath.stringAt(
+              'States.ArrayGetItem($.videoKeys, $.iterator.index)',
+            ),
+          ),
+        },
+        projectionExpression: [
+          new tasks.DynamoProjectionExpression().withAttribute('#k'),
+          new tasks.DynamoProjectionExpression().withAttribute('audio'),
+          new tasks.DynamoProjectionExpression().withAttribute('transcription'),
+        ],
+        expressionAttributeNames: { '#k': 'key' },
+        resultPath: '$.dynamodb',
+      },
     );
 
     const loopOverVideos = new stepfunctions.Choice(this, 'Loop over Videos')
@@ -216,23 +216,6 @@ The summary you generate must be not only informational for content review but a
         getItemFromDynamoDB,
       )
       .otherwise(new stepfunctions.Succeed(this, 'Success'));
-
-    const transcribeAudioToText = new tasks.BatchSubmitJob(
-      this,
-      'Transcribe Audio to Text',
-      {
-        jobName: 'transcribe-audio',
-        jobDefinitionArn: props.audioTranscriberJob.jobDefinitionArn,
-        jobQueueArn: props.gpuBatchJobQueue.jobQueueArn,
-        payload: stepfunctions.TaskInput.fromObject({
-          'input_key.$': '$.dynamodb.Item.audio.S',
-          'item_key.$': '$.dynamodb.Item.key.S',
-          language: 'en',
-          'initial_prompt.$': '$.context.transcription',
-        }),
-        resultPath: stepfunctions.JsonPath.DISCARD,
-      },
-    );
 
     const summarizeTranscriptionTask = new tasks.LambdaInvoke(
       this,
@@ -260,41 +243,6 @@ The summary you generate must be not only informational for content review but a
       },
     );
 
-    const checkIfTranscriptionExists = new stepfunctions.Choice(
-      this,
-      'Check if transcription already exists',
-    )
-      .when(
-        stepfunctions.Condition.isPresent('$.dynamodb.Item.transcription'),
-        summarizeTranscriptionTask,
-      )
-      .otherwise(
-        new stepfunctions.Choice(this, 'Check if audio exists')
-          .when(
-            stepfunctions.Condition.isPresent('$.dynamodb.Item.audio'),
-            transcribeAudioToText,
-          )
-          .otherwise(
-            new tasks.BatchSubmitJob(this, 'Ingest Video', {
-              jobDefinitionArn: props.videoIngesterJob.jobDefinitionArn,
-              jobQueueArn: props.cpuBatchJobQueue.jobQueueArn,
-              payload: stepfunctions.TaskInput.fromObject({
-                'key.$': 'States.ArrayGetItem($.videoKeys, $.iterator.index)',
-              }),
-              jobName: 'ingest-video',
-              resultPath: stepfunctions.JsonPath.DISCARD,
-            })
-              .next(
-                new tasks.DynamoGetItem(
-                  this,
-                  'GetItem from DynamoDB with audio',
-                  getItemFromDynamoDBConfig,
-                ),
-              )
-              .next(transcribeAudioToText),
-          ),
-      );
-
     const updateMetadata = new tasks.DynamoUpdateItem(
       this,
       'Update stream_id in metadata',
@@ -305,11 +253,17 @@ The summary you generate must be not only informational for content review but a
             stepfunctions.JsonPath.stringAt('$.dynamodb.Item.key.S'),
           ),
         },
-        updateExpression: 'SET stream_id = :streamId',
+        updateExpression:
+          'SET stream_id = :streamId, video_clip_count = :videoClipCount, ingestion_version = :ingestionVersion',
         expressionAttributeValues: {
           ':streamId': tasks.DynamoAttributeValue.fromString(
             stepfunctions.JsonPath.stringAt('$.stream_id'),
           ),
+          ':videoClipCount': tasks.DynamoAttributeValue.fromNumber(
+            stepfunctions.JsonPath.numberAt('$.count'),
+          ),
+          ':ingestionVersion':
+            tasks.DynamoAttributeValue.fromString(INGESTION_VERSION),
         },
         resultPath: stepfunctions.JsonPath.DISCARD,
       },
@@ -323,19 +277,101 @@ The summary you generate must be not only informational for content review but a
       resultPath: '$.iterator',
     });
 
+    const doneWithIngest = new stepfunctions.Succeed(
+      this,
+      'Done with ingest for this video',
+    );
+
+    const ingestAllVideos = new stepfunctions.Map(this, 'Ingest all videos', {
+      maxConcurrency: 10,
+      itemsPath: '$.videoKeys',
+      itemSelector: {
+        'key.$': '$$.Map.Item.Value',
+      },
+    }).itemProcessor(
+      new stepfunctions.Choice(
+        this,
+        'Check stream was ingested with correct version',
+      )
+        .when(
+          stepfunctions.Condition.and(
+            stepfunctions.Condition.isPresent('$.streamRecord.Item'),
+            stepfunctions.Condition.isPresent(
+              '$.streamRecord.Item.ingestion_version.S',
+            ),
+            stepfunctions.Condition.stringEquals(
+              '$.streamRecord.Item.ingestion_version.S',
+              INGESTION_VERSION,
+            ),
+          ),
+          doneWithIngest,
+        )
+        .otherwise(
+          new tasks.BatchSubmitJob(this, 'Ingest Video', {
+            jobDefinitionArn: props.videoIngesterJob.jobDefinitionArn,
+            jobQueueArn: props.cpuBatchJobQueue.jobQueueArn,
+            payload: stepfunctions.TaskInput.fromObject({
+              'key.$': '$.key',
+            }),
+            jobName: 'ingest-video',
+            resultPath: stepfunctions.JsonPath.DISCARD,
+          })
+
+            .next(
+              new tasks.DynamoGetItem(
+                this,
+                'GetItem from DynamoDB with audio',
+                {
+                  table: props.videoMetadataTable,
+                  key: {
+                    key: tasks.DynamoAttributeValue.fromString(
+                      stepfunctions.JsonPath.stringAt('$.key'),
+                    ),
+                  },
+                  projectionExpression: [
+                    new tasks.DynamoProjectionExpression().withAttribute('#k'),
+                    new tasks.DynamoProjectionExpression().withAttribute(
+                      'audio',
+                    ),
+                    new tasks.DynamoProjectionExpression().withAttribute(
+                      'transcription',
+                    ),
+                  ],
+                  expressionAttributeNames: { '#k': 'key' },
+                  resultPath: '$.dynamodb',
+                },
+              ),
+            )
+            .next(
+              new tasks.BatchSubmitJob(this, 'Transcribe Audio to Text', {
+                jobName: 'transcribe-audio',
+                jobDefinitionArn: props.audioTranscriberJob.jobDefinitionArn,
+                jobQueueArn: props.gpuBatchJobQueue.jobQueueArn,
+                payload: stepfunctions.TaskInput.fromObject({
+                  'input_key.$': '$.dynamodb.Item.audio.S',
+                  'item_key.$': '$.dynamodb.Item.key.S',
+                  language: 'en',
+                  'initial_prompt.$': '$.context.transcription',
+                }),
+                resultPath: stepfunctions.JsonPath.DISCARD,
+              }),
+            )
+            .next(doneWithIngest),
+        ),
+    );
+
     const chain = setUpState
       .next(getStreamFromDynamoDB)
       .next(listVideoObjects)
       .next(parseVideoKeys)
-      .next(loopOverVideos.afterwards())
-      .next(checkIfTranscriptionExists);
+      .next(ingestAllVideos)
+      .next(loopOverVideos.afterwards());
 
-    summarizeTranscriptionTask
+    getItemFromDynamoDB
+      .next(summarizeTranscriptionTask)
       .next(updateMetadata)
       .next(incrementIndex)
       .next(loopOverVideos);
-
-    transcribeAudioToText.next(getItemFromDynamoDB);
 
     return stepfunctions.DefinitionBody.fromChainable(chain);
   }
