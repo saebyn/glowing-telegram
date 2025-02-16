@@ -184,6 +184,7 @@ The summary you generate must be not only informational for content review but a
         'context.$': '$.context',
         'stream_id.$': '$.stream_id',
         'iterator.$': '$.iterator',
+        'streamRecord.$': '$.streamRecord',
       },
       resultPath: '$',
     });
