@@ -288,6 +288,7 @@ The summary you generate must be not only informational for content review but a
         'context.$': '$.context',
         'streamRecord.$': '$.streamRecord',
       },
+      resultPath: stepfunctions.JsonPath.DISCARD,
     }).itemProcessor(
       new tasks.BatchSubmitJob(this, 'Ingest Video', {
         jobDefinitionArn: props.videoIngesterJob.jobDefinitionArn,
@@ -330,7 +331,6 @@ The summary you generate must be not only informational for content review but a
       .next(loopOverVideos.afterwards());
 
     getItemFromDynamoDB
-
       .next(
         new tasks.BatchSubmitJob(this, 'Transcribe Audio to Text', {
           jobName: 'transcribe-audio',
