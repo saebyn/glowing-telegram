@@ -76,6 +76,12 @@ export default class AppStack extends cdk.Stack {
       enableAutomaticIngestion: true,
     });
 
+    const mediaServe = new MediaServeConstruct(this, 'MediaServe', {
+      mediaOutputBucket: dataStore.outputBucket,
+      videoMetadataTable: dataStore.videoMetadataTable,
+      domainName,
+    });
+
     const streamIngestion = new StreamIngestion(this, 'StreamIngestion', {
       audioTranscriberJob: audioTranscriber.jobDefinition,
       videoIngesterJob: videoIngester.jobDefinition,
@@ -85,6 +91,7 @@ export default class AppStack extends cdk.Stack {
       streamsTable: dataStore.streamsTable,
       videoArchive: dataStore.videoArchive,
       openaiSecret,
+      mediaDistribution: mediaServe.distribution,
     });
 
     const renderJob = new RenderJobConstruct(this, 'RenderJob', {
@@ -116,12 +123,6 @@ export default class AppStack extends cdk.Stack {
     new TaskMonitoringConstruct(this, 'TaskMonitoring', {
       tasksTable: dataStore.tasksTable,
       streamIngestionStepFunction: streamIngestion.stepFunction,
-    });
-
-    new MediaServeConstruct(this, 'MediaServe', {
-      mediaOutputBucket: dataStore.outputBucket,
-      videoMetadataTable: dataStore.videoMetadataTable,
-      domainName,
     });
   }
 }

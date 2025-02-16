@@ -16,7 +16,8 @@ interface MediaServeConstructProps {
 }
 
 export default class MediaServeConstruct extends Construct {
-  domainName: string;
+  readonly domainName: string;
+  readonly distribution: cdk.aws_cloudfront.Distribution;
 
   constructor(scope: Construct, id: string, props: MediaServeConstructProps) {
     super(scope, id);
@@ -99,5 +100,6 @@ export default class MediaServeConstruct extends Construct {
     distribution.addBehavior('/playlist/*.m3u8', playlistOrigin);
 
     this.domainName = distribution.distributionDomainName;
+    this.distribution = distribution;
   }
 }

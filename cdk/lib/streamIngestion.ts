@@ -9,6 +9,7 @@ import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as stepfunctions from 'aws-cdk-lib/aws-stepfunctions';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import type * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import ServiceLambdaConstruct from './util/serviceLambda';
 
 const INGESTION_VERSION = 'v1.0.0';
@@ -26,6 +27,8 @@ interface StreamIngestionConstructProps {
   videoArchive: s3.IBucket;
 
   openaiSecret: secretsmanager.ISecret;
+
+  mediaDistribution: cloudfront.Distribution;
 }
 
 export default class StreamIngestionConstruct extends Construct {
@@ -229,6 +232,42 @@ The summary you generate must be not only informational for content review but a
         resultPath: '$.dynamodb',
       },
     );
+    const invalidatePlaylistCache = new tasks.CallAwsService(
+      this,
+      'Invalidate CloudFront Distribution',
+      {
+        service: 'cloudfront',
+        action: 'createInvalidation',
+        parameters: {
+          DistributionId: props.mediaDistribution.distributionId,
+          InvalidationBatch: {
+            Paths: {
+              Quantity: 1,
+              Items: stepfunctions.JsonPath.array(
+                stepfunctions.JsonPath.format(
+                  '/playlist/{}.m3u8',
+                  stepfunctions.JsonPath.stringAt('$.stream_id'),
+                ),
+              ),
+            },
+            CallerReference: stepfunctions.JsonPath.format(
+              '{}-{}',
+              stepfunctions.JsonPath.stringAt('$.stream_id'),
+              stepfunctions.JsonPath.stateEnteredTime,
+            ),
+          },
+        },
+        iamAction: 'cloudfront:CreateInvalidation',
+        iamResources: [
+          cdk.Stack.of(this).formatArn({
+            service: 'cloudfront',
+            resource: 'distribution',
+            resourceName: props.mediaDistribution.distributionId,
+          }),
+        ],
+        resultPath: stepfunctions.JsonPath.DISCARD,
+      },
+    );
 
     const loopOverVideos = new stepfunctions.Choice(this, 'Loop over Videos')
       .when(
@@ -238,7 +277,11 @@ The summary you generate must be not only informational for content review but a
         ),
         getItemFromDynamoDB,
       )
-      .otherwise(new stepfunctions.Succeed(this, 'Success'));
+      .otherwise(
+        invalidatePlaylistCache.next(
+          new stepfunctions.Succeed(this, 'Success'),
+        ),
+      );
 
     const summarizeTranscriptionTask = new tasks.LambdaInvoke(
       this,
