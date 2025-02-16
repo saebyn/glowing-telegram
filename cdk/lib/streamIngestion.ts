@@ -149,6 +149,9 @@ The summary you generate must be not only informational for content review but a
         projectionExpression: [
           new tasks.DynamoProjectionExpression().withAttribute('id'),
           new tasks.DynamoProjectionExpression().withAttribute('prefix'),
+          new tasks.DynamoProjectionExpression().withAttribute(
+            'ingestion_version',
+          ),
         ],
         resultPath: '$.streamRecord',
       },
@@ -287,6 +290,8 @@ The summary you generate must be not only informational for content review but a
       itemsPath: '$.videoKeys',
       itemSelector: {
         'key.$': '$$.Map.Item.Value',
+        'context.$': '$.context',
+        'streamRecord.$': '$.streamRecord',
       },
     }).itemProcessor(
       new stepfunctions.Choice(
@@ -295,7 +300,6 @@ The summary you generate must be not only informational for content review but a
       )
         .when(
           stepfunctions.Condition.and(
-            stepfunctions.Condition.isPresent('$.streamRecord.Item'),
             stepfunctions.Condition.isPresent(
               '$.streamRecord.Item.ingestion_version.S',
             ),
