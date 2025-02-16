@@ -57,6 +57,7 @@ export default class MediaServeConstruct extends Construct {
       this,
       'MediaDistribution',
       {
+        comment: 'Media Distribution for Glowing-Telegram',
         defaultBehavior: {
           origin: mediaOrigin,
           // trustedKeyGroups
