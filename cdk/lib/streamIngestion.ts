@@ -139,7 +139,7 @@ The summary you generate must be not only informational for content review but a
       this,
       'Get stream from DynamoDB',
       {
-        comment: 'Get the stream record from the DynamoDB table',
+        comment: 'Get the stream from DynamoDB',
         table: props.streamsTable,
         key: {
           id: tasks.DynamoAttributeValue.fromString(
@@ -147,13 +147,34 @@ The summary you generate must be not only informational for content review but a
           ),
         },
         projectionExpression: [
-          new tasks.DynamoProjectionExpression().withAttribute('id'),
           new tasks.DynamoProjectionExpression().withAttribute('prefix'),
-          new tasks.DynamoProjectionExpression().withAttribute(
-            'ingestion_version',
-          ),
         ],
         resultPath: '$.streamRecord',
+      },
+    );
+
+    const updateStreamRecord = new tasks.DynamoUpdateItem(
+      this,
+      'Update stream record',
+      {
+        comment: 'Update the video clip count in the stream record',
+        table: props.streamsTable,
+        key: {
+          id: tasks.DynamoAttributeValue.fromString(
+            stepfunctions.JsonPath.stringAt('$.stream_id'),
+          ),
+        },
+        updateExpression: 'SET #s = :s',
+        expressionAttributeNames: { '#s': 'video_clip_count' },
+        expressionAttributeValues: {
+          ':s': tasks.DynamoAttributeValue.numberFromString(
+            stepfunctions.JsonPath.format(
+              '{}',
+              stepfunctions.JsonPath.stringAt('$.count'),
+            ),
+          ),
+        },
+        resultPath: stepfunctions.JsonPath.DISCARD,
       },
     );
 
@@ -184,7 +205,6 @@ The summary you generate must be not only informational for content review but a
         'context.$': '$.context',
         'stream_id.$': '$.stream_id',
         'iterator.$': '$.iterator',
-        'streamRecord.$': '$.streamRecord',
       },
       resultPath: '$',
     });
@@ -246,32 +266,6 @@ The summary you generate must be not only informational for content review but a
       },
     );
 
-    const updateMetadata = new tasks.DynamoUpdateItem(
-      this,
-      'Update stream_id in metadata',
-      {
-        table: props.videoMetadataTable,
-        key: {
-          key: tasks.DynamoAttributeValue.fromString(
-            stepfunctions.JsonPath.stringAt('$.dynamodb.Item.key.S'),
-          ),
-        },
-        updateExpression:
-          'SET stream_id = :streamId, video_clip_count = :videoClipCount, ingestion_version = :ingestionVersion',
-        expressionAttributeValues: {
-          ':streamId': tasks.DynamoAttributeValue.fromString(
-            stepfunctions.JsonPath.stringAt('$.stream_id'),
-          ),
-          ':videoClipCount': tasks.DynamoAttributeValue.fromNumber(
-            stepfunctions.JsonPath.numberAt('$.count'),
-          ),
-          ':ingestionVersion':
-            tasks.DynamoAttributeValue.fromString(INGESTION_VERSION),
-        },
-        resultPath: stepfunctions.JsonPath.DISCARD,
-      },
-    );
-
     const incrementIndex = new stepfunctions.Pass(this, 'Increment index', {
       comment: 'Increment the iterator index',
       parameters: {
@@ -281,53 +275,100 @@ The summary you generate must be not only informational for content review but a
     });
 
     const ingestAllVideos = new stepfunctions.Map(this, 'Ingest all videos', {
-      maxConcurrency: 10,
       itemsPath: '$.videoKeys',
       itemSelector: {
         'key.$': '$$.Map.Item.Value',
-        'context.$': '$.context',
-        'streamRecord.$': '$.streamRecord',
+        'stream_id.$': '$.stream_id',
+        'count.$': '$.count',
       },
       resultPath: stepfunctions.JsonPath.DISCARD,
     }).itemProcessor(
-      new tasks.BatchSubmitJob(this, 'Ingest Video', {
-        jobDefinitionArn: props.videoIngesterJob.jobDefinitionArn,
-        jobQueueArn: props.cpuBatchJobQueue.jobQueueArn,
-        payload: stepfunctions.TaskInput.fromObject({
-          'key.$': '$.key',
-        }),
-        jobName: 'ingest-video',
-        resultPath: stepfunctions.JsonPath.DISCARD,
-      }),
+      new tasks.DynamoGetItem(this, 'Get video metadata', {
+        table: props.videoMetadataTable,
+        key: {
+          key: tasks.DynamoAttributeValue.fromString(
+            stepfunctions.JsonPath.stringAt('$.key'),
+          ),
+        },
+        projectionExpression: [
+          new tasks.DynamoProjectionExpression().withAttribute('#k'),
+          new tasks.DynamoProjectionExpression().withAttribute(
+            'ingestion_version',
+          ),
+        ],
+        expressionAttributeNames: { '#k': 'key' },
+        resultPath: '$.dynamodb',
+      })
+        .next(
+          new stepfunctions.Choice(
+            this,
+            'Check video was ingested with correct version',
+          )
+            .when(
+              stepfunctions.Condition.and(
+                stepfunctions.Condition.isPresent(
+                  '$.dynamodb.Item.ingestion_version.S',
+                ),
+                stepfunctions.Condition.stringEquals(
+                  '$.dynamodb.Item.ingestion_version.S',
+                  INGESTION_VERSION,
+                ),
+              ),
+              new stepfunctions.Pass(this, 'Skip ingestion', {
+                comment:
+                  'Skip ingestion if video was ingested with correct version',
+              }),
+              {
+                comment: 'Correct version',
+              },
+            )
+            .otherwise(
+              new tasks.BatchSubmitJob(this, 'Ingest Video', {
+                jobDefinitionArn: props.videoIngesterJob.jobDefinitionArn,
+                jobQueueArn: props.cpuBatchJobQueue.jobQueueArn,
+                payload: stepfunctions.TaskInput.fromObject({
+                  'key.$': '$.key',
+                }),
+                jobName: 'ingest-video',
+                resultPath: stepfunctions.JsonPath.DISCARD,
+              }),
+            )
+            .afterwards(),
+        )
+        .next(
+          new tasks.DynamoUpdateItem(this, 'Update video metadata', {
+            table: props.videoMetadataTable,
+            key: {
+              key: tasks.DynamoAttributeValue.fromString(
+                stepfunctions.JsonPath.stringAt('$.key'),
+              ),
+            },
+            updateExpression:
+              'SET stream_id = :streamId, ingestion_version = :ingestionVersion',
+            expressionAttributeValues: {
+              ':streamId': tasks.DynamoAttributeValue.fromString(
+                stepfunctions.JsonPath.stringAt('$.stream_id'),
+              ),
+              ':videoClipCount': tasks.DynamoAttributeValue.numberFromString(
+                stepfunctions.JsonPath.format(
+                  '{}',
+                  stepfunctions.JsonPath.stringAt('$.count'),
+                ),
+              ),
+              ':ingestionVersion':
+                tasks.DynamoAttributeValue.fromString(INGESTION_VERSION),
+            },
+            resultPath: stepfunctions.JsonPath.DISCARD,
+          }),
+        ),
     );
 
     const chain = setUpState
       .next(getStreamFromDynamoDB)
       .next(listVideoObjects)
       .next(parseVideoKeys)
-      .next(
-        new stepfunctions.Choice(
-          this,
-          'Check stream was ingested with correct version',
-        )
-          .when(
-            stepfunctions.Condition.and(
-              stepfunctions.Condition.isPresent(
-                '$.streamRecord.Item.ingestion_version.S',
-              ),
-              stepfunctions.Condition.stringEquals(
-                '$.streamRecord.Item.ingestion_version.S',
-                INGESTION_VERSION,
-              ),
-            ),
-            new stepfunctions.Pass(this, 'Skip ingestion', {
-              comment:
-                'Skip ingestion if stream was ingested with correct version',
-            }),
-          )
-          .otherwise(ingestAllVideos)
-          .afterwards(),
-      )
+      .next(updateStreamRecord)
+      .next(ingestAllVideos)
       .next(loopOverVideos.afterwards());
 
     getItemFromDynamoDB
@@ -353,7 +394,7 @@ The summary you generate must be not only informational for content review but a
             table: props.videoMetadataTable,
             key: {
               key: tasks.DynamoAttributeValue.fromString(
-                stepfunctions.JsonPath.stringAt('$.key'),
+                stepfunctions.JsonPath.stringAt('$.dynamodb.Item.key.S'),
               ),
             },
             projectionExpression: [
@@ -368,7 +409,6 @@ The summary you generate must be not only informational for content review but a
         ),
       )
       .next(summarizeTranscriptionTask)
-      .next(updateMetadata)
       .next(incrementIndex)
       .next(loopOverVideos);
 
