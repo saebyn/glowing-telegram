@@ -33,6 +33,7 @@ export default class FrontendStack extends cdk.Stack {
       this,
       'FrontendDistribution',
       {
+        comment: 'Frontend Distribution for Glowing-Telegram',
         defaultRootObject: 'index.html',
         defaultBehavior: {
           viewerProtocolPolicy:
