@@ -29,6 +29,7 @@ import json
 import boto3
 import os
 import datetime
+import hashlib
 
 batch = boto3.client('batch')
 
@@ -40,8 +41,10 @@ def handler(event, context):
     request_body = json.loads(event['body'])
     episode_ids = request_body['episodeIds']
 
+    job_name = hashlib.md5(''.join(episode_ids).encode('utf-8')).hexdigest()
+
     result = batch.submit_job(
-        jobName=f'cut-list-render-job-{datetime.datetime.now().isoformat()}',
+        jobName=f'cut-list-render-job-{job_name}',
         jobQueue=job_queue_arn,
         jobDefinition=job_definition_arn,
         parameters={'record_ids': ' '.join(episode_ids)}

@@ -15,6 +15,9 @@
 		"order_index": {
 			"type": "integer"
 		},
+		"is_published": {
+			"type": "boolean"
+		},
 		"tracks": {
 			"type": "array",
 			"items": {
