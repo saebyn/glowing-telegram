@@ -95,7 +95,7 @@ export default class AppStack extends cdk.Stack {
     });
 
     const renderJob = new RenderJobConstruct(this, 'RenderJob', {
-      inputBucket: dataStore.outputBucket,
+      inputBucket: dataStore.videoArchive,
       outputBucket: dataStore.outputBucket,
       episodeTable: dataStore.episodesTable,
       jobQueue: batchEnvironment.cpuJobQueue,

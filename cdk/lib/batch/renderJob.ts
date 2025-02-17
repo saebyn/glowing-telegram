@@ -39,6 +39,7 @@ export default class RenderJobConstruct extends Construct {
 
     props.inputBucket.grantRead(jobRole);
     props.outputBucket.grantWrite(jobRole);
+    props.episodeTable.grantReadWriteData(jobRole);
 
     const repo = ecr.Repository.fromRepositoryName(
       this,
@@ -62,16 +63,21 @@ export default class RenderJobConstruct extends Construct {
           OUTPUT_BUCKET: props.outputBucket.bucketName,
           DYNAMODB_TABLE: props.episodeTable.tableName,
         },
+        ephemeralStorageSize: cdk.Size.gibibytes(50),
       },
     );
 
-    this.jobDefinition = new batch.EcsJobDefinition(this, 'RenderJobDefinition', {
-      container: containerDefinition,
-      timeout: cdk.Duration.hours(2),
-      parameters: {
-        record_ids: '<record_ids>',
+    this.jobDefinition = new batch.EcsJobDefinition(
+      this,
+      'RenderJobDefinition',
+      {
+        container: containerDefinition,
+        timeout: cdk.Duration.hours(2),
+        parameters: {
+          record_ids: '<record_ids>',
+        },
+        retryAttempts: 1,
       },
-      retryAttempts: 1,
-    });
+    );
   }
 }
