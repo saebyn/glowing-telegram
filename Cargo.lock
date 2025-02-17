@@ -268,9 +268,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-dynamodb"
-version = "1.64.0"
+version = "1.65.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "250de21a41a7448fb8a2aa492fcf8cb92ab89fbae0d42e1cac81f1bc9f50f84a"
+checksum = "873144cfb097fc75555f2b2728fa4d5f705a17a4613a0f017baff2f7cfea2b09"
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
@@ -325,9 +325,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-secretsmanager"
-version = "1.62.0"
+version = "1.63.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae7e455414ffb482469c0bc8f870ec2d7654ffbe20d133ffad854866d2b2f280"
+checksum = "92d0e16f2869da057882c797f35a775a6e6c35400b5913fdce38d9b13fb18fac"
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
@@ -3267,9 +3267,9 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.16.0"
+version = "3.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38c246215d7d24f48ae091a2902398798e05d978b24315d6efbc00ede9a8bb91"
+checksum = "22e5a0acb1f3f55f65cc4a866c361b2fb2a0ff6366785ae6fbb5f85df07ba230"
 dependencies = [
  "cfg-if",
  "fastrand",
