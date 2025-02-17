@@ -173,7 +173,7 @@ fn create_overlay_tracks(data: &CutList, frame_rate: f32) -> Vec<String> {
         let section = &data.input_media[media_index as usize].sections
             [overlay.section_index as usize];
         parts.push(format!(
-            "[{}:v]trim=start_frame={}:end_frame={},colorkey=black,colorchannelmixer=aa=0.8,setpts=PTS+{}/TB[vo{}]",
+            "[{}:v]trim=start_frame={}:end_frame={},colorkey=black,colorchannelmixer=aa=0.8,setpts=PTS+{}/TB,format=yuva420p[vo{}]",
             media_index,
             section.start_frame,
             section.end_frame,
@@ -233,10 +233,9 @@ pub fn build_ffmpeg_command(
 
 #[cfg(test)]
 mod test {
-    use types::{
-        CutList, InputMedia, MediaSection, OutputTrack, OverlayTrack,
-        TransitionInClass, TransitionInType,
-    };
+    use pretty_assertions::assert_eq;
+    use serde_json::json;
+    use types::CutList;
 
     use super::{build_ffmpeg_command, create_complex_filter};
 
@@ -253,102 +252,146 @@ mod test {
     }
 
     #[test]
-    fn test_full_command() {
-        let data = CutList {
-            version: types::CutListVersion::The100,
-            input_media: vec![
-                InputMedia {
-                    s3_location: "/mnt/f/Video/OBS/2024-10-14 18-32-51.mkv"
-                        .to_string(),
-                    sections: vec![MediaSection {
-                        start_frame: 0,
-                        end_frame: 600,
-                    }],
-                },
-                InputMedia {
-                    s3_location:
-                        "/mnt/f/Video/Renders/LiveOnTwitch Render 1.mov"
-                            .to_string(),
-                    sections: vec![MediaSection {
-                        start_frame: 0,
-                        end_frame: 114,
-                    }],
-                },
-                InputMedia {
-                    s3_location: "/mnt/f/Art/introhex.mkv".to_string(),
-                    sections: vec![MediaSection {
-                        start_frame: 0,
-                        end_frame: 30,
-                    }],
-                },
-                InputMedia {
-                    s3_location: "/mnt/f/Art/outro_2.mov".to_string(),
-                    sections: vec![MediaSection {
-                        start_frame: 0,
-                        end_frame: 1800,
-                    }],
-                },
-                InputMedia {
-                    s3_location:
-                        "/mnt/f/Video/Renders/LikeReminder1 Render 1.mov"
-                            .to_string(),
-                    sections: vec![MediaSection {
-                        start_frame: 0,
-                        end_frame: 300,
-                    }],
-                },
-            ],
-            output_track: vec![
-                OutputTrack {
-                    media_index: 0,
-                    section_index: 0,
-                    transition_in: None,
-                    transition_out: None,
-                },
-                OutputTrack {
-                    media_index: 3,
-                    section_index: 0,
-                    transition_in: Some(TransitionInClass {
-                        transition_type: TransitionInType::Fade,
-                        duration: 300,
-                    }),
-                    transition_out: None,
-                },
-            ],
-            overlay_tracks: Some(vec![
-                OverlayTrack {
-                    x: Some(1500.0),
-                    y: Some(300.0),
-                    media_index: 1,
-                    section_index: 0,
-                    start_frame: 600,
-                },
-                OverlayTrack {
-                    x: None,
-                    y: None,
-                    media_index: 2,
-                    section_index: 0,
-                    start_frame: 0,
-                },
-                OverlayTrack {
-                    x: None,
-                    y: None,
-                    media_index: 4,
-                    section_index: 0,
-                    start_frame: 1200,
-                },
-            ]),
-        };
+    fn test_real_example_1() {
+        let data = json!(
+            {
+                "inputMedia": [
+                 {
+                  "s3Location": "2024-12-08/2024-12-08 08-26-45.mkv",
+                  "sections": [
+                   {
+                    "endFrame": 72250,
+                    "startFrame": 20100
+                   }
+                  ]
+                 },
+                 {
+                  "s3Location": "2024-12-08/2024-12-08 08-46-51.mkv",
+                  "sections": [
+                   {
+                    "endFrame": 72000,
+                    "startFrame": 0
+                   }
+                  ]
+                 },
+                 {
+                  "s3Location": "2024-12-08/2024-12-08 09-06-51.mkv",
+                  "sections": [
+                   {
+                    "endFrame": 72000,
+                    "startFrame": 0
+                   }
+                  ]
+                 },
+                 {
+                  "s3Location": "2024-12-08/2024-12-08 09-26-51.mkv",
+                  "sections": [
+                   {
+                    "endFrame": 8326,
+                    "startFrame": 0
+                   }
+                  ]
+                 },
+                 {
+                  "s3Location": "my_stock/outro_2.mov",
+                  "sections": [
+                   {
+                    "endFrame": 1800,
+                    "startFrame": 0
+                   }
+                  ]
+                 },
+                 {
+                  "s3Location": "my_stock/introhex.mkv",
+                  "sections": [
+                   {
+                    "endFrame": 3600,
+                    "startFrame": 0
+                   }
+                  ]
+                 },
+                 {
+                  "s3Location": "my_stock/LiveOnTwitch Render 1.mov",
+                  "sections": [
+                   {
+                    "endFrame": 114,
+                    "startFrame": 0
+                   }
+                  ]
+                 },
+                 {
+                  "s3Location": "my_stock/LikeReminder1 Render 1.mov",
+                  "sections": [
+                   {
+                    "endFrame": 300,
+                    "startFrame": 0
+                   }
+                  ]
+                 }
+                ],
+                "outputTrack": [
+                 {
+                  "mediaIndex": 0,
+                  "sectionIndex": 0
+                 },
+                 {
+                  "mediaIndex": 1,
+                  "sectionIndex": 0
+                 },
+                 {
+                  "mediaIndex": 2,
+                  "sectionIndex": 0
+                 },
+                 {
+                  "mediaIndex": 3,
+                  "sectionIndex": 0
+                 },
+                 {
+                  "mediaIndex": 4,
+                  "sectionIndex": 0,
+                  "transitionIn": {
+                   "duration": 300,
+                   "type": "fade"
+                  }
+                 }
+                ],
+                "overlayTracks": [
+                 {
+                  "mediaIndex": 5,
+                  "sectionIndex": 0,
+                  "startFrame": 0
+                 },
+                 {
+                  "mediaIndex": 6,
+                  "sectionIndex": 0,
+                  "startFrame": 1800,
+                  "x": 1500,
+                  "y": 300
+                 },
+                 {
+                  "mediaIndex": 7,
+                  "sectionIndex": 0,
+                  "startFrame": 3600,
+                  "x": 1500,
+                  "y": 300
+                 }
+                ],
+                "version": "1.0.0"
+               }
+        );
+
+        let data: CutList = serde_json::from_value(data).unwrap();
 
         let cmd =
             build_ffmpeg_command(&data, 60.0, "output.mp4", (2560, 1440));
+
         assert_eq!(
             cmd.as_std()
                 .get_args()
                 .map(|x| x.to_string_lossy().to_string())
                 .collect::<Vec<_>>()
                 .join(" "),
-            "-i /mnt/f/Video/OBS/2024-10-14 18-32-51.mkv -i /mnt/f/Video/Renders/LiveOnTwitch Render 1.mov -i /mnt/f/Art/introhex.mkv -i /mnt/f/Art/outro_2.mov -i /mnt/f/Video/Renders/LikeReminder1 Render 1.mov -filter_complex [0:v]scale=w=2560:h=1440,trim=start_frame=0:end_frame=600,setpts=PTS-STARTPTS,fps=fps=60[v0];[0:a]atrim=start=0:end=10,asetpts=PTS-STARTPTS[a0];[3:v]scale=w=2560:h=1440,trim=start_frame=0:end_frame=1800,setpts=PTS-STARTPTS,fps=fps=60[v1];[3:a]atrim=start=0:end=30,asetpts=PTS-STARTPTS[a1];[v0][v1]xfade=duration=5:transition=fade:offset=5[v0];[a0][a1]acrossfade=d=5[a0];[v0]concat=n=1[vmain];[a0]concat=n=1:v=0:a=1[amain];[1:v]trim=start_frame=0:end_frame=114,colorkey=black,colorchannelmixer=aa=0.8,setpts=PTS+10/TB[vo0];[vmain][vo0]overlay=eof_action=pass:x=1500:y=300[vmain];[2:v]trim=start_frame=0:end_frame=30,colorkey=black,colorchannelmixer=aa=0.8,setpts=PTS+0/TB[vo1];[vmain][vo1]overlay=eof_action=pass:x=0:y=0[vmain];[4:v]trim=start_frame=0:end_frame=300,colorkey=black,colorchannelmixer=aa=0.8,setpts=PTS+20/TB[vo2];[vmain][vo2]overlay=eof_action=pass:x=0:y=0[vmain] -map [vmain] -map [amain] -y -c:v libx264 -c:a aac -crf 18 -preset slow -pix_fmt yuv420p -profile:v high -level 4.2 -bf 2 -g 120 -b:a 192k -ar 48000 -f mp4 output.mp4"
+            "-i 2024-12-08/2024-12-08 08-26-45.mkv -i 2024-12-08/2024-12-08 08-46-51.mkv -i 2024-12-08/2024-12-08 09-06-51.mkv -i 2024-12-08/2024-12-08 09-26-51.mkv -i my_stock/outro_2.mov -i my_stock/introhex.mkv -i my_stock/LiveOnTwitch Render 1.mov -i my_stock/LikeReminder1 Render 1.mov -filter_complex [0:v]scale=w=2560:h=1440,trim=start_frame=20100:end_frame=72250,setpts=PTS-STARTPTS,fps=fps=60[v0];[0:a]atrim=start=335:end=1204.1666,asetpts=PTS-STARTPTS[a0];[1:v]scale=w=2560:h=1440,trim=start_frame=0:end_frame=72000,setpts=PTS-STARTPTS,fps=fps=60[v1];[1:a]atrim=start=0:end=1200,asetpts=PTS-STARTPTS[a1];[2:v]scale=w=2560:h=1440,trim=start_frame=0:end_frame=72000,setpts=PTS-STARTPTS,fps=fps=60[v2];[2:a]atrim=start=0:end=1200,asetpts=PTS-STARTPTS[a2];[3:v]scale=w=2560:h=1440,trim=start_frame=0:end_frame=8326,setpts=PTS-STARTPTS,fps=fps=60[v3];[3:a]atrim=start=0:end=138.76666,asetpts=PTS-STARTPTS[a3];[4:v]scale=w=2560:h=1440,trim=start_frame=0:end_frame=1800,setpts=PTS-STARTPTS,fps=fps=60[v4];[4:a]atrim=start=0:end=30,asetpts=PTS-STARTPTS[a4];[v3][v4]xfade=duration=5:transition=fade:offset=133.76666[v3];[a3][a4]acrossfade=d=5[a3];[v0][v1][v2][v3]concat=n=4[vmain];[a0][a1][a2][a3]concat=n=4:v=0:a=1[amain];[5:v]trim=start_frame=0:end_frame=3600,colorkey=black,colorchannelmixer=aa=0.8,setpts=PTS+0/TB,format=yuva420p[vo0];[vmain][vo0]overlay=eof_action=pass:x=0:y=0[vmain];[6:v]trim=start_frame=0:end_frame=114,colorkey=black,colorchannelmixer=aa=0.8,setpts=PTS+30/TB,format=yuva420p[vo1];[vmain][vo1]overlay=eof_action=pass:x=1500:y=300[vmain];[7:v]trim=start_frame=0:end_frame=300,colorkey=black,colorchannelmixer=aa=0.8,setpts=PTS+60/TB,format=yuva420p[vo2];[vmain][vo2]overlay=eof_action=pass:x=1500:y=300[vmain] -map [vmain] -map [amain] -y -c:v libx264 -c:a aac -crf 18 -preset slow -pix_fmt yuv420p -profile:v high -level 4.2 -bf 2 -g 120 -b:a 192k -ar 48000 -f mp4 output.mp4"
         );
     }
 }
