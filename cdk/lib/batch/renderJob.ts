@@ -52,7 +52,7 @@ export default class RenderJobConstruct extends Construct {
       'RenderJobContainerDefinition',
       {
         cpu: 16,
-        memory: cdk.Size.gibibytes(16),
+        memory: cdk.Size.gibibytes(32),
         assignPublicIp: true,
         jobRole,
         executionRole,
