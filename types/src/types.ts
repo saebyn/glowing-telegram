@@ -119,6 +119,10 @@ export interface OverlayTrack {
      */
     startFrame: number;
     /**
+     * Overlay type
+     */
+    type: OverlayTrackType;
+    /**
      * X position of the overlay
      */
     x?: number;
@@ -128,14 +132,20 @@ export interface OverlayTrack {
     y?: number;
 }
 
+/**
+ * Overlay type
+ */
+export type OverlayTrackType = "alpha" | "colorkey";
+
 export interface Episode {
-    cut_list?:    CutListClass;
-    description?: string;
-    id:           string;
-    order_index?: number;
-    stream_id?:   string;
-    title?:       string;
-    tracks?:      Track[];
+    cut_list?:     CutListClass;
+    description?:  string;
+    id:            string;
+    is_published?: boolean;
+    order_index?:  number;
+    stream_id?:    string;
+    title?:        string;
+    tracks?:       Track[];
 }
 
 export interface CutListClass {

@@ -128,6 +128,10 @@ pub struct OverlayTrack {
     /// Start frame on the overlay track
     pub start_frame: i64,
 
+    /// Overlay type
+    #[serde(rename = "type")]
+    pub overlay_track_type: OverlayTrackType,
+
     /// X position of the overlay
     #[serde(skip_serializing_if = "Option::is_none")]
     pub x: Option<f64>,
@@ -135,6 +139,15 @@ pub struct OverlayTrack {
     /// Y position of the overlay
     #[serde(skip_serializing_if = "Option::is_none")]
     pub y: Option<f64>,
+}
+
+/// Overlay type
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverlayTrackType {
+    Alpha,
+
+    Colorkey,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -152,6 +165,9 @@ pub struct Episode {
     pub description: Option<String>,
 
     pub id: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_published: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order_index: Option<i64>,

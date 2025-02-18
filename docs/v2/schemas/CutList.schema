@@ -86,9 +86,10 @@
           "mediaIndex": { "type": "integer", "description": "Index of the media source", "minimum": 0 },
           "sectionIndex": { "type": "integer", "description": "Index of the section in the media source", "minimum": 0 },
           "x": { "type": "number", "description": "X position of the overlay" },
-          "y": { "type": "number", "description": "Y position of the overlay" }
+          "y": { "type": "number", "description": "Y position of the overlay" },
+          "type": { "type": "string", "description": "Overlay type", "enum": ["alpha", "colorkey"] }
         },
-        "required": ["startFrame","mediaIndex","sectionIndex"],
+        "required": ["startFrame","mediaIndex","sectionIndex","type"],
         "additionalProperties": false
       },
       "minItems": 0
