@@ -10,6 +10,7 @@ members = [
   "types",
   "twitch_lambda",
   "render_job",
+  "gt_secrets",
 ]
 
 [workspace.package]
@@ -22,6 +23,7 @@ categories = ["web-programming"]
 
 [workspace.dependencies]
 types = { path = "./types" }
+gt_secrets = { path = "./gt_secrets" }
 aws-config = "1.5.5"
 aws-sdk-secretsmanager = { version = "1.63.0" }
 aws-sdk-s3 = { version = "1.49.0" }

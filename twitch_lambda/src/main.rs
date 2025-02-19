@@ -18,7 +18,6 @@ use crate::structs::TwitchCredentials;
 
 mod global_refresh;
 mod handlers;
-mod secret;
 mod structs;
 mod twitch;
 

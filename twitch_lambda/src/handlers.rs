@@ -10,10 +10,10 @@ use serde_json::json;
 use tracing::instrument;
 use types::{
     AccessTokenResponse, AuthorizationUrlResponse, TwitchAuthRequest,
-    TwitchCallbackRequest, TwitchCallbackResponse,
+    TwitchCallbackRequest, TwitchCallbackResponse, TwitchSessionSecret,
 };
 
-use crate::{secret, structs::AppState, twitch};
+use crate::{structs::AppState, twitch};
 
 pub async fn obtain_twitch_authorization_url_handler(
     State(state): State<AppState>,
@@ -33,10 +33,10 @@ pub async fn obtain_twitch_authorization_url_handler(
         .url();
 
     // store csrf_state and redirect_url in secrets manager
-    match secret::create_or_replace(
+    match gt_secrets::create_or_replace::<TwitchSessionSecret>(
         &state.secrets_manager,
         &state.config.user_secret_path.secret_path(&cognito_user_id),
-        &secret::new(
+        &gt_secrets::SessionSecret::new(
             csrf_state.secret().to_string(),
             request.redirect_uri.clone(),
             request.scopes.clone(),
@@ -71,7 +71,11 @@ pub async fn twitch_callback_handler(
     let secret_id =
         state.config.user_secret_path.secret_path(&cognito_user_id);
 
-    let Ok(secret) = secret::get(&state.secrets_manager, &secret_id).await
+    let Ok(secret) = gt_secrets::get::<TwitchSessionSecret>(
+        &state.secrets_manager,
+        &secret_id,
+    )
+    .await
     else {
         return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
     };
@@ -101,7 +105,7 @@ pub async fn twitch_callback_handler(
         }
     };
 
-    match secret::set_tokens(
+    match gt_secrets::set_tokens::<TwitchSessionSecret>(
         &state.secrets_manager,
         &secret_id,
         token_response.access_token.secret(),
@@ -140,7 +144,12 @@ pub async fn obtain_twitch_access_token_handler(
     let secret_id =
         state.config.user_secret_path.secret_path(&cognito_user_id);
 
-    let secret = match secret::get(&state.secrets_manager, &secret_id).await {
+    let secret = match gt_secrets::get::<TwitchSessionSecret>(
+        &state.secrets_manager,
+        &secret_id,
+    )
+    .await
+    {
         Ok(secret) => secret,
         Err(e) => {
             tracing::error!("failed to get secret: {:?}", e);
@@ -195,7 +204,7 @@ pub async fn obtain_twitch_access_token_handler(
             // clear the access token and refresh token from the secrets manager secret
 
             tracing::error!("failed to refresh token: {:?}", e);
-            return match secret::clear_tokens(
+            return match gt_secrets::clear_tokens::<TwitchSessionSecret>(
                 &state.secrets_manager,
                 &secret_id,
             )
@@ -211,7 +220,7 @@ pub async fn obtain_twitch_access_token_handler(
         }
     };
 
-    match secret::set_tokens(
+    match gt_secrets::set_tokens::<TwitchSessionSecret>(
         &state.secrets_manager,
         &secret_id,
         token_response.access_token.secret(),

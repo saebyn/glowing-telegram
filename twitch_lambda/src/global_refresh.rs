@@ -2,8 +2,9 @@ use aws_sdk_secretsmanager::types::{
     FilterNameStringType, builders::FilterBuilder,
 };
 use oauth2::TokenResponse;
+use types::TwitchSessionSecret;
 
-use crate::{secret, structs::AppState, twitch};
+use crate::{structs::AppState, twitch};
 
 /// Refresh the user's Twitch access token using the refresh token
 /// stored in the secrets manager.
@@ -44,14 +45,18 @@ pub async fn refresh_user_tokens(state: AppState) -> Result<(), &'static str> {
 
         for secret in secrets_list {
             let secret_id = secret.name.as_deref().unwrap_or("");
-            let secret =
-                match secret::get(&state.secrets_manager, secret_id).await {
-                    Ok(secret) => secret,
-                    Err(e) => {
-                        tracing::error!("failed to get secret: {:?}", e);
-                        continue;
-                    }
-                };
+            let secret = match gt_secrets::get::<TwitchSessionSecret>(
+                &state.secrets_manager,
+                secret_id,
+            )
+            .await
+            {
+                Ok(secret) => secret,
+                Err(e) => {
+                    tracing::error!("failed to get secret: {:?}", e);
+                    continue;
+                }
+            };
 
             let Some(access_token) = secret.access_token else {
                 tracing::warn!("access_token not found in secret");
@@ -111,7 +116,7 @@ async fn do_refresh(
         .await
         .map_err(|e| e.to_string())?;
 
-    secret::set_tokens(
+    gt_secrets::set_tokens::<TwitchSessionSecret>(
         &state.secrets_manager,
         secret_id,
         token_response.access_token.secret(),
