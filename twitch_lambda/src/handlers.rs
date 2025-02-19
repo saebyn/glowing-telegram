@@ -1,10 +1,10 @@
 use axum::{
-    Json, async_trait,
-    extract::{FromRequestParts, State},
+    Json,
+    extract::State,
     http::{StatusCode, header},
     response::IntoResponse,
 };
-use lambda_http::RequestExt;
+use gt_axum::cognito::CognitoUserId;
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use serde_json::json;
 use tracing::instrument;
@@ -259,36 +259,4 @@ pub async fn obtain_twitch_access_token_handler(
             return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
         }
     };
-}
-
-// axum extractor to get cognito user id from the request
-#[derive(Debug, Clone)]
-pub struct CognitoUserId(String);
-
-#[async_trait]
-impl<S> FromRequestParts<S> for CognitoUserId
-where
-    S: Send + Sync,
-{
-    type Rejection = (StatusCode, &'static str);
-
-    async fn from_request_parts(
-        parts: &mut axum::http::request::Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
-        tracing::info!("extracting cognito user id");
-        parts
-            .request_context_ref()
-            .and_then(|ctx| ctx.authorizer())
-            .and_then(|auth| {
-                auth.jwt
-                    .as_ref()
-                    .map(|jwt| &jwt.claims)
-                    .and_then(|claims| claims.get("sub"))
-            })
-            .map_or(
-                Err((StatusCode::UNAUTHORIZED, "Unauthorized")),
-                |cognito_user_id| Ok(Self(cognito_user_id.to_string())),
-            )
-    }
 }

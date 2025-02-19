@@ -1445,6 +1445,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "gt_axum"
+version = "0.1.0"
+dependencies = [
+ "aws_lambda_events 0.16.0",
+ "axum",
+ "axum-aws-lambda",
+ "lambda_http",
+ "lambda_runtime",
+ "serde",
+ "serde_json",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "gt_ffmpeg"
 version = "0.1.0"
 dependencies = [
@@ -3651,6 +3667,7 @@ dependencies = [
  "axum-aws-lambda",
  "chrono",
  "figment",
+ "gt_axum",
  "gt_secrets",
  "lambda_http",
  "lambda_runtime",
