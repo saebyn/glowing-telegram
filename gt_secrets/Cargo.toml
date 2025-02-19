@@ -1,0 +1,22 @@
+[package]
+name = "gt_secrets"
+version = "0.1.0"
+edition = "2021"
+description = "Secrets management library for the Glowing Telegram project"
+keywords = ["rust", "aws", "glowing-telegram", "secrets"]
+categories = ["web-programming"]
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+aws-sdk-secretsmanager = { workspace = true }
+lambda_runtime = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+types = { workspace = true }
+
+[lints]
+workspace = true

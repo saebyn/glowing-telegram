@@ -31,6 +31,7 @@ types = { workspace = true }
 reqwest = { workspace = true }
 redact = { workspace = true }
 oauth2 = { version = "4", features = ["reqwest", "rustls-tls"] }
+gt_secrets = { workspace = true }
 
 [lints]
 workspace = true

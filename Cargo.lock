@@ -1461,6 +1461,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gt_secrets"
+version = "0.1.0"
+dependencies = [
+ "aws-sdk-secretsmanager",
+ "lambda_runtime",
+ "serde",
+ "serde_json",
+ "tracing",
+ "types",
+]
+
+[[package]]
 name = "h2"
 version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3639,6 +3651,7 @@ dependencies = [
  "axum-aws-lambda",
  "chrono",
  "figment",
+ "gt_secrets",
  "lambda_http",
  "lambda_runtime",
  "oauth2",
