@@ -382,3 +382,30 @@ export interface TranscriptSegment {
     text:              string;
     tokens:            number[];
 }
+
+export interface YouTubeAuthRequest {
+    redirect_uri: string;
+    scopes:       string[];
+}
+
+export interface YouTubeCallbackRequest {
+    code:  string;
+    scope: string[];
+    state: string;
+}
+
+export interface YouTubeCallbackResponse {
+    /**
+     * The URL to redirect the client to after the authorization flow is complete.
+     */
+    url: string;
+}
+
+export interface YouTubeSessionSecret {
+    access_token?:  string;
+    csrf_token:     string;
+    redirect_url:   string;
+    refresh_token?: string;
+    scopes:         string[];
+    valid_until?:   number;
+}

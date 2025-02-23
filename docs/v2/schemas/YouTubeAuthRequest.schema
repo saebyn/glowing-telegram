@@ -1,0 +1,19 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"$comment": "Represents the request from the client to Glowing Telegram to authorize with YouTube",
+	"properties": {
+		"redirect_uri": {
+			"type": "string",
+			"format": "uri"
+		},
+		"scopes": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		}
+	},
+	"required": ["redirect_uri", "scopes"],
+	"additionalProperties": false
+}

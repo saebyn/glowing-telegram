@@ -605,3 +605,43 @@ pub struct TranscriptSegment {
 
     pub tokens: Vec<f64>,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct YouTubeAuthRequest {
+    pub redirect_uri: String,
+
+    pub scopes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct YouTubeCallbackRequest {
+    pub code: String,
+
+    pub scope: Vec<String>,
+
+    pub state: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct YouTubeCallbackResponse {
+    /// The URL to redirect the client to after the authorization flow is complete.
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct YouTubeSessionSecret {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+
+    pub csrf_token: String,
+
+    pub redirect_url: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+
+    pub scopes: Vec<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valid_until: Option<f64>,
+}
