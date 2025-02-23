@@ -1,20 +1,8 @@
 use aws_sdk_secretsmanager::client::Client as SecretsManagerClient;
 use figment::Figment;
+use gt_secrets::UserSecretPathProvider;
 use serde::Deserialize;
 use std::sync::Arc;
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UserSecretPathProvider(pub String);
-
-impl UserSecretPathProvider {
-    pub fn secret_path(&self, cognito_user_id: &str) -> String {
-        format!(
-            "{prefix}/{cognito_user_id}",
-            prefix = self.0,
-            cognito_user_id = cognito_user_id
-        )
-    }
-}
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(clippy::struct_field_names)]

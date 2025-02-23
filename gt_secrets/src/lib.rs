@@ -1,6 +1,6 @@
 use aws_sdk_secretsmanager::client::Client as SecretsManagerClient;
 use serde::{Deserialize, Serialize};
-use types::TwitchSessionSecret;
+use types::{TwitchSessionSecret, YouTubeSessionSecret};
 
 /// Trait for session secrets
 /// Trait for managing session secrets, providing methods to create, set, and clear tokens.
@@ -62,6 +62,40 @@ impl SessionSecret for TwitchSessionSecret {
     }
 }
 
+impl SessionSecret for YouTubeSessionSecret {
+    fn new(
+        csrf_token: String,
+        redirect_url: String,
+        scopes: Vec<String>,
+    ) -> Self {
+        Self {
+            csrf_token,
+            redirect_url,
+            scopes,
+            access_token: None,
+            refresh_token: None,
+            valid_until: None,
+        }
+    }
+
+    fn set_tokens(
+        &mut self,
+        access_token: String,
+        refresh_token: String,
+        valid_until: Option<f64>,
+    ) {
+        self.access_token = Some(access_token);
+        self.refresh_token = Some(refresh_token);
+        self.valid_until = valid_until;
+    }
+
+    fn clear_tokens(&mut self) {
+        self.access_token = None;
+        self.refresh_token = None;
+        self.valid_until = None;
+    }
+}
+
 /// Create or replace a secret in the secrets manager.
 ///
 /// This function asynchronously creates or replaces a secret in the AWS Secrets Manager.
@@ -86,20 +120,35 @@ pub async fn create_or_replace<T: SessionSecret + Send + Sync>(
     secret_id: &str,
     secret: &T,
 ) -> Result<(), String> {
-    secrets_manager
+    let secret_string =
+        serde_json::to_string(secret).map_err(|e| e.to_string())?;
+
+    match secrets_manager
         .put_secret_value()
         .secret_id(secret_id)
-        .secret_string(
-            serde_json::to_string(secret).map_err(|e| e.to_string())?,
-        )
+        .secret_string(secret_string.clone())
         .send()
         .await
-        .map_err(|e| {
-            tracing::error!("failed to create or replace secret: {:?}", e);
-            e.to_string()
-        })?;
+    {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            tracing::error!("failed to update secret: {:?}", e);
+            tracing::info!("attempting to create secret instead");
 
-    Ok(())
+            secrets_manager
+                .create_secret()
+                .name(secret_id)
+                .secret_string(secret_string)
+                .send()
+                .await
+                .map_err(|e| {
+                    tracing::error!("failed to create secret: {:?}", e);
+                    e.to_string()
+                })?;
+
+            Ok(())
+        }
+    }
 }
 
 /// Get a secret from the secrets manager.
@@ -239,4 +288,24 @@ fn calculate_valid_until(
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs_f64()
     })
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UserSecretPathProvider(pub String);
+
+/// Provides the secret path for a given Cognito user ID.
+///
+/// This struct is used to generate the secret path for a given Cognito user ID.
+/// The secret path is constructed by concatenating the prefix (provided during
+/// initialization) with the Cognito user ID.
+///
+impl UserSecretPathProvider {
+    #[must_use]
+    pub fn secret_path(&self, cognito_user_id: &str) -> String {
+        format!(
+            "{prefix}/{cognito_user_id}",
+            prefix = self.0,
+            cognito_user_id = cognito_user_id
+        )
+    }
 }
