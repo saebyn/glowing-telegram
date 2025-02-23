@@ -25,6 +25,7 @@ export default class RepoStack extends cdk.Stack {
         'audio-transcription',
         'video-ingestor',
         'twitch-lambda',
+        'youtube-lambda',
         'media-lambda',
         'render-job',
       ],
