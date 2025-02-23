@@ -236,7 +236,7 @@ export default class APIConstruct extends Construct {
         description: 'AI Chat Lambda for Glowing-Telegram',
         timeout: cdk.Duration.minutes(3),
         environment: {
-          OPENAI_SECRET: props.openaiSecret.secretArn,
+          OPENAI_SECRET_ARN: props.openaiSecret.secretArn,
           OPENAI_MODEL: 'gpt-4o-2024-11-20',
         },
       },
