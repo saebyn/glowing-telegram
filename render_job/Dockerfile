@@ -47,7 +47,7 @@ RUN if [ "$RUN_TESTS" = "true" ]; then cargo test --release; fi
 
 # Build application
 WORKDIR /app/render_job
-RUN cargo build --release
+RUN cargo build --release --bin render_job
 
 ################################################################################
 # Final stage
