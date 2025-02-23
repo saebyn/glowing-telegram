@@ -63,6 +63,8 @@ def handler(event, context):
         else:
             break
 
+    print(f"Found {len(stream_video_records)} video records")
+
     sorted_stream_videos = sorted(stream_video_records, key=lambda x: x["key"])
 
     lines = []
@@ -74,6 +76,9 @@ def handler(event, context):
             path = rewrite_path(segment["M"]["path"]["S"])
             lines.append(path)
 
+    print(f"Found {len(lines)} segments")
+
+    # Create the m3u8 playlist text
     m3u8_playlist_text = "\n".join(
         [
             M3U8_HEADER,
@@ -81,6 +86,8 @@ def handler(event, context):
             M3U8_FOOTER,
         ]
     )
+
+    print(f"length of m3u8_playlist_text: {len(m3u8_playlist_text)}")
 
     return {
         "statusCode": 200,
