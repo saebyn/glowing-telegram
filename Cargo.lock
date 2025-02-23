@@ -4221,6 +4221,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "youtube_lambda"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-secretsmanager",
+ "aws_lambda_events 0.16.0",
+ "axum",
+ "axum-aws-lambda",
+ "chrono",
+ "figment",
+ "gt_axum",
+ "gt_secrets",
+ "lambda_http",
+ "lambda_runtime",
+ "oauth2",
+ "redact",
+ "reqwest 0.12.12",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "types",
+ "uuid",
+]
+
+[[package]]
 name = "zerocopy"
 version = "0.7.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
