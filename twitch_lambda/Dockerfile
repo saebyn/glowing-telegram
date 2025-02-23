@@ -33,7 +33,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --bin twitch_lambda
 
 ################################################################################
 # Final stage

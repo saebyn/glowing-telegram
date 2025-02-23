@@ -47,7 +47,7 @@ RUN if [ "$RUN_TESTS" = "true" ]; then cargo test --release; fi
 
 # Build application
 WORKDIR /app/audio_transcriber
-RUN cargo build --release
+RUN cargo build --release --bin audio_transcriber
 
 ################################################################################
 # Final stage

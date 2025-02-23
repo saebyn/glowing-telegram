@@ -47,7 +47,7 @@ RUN if [ "$RUN_TESTS" = "true" ]; then cargo test --release; fi
 
 # Build application
 WORKDIR /app/video_ingestor
-RUN cargo build --release
+RUN cargo build --release --bin video_ingestor
 
 ################################################################################
 # Final stage
