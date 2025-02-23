@@ -49,6 +49,10 @@ case $SERVICE in
     FUNCTION_NAME="AppStack-APITwitchLambda2D310BDC-j4oOL948PVWw"
     ECR_REPOSITORY="glowing-telegram/twitch-lambda"
     ;;
+  youtube_lambda)
+    FUNCTION_NAME="AppStack-APIYoutubeLambdaB9D8CD47-lNwxygsmjG5g"
+    ECR_REPOSITORY="glowing-telegram/youtube-lambda"
+    ;;
   media_lambda)
     FUNCTION_NAME="AppStack-MediaServePlaylistMediaLambda657BA445-dkfapvOB8vdT"
     ECR_REPOSITORY="glowing-telegram/media-lambda"
