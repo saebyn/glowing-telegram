@@ -117,7 +117,9 @@ pub async fn twitch_callback_handler(
     )
     .await
     {
-        Ok(()) => (),
+        Ok(()) => {
+            tracing::info!("Tokens stored successfully in secrets manager");
+        }
         Err(e) => {
             tracing::error!("failed to store in secrets manager: {:?}", e);
             return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
