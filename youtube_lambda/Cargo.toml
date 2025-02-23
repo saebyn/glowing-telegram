@@ -1,0 +1,38 @@
+[package]
+name = "youtube_lambda"
+version = "0.1.0"
+edition = "2021"
+description = "YouTube Lambda for the Glowing Telegram project"
+keywords = ["rust", "aws", "lambda", "youtube", "glowing-telegram"]
+categories = ["web-programming"]
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+aws-config = { workspace = true }
+aws-sdk-secretsmanager = { workspace = true }
+lambda_runtime = { workspace = true }
+lambda_http = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+figment = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+axum = { workspace = true }
+axum-aws-lambda = { workspace = true }
+aws_lambda_events = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+types = { workspace = true }
+reqwest = { workspace = true }
+redact = { workspace = true }
+oauth2 = { version = "4", features = ["reqwest", "rustls-tls"] }
+gt_secrets = { workspace = true }
+gt_axum = { workspace = true }
+
+[lints]
+workspace = true
