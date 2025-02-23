@@ -43,6 +43,51 @@ export default class APIConstruct extends Construct {
   constructor(scope: Construct, id: string, props: APIConstructProps) {
     super(scope, id);
 
+    // youtube lambda
+    const youtubeAppSecret = new secretsmanager.Secret(
+      this,
+      'YoutubeAppSecret',
+      {
+        description: 'Youtube App Secret for API access in glowing-telegram',
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      },
+    );
+
+    const youtubeService = new ServiceLambdaConstruct(this, 'YoutubeLambda', {
+      lambdaOptions: {
+        description: 'Youtube OAuth Lambda for Glowing-Telegram',
+        timeout: cdk.Duration.seconds(30),
+        environment: {
+          USER_SECRET_PATH: 'gt/youtube/user',
+          YOUTUBE_SECRET_ARN: youtubeAppSecret.secretArn,
+        },
+      },
+      name: 'youtube-lambda',
+    });
+
+    youtubeAppSecret.grantRead(youtubeService.lambda);
+    youtubeService.lambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          // put, create, get secret values
+          'secretsmanager:GetSecretValue',
+          'secretsmanager:PutSecretValue',
+          'secretsmanager:CreateSecret',
+        ],
+        resources: [
+          cdk.Arn.format(
+            {
+              service: 'secretsmanager',
+              resource: 'secret',
+              resourceName: 'gt/youtube/user/*',
+              arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
+            },
+            cdk.Stack.of(this),
+          ),
+        ],
+      }),
+    );
+
     // twitch lambda
     const twitchAppSecret = new secretsmanager.Secret(this, 'TwitchAppSecret', {
       description: 'Twitch App Secret for API access in glowing-telegram',
@@ -284,6 +329,17 @@ export default class APIConstruct extends Construct {
       ),
       path: '/auth/twitch/{proxy+}',
       methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.GET],
+    });
+
+    // POST/GET /auth/youtube/* - run youtube lambda
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'YoutubeIntegration',
+        youtubeService.lambda,
+      ),
+
+      path: '/auth/youtube/{proxy+}', // specify path for youtube integration
+      methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.GET], // allow POST and GET methods
     });
 
     // POST /ai/chat - run ai chat lambda
