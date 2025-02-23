@@ -11,14 +11,19 @@ keywords = ["rust", "aws", "lambda", "chat", "ai", "glowing-telegram"]
 categories = ["web-programming"]
 
 [dependencies]
+aws_lambda_events = { workspace = true }
 aws-config = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }
-openai_dive = { workspace = true }
+axum = { workspace = true }
+axum-aws-lambda = { workspace = true }
+figment = { workspace = true }
+lambda_http = { workspace = true }
 lambda_runtime = { workspace = true }
+openai_dive = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
-figment = { workspace = true }
+tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 types = { workspace = true }

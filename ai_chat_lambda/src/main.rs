@@ -9,8 +9,16 @@
  */
 use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 
+use axum::{
+    Json, Router,
+    body::Body,
+    extract::State,
+    http::{Request, StatusCode, header},
+    response::IntoResponse,
+    routing::post,
+};
 use figment::Figment;
-use lambda_runtime::{Error, LambdaEvent, service_fn};
+use lambda_http::tower;
 use openai_dive::v1::error::APIError;
 use openai_dive::v1::resources::chat::{
     ChatCompletionParameters, ChatCompletionResponse,
@@ -22,9 +30,13 @@ use openai_dive::v1::{
     },
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use tower_http::{compression::CompressionLayer, trace::TraceLayer};
+use tracing::instrument;
 use types::SimpleChatMessage;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
+#[allow(clippy::struct_field_names)]
 struct Config {
     openai_secret_arn: String,
     openai_model: String,
@@ -37,23 +49,23 @@ fn load_config() -> Result<Config, figment::Error> {
 }
 
 #[derive(Deserialize, Debug)]
-struct Request {
+struct ChatRequest {
     messages: Vec<SimpleChatMessage>,
 }
 
 #[derive(Serialize)]
-struct Response {
+struct ChatResponse {
     messages: Vec<SimpleChatMessage>,
 }
 
-#[derive(Debug)]
-struct SharedResources {
+#[derive(Debug, Clone)]
+struct AppState {
     secrets_manager: aws_sdk_secretsmanager::Client,
     config: Config,
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() {
     // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
     tracing_subscriber::fmt()
         .json()
@@ -80,42 +92,83 @@ async fn main() -> Result<(), Error> {
 
     let secrets_manager = aws_sdk_secretsmanager::Client::new(&aws_config);
 
-    let shared_resources = &SharedResources {
+    let state = AppState {
         secrets_manager,
         config,
     };
 
-    lambda_runtime::run(service_fn(
-        move |event: LambdaEvent<Request>| async move {
-            handler(shared_resources, event).await
+    // Set up a trace layer
+    let trace_layer = TraceLayer::new_for_http().on_request(
+        |request: &Request<Body>, _: &tracing::Span| {
+            tracing::info!(
+                "received request: {method} {uri}",
+                method = request.method(),
+                uri = request.uri()
+            );
         },
-    ))
-    .await?;
+    );
 
-    Ok(())
+    let compression_layer = CompressionLayer::new().gzip(true).deflate(true);
+
+    let app = Router::new()
+        .route("/ai/chat", post(handler))
+        .fallback(|| async {
+            (
+                StatusCode::NOT_FOUND,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "not found",
+                })),
+            )
+        })
+        .layer(trace_layer)
+        .layer(compression_layer)
+        .with_state(state);
+
+    // Provide the app to the lambda runtime
+    let app = tower::ServiceBuilder::new()
+        .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
+        .service(app);
+
+    lambda_http::run(app).await.unwrap();
 }
 
+#[instrument(skip(state))]
 async fn handler(
-    shared_resources: &SharedResources,
-    event: LambdaEvent<Request>,
-) -> Result<Response, Error> {
+    State(state): State<AppState>,
+    Json(event): Json<ChatRequest>,
+) -> impl IntoResponse {
     // Get the openai api key from secrets manager
-    let openai_secret = shared_resources
+    let openai_secret = match state
         .secrets_manager
         .get_secret_value()
-        .secret_id(&shared_resources.config.openai_secret_arn)
+        .secret_id(&state.config.openai_secret_arn)
         .send()
-        .await?
-        .secret_string
-        .ok_or("Secret string not found")?;
+        .await
+    {
+        Ok(secret) => secret,
+        Err(e) => {
+            tracing::error!("failed to get secret: {:?}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
+        }
+    };
+
+    let openai_secret =
+        match openai_secret.secret_string.ok_or("Secret string not found") {
+            Ok(secret) => secret,
+            Err(e) => {
+                tracing::error!("failed to get secret string: {:?}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
+            }
+        };
 
     let client = Client::new(openai_secret);
 
     let response = match client
         .chat()
         .create(build_parameters(
-            &event.payload.messages,
-            &shared_resources.config.openai_model,
+            &event.messages,
+            &state.config.openai_model,
         ))
         .await
     {
@@ -124,26 +177,32 @@ async fn handler(
             tracing::error!("Failed to complete chat: {:?}", e);
             match e {
                 APIError::InvalidRequestError(message) => {
-                    return Err(format!(
-                        "Failed to complete chat: {message:?}"
-                    )
-                    .into());
+                    tracing::error!("Invalid request: {:?}", message);
+                    return (StatusCode::INTERNAL_SERVER_ERROR,)
+                        .into_response();
                 }
                 _ => {
-                    return Err("Unexpected error occurred while processing the chat request".into());
+                    return (StatusCode::INTERNAL_SERVER_ERROR,)
+                        .into_response();
                 }
             }
         }
     };
 
-    Ok(Response {
+    let response = ChatResponse {
         messages: event
-            .payload
             .messages
             .into_iter()
             .chain(std::iter::once(convert_chat_completion(&response)))
             .collect(),
-    })
+    };
+
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        Json(response),
+    )
+        .into_response()
 }
 
 fn build_parameters(
