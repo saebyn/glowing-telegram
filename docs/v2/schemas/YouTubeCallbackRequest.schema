@@ -1,0 +1,12 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"$comment": "Represents the query parameters that YouTube sends to the callback URL",
+	"properties": {
+		"code": { "type": "string" },
+		"scope": { "type": "array", "items": { "type": "string" } },
+		"state": { "type": "string" }
+	},
+	"required": ["code", "state", "scope"],
+	"additionalProperties": false
+}
