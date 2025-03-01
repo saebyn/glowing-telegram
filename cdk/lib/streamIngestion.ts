@@ -232,6 +232,7 @@ The summary you generate must be not only informational for content review but a
         resultPath: '$.dynamodb',
       },
     );
+
     const invalidatePlaylistCache = new tasks.CallAwsService(
       this,
       'Invalidate CloudFront Distribution',
@@ -262,6 +263,7 @@ The summary you generate must be not only informational for content review but a
           cdk.Stack.of(this).formatArn({
             service: 'cloudfront',
             resource: 'distribution',
+            region: '',
             resourceName: props.mediaDistribution.distributionId,
           }),
         ],

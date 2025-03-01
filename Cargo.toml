@@ -11,7 +11,7 @@ members = [
   "twitch_lambda",
   "render_job",
   "gt_secrets",
-  "gt_axum", "youtube_lambda",
+  "gt_axum", "youtube_lambda", "upload_video",
 ]
 
 [workspace.package]

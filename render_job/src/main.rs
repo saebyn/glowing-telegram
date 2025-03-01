@@ -16,11 +16,14 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. get the record ids from the command line for the projects
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: {} <record_id1> <record_id2> ...", args[0]);
+    if args.len() != 2 {
+        eprintln!("Usage: {} '<record_id1> <record_id2> ...'", args[0]);
         std::process::exit(1);
     }
-    let record_ids = &args[1..];
+    let record_ids = &args[1]
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
 
     // 2. transform the cut job records into the type `CutList`
     let mut cut_lists = Vec::new();

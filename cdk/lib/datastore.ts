@@ -54,11 +54,26 @@ export default class DatastoreConstruct extends Construct {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    this.episodesTable = new dynamodb.Table(this, 'EpisodesTable', {
+    const episodesTable = new dynamodb.Table(this, 'EpisodesTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
+
+    episodesTable.addGlobalSecondaryIndex({
+      indexName: 'upload_status-upload_queue_timestamp-index',
+      partitionKey: {
+        name: 'upload_status',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'upload_queue_timestamp',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.KEYS_ONLY,
+    });
+
+    this.episodesTable = episodesTable;
 
     this.profilesTable = new dynamodb.Table(this, 'ProfilesTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
