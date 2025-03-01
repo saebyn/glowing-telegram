@@ -11,7 +11,7 @@ FROM rust:${RUST_VERSION:-latest} AS base
 FROM base AS chef
 
 # Install cargo-chef. Used to cache dependencies
-RUN cargo install --version 0.1.68 cargo-chef
+RUN cargo install cargo-chef
 
 ################################################################################
 # Planner stage

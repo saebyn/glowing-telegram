@@ -97,7 +97,9 @@ export default class MediaServeConstruct extends Construct {
     const playlistOrigin =
       origins.FunctionUrlOrigin.withOriginAccessControl(playlistLambdaUrl);
 
-    distribution.addBehavior('/playlist/*.m3u8', playlistOrigin);
+    distribution.addBehavior('/playlist/*.m3u8', playlistOrigin, {
+      responseHeadersPolicy,
+    });
 
     this.domainName = distribution.distributionDomainName;
     this.distribution = distribution;

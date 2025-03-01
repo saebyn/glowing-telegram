@@ -112,49 +112,42 @@ impl From<SummarizationOutput> for AttributeValue {
         let mut map = HashMap::new();
         map.insert(
             "summary_context".to_string(),
-            AttributeValue::S(output.summary_context),
+            Self::S(output.summary_context),
         );
         map.insert(
             "summary_main_discussion".to_string(),
-            AttributeValue::S(output.summary_main_discussion),
+            Self::S(output.summary_main_discussion),
         );
-        map.insert("title".to_string(), AttributeValue::S(output.title));
-        map.insert(
-            "keywords".to_string(),
-            AttributeValue::Ss(output.keywords),
-        );
+        map.insert("title".to_string(), Self::S(output.title));
+        map.insert("keywords".to_string(), Self::Ss(output.keywords));
         map.insert(
             "highlights".to_string(),
-            AttributeValue::L(
+            Self::L(
                 output
                     .highlights
                     .iter()
                     .map(|highlight| {
-                        AttributeValue::M(
+                        Self::M(
                             vec![
                                 (
                                     "timestamp_start".to_string(),
-                                    AttributeValue::N(
+                                    Self::N(
                                         highlight.timestamp_start.to_string(),
                                     ),
                                 ),
                                 (
                                     "timestamp_end".to_string(),
-                                    AttributeValue::N(
+                                    Self::N(
                                         highlight.timestamp_end.to_string(),
                                     ),
                                 ),
                                 (
                                     "description".to_string(),
-                                    AttributeValue::S(
-                                        highlight.description.clone(),
-                                    ),
+                                    Self::S(highlight.description.clone()),
                                 ),
                                 (
                                     "reasoning".to_string(),
-                                    AttributeValue::S(
-                                        highlight.reasoning.clone(),
-                                    ),
+                                    Self::S(highlight.reasoning.clone()),
                                 ),
                             ]
                             .into_iter()
@@ -166,36 +159,32 @@ impl From<SummarizationOutput> for AttributeValue {
         );
         map.insert(
             "attentions".to_string(),
-            AttributeValue::L(
+            Self::L(
                 output
                     .attentions
                     .iter()
                     .map(|attention| {
-                        AttributeValue::M(
+                        Self::M(
                             vec![
                                 (
                                     "timestamp_start".to_string(),
-                                    AttributeValue::N(
+                                    Self::N(
                                         attention.timestamp_start.to_string(),
                                     ),
                                 ),
                                 (
                                     "timestamp_end".to_string(),
-                                    AttributeValue::N(
+                                    Self::N(
                                         attention.timestamp_end.to_string(),
                                     ),
                                 ),
                                 (
                                     "description".to_string(),
-                                    AttributeValue::S(
-                                        attention.description.clone(),
-                                    ),
+                                    Self::S(attention.description.clone()),
                                 ),
                                 (
                                     "reasoning".to_string(),
-                                    AttributeValue::S(
-                                        attention.reasoning.clone(),
-                                    ),
+                                    Self::S(attention.reasoning.clone()),
                                 ),
                             ]
                             .into_iter()
@@ -207,28 +196,24 @@ impl From<SummarizationOutput> for AttributeValue {
         );
         map.insert(
             "transcription_errors".to_string(),
-            AttributeValue::L(
+            Self::L(
                 output
                     .transcription_errors
                     .iter()
                     .map(|error| {
-                        AttributeValue::M(
+                        Self::M(
                             vec![
                                 (
                                     "timestamp_start".to_string(),
-                                    AttributeValue::N(
-                                        error.timestamp_start.to_string(),
-                                    ),
+                                    Self::N(error.timestamp_start.to_string()),
                                 ),
                                 (
                                     "description".to_string(),
-                                    AttributeValue::S(
-                                        error.description.clone(),
-                                    ),
+                                    Self::S(error.description.clone()),
                                 ),
                                 (
                                     "reasoning".to_string(),
-                                    AttributeValue::S(error.reasoning.clone()),
+                                    Self::S(error.reasoning.clone()),
                                 ),
                             ]
                             .into_iter()
@@ -424,6 +409,12 @@ async fn update_transcription_summary(
         .expression_attribute_values(":summary", result.into())
         .send()
         .await
+        .inspect_err(|err| {
+            tracing::error!(
+                "Failed to update the summary in DynamoDB: {:?}",
+                err
+            );
+        })
         .or(Err(ErrorResponse(
             "ServerError",
             "Failed to update the summary in DynamoDB",
