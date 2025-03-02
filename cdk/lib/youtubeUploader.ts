@@ -102,6 +102,7 @@ export default class YoutubeUploader extends Construct {
             'retry_after_seconds',
           ),
         ],
+        consistentRead: true,
         resultPath: '$.uploadVideoResult',
       },
     );
@@ -149,7 +150,7 @@ export default class YoutubeUploader extends Construct {
         expressionAttributeValues: {
           ':status': tasks.DynamoAttributeValue.fromString('uploaded'),
         },
-        resultPath: '$.updateResult',
+        resultPath: sfn.JsonPath.DISCARD,
       },
     );
 
@@ -172,7 +173,7 @@ export default class YoutubeUploader extends Construct {
             'not_ready_to_upload',
           ),
         },
-        resultPath: '$.updateResult',
+        resultPath: sfn.JsonPath.DISCARD,
       },
     );
 
