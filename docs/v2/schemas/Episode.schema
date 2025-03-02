@@ -34,6 +34,50 @@
 		"cut_list": {
 			"type": "object",
 			"$ref": "./CutList.schema"
+		},
+		"youtube_video_id": {
+			"type": "string"
+		},
+		"upload_attempts": {
+			"type": "integer"
+		},
+		"upload_status": {
+			"type": "string",
+			"enum": [
+				"FAILED",
+				"SUCCESS",
+				"THROTTLED",
+			],
+		},
+		"error_message": {
+			"type": "string"
+		},
+		"retry_after_seconds": {
+			"type": "integer"
+		},
+		"upload_resume_at_byte": {
+			"type": "integer"
+		},
+		"user_id": {
+			"type": "string",
+			"format": "uuid"
+		},
+		"render_uri": {
+			"type": "string"
+		},
+		"created_at": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"updated_at": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"tags": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
 		}
 	},
 	"required": ["id"],

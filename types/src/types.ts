@@ -138,14 +138,25 @@ export interface OverlayTrack {
 export type OverlayTrackType = "alpha" | "colorkey";
 
 export interface Episode {
-    cut_list?:     CutListClass;
-    description?:  string;
-    id:            string;
-    is_published?: boolean;
-    order_index?:  number;
-    stream_id?:    string;
-    title?:        string;
-    tracks?:       Track[];
+    created_at?:            string;
+    cut_list?:              CutListClass;
+    description?:           string;
+    error_message?:         string;
+    id:                     string;
+    is_published?:          boolean;
+    order_index?:           number;
+    render_uri?:            string;
+    retry_after_seconds?:   number;
+    stream_id?:             string;
+    tags?:                  string[];
+    title?:                 string;
+    tracks?:                Track[];
+    updated_at?:            string;
+    upload_attempts?:       number;
+    upload_resume_at_byte?: number;
+    upload_status?:         UploadStatus;
+    user_id?:               string;
+    youtube_video_id?:      string;
 }
 
 export interface CutListClass {
@@ -171,6 +182,8 @@ export interface Track {
     end:   string;
     start: string;
 }
+
+export type UploadStatus = "FAILED" | "SUCCESS" | "THROTTLED";
 
 export interface IDOnly {
     id: string;
