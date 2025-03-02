@@ -12,3 +12,5 @@ license.workspace = true
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
+aws-sdk-dynamodb = { workspace = true }
+serde_json = { workspace = true }

@@ -1,0 +1,19 @@
+[package]
+name = "gt_app"
+description = "Common code for Glowing Telegram jobs"
+version = "0.1.0"
+edition = "2024"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+aws-config = { workspace = true }
+figment = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true
