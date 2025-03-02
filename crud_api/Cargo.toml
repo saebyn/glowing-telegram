@@ -28,6 +28,7 @@ tower-http = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 openai_dive = { workspace = true }
+types = { workspace = true }
 
 [lints]
 workspace = true

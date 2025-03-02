@@ -12,7 +12,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     // Read configuration from environment variables with figment
-    let app_context = initialize_app_context().await?;
+    let app_context = gt_app::create_app_context().await?;
 
     // 1. get the record ids from the command line for the projects
     let args: Vec<String> = std::env::args().collect();
