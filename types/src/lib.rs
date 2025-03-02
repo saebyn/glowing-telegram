@@ -1,4 +1,4 @@
 mod types;
-mod utils;
+pub mod utils;
 
 pub use types::*;
