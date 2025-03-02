@@ -159,10 +159,16 @@ pub enum CutListVersion {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Episode {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cut_list: Option<CutListClass>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
 
     pub id: String,
 
@@ -173,13 +179,40 @@ pub struct Episode {
     pub order_index: Option<i64>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub render_uri: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after_seconds: Option<i64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stream_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tracks: Option<Vec<Track>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upload_attempts: Option<i64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upload_resume_at_byte: Option<i64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upload_status: Option<UploadStatus>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub youtube_video_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -204,6 +237,18 @@ pub struct Track {
     pub end: String,
 
     pub start: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum UploadStatus {
+    #[serde(rename = "FAILED")]
+    Failed,
+
+    #[serde(rename = "SUCCESS")]
+    Success,
+
+    #[serde(rename = "THROTTLED")]
+    Throttled,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
