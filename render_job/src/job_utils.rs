@@ -1,6 +1,7 @@
 use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_s3::primitives::ByteStream;
 use figment::{Figment, providers::Env};
+use gt_app::ContextProvider;
 use gt_ffmpeg::edit::build_ffmpeg_command;
 use serde::Deserialize;
 use std::path::Path;
@@ -24,23 +25,14 @@ pub struct AppContext {
     pub s3_client: aws_sdk_s3::Client,
 }
 
-pub async fn initialize_app_context() -> Result<AppContext, figment::Error> {
-    let figment = Figment::new().merge(Env::raw());
-
-    let config = figment.extract()?;
-
-    let region_provider =
-        RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = aws_config::defaults(BehaviorVersion::latest())
-        .region(region_provider)
-        .load()
-        .await;
-
-    Ok(AppContext {
-        config,
-        dynamodb_client: aws_sdk_dynamodb::Client::new(&aws_config),
-        s3_client: aws_sdk_s3::Client::new(&aws_config),
-    })
+impl ContextProvider<Config> for AppContext {
+    fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
+        Self {
+            config,
+            dynamodb_client: aws_sdk_dynamodb::Client::new(&aws_config),
+            s3_client: aws_sdk_s3::Client::new(&aws_config),
+        }
+    }
 }
 
 pub async fn get_cut_list(
@@ -145,14 +137,21 @@ pub async fn download_file(
     let containing_dir = match temp_file_path.parent() {
         Some(dir) => dir,
         None => {
-            return Err(format!("Error getting parent directory for path: {:?}", temp_file_path));
+            return Err(format!(
+                "Error getting parent directory for path: {:?}",
+                temp_file_path
+            ));
         }
     };
 
     tokio::fs::create_dir_all(containing_dir)
         .await
         .map_err(|e| {
-            tracing::error!("Error creating directory {:?}: {:?}", containing_dir, e);
+            tracing::error!(
+                "Error creating directory {:?}: {:?}",
+                containing_dir,
+                e
+            );
             format!("Error creating directory {:?}", containing_dir)
         })?;
 

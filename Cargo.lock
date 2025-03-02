@@ -1021,6 +1021,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "types",
  "uuid",
 ]
 
@@ -1447,6 +1448,15 @@ dependencies = [
  "ff",
  "rand_core 0.6.4",
  "subtle",
+]
+
+[[package]]
+name = "gt_app"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "figment",
+ "serde",
 ]
 
 [[package]]
@@ -2671,6 +2681,7 @@ dependencies = [
  "aws-sdk-s3",
  "chrono",
  "figment",
+ "gt_app",
  "gt_ffmpeg",
  "serde",
  "serde_dynamo",
@@ -3699,7 +3710,9 @@ checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 name = "types"
 version = "0.1.0"
 dependencies = [
+ "aws-sdk-dynamodb",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3737,7 +3750,9 @@ dependencies = [
  "aws-sdk-dynamodb",
  "aws-sdk-s3",
  "aws-sdk-secretsmanager",
+ "chrono",
  "figment",
+ "gt_app",
  "gt_secrets",
  "oauth2",
  "redact",
@@ -3748,6 +3763,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "types",
 ]
 
 [[package]]
