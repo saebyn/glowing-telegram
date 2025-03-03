@@ -78,6 +78,13 @@
 			"items": {
 				"type": "string"
 			}
+		},
+		"category": {
+			"type": "integer",
+			"$comment": "The YouTube category ID"
+		},
+		"notify_subscribers": {
+			"type": "boolean"
 		}
 	},
 	"required": ["id"],

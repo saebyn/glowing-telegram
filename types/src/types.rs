@@ -159,6 +159,9 @@ pub enum CutListVersion {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Episode {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<i64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -174,6 +177,9 @@ pub struct Episode {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_published: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify_subscribers: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order_index: Option<i64>,

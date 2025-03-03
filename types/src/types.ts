@@ -138,12 +138,14 @@ export interface OverlayTrack {
 export type OverlayTrackType = "alpha" | "colorkey";
 
 export interface Episode {
+    category?:              number;
     created_at?:            string;
     cut_list?:              CutListClass;
     description?:           string;
     error_message?:         string;
     id:                     string;
     is_published?:          boolean;
+    notify_subscribers?:    boolean;
     order_index?:           number;
     render_uri?:            string;
     retry_after_seconds?:   number;
