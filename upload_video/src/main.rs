@@ -37,7 +37,7 @@ impl gt_app::ContextProvider<Config> for AppContext {
             .build()
             .unwrap();
 
-        AppContext {
+        Self {
             config,
             dynamodb_client,
             s3_client,
@@ -65,14 +65,19 @@ impl gt_app::ContextProvider<Config> for AppContext {
  *   - upload_status ("FAILED", "SUCCESS", "THROTTLED")
  *   - error_message (if an error occurs)
  *   - retry_after_seconds (if the upload fails and can be retried)
- *   - upload_resume_at_byte (if the upload fails and can be retried)
+ *   - upload_resume_at_byte (if the upload fails and can be retried)   
+ *
+ * # Panics
+ * This program will panic if the environment variables are not set correctly,
+ * or if the episode record id is not provided as a command line argument.
+ *
  */
 #[tokio::main]
-pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn main() {
     tracing_subscriber::fmt::init();
 
     // Read configuration from environment variables with figment
-    let app_context = gt_app::create_app_context().await?;
+    let app_context = gt_app::create_app_context().await.unwrap();
 
     // 1. get the record ids from the command line for the projects
     let args: Vec<String> = std::env::args().collect();
@@ -83,7 +88,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let record_id = &args[1];
 
     // Upload the video to YouTube
-    upload_video(&app_context, record_id).await
+    upload_video(&app_context, record_id).await.unwrap();
 }
 
 async fn upload_video(
@@ -96,12 +101,8 @@ async fn upload_video(
     let user_id = episode.user_id.as_ref().ok_or("User ID not found")?;
 
     // download the video file from S3
-    let video_file: tokio::fs::File =
+    let mut video_file: tokio::fs::File =
         download_video_file(context, &episode).await?;
-
-    // create the target video upload URL
-    let upload_url =
-        youtube::create_upload_url(&context.reqwest_client, &episode).await?;
 
     // get the user's YouTube session secret
     let access_token_path =
@@ -115,15 +116,24 @@ async fn upload_video(
     .access_token
     .ok_or("Access token not found")?;
 
+    // create the target video upload URL
+    let upload_url = youtube::create_upload_url(
+        &context.reqwest_client,
+        access_token.as_str(),
+        &episode,
+        &video_file,
+    )
+    .await?;
+
     // upload the video to YouTube
     let mut start_byte = 0;
-    let mut attempts = episode.upload_attempts.or(Some(0)).unwrap();
+    let mut attempts = episode.upload_attempts.unwrap_or(0);
     loop {
         match youtube::upload_to_youtube(
             &context.reqwest_client,
-            access_token,
+            &access_token,
             &mut video_file,
-            upload_url,
+            upload_url.as_str(),
             start_byte,
             attempts,
         )
@@ -158,6 +168,7 @@ async fn upload_video(
                     context,
                     record_id,
                     wait_time_ms,
+                    start_byte,
                 )
                 .await?;
             }
@@ -199,9 +210,8 @@ async fn download_video_file(
     context: &AppContext,
     episode: &Episode,
 ) -> Result<tokio::fs::File, Box<dyn std::error::Error>> {
-    let render_uri = match &episode.render_uri {
-        Some(render_uri) => render_uri,
-        None => return Err("Render URI not found".into()),
+    let Some(render_uri) = &episode.render_uri else {
+        return Err("Render URI not found".into());
     };
 
     let file_path = format!("/tmp/{}", render_uri.split('/').last().unwrap());
@@ -221,4 +231,104 @@ async fn download_video_file(
     tokio::io::copy(&mut stream, &mut file).await?;
 
     Ok(file)
+}
+
+async fn update_episode_record_success(
+    context: &AppContext,
+    record_id: &str,
+    video_id: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let update = context
+        .dynamodb_client
+        .update_item()
+        .table_name(&context.config.episode_table_name)
+        .key(
+            "id",
+            aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
+        )
+        .update_expression(
+            "SET youtube_video_id = :video_id, upload_status = :status",
+        )
+        .expression_attribute_values(
+            ":video_id",
+            aws_sdk_dynamodb::types::AttributeValue::S(video_id),
+        )
+        .expression_attribute_values(
+            ":status",
+            aws_sdk_dynamodb::types::AttributeValue::S("SUCCESS".to_string()),
+        );
+
+    update.send().await?;
+
+    Ok(())
+}
+
+async fn update_episode_record_with_retry_after(
+    context: &AppContext,
+    record_id: &str,
+    wait_time_ms: u64,
+    start_byte: u64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let update = context
+        .dynamodb_client
+        .update_item()
+        .table_name(&context.config.episode_table_name)
+        .key(
+            "id",
+            aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
+        )
+        .update_expression(
+            "SET retry_after_seconds = :retry_after_seconds, upload_attempts = :attempts, upload_status = :status, upload_resume_at_byte = :start_byte",
+        )
+        .expression_attribute_values(
+            ":retry_after_seconds",
+            aws_sdk_dynamodb::types::AttributeValue::N(
+                (wait_time_ms / 1000).to_string(),
+            ),
+        )
+        .expression_attribute_values(
+            ":attempts",
+            aws_sdk_dynamodb::types::AttributeValue::N("0".to_string()),
+        )
+        .expression_attribute_values(
+            ":status",
+            aws_sdk_dynamodb::types::AttributeValue::S("THROTTLED".to_string()),
+        )
+        .expression_attribute_values(
+            ":start_byte",
+            aws_sdk_dynamodb::types::AttributeValue::N(start_byte.to_string()),
+        );
+
+    update.send().await?;
+
+    Ok(())
+}
+
+async fn update_episode_record_with_error(
+    context: &AppContext,
+    record_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let update = context
+        .dynamodb_client
+        .update_item()
+        .table_name(&context.config.episode_table_name)
+        .key(
+            "id",
+            aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
+        )
+        .update_expression(
+            "SET upload_status = :status, upload_attempts = :attempts, error_message = :error_message",
+        )
+        .expression_attribute_values(
+            ":status",
+            aws_sdk_dynamodb::types::AttributeValue::S("FAILED".to_string()),
+        )
+        .expression_attribute_values(
+            ":attempts",
+            aws_sdk_dynamodb::types::AttributeValue::N("0".to_string()),
+        );
+
+    update.send().await?;
+
+    Ok(())
 }
