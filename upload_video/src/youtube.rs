@@ -1,8 +1,12 @@
+use std::fmt::{self, Display};
+
 use reqwest::Response;
+use serde_json::json;
 use tokio::io::AsyncSeekExt;
 use tracing::instrument;
+use types::Episode;
 
-enum UploadStatus {
+pub enum UploadStatus {
     Success { video_id: String },
     TemporaryFailure { start_byte: u64, wait_time_ms: u64 },
     PermanentFailure,
@@ -29,7 +33,7 @@ impl ResponseAttempt {
 
     async fn determine_upload_status(
         self,
-    ) -> Result<UploadStatus, Box<dyn std::error::Error>> {
+    ) -> Result<UploadStatus, YouTubeError> {
         if self.response.status().is_success() {
             let result: YouTubeUploadStatusResponse =
                 self.response.json().await?;
@@ -112,6 +116,54 @@ impl ResponseAttempt {
     }
 }
 
+pub enum YouTubeError {
+    UploadProcess,
+    JsonParsing,
+    FileIO,
+}
+
+impl From<reqwest::Error> for YouTubeError {
+    fn from(_: reqwest::Error) -> Self {
+        Self::UploadProcess
+    }
+}
+
+impl From<std::io::Error> for YouTubeError {
+    fn from(_: std::io::Error) -> Self {
+        Self::FileIO
+    }
+}
+
+impl From<serde_json::Error> for YouTubeError {
+    fn from(_: serde_json::Error) -> Self {
+        Self::JsonParsing
+    }
+}
+
+impl Display for YouTubeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::UploadProcess => {
+                write!(f, "Error uploading video to YouTube")
+            }
+            Self::JsonParsing => {
+                write!(f, "Error parsing response from YouTube")
+            }
+            Self::FileIO => {
+                write!(f, "Error reading file")
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for YouTubeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl std::error::Error for YouTubeError {}
+
 const BASE_WAIT_TIME: u64 = 1000;
 
 #[instrument]
@@ -121,12 +173,12 @@ async fn get_upload_status(
     upload_url: &str,
     access_token: &str,
     attempts: i64,
-) -> Result<UploadStatus, Box<dyn std::error::Error>> {
+) -> Result<UploadStatus, YouTubeError> {
     // get the upload status from the Youtube API
     let response = http_client
         .put(upload_url)
-        .header("Authorization", format!("Bearer {}", access_token))
-        .header("Content-Range", format!("bytes */{}", file_size))
+        .header("Authorization", format!("Bearer {access_token}"))
+        .header("Content-Range", format!("bytes */{file_size}"))
         .send()
         .await?;
 
@@ -143,7 +195,7 @@ async fn handle_chunked_upload(
     upload_url: &str,
     content_type: &str,
     access_token: &str,
-) -> Result<UploadStatus, Box<dyn std::error::Error>> {
+) -> Result<UploadStatus, YouTubeError> {
     let mut request = http_client
         .put(upload_url)
         .header("Content-Type", content_type)
@@ -170,21 +222,22 @@ async fn handle_chunked_upload(
         .await
 }
 
+#[instrument(skip(reqwest_client, access_token, video_file))]
 pub async fn upload_to_youtube(
     reqwest_client: &reqwest::Client,
-    access_token: String,
+    access_token: &str,
     video_file: &mut tokio::fs::File,
     upload_url: &str,
     start_byte: u64,
     attempts: i64,
-) -> Result<UploadStatus, Box<dyn std::error::Error>> {
+) -> Result<UploadStatus, YouTubeError> {
     match handle_chunked_upload(
         reqwest_client,
         video_file,
         start_byte,
-        &upload_url,
+        upload_url,
         "video/mp4",
-        access_token.as_str(),
+        access_token,
     )
     .await
     {
@@ -192,8 +245,8 @@ pub async fn upload_to_youtube(
             let status = get_upload_status(
                 reqwest_client,
                 video_file.metadata().await?.len(),
-                &upload_url,
-                access_token.as_str(),
+                upload_url,
+                access_token,
                 attempts,
             )
             .await?;
@@ -206,4 +259,52 @@ pub async fn upload_to_youtube(
             Ok(UploadStatus::PermanentFailure)
         }
     }
+}
+
+pub async fn create_upload_url(
+    reqwest_client: &reqwest::Client,
+    access_token: &str,
+    episode: &Episode,
+    video_file: &tokio::fs::File,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let url = "https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status".to_string();
+
+    let response = reqwest_client
+        .post(&url)
+        .header("Authorization", format!("Bearer {access_token}"))
+        .header("Content-Type", "application/json")
+        .header(
+            "X-Upload-Content-Length",
+            video_file.metadata().await?.len().to_string(),
+        )
+        .header("X-Upload-Content-Type", "video/mp4")
+        .json(&json!({
+            "notifySubscribers": episode.notify_subscribers,
+            "snippet": {
+                "title": episode.title,
+                "description": episode.description,
+                "tags": episode.tags,
+                "categoryId": episode.category,
+                "defaultLanguage": "en-US",
+                "defaultAudioLanguage": "en-US",
+            },
+            "status": {
+                "privacyStatus": "private",
+                "embeddable": true,
+                "license": "creativeCommon",
+                "selfDeclaredMadeForKids": false,
+            },
+        }))
+        .send()
+        .await?;
+
+    let response = response.json::<serde_json::Value>().await?;
+
+    let upload_url = response
+        .get("uploadUrl")
+        .ok_or("uploadUrl not found in response")?
+        .as_str()
+        .ok_or("uploadUrl is not a string")?;
+
+    Ok(upload_url.to_string())
 }
