@@ -72,6 +72,10 @@ pub fn convert_json_to_hm(
         .collect()
 }
 
+fn convert_number_json_to_json(number_json: String) -> serde_json::Value {
+    serde_json::from_str(&number_json).unwrap_or(serde_json::Value::Null)
+}
+
 /// Converts a ``DynamoDB`` attribute value to a JSON value.
 ///
 /// # Arguments
@@ -86,9 +90,7 @@ pub fn convert_attribute_value_to_json(
 ) -> serde_json::Value {
     match attribute_value {
         AttributeValue::S(s) => serde_json::Value::String(s),
-        AttributeValue::N(n) => serde_json::Value::Number(
-            serde_json::Number::from_f64(n.parse().unwrap()).unwrap(),
-        ),
+        AttributeValue::N(n) => convert_number_json_to_json(n),
         AttributeValue::Bool(b) => serde_json::Value::Bool(b),
         AttributeValue::L(l) => serde_json::Value::Array(
             l.into_iter().map(convert_attribute_value_to_json).collect(),
@@ -102,14 +104,7 @@ pub fn convert_attribute_value_to_json(
             ss.into_iter().map(serde_json::Value::String).collect(),
         ),
         AttributeValue::Ns(ns) => serde_json::Value::Array(
-            ns.into_iter()
-                .map(|n| {
-                    serde_json::Value::Number(
-                        serde_json::Number::from_f64(n.parse().unwrap())
-                            .unwrap(),
-                    )
-                })
-                .collect(),
+            ns.into_iter().map(convert_number_json_to_json).collect(),
         ),
         _ => serde_json::Value::Null,
     }
