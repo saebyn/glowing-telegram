@@ -1,6 +1,7 @@
 use std::fmt::{self, Display};
 
 use reqwest::Response;
+use reqwest::Url;
 use serde_json::json;
 use tokio::io::AsyncSeekExt;
 use tracing::instrument;
@@ -8,7 +9,7 @@ use types::Episode;
 
 pub enum UploadStatus {
     Success { video_id: String },
-    TemporaryFailure { start_byte: u64, wait_time_ms: u64 },
+    TemporaryFailure { start_byte: i64, wait_time_ms: u64 },
     PermanentFailure,
 }
 
@@ -66,7 +67,7 @@ impl ResponseAttempt {
                 }
             };
 
-            let start_byte = match start_byte.parse::<u64>() {
+            let start_byte = match start_byte.parse::<i64>() {
                 Ok(start_byte) => start_byte,
                 Err(e) => {
                     tracing::error!("failed to parse start byte: {:?}", e);
@@ -191,7 +192,7 @@ async fn get_upload_status(
 async fn handle_chunked_upload(
     http_client: &reqwest::Client,
     file: &mut tokio::fs::File,
-    start_byte: u64,
+    start_byte: i64,
     upload_url: &str,
     content_type: &str,
     access_token: &str,
@@ -199,7 +200,7 @@ async fn handle_chunked_upload(
     let mut request = http_client
         .put(upload_url)
         .header("Content-Type", content_type)
-        .header("Authorization", format!("Bearer {}", access_token));
+        .header("Authorization", format!("Bearer {access_token}"));
 
     let file_size = file.metadata().await?.len();
 
@@ -209,13 +210,16 @@ async fn handle_chunked_upload(
             format!("bytes {}-{}/{}", start_byte, file_size - 1, file_size),
         );
 
-        file.seek(std::io::SeekFrom::Start(start_byte)).await?;
+        file.seek(std::io::SeekFrom::Start(start_byte as u64))
+            .await?;
     }
 
     // upload the contents of the video using the upload URL and
     // chunked upload
     let file = file.try_clone().await?;
     let response = request.body(file).send().await?;
+
+    tracing::trace!("Response: {:?}", response);
 
     ResponseAttempt::new(response, 0)
         .determine_upload_status()
@@ -228,7 +232,7 @@ pub async fn upload_to_youtube(
     access_token: &str,
     video_file: &mut tokio::fs::File,
     upload_url: &str,
-    start_byte: u64,
+    start_byte: i64,
     attempts: i64,
 ) -> Result<UploadStatus, YouTubeError> {
     match handle_chunked_upload(
@@ -267,10 +271,27 @@ pub async fn create_upload_url(
     episode: &Episode,
     video_file: &tokio::fs::File,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let url = "https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status".to_string();
+    let mut url =
+        Url::parse("https://www.googleapis.com/upload/youtube/v3/videos")?;
+
+    // add query parameters to the URL
+    url.query_pairs_mut()
+        .append_pair("uploadType", "resumable")
+        .append_pair("part", "snippet,status")
+        .append_pair(
+            "notifySubscribers",
+            episode
+                .notify_subscribers
+                .unwrap_or(false)
+                .to_string()
+                .as_str(),
+        )
+        .finish();
+
+    tracing::debug!("URL: {:?}", url);
 
     let response = reqwest_client
-        .post(&url)
+        .post(url)
         .header("Authorization", format!("Bearer {access_token}"))
         .header("Content-Type", "application/json")
         .header(
@@ -279,7 +300,6 @@ pub async fn create_upload_url(
         )
         .header("X-Upload-Content-Type", "video/mp4")
         .json(&json!({
-            "notifySubscribers": episode.notify_subscribers,
             "snippet": {
                 "title": episode.title,
                 "description": episode.description,
@@ -298,13 +318,13 @@ pub async fn create_upload_url(
         .send()
         .await?;
 
-    let response = response.json::<serde_json::Value>().await?;
+    tracing::trace!("Response: {:?}", response);
 
-    let upload_url = response
-        .get("uploadUrl")
-        .ok_or("uploadUrl not found in response")?
-        .as_str()
-        .ok_or("uploadUrl is not a string")?;
+    let location = response
+        .headers()
+        .get("Location")
+        .ok_or("Location header not found")?
+        .to_str()?;
 
-    Ok(upload_url.to_string())
+    Ok(location.to_string())
 }

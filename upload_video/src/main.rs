@@ -96,11 +96,13 @@ async fn upload_video(
     record_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // get the episode record
+    tracing::info!("Getting episode record: {}", record_id);
     let episode: Episode = get_episode_record(context, record_id).await?;
 
     let user_id = episode.user_id.as_ref().ok_or("User ID not found")?;
 
     // download the video file from S3
+    tracing::info!("Downloading video file: {:?}", episode.render_uri);
     let mut video_file: tokio::fs::File =
         download_video_file(context, &episode).await?;
 
@@ -108,6 +110,7 @@ async fn upload_video(
     let access_token_path =
         context.config.user_secret_path.secret_path(user_id);
 
+    tracing::info!("Getting YouTube session secret: {}", access_token_path);
     let access_token = gt_secrets::get::<YouTubeSessionSecret>(
         &context.secrets_manager_client,
         &access_token_path,
@@ -116,17 +119,24 @@ async fn upload_video(
     .access_token
     .ok_or("Access token not found")?;
 
-    // create the target video upload URL
-    let upload_url = youtube::create_upload_url(
-        &context.reqwest_client,
-        access_token.as_str(),
-        &episode,
-        &video_file,
-    )
-    .await?;
+    let upload_url = if episode.youtube_upload_url.is_some() {
+        tracing::info!("Using existing upload URL");
+        episode.youtube_upload_url.as_ref().unwrap().to_string()
+    } else {
+        // create the target video upload URL
+        tracing::info!("Creating upload URL");
+        youtube::create_upload_url(
+            &context.reqwest_client,
+            access_token.as_str(),
+            &episode,
+            &video_file,
+        )
+        .await?
+    };
 
     // upload the video to YouTube
-    let mut start_byte = 0;
+    tracing::info!("Uploading video to YouTube");
+    let mut start_byte = episode.upload_resume_at_byte.unwrap_or(0);
     let mut attempts = episode.upload_attempts.unwrap_or(0);
     loop {
         match youtube::upload_to_youtube(
@@ -151,6 +161,10 @@ async fn upload_video(
                 // if there was a temporary failure, retry the upload if it can be retried
                 // in less than the max seconds
                 if wait_time_ms < context.config.max_retry_seconds * 1000 {
+                    tracing::info!(
+                        "Temporary failure, retrying in {} seconds",
+                        wait_time_ms / 1000
+                    );
                     start_byte = new_start_byte;
                     // wait for the retry_after_seconds
                     tokio::time::sleep(std::time::Duration::from_millis(
@@ -164,15 +178,18 @@ async fn upload_video(
                 }
 
                 // if it would take too long, update the episode record with the retry_after_seconds
+                tracing::info!("Temporary failure, returning to queue");
                 update_episode_record_with_retry_after(
                     context,
                     record_id,
+                    upload_url.as_str(),
                     wait_time_ms,
                     start_byte,
                 )
                 .await?;
             }
             UploadStatus::PermanentFailure => {
+                tracing::error!("Permanent failure");
                 // if there was a permanent failure, update the episode record with the error message
                 update_episode_record_with_error(context, record_id).await?;
             }
@@ -230,6 +247,8 @@ async fn download_video_file(
 
     tokio::io::copy(&mut stream, &mut file).await?;
 
+    let file = tokio::fs::File::open(&file_path).await?;
+
     Ok(file)
 }
 
@@ -266,8 +285,9 @@ async fn update_episode_record_success(
 async fn update_episode_record_with_retry_after(
     context: &AppContext,
     record_id: &str,
+    upload_url: &str,
     wait_time_ms: u64,
-    start_byte: u64,
+    start_byte: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let update = context
         .dynamodb_client
@@ -278,7 +298,7 @@ async fn update_episode_record_with_retry_after(
             aws_sdk_dynamodb::types::AttributeValue::S(record_id.to_string()),
         )
         .update_expression(
-            "SET retry_after_seconds = :retry_after_seconds, upload_attempts = :attempts, upload_status = :status, upload_resume_at_byte = :start_byte",
+            "SET retry_after_seconds = :retry_after_seconds, upload_attempts = :attempts, upload_status = :status, upload_resume_at_byte = :start_byte, youtube_upload_url = :upload_url",
         )
         .expression_attribute_values(
             ":retry_after_seconds",
@@ -297,6 +317,10 @@ async fn update_episode_record_with_retry_after(
         .expression_attribute_values(
             ":start_byte",
             aws_sdk_dynamodb::types::AttributeValue::N(start_byte.to_string()),
+        )
+        .expression_attribute_values(
+            ":upload_url",
+            aws_sdk_dynamodb::types::AttributeValue::S(upload_url.to_string()),
         );
 
     update.send().await?;
