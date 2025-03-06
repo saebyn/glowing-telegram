@@ -158,6 +158,7 @@ export interface Episode {
     upload_resume_at_byte?: number;
     upload_status?:         UploadStatus;
     user_id?:               string;
+    youtube_upload_url?:    string;
     youtube_video_id?:      string;
 }
 
