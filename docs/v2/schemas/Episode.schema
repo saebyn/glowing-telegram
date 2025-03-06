@@ -38,6 +38,9 @@
 		"youtube_video_id": {
 			"type": "string"
 		},
+		"youtube_upload_url": {
+			"type": "string"
+		},
 		"upload_attempts": {
 			"type": "integer"
 		},
