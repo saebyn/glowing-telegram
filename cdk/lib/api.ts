@@ -39,6 +39,7 @@ interface APIConstructProps {
 
 export default class APIConstruct extends Construct {
   public readonly httpApi: apigwv2.HttpApi;
+  public readonly youtubeSecret: secretsmanager.ISecret;
 
   constructor(scope: Construct, id: string, props: APIConstructProps) {
     super(scope, id);
@@ -52,6 +53,8 @@ export default class APIConstruct extends Construct {
         removalPolicy: cdk.RemovalPolicy.RETAIN,
       },
     );
+
+    this.youtubeSecret = youtubeAppSecret;
 
     const youtubeService = new ServiceLambdaConstruct(this, 'YoutubeLambda', {
       lambdaOptions: {

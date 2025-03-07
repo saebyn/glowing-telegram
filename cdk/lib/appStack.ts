@@ -103,14 +103,7 @@ export default class AppStack extends cdk.Stack {
       jobQueue: batchEnvironment.cpuJobQueue,
     });
 
-    const youtubeUploader = new YoutubeUploader(this, 'YoutubeUploader', {
-      episodeTable: dataStore.episodesTable,
-      jobQueue: batchEnvironment.cpuJobQueue,
-      mediaOutputBucket: dataStore.outputBucket,
-      eventBus: EventBus.fromEventBusName(this, 'EventBus', 'default'),
-    });
-
-    new APIConstruct(this, 'API', {
+    const api = new APIConstruct(this, 'API', {
       streamIngestionFunction: streamIngestion.stepFunction,
       renderJob: {
         jobQueue: batchEnvironment.cpuJobQueue,
@@ -127,6 +120,14 @@ export default class AppStack extends cdk.Stack {
       tasksTable: dataStore.tasksTable,
 
       domainName,
+    });
+
+    const youtubeUploader = new YoutubeUploader(this, 'YoutubeUploader', {
+      episodeTable: dataStore.episodesTable,
+      jobQueue: batchEnvironment.cpuJobQueue,
+      mediaOutputBucket: dataStore.outputBucket,
+      eventBus: EventBus.fromEventBusName(this, 'EventBus', 'default'),
+      youtubeSecret: api.youtubeSecret,
     });
 
     new TaskMonitoringConstruct(this, 'TaskMonitoring', {

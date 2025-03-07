@@ -12,12 +12,14 @@ import {
 import type { IEventBus } from 'aws-cdk-lib/aws-events';
 import { EcrImage } from 'aws-cdk-lib/aws-ecs';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
 type YoutubeUploaderProps = {
   readonly mediaOutputBucket: IBucket;
   readonly episodeTable: ITable;
   readonly jobQueue: IJobQueue;
   readonly eventBus: IEventBus;
+  readonly youtubeSecret: secretsmanager.ISecret;
 };
 
 export default class YoutubeUploader extends Construct {
@@ -58,9 +60,13 @@ export default class YoutubeUploader extends Construct {
         cpu: 1,
         memory: cdk.Size.gibibytes(2),
         environment: {
-          MEDIA_OUTPUT_BUCKET_NAME: mediaOutputBucket.bucketName,
+          EPISODE_RENDER_BUCKET: mediaOutputBucket.bucketName,
           EPISODE_TABLE_NAME: episodeTable.tableName,
-          EVENT_BUS_NAME: eventBus.eventBusName,
+          USER_SECRET_PATH: 'gt/youtube/user',
+          YOUTUBE_SECRET_ARN: props.youtubeSecret.secretArn,
+          MAX_RETRY_SECONDS: '3600',
+          USER_AGENT: 'glowing-telegram/1.0',
+          RUST_LOG: 'info',
         },
         executionRole: uploadVideoExecutionRole,
       },
