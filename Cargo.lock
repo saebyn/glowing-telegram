@@ -3711,6 +3711,7 @@ name = "types"
 version = "0.1.0"
 dependencies = [
  "aws-sdk-dynamodb",
+ "redact",
  "serde",
  "serde_json",
 ]
@@ -3764,6 +3765,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "types",
+ "youtube_lambda",
 ]
 
 [[package]]

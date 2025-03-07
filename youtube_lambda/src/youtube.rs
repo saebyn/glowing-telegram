@@ -1,4 +1,4 @@
-use crate::structs::YouTubeCredentials;
+use types::utils::YouTubeCredentials;
 
 pub fn get_oauth_client(
     credentials: &YouTubeCredentials,

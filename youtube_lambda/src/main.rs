@@ -12,8 +12,7 @@ use serde_json::json;
 use std::sync::Arc;
 use structs::AppState;
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
-
-use crate::structs::YouTubeCredentials;
+use types::utils::YouTubeCredentials;
 
 mod handlers;
 mod structs;
