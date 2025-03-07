@@ -29,7 +29,6 @@ gt_secrets = { workspace = true }
 gt_app = { workspace = true }
 types = { workspace = true }
 tempfile = "3"
-youtube_lambda = { path = "../youtube_lambda" }
 
 [lints]
 workspace = true

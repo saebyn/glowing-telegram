@@ -28,6 +28,7 @@ export default class RepoStack extends cdk.Stack {
         'youtube-lambda',
         'media-lambda',
         'render-job',
+        'upload-video',
       ],
     });
 
