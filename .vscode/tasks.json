@@ -16,7 +16,8 @@
         "twitch_lambda",
         "youtube_lambda",
         "media_lambda",
-        "render_job"
+        "render_job",
+        "upload_video"
       ]
     },
     {

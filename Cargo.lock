@@ -3765,7 +3765,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "types",
- "youtube_lambda",
 ]
 
 [[package]]

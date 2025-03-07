@@ -61,6 +61,10 @@ case $SERVICE in
     FUNCTION_NAME=""
     ECR_REPOSITORY="glowing-telegram/render-job"
     ;;
+  upload_video)
+    FUNCTION_NAME=""
+    ECR_REPOSITORY="glowing-telegram/upload-video"
+    ;;
   *)
     echo "The SERVICE is not supported"
     exit 1
