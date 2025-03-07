@@ -1,6 +1,6 @@
 use gt_secrets::UserSecretPathProvider;
 use serde::Deserialize;
-use types::{Episode, YouTubeSessionSecret};
+use types::Episode;
 use youtube::UploadStatus;
 
 mod youtube;
@@ -11,6 +11,7 @@ pub struct Config {
     pub episode_table_name: String,
 
     pub user_secret_path: UserSecretPathProvider,
+    pub youtube_secret_arn: String,
 
     pub max_retry_seconds: u64,
     pub user_agent: String,
@@ -109,15 +110,12 @@ async fn upload_video(
     // get the user's YouTube session secret
     let access_token_path =
         context.config.user_secret_path.secret_path(user_id);
-
-    tracing::info!("Getting YouTube session secret: {}", access_token_path);
-    let access_token = gt_secrets::get::<YouTubeSessionSecret>(
+    let access_token = youtube::get_access_token(
         &context.secrets_manager_client,
+        &context.config.youtube_secret_arn,
         &access_token_path,
     )
-    .await?
-    .access_token
-    .ok_or("Access token not found")?;
+    .await?;
 
     let upload_url = if episode.youtube_upload_url.is_some() {
         tracing::info!("Using existing upload URL");

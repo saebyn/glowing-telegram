@@ -1,6 +1,16 @@
 use crate::{CutList, CutListClass, Episode};
 use aws_sdk_dynamodb::types::AttributeValue;
+use serde::Deserialize;
 use std::{collections::HashMap, convert::From};
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct YouTubeCredentials {
+    pub client_id: String,
+    pub client_secret: redact::Secret<String>,
+    pub auth_url: String,
+    pub token_url: String,
+    pub redirect_url: String,
+}
 
 impl From<CutListClass> for CutList {
     fn from(cut_list: CutListClass) -> Self {

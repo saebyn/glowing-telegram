@@ -5,7 +5,8 @@ use reqwest::Url;
 use serde_json::json;
 use tokio::io::AsyncSeekExt;
 use tracing::instrument;
-use types::Episode;
+use types::utils::YouTubeCredentials;
+use types::{Episode, YouTubeSessionSecret};
 
 pub enum UploadStatus {
     Success { video_id: String },
@@ -24,12 +25,8 @@ struct YouTubeUploadStatusResponse {
 }
 
 impl ResponseAttempt {
-    fn new(response: Response, attempts: i64) -> Self {
+    const fn new(response: Response, attempts: i64) -> Self {
         Self { response, attempts }
-    }
-
-    fn increment_attempts(&mut self) {
-        self.attempts += 1;
     }
 
     async fn determine_upload_status(
@@ -42,29 +39,23 @@ impl ResponseAttempt {
                 video_id: result.id,
             })
         } else if self.response.status().as_u16() == 308 {
-            let range = match self
+            let Some(range) = self
                 .response
                 .headers()
                 .get("Range")
                 .and_then(|v| v.to_str().ok())
-            {
-                Some(range) => range,
-                None => {
-                    tracing::error!("Range header not found in response");
-                    return Ok(UploadStatus::PermanentFailure);
-                }
+            else {
+                tracing::error!("Range header not found in response");
+                return Ok(UploadStatus::PermanentFailure);
             };
 
             // parse the range header which looks like "bytes=0-12345"
             let range_parts =
                 range.split(&['=', '-'][..]).collect::<Vec<&str>>();
 
-            let start_byte = match range_parts.get(1) {
-                Some(start_byte) => start_byte,
-                None => {
-                    tracing::error!("start byte not found in range header");
-                    return Ok(UploadStatus::PermanentFailure);
-                }
+            let Some(start_byte) = range_parts.get(1) else {
+                tracing::error!("start byte not found in range header");
+                return Ok(UploadStatus::PermanentFailure);
             };
 
             let start_byte = match start_byte.parse::<i64>() {
@@ -327,4 +318,70 @@ pub async fn create_upload_url(
         .to_str()?;
 
     Ok(location.to_string())
+}
+
+pub async fn get_access_token(
+    secrets_manager_client: &aws_sdk_secretsmanager::Client,
+    youtube_secret_arn: &str,
+    access_token_path: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let credentials = match secrets_manager_client
+        .get_secret_value()
+        .secret_id(youtube_secret_arn)
+        .send()
+        .await
+    {
+        Ok(secret) => {
+            match serde_json::from_str::<YouTubeCredentials>(
+                secret.secret_string.as_deref().unwrap_or("{}"),
+            ) {
+                Ok(credentials) => credentials,
+                Err(e) => {
+                    tracing::error!("failed to parse YouTube secret: {:?}", e);
+                    return Err(e.into());
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!("failed to get YouTube secret: {:?}", e);
+            return Err(e.into());
+        }
+    };
+
+    tracing::info!("Getting YouTube session secret: {}", access_token_path);
+    let session = gt_secrets::get::<YouTubeSessionSecret>(
+        secrets_manager_client,
+        access_token_path,
+    )
+    .await?;
+
+    let Some(refresh_token) = session.refresh_token else {
+        tracing::error!("Refresh token not found in secret");
+        return Err("Refresh token not found".into());
+    };
+
+    // use the refresh token to get a new access token
+    let response = reqwest::Client::new()
+        .post("https://oauth2.googleapis.com/token")
+        .form(&[
+            ("client_id", credentials.client_id),
+            (
+                "client_secret",
+                credentials.client_secret.expose_secret().clone(),
+            ),
+            ("refresh_token", refresh_token),
+            ("grant_type", "refresh_token".to_string()),
+        ])
+        .send()
+        .await?;
+
+    let response_json: serde_json::Value = response.json().await?;
+
+    let access_token = response_json
+        .get("access_token")
+        .ok_or("access_token not found in response")?
+        .as_str()
+        .ok_or("access_token not a string")?;
+
+    Ok(access_token.to_string())
 }

@@ -31,6 +31,8 @@ pub async fn obtain_youtube_authorization_url_handler(
         .add_scopes(
             request.scopes.iter().map(|scope| Scope::new(scope.clone())),
         )
+        .add_extra_param("access_type", "offline")
+        .add_extra_param("prompt", "consent")
         .url();
 
     // store csrf_state and redirect_url in secrets manager
