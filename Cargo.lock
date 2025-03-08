@@ -35,7 +35,7 @@ dependencies = [
  "aws_lambda_events 0.16.0",
  "axum",
  "axum-aws-lambda",
- "figment",
+ "gt_app",
  "lambda_http",
  "lambda_runtime",
  "openai_dive",
@@ -1031,7 +1031,7 @@ dependencies = [
  "axum",
  "axum-aws-lambda",
  "chrono",
- "figment",
+ "gt_app",
  "lambda_http",
  "lambda_runtime",
  "openai_dive",
@@ -1477,6 +1477,8 @@ dependencies = [
  "aws-config",
  "figment",
  "serde",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3249,7 +3251,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
  "aws-sdk-secretsmanager",
- "figment",
+ "gt_app",
  "lambda_runtime",
  "openai_dive",
  "serde",
@@ -3258,6 +3260,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "types",
 ]
 
 [[package]]
@@ -3695,7 +3698,7 @@ dependencies = [
  "axum",
  "axum-aws-lambda",
  "chrono",
- "figment",
+ "gt_app",
  "gt_axum",
  "gt_secrets",
  "lambda_http",
@@ -4292,7 +4295,7 @@ dependencies = [
  "axum",
  "axum-aws-lambda",
  "chrono",
- "figment",
+ "gt_app",
  "gt_axum",
  "gt_secrets",
  "lambda_http",

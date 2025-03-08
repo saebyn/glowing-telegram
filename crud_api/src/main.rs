@@ -5,7 +5,6 @@
  * CRUD operations from the API Gateway.
  *
  */
-use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_dynamodb::Client;
 use axum::{
     Json, Router,
@@ -21,7 +20,6 @@ use axum::{
     routing::get,
 };
 use dynamodb::DynamoDbTableConfig;
-use figment::Figment;
 use lambda_http::tower;
 use serde::Deserialize;
 use serde_json::json;
@@ -43,16 +41,19 @@ struct Config {
     tasks_table: String,
 }
 
-fn load_config() -> Result<Config, figment::Error> {
-    let figment = Figment::new().merge(figment::providers::Env::raw());
-
-    figment.extract()
-}
-
 #[derive(Debug, Clone)]
-struct AppState {
+struct AppContext {
     dynamodb: Arc<Client>,
     config: Config,
+}
+
+impl gt_app::ContextProvider<Config> for AppContext {
+    async fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
+        Self {
+            config,
+            dynamodb: Arc::new(aws_sdk_dynamodb::Client::new(&aws_config)),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,37 +81,8 @@ struct ManyQuery {
 
 #[tokio::main]
 async fn main() {
-    // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
-    tracing_subscriber::fmt()
-        .json()
-        // allow log level to be overridden by RUST_LOG env var
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        // this needs to be set to remove duplicated information in the log.
-        .with_current_span(false)
-        // this needs to be set to false, otherwise ANSI color codes will
-        // show up in a confusing manner in CloudWatch logs.
-        .with_ansi(false)
-        // disabling time is handy because CloudWatch will add the ingestion time.
-        .without_time()
-        // remove the name of the function from every log entry
-        .with_target(false)
-        .init();
-
-    let config = load_config().expect("failed to load config");
-    let region_provider =
-        RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = aws_config::defaults(BehaviorVersion::latest())
-        .region(region_provider)
-        .load()
-        .await;
-
-    let dynamodb = aws_sdk_dynamodb::Client::new(&aws_config);
-
-    // Create a shared state to pass to the handler
-    let state = AppState {
-        dynamodb: Arc::new(dynamodb),
-        config,
-    };
+    // Initialize the application context
+    let app_context = gt_app::create_app_context().await.unwrap();
 
     // Set up a trace layer
     let trace_layer = TraceLayer::new_for_http().on_request(
@@ -166,7 +138,7 @@ async fn main() {
         .layer(cors_layer)
         .layer(trace_layer)
         .layer(compression_layer)
-        .with_state(state);
+        .with_state(app_context);
 
     // Provide the app to the lambda runtime
     let app = tower::ServiceBuilder::new()
@@ -177,7 +149,7 @@ async fn main() {
 }
 
 fn get_table_config<'a>(
-    state: &'a AppState,
+    state: &'a AppContext,
     resource: &'a str,
 ) -> DynamoDbTableConfig<'a> {
     DynamoDbTableConfig {
@@ -225,7 +197,7 @@ fn get_table_config<'a>(
 async fn list_records_handler(
     Path(RequestPath { resource }): Path<RequestPath>,
     Query(query): Query<HashMap<String, String>>,
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
 
@@ -308,7 +280,7 @@ async fn get_record_handler(
         resource,
         record_id,
     }): Path<RequestPathWithId>,
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
 
@@ -349,7 +321,7 @@ async fn get_record_handler(
 
 async fn create_record_handler(
     Path(RequestPath { resource }): Path<RequestPath>,
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
@@ -411,7 +383,7 @@ async fn update_record_handler(
         resource,
         record_id,
     }): Path<RequestPathWithId>,
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
@@ -448,7 +420,7 @@ async fn delete_record_handler(
         resource,
         record_id,
     }): Path<RequestPathWithId>,
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
 
@@ -476,7 +448,7 @@ async fn delete_record_handler(
 
 async fn get_many_records_handler(
     Path(RequestPath { resource }): Path<RequestPath>,
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
     Query(query_params): Query<ManyQuery>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
@@ -510,7 +482,7 @@ async fn get_many_related_records_handler(
         related_field,
         id,
     }): Path<RequestPathWithRelatedField>,
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
 

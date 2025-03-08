@@ -1,6 +1,4 @@
-use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_s3::primitives::ByteStream;
-use figment::{Figment, providers::Env};
 use gt_app::ContextProvider;
 use gt_ffmpeg::edit::build_ffmpeg_command;
 use serde::Deserialize;
@@ -26,7 +24,7 @@ pub struct AppContext {
 }
 
 impl ContextProvider<Config> for AppContext {
-    fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
+    async fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
         Self {
             config,
             dynamodb_client: aws_sdk_dynamodb::Client::new(&aws_config),

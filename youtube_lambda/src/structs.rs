@@ -1,5 +1,4 @@
 use aws_sdk_secretsmanager::client::Client as SecretsManagerClient;
-use figment::Figment;
 use gt_secrets::UserSecretPathProvider;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -13,15 +12,43 @@ pub struct Config {
     pub user_secret_path: UserSecretPathProvider,
 }
 
-pub fn load_config() -> Result<Config, figment::Error> {
-    let figment = Figment::new().merge(figment::providers::Env::raw());
-
-    figment.extract()
-}
-
 #[derive(Debug, Clone)]
-pub struct AppState {
+pub struct AppContext {
     pub secrets_manager: Arc<SecretsManagerClient>,
     pub youtube_credentials: YouTubeCredentials,
     pub config: Config,
+}
+
+impl gt_app::ContextProvider<Config> for AppContext {
+    async fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
+        let secrets_manager = SecretsManagerClient::new(&aws_config);
+
+        let youtube_credentials = match secrets_manager
+            .get_secret_value()
+            .secret_id(&config.youtube_secret_arn)
+            .send()
+            .await
+        {
+            Ok(secret) => match serde_json::from_str::<YouTubeCredentials>(
+                secret.secret_string.as_deref().unwrap_or("{}"),
+            ) {
+                Ok(credentials) => credentials,
+                Err(e) => {
+                    tracing::error!("failed to parse YouTube secret: {:?}", e);
+                    panic!("failed to parse YouTube secret");
+                }
+            },
+            Err(e) => {
+                tracing::error!("failed to get YouTube secret: {:?}", e);
+                panic!("failed to get YouTube secret");
+            }
+        };
+
+        // Create a shared state to pass to the handler
+        Self {
+            secrets_manager: Arc::new(secrets_manager),
+            youtube_credentials,
+            config,
+        }
+    }
 }

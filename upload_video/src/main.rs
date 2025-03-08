@@ -27,7 +27,7 @@ pub struct AppContext {
 }
 
 impl gt_app::ContextProvider<Config> for AppContext {
-    fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
+    async fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
         let dynamodb_client = aws_sdk_dynamodb::Client::new(&aws_config);
         let s3_client = aws_sdk_s3::Client::new(&aws_config);
         let secrets_manager_client =
