@@ -16,7 +16,6 @@ aws-config = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }
 axum = { workspace = true }
 axum-aws-lambda = { workspace = true }
-figment = { workspace = true }
 lambda_http = { workspace = true }
 lambda_runtime = { workspace = true }
 openai_dive = { workspace = true }
@@ -27,6 +26,7 @@ tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 types = { workspace = true }
+gt_app = { path = "../gt_app" }
 
 [lints]
 workspace = true

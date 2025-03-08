@@ -4,7 +4,7 @@ use aws_sdk_secretsmanager::types::{
 use oauth2::TokenResponse;
 use types::TwitchSessionSecret;
 
-use crate::{structs::AppState, twitch};
+use crate::{structs::AppContext, twitch};
 
 /// Refresh the user's Twitch access token using the refresh token
 /// stored in the secrets manager.
@@ -12,7 +12,9 @@ use crate::{structs::AppState, twitch};
 /// scheduled event to keep all users' tokens up to date.
 /// The user's Twitch tokens are stored in the secrets manager
 /// under the path `user_secret_path`.
-pub async fn refresh_user_tokens(state: AppState) -> Result<(), &'static str> {
+pub async fn refresh_user_tokens(
+    state: AppContext,
+) -> Result<(), &'static str> {
     // iterate over all the secrets in the secrets manager under the
     // `user_secret_path` prefix, iterating while there are more pages
     // of secrets to fetch.
@@ -103,7 +105,7 @@ pub async fn refresh_user_tokens(state: AppState) -> Result<(), &'static str> {
 }
 
 async fn do_refresh(
-    state: &AppState,
+    state: &AppContext,
     secret_id: &str,
     refresh_token: String,
 ) -> Result<(), String> {

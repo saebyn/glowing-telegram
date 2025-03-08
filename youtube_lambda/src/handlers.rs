@@ -13,11 +13,11 @@ use types::{
     YouTubeCallbackRequest, YouTubeCallbackResponse, YouTubeSessionSecret,
 };
 
-use crate::{structs::AppState, youtube};
+use crate::{structs::AppContext, youtube};
 
 #[instrument(skip(state))]
 pub async fn obtain_youtube_authorization_url_handler(
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
     Json(request): Json<YouTubeAuthRequest>,
 ) -> impl IntoResponse {
@@ -68,7 +68,7 @@ pub async fn obtain_youtube_authorization_url_handler(
 
 #[instrument(skip(state))]
 pub async fn youtube_callback_handler(
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
     Json(request): Json<YouTubeCallbackRequest>,
 ) -> impl IntoResponse {
@@ -144,7 +144,7 @@ pub async fn youtube_callback_handler(
 
 #[instrument(skip(state))]
 pub async fn obtain_youtube_access_token_handler(
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
 ) -> impl IntoResponse {
     let secret_id =

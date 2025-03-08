@@ -13,10 +13,10 @@ use types::{
     TwitchCallbackRequest, TwitchCallbackResponse, TwitchSessionSecret,
 };
 
-use crate::{structs::AppState, twitch};
+use crate::{structs::AppContext, twitch};
 
 pub async fn obtain_twitch_authorization_url_handler(
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
     Json(request): Json<TwitchAuthRequest>,
 ) -> impl IntoResponse {
@@ -64,7 +64,7 @@ pub async fn obtain_twitch_authorization_url_handler(
 }
 
 pub async fn twitch_callback_handler(
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
     Json(request): Json<TwitchCallbackRequest>,
 ) -> impl IntoResponse {
@@ -140,7 +140,7 @@ pub async fn twitch_callback_handler(
 
 #[instrument(skip(state))]
 pub async fn obtain_twitch_access_token_handler(
-    State(state): State<AppState>,
+    State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
 ) -> impl IntoResponse {
     let secret_id =

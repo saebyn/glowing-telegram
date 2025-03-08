@@ -3,9 +3,7 @@
  *
  * The function is responsible for summarizing the transcription of an audio file using the `OpenAI` API and saving the result to `DynamoDB`.
  */
-use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_dynamodb::types::AttributeValue;
-use figment::Figment;
 use lambda_runtime::{Diagnostic, Error, LambdaEvent, service_fn};
 use openai_dive::v1::error::APIError;
 use openai_dive::v1::resources::shared::FinishReason::StopSequenceReached;
@@ -17,7 +15,6 @@ use openai_dive::v1::{
     },
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 const RESPONSE_JSON_SCHEMA: &str = include_str!("response_json_schema.json");
 
@@ -27,12 +24,6 @@ struct Config {
     metadata_table_name: String,
     openai_model: String,
     openai_instructions: String,
-}
-
-fn load_config() -> Result<Config, figment::Error> {
-    let figment = Figment::new().merge(figment::providers::Env::raw());
-
-    figment.extract()
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -69,10 +60,23 @@ impl From<ErrorResponse> for Diagnostic {
 }
 
 #[derive(Debug)]
-struct SharedResources {
+struct AppContext {
     dynamodb: aws_sdk_dynamodb::Client,
     secrets_manager: aws_sdk_secretsmanager::Client,
     config: Config,
+}
+
+impl gt_app::ContextProvider<Config> for AppContext {
+    async fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
+        let dynamodb = aws_sdk_dynamodb::Client::new(&aws_config);
+        let secrets_manager = aws_sdk_secretsmanager::Client::new(&aws_config);
+
+        Self {
+            dynamodb,
+            secrets_manager,
+            config,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -107,165 +111,23 @@ struct SummarizationOutput {
     transcription_errors: Vec<SummaryTranscriptionError>,
 }
 
-impl From<SummarizationOutput> for AttributeValue {
-    fn from(output: SummarizationOutput) -> Self {
-        let mut map = HashMap::new();
-        map.insert(
-            "summary_context".to_string(),
-            Self::S(output.summary_context),
-        );
-        map.insert(
-            "summary_main_discussion".to_string(),
-            Self::S(output.summary_main_discussion),
-        );
-        map.insert("title".to_string(), Self::S(output.title));
-        map.insert("keywords".to_string(), Self::Ss(output.keywords));
-        map.insert(
-            "highlights".to_string(),
-            Self::L(
-                output
-                    .highlights
-                    .iter()
-                    .map(|highlight| {
-                        Self::M(
-                            vec![
-                                (
-                                    "timestamp_start".to_string(),
-                                    Self::N(
-                                        highlight.timestamp_start.to_string(),
-                                    ),
-                                ),
-                                (
-                                    "timestamp_end".to_string(),
-                                    Self::N(
-                                        highlight.timestamp_end.to_string(),
-                                    ),
-                                ),
-                                (
-                                    "description".to_string(),
-                                    Self::S(highlight.description.clone()),
-                                ),
-                                (
-                                    "reasoning".to_string(),
-                                    Self::S(highlight.reasoning.clone()),
-                                ),
-                            ]
-                            .into_iter()
-                            .collect(),
-                        )
-                    })
-                    .collect(),
-            ),
-        );
-        map.insert(
-            "attentions".to_string(),
-            Self::L(
-                output
-                    .attentions
-                    .iter()
-                    .map(|attention| {
-                        Self::M(
-                            vec![
-                                (
-                                    "timestamp_start".to_string(),
-                                    Self::N(
-                                        attention.timestamp_start.to_string(),
-                                    ),
-                                ),
-                                (
-                                    "timestamp_end".to_string(),
-                                    Self::N(
-                                        attention.timestamp_end.to_string(),
-                                    ),
-                                ),
-                                (
-                                    "description".to_string(),
-                                    Self::S(attention.description.clone()),
-                                ),
-                                (
-                                    "reasoning".to_string(),
-                                    Self::S(attention.reasoning.clone()),
-                                ),
-                            ]
-                            .into_iter()
-                            .collect(),
-                        )
-                    })
-                    .collect(),
-            ),
-        );
-        map.insert(
-            "transcription_errors".to_string(),
-            Self::L(
-                output
-                    .transcription_errors
-                    .iter()
-                    .map(|error| {
-                        Self::M(
-                            vec![
-                                (
-                                    "timestamp_start".to_string(),
-                                    Self::N(error.timestamp_start.to_string()),
-                                ),
-                                (
-                                    "description".to_string(),
-                                    Self::S(error.description.clone()),
-                                ),
-                                (
-                                    "reasoning".to_string(),
-                                    Self::S(error.reasoning.clone()),
-                                ),
-                            ]
-                            .into_iter()
-                            .collect(),
-                        )
-                    })
-                    .collect(),
-            ),
-        );
+impl TryFrom<SummarizationOutput> for AttributeValue {
+    type Error = serde_json::Error;
 
-        Self::M(map)
+    fn try_from(output: SummarizationOutput) -> Result<Self, Self::Error> {
+        let json = serde_json::to_value(output)?;
+
+        Ok(types::utils::convert_json_to_attribute_value(json))
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
-    tracing_subscriber::fmt()
-        .json()
-        // allow log level to be overridden by RUST_LOG env var
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        // this needs to be set to remove duplicated information in the log.
-        .with_current_span(false)
-        // this needs to be set to false, otherwise ANSI color codes will
-        // show up in a confusing manner in CloudWatch logs.
-        .with_ansi(false)
-        // disabling time is handy because CloudWatch will add the ingestion time.
-        .without_time()
-        // remove the name of the function from every log entry
-        .with_target(false)
-        .init();
-
-    let config = load_config().expect("failed to load config");
-    let region_provider =
-        RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = aws_config::defaults(BehaviorVersion::latest())
-        .region(region_provider)
-        .load()
-        .await;
-
-    let dynamodb = aws_sdk_dynamodb::Client::new(&aws_config);
-    let secrets_manager = aws_sdk_secretsmanager::Client::new(&aws_config);
-
-    let shared_resources = &SharedResources {
-        dynamodb,
-        secrets_manager,
-        config,
-    };
+    let app_context = &gt_app::create_app_context().await.unwrap();
 
     lambda_runtime::run(service_fn(
         move |event: LambdaEvent<Request>| async move {
-            handler(shared_resources, event).await
+            handler(app_context, event).await
         },
     ))
     .await?;
@@ -273,18 +135,18 @@ async fn main() -> Result<(), Error> {
 }
 
 async fn handler(
-    shared_resources: &SharedResources,
+    app_context: &AppContext,
     event: LambdaEvent<Request>,
 ) -> Result<Response, ErrorResponse> {
     let payload = event.payload;
-    let config = &shared_resources.config;
+    let config = &app_context.config;
 
     let transcription: Vec<TranscriptionSegment> =
         serde_dynamo::from_attribute_value(payload.transcription)
             .or(Err(ErrorResponse("InvalidInput", "Invalid transcription")))?;
 
     // Get the openai api key from secrets manager
-    let openai_secret = fetch_openai_secret(shared_resources).await?;
+    let openai_secret = fetch_openai_secret(app_context).await?;
 
     // Call the openai api with the transcription result and summarization_context
     let openai_client = Client::new(openai_secret);
@@ -370,7 +232,7 @@ async fn handler(
 
     let summarization_context = result.summary_context.clone();
 
-    update_transcription_summary(shared_resources, &payload.input_key, result)
+    update_transcription_summary(app_context, &payload.input_key, result)
         .await?;
 
     Ok(Response {
@@ -380,7 +242,7 @@ async fn handler(
 }
 
 async fn fetch_openai_secret(
-    shared_resources: &SharedResources,
+    shared_resources: &AppContext,
 ) -> Result<String, ErrorResponse> {
     let openai_secret = shared_resources
         .secrets_manager
@@ -395,18 +257,23 @@ async fn fetch_openai_secret(
 }
 
 async fn update_transcription_summary(
-    shared_resources: &SharedResources,
+    app_context: &AppContext,
     input_key: &str,
     result: SummarizationOutput,
 ) -> Result<(), ErrorResponse> {
-    shared_resources
+    let result = result.try_into().or(Err(ErrorResponse(
+        "InvalidResponse",
+        "Invalid response from OpenAI",
+    )))?;
+
+    app_context
         .dynamodb
         .update_item()
-        .table_name(&shared_resources.config.metadata_table_name)
+        .table_name(&app_context.config.metadata_table_name)
         .key("key", AttributeValue::S(input_key.to_string()))
         .update_expression("SET #summary = :summary")
         .expression_attribute_names("#summary", "summary")
-        .expression_attribute_values(":summary", result.into())
+        .expression_attribute_values(":summary", result)
         .send()
         .await
         .inspect_err(|err| {

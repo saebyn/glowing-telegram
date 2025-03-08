@@ -9,8 +9,6 @@ mod job_utils;
  */
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
-
     // Read configuration from environment variables with figment
     let app_context = gt_app::create_app_context().await?;
 
