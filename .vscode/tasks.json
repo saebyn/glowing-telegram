@@ -80,6 +80,9 @@
       },
       "command": "./scripts/push_image.sh ${input:service}",
       "group": "build",
+      "runOptions": {
+        "instanceLimit": 5
+      },
       "problemMatcher": []
     },
     {

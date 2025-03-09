@@ -1,34 +1,23 @@
 # Ignore Rust build artifacts
-**/target
-
-# Ignore Python virtual environment
-**/venv
-
-# Ignore Python Jupyter Notebook checkpoints
-**/.ipynb_checkpoints
-
-openai_key.txt
-*_key.txt
+target
 
 # Ignore .env files
-**/.env
+.env
 
 # Ignore .DS_Store files
-**/.DS_Store
+.DS_Store
 
 # Ignore .vscode files
-**/.vscode
-
-# Ignore old project
-video_processing_project
-chatbot
+.vscode
 
 # Ignore node_modules
 **/node_modules
 
 # Ignore Dockerfiles
+Dockerfile
 **/Dockerfile
 Dockerfile.*
+.dockerignore
 
 # Ignore git files
-**/.git
+.git
