@@ -11,6 +11,13 @@ FROM rust:${RUST_VERSION:-latest} AS rust_base
 # Use the official debian image as the base image for our runtime image
 FROM debian:${DEBIAN_VERSION:-latest} AS runtime_base
 
+RUN apt-get update \
+  && apt-get -y upgrade \
+  && apt-get install -y --no-install-recommends \
+  ca-certificates \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
 FROM runtime_base AS runtime
 # Create a non-root user to run the app
 ARG USER=user
@@ -19,7 +26,9 @@ ARG UID=10001
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get -y upgrade
+  && apt-get -y upgrade \
+  && apt-get install -y --no-install-recommends \
+  ca-certificates
 
 RUN adduser \
   --disabled-password \
@@ -85,7 +94,6 @@ CMD ["/bootstrap"]
 FROM runtime AS audio_transcriber
 
 RUN apt-get install -y --no-install-recommends \
-  ca-certificates \
   curl \
   ffmpeg \
   libssl-dev \
@@ -124,7 +132,6 @@ CMD [ "main.handler" ]
 FROM runtime AS render_job
 
 RUN apt-get install -y --no-install-recommends \
-  ca-certificates \
   ffmpeg \
   libssl-dev \
   pkg-config \
@@ -153,7 +160,6 @@ CMD ["/bootstrap"]
 FROM runtime AS video_ingestor
 
 RUN apt-get install -y --no-install-recommends \
-  ca-certificates \
   curl \
   libssl-dev \
   pkg-config \
