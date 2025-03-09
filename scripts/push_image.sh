@@ -85,11 +85,7 @@ aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_D
 
 # Build the Docker image
 echo "Building Docker image for $SERVICE"
-docker build --target $SERVICE --tag $SERVICE .
-
-# Tag the image with the ECR repository URI
-echo "Tagging Docker image for $SERVICE"
-docker tag $SERVICE:latest $ECR_DOMAIN/$ECR_REPOSITORY:latest
+docker buildx bake $SERVICE
 
 # Push the image to ECR
 echo "Pushing Docker image for $SERVICE"
