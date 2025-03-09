@@ -18,6 +18,7 @@ Dockerfile
 **/Dockerfile
 Dockerfile.*
 .dockerignore
+docker-bake.hcl
 
 # Ignore scripts
 scripts
