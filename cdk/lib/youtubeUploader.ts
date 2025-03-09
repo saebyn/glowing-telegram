@@ -58,6 +58,7 @@ export default class YoutubeUploader extends Construct {
       {
         image: uploadVideoContainerImage,
         cpu: 1,
+        command: ['Ref::episode_id'],
         memory: cdk.Size.gibibytes(2),
         environment: {
           EPISODE_RENDER_BUCKET: mediaOutputBucket.bucketName,
@@ -76,6 +77,9 @@ export default class YoutubeUploader extends Construct {
       jobDefinitionName: 'UploadVideo',
       container: containerDefinition,
       timeout: cdk.Duration.hours(1),
+      parameters: {
+        episode_id: '<episode_id>',
+      },
     });
 
     const uploadVideoState = new tasks.BatchSubmitJob(
