@@ -19,5 +19,8 @@ Dockerfile
 Dockerfile.*
 .dockerignore
 
+# Ignore scripts
+scripts
+
 # Ignore git files
 .git

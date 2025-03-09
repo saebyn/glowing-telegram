@@ -11,18 +11,6 @@ if [ -z "$SERVICE" ]; then
   exit 1
 fi
 
-# Check if the SERVICE directory exists
-if [ ! -d "$SERVICE" ]; then
-  echo "The SERVICE directory does not exist"
-  exit 1
-fi
-
-# Check if the Dockerfile exists
-if [ ! -f "$SERVICE/Dockerfile" ]; then
-  echo "The Dockerfile does not exist"
-  exit 1
-fi
-
 # Map the SERVICE to the Lambda function name and ECR repository name
 case $SERVICE in
   crud_api)
