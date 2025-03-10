@@ -26,7 +26,7 @@ target "audio_transcriber" {
   dockerfile = "Dockerfile"
   context = "."
   target = "audio_transcriber"
-  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/audio-transcriber:latest"]
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/audio-transcription:latest"]
 }
 
 target "crud_api" {
