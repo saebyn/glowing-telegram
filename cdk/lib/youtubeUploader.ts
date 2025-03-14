@@ -48,7 +48,7 @@ export default class YoutubeUploader extends Construct {
       assumedBy: new cdk.aws_iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
 
-    episodeTable.grantWriteData(jobRole);
+    episodeTable.grantReadWriteData(jobRole);
     mediaOutputBucket.grantRead(jobRole);
 
     const repo = cdk.aws_ecr.Repository.fromRepositoryName(
