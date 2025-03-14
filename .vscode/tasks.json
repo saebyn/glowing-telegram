@@ -86,6 +86,20 @@
       "problemMatcher": []
     },
     {
+      "label": "build and push all containers",
+      "type": "shell",
+      "options": {
+        "env": {
+          "AWS_PROFILE": "glowing-telegram-admin",
+          "AWS_REGION": "us-west-2",
+          "AWS_ACCOUNT_ID": "159222827421",
+        }
+      },
+      "command": "./scripts/push_all.sh",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "cargo watch",
       "type": "shell",
       "options": {

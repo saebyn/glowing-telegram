@@ -25,3 +25,7 @@ scripts
 
 # Ignore git files
 .git
+
+# Ignore the cdk and cdk.out directories
+cdk
+cdk.out

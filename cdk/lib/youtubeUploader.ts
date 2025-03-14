@@ -31,7 +31,7 @@ export default class YoutubeUploader extends Construct {
 
     const { mediaOutputBucket, episodeTable, jobQueue, eventBus } = props;
 
-    const uploadVideoExecutionRole = new cdk.aws_iam.Role(
+    const executionRole = new cdk.aws_iam.Role(
       this,
       'UploadVideoExecutionRole',
       {
@@ -44,21 +44,27 @@ export default class YoutubeUploader extends Construct {
       },
     );
 
-    const uploadVideoContainerImage = EcrImage.fromEcrRepository(
-      cdk.aws_ecr.Repository.fromRepositoryName(
-        this,
-        'UploadVideoContainerImage',
-        'glowing-telegram/upload-video',
-      ),
+    const jobRole = new cdk.aws_iam.Role(this, 'UploadVideoJobRole', {
+      assumedBy: new cdk.aws_iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+    });
+
+    episodeTable.grantWriteData(jobRole);
+    mediaOutputBucket.grantRead(jobRole);
+
+    const repo = cdk.aws_ecr.Repository.fromRepositoryName(
+      this,
+      'UploadVideoContainerImage',
+      'glowing-telegram/upload-video',
     );
 
     const containerDefinition = new EcsFargateContainerDefinition(
       this,
       'UploadVideoContainer',
       {
-        image: uploadVideoContainerImage,
+        image: EcrImage.fromEcrRepository(repo),
         cpu: 1,
         command: ['Ref::episode_id'],
+        assignPublicIp: true,
         memory: cdk.Size.gibibytes(2),
         environment: {
           EPISODE_RENDER_BUCKET: mediaOutputBucket.bucketName,
@@ -69,7 +75,8 @@ export default class YoutubeUploader extends Construct {
           USER_AGENT: 'glowing-telegram/1.0',
           RUST_LOG: 'info',
         },
-        executionRole: uploadVideoExecutionRole,
+        executionRole,
+        jobRole,
       },
     );
 

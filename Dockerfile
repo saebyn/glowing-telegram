@@ -88,7 +88,7 @@ RUN cargo build --release
 # ai_chat_lambda
 FROM runtime_base AS ai_chat_lambda
 COPY --from=rust_builder /app/target/release/ai_chat_lambda /bootstrap
-CMD ["/bootstrap"]
+ENTRYPOINT ["/bootstrap"]
 
 # audio_transcriber
 FROM runtime AS audio_transcriber
@@ -121,7 +121,7 @@ ENTRYPOINT [ "/app/audio_transcriber" ]
 # crud_api
 FROM runtime_base AS crud_api
 COPY --from=rust_builder /app/target/release/crud_api /bootstrap
-CMD ["/bootstrap"]
+ENTRYPOINT ["/bootstrap"]
 
 # media_lambda
 FROM public.ecr.aws/lambda/python:3 AS media_lambda
@@ -144,17 +144,17 @@ ENTRYPOINT [ "/app/render_job" ]
 # summarize_transcription
 FROM runtime_base AS summarize_transcription
 COPY --from=rust_builder /app/target/release/summarize_transcription /bootstrap
-CMD ["/bootstrap"]
+ENTRYPOINT ["/bootstrap"]
 
 # twitch_lambda
 FROM runtime_base AS twitch_lambda
 COPY --from=rust_builder /app/target/release/twitch_lambda /bootstrap
-CMD ["/bootstrap"]
+ENTRYPOINT ["/bootstrap"]
 
 # upload_video
 FROM runtime_base AS upload_video
 COPY --from=rust_builder /app/target/release/upload_video /bootstrap
-CMD ["/bootstrap"]
+ENTRYPOINT ["/bootstrap"]
 
 # video_ingestor
 FROM runtime AS video_ingestor
@@ -173,4 +173,4 @@ ENTRYPOINT [ "/app/video_ingestor" ]
 # youtube_lambda
 FROM runtime_base AS youtube_lambda
 COPY --from=rust_builder /app/target/release/youtube_lambda /bootstrap
-CMD ["/bootstrap"]
+ENTRYPOINT ["/bootstrap"]

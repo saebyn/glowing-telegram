@@ -75,8 +75,6 @@ impl gt_app::ContextProvider<Config> for AppContext {
  */
 #[tokio::main]
 pub async fn main() {
-    tracing_subscriber::fmt::init();
-
     // Read configuration from environment variables with figment
     let app_context = gt_app::create_app_context().await.unwrap();
 
