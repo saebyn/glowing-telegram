@@ -11,6 +11,7 @@ import {
 } from 'aws-cdk-lib/aws-batch';
 import type { IEventBus } from 'aws-cdk-lib/aws-events';
 import { EcrImage } from 'aws-cdk-lib/aws-ecs';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
@@ -29,7 +30,13 @@ export default class YoutubeUploader extends Construct {
   constructor(scope: Construct, id: string, props: YoutubeUploaderProps) {
     super(scope, id);
 
-    const { mediaOutputBucket, episodeTable, jobQueue, eventBus } = props;
+    const {
+      mediaOutputBucket,
+      episodeTable,
+      jobQueue,
+      eventBus,
+      youtubeSecret,
+    } = props;
 
     const executionRole = new cdk.aws_iam.Role(
       this,
@@ -50,6 +57,26 @@ export default class YoutubeUploader extends Construct {
 
     episodeTable.grantReadWriteData(jobRole);
     mediaOutputBucket.grantRead(jobRole);
+    youtubeSecret.grantRead(jobRole);
+    jobRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'secretsmanager:GetSecretValue',
+          'secretsmanager:PutSecretValue',
+        ],
+        resources: [
+          cdk.Arn.format(
+            {
+              service: 'secretsmanager',
+              resource: 'secret',
+              resourceName: 'gt/youtube/user/*',
+              arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
+            },
+            cdk.Stack.of(this),
+          ),
+        ],
+      }),
+    );
 
     const repo = cdk.aws_ecr.Repository.fromRepositoryName(
       this,
@@ -70,7 +97,7 @@ export default class YoutubeUploader extends Construct {
           EPISODE_RENDER_BUCKET: mediaOutputBucket.bucketName,
           EPISODE_TABLE_NAME: episodeTable.tableName,
           USER_SECRET_PATH: 'gt/youtube/user',
-          YOUTUBE_SECRET_ARN: props.youtubeSecret.secretArn,
+          YOUTUBE_SECRET_ARN: youtubeSecret.secretArn,
           MAX_RETRY_SECONDS: '3600',
           USER_AGENT: 'glowing-telegram/1.0',
           RUST_LOG: 'info',
