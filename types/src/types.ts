@@ -143,12 +143,13 @@ export interface Episode {
     cut_list?:              CutListClass;
     description?:           string;
     error_message?:         string;
-    id:                     string;
+    id?:                    string;
     is_published?:          boolean;
     notify_subscribers?:    boolean;
     order_index?:           number;
     render_uri?:            string;
     retry_after_seconds?:   number;
+    series_id?:             string;
     stream_id?:             string;
     tags?:                  string[];
     title?:                 string;
@@ -306,7 +307,7 @@ export interface VideoClip {
      * The path to the audio file extracted from the video clip.
      */
     audio?: string;
-    id:     string;
+    id?:    string;
     /**
      * The S3 key of the video clip.
      */

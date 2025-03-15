@@ -173,7 +173,8 @@ pub struct Episode {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
 
-    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_published: Option<bool>,
@@ -189,6 +190,9 @@ pub struct Episode {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_after_seconds: Option<i64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub series_id: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream_id: Option<String>,
@@ -514,7 +518,8 @@ pub struct VideoClip {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio: Option<String>,
 
-    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 
     /// The S3 key of the video clip.
     pub key: String,
