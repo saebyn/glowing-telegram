@@ -30,7 +30,11 @@
 				"additionalProperties": false
 			}
 		},
-		"stream_id": { "type": "string" },
+		"stream_id": { "type": "string", "format": "uuid" },
+		"series_id": {
+			"type": "string",
+			"format": "uuid"
+		},
 		"cut_list": {
 			"type": "object",
 			"$ref": "./CutList.schema"
@@ -90,7 +94,7 @@
 			"type": "boolean"
 		}
 	},
-	"required": ["id"],
+	"required": [],
 	"additionalProperties": false,
 	"$comment": "Represents an episode object"
 }

@@ -142,6 +142,6 @@
 		}
 	},
 	"additionalProperties": false,
-	"required": ["id", "key"],
+	"required": ["key"],
 	"$comment": "Represents a video clip object aka a video segment aka video metadata"
 }
