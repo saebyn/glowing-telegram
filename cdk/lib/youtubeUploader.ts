@@ -12,20 +12,27 @@ import {
 import type { IEventBus } from 'aws-cdk-lib/aws-events';
 import { EcrImage } from 'aws-cdk-lib/aws-ecs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+
+const UPLOAD_READY_TO_UPLOAD = 'ready_to_upload';
+const UPLOAD_NOT_READY_TO_UPLOAD = 'not_ready_to_upload';
+const UPLOAD_UPLOADED = 'uploaded';
+const UPLOAD_FAILED = 'FAILED';
+const UPLOAD_THROTTLED = 'THROTTLED';
 
 type YoutubeUploaderProps = {
   readonly mediaOutputBucket: IBucket;
   readonly episodeTable: ITable;
   readonly jobQueue: IJobQueue;
   readonly eventBus: IEventBus;
-  readonly youtubeSecret: secretsmanager.ISecret;
+  readonly youtubeAppSecret: secretsmanager.ISecret;
 };
 
 export default class YoutubeUploader extends Construct {
-  readonly stepFunction: StateMachine;
   private readonly uploadVideoJob: EcsJobDefinition;
+  public readonly apiLambda: lambda.IFunction;
 
   constructor(scope: Construct, id: string, props: YoutubeUploaderProps) {
     super(scope, id);
@@ -35,7 +42,7 @@ export default class YoutubeUploader extends Construct {
       episodeTable,
       jobQueue,
       eventBus,
-      youtubeSecret,
+      youtubeAppSecret,
     } = props;
 
     const executionRole = new cdk.aws_iam.Role(
@@ -57,7 +64,7 @@ export default class YoutubeUploader extends Construct {
 
     episodeTable.grantReadWriteData(jobRole);
     mediaOutputBucket.grantRead(jobRole);
-    youtubeSecret.grantRead(jobRole);
+    youtubeAppSecret.grantRead(jobRole);
     jobRole.addToPolicy(
       new iam.PolicyStatement({
         actions: [
@@ -97,7 +104,7 @@ export default class YoutubeUploader extends Construct {
           EPISODE_RENDER_BUCKET: mediaOutputBucket.bucketName,
           EPISODE_TABLE_NAME: episodeTable.tableName,
           USER_SECRET_PATH: 'gt/youtube/user',
-          YOUTUBE_SECRET_ARN: youtubeSecret.secretArn,
+          YOUTUBE_SECRET_ARN: youtubeAppSecret.secretArn,
           MAX_RETRY_SECONDS: '3600',
           USER_AGENT: 'glowing-telegram/1.0',
           RUST_LOG: 'info',
@@ -192,7 +199,7 @@ export default class YoutubeUploader extends Construct {
           '#status': 'upload_status',
         },
         expressionAttributeValues: {
-          ':status': tasks.DynamoAttributeValue.fromString('uploaded'),
+          ':status': tasks.DynamoAttributeValue.fromString(UPLOAD_UPLOADED),
         },
         resultPath: sfn.JsonPath.DISCARD,
       },
@@ -214,7 +221,7 @@ export default class YoutubeUploader extends Construct {
         },
         expressionAttributeValues: {
           ':status': tasks.DynamoAttributeValue.fromString(
-            'not_ready_to_upload',
+            UPLOAD_NOT_READY_TO_UPLOAD,
           ),
         },
         resultPath: sfn.JsonPath.DISCARD,
@@ -232,7 +239,7 @@ export default class YoutubeUploader extends Construct {
           IndexName: 'upload_status-upload_queue_timestamp-index',
           KeyConditionExpression: 'upload_status = :status',
           ExpressionAttributeValues: {
-            ':status': { S: 'ready_to_upload' },
+            ':status': { S: UPLOAD_READY_TO_UPLOAD },
           },
           ProjectionExpression: 'id',
           // This is working as a FIFO queue, so we want to process the oldest item first
@@ -250,14 +257,14 @@ export default class YoutubeUploader extends Construct {
           .when(
             sfn.Condition.stringEquals(
               '$.uploadVideoResult.upload_status',
-              'FAILED',
+              UPLOAD_FAILED,
             ),
             markAsNotReadyToUploadState.next(notifyFailureState),
           )
           .when(
             sfn.Condition.stringEquals(
               '$.uploadVideoResult.upload_status',
-              'THROTTLED',
+              UPLOAD_THROTTLED,
             ),
             new sfn.Wait(this, 'WaitForRetry', {
               comment: 'Wait for the amount of time specified in the response',
@@ -277,7 +284,7 @@ export default class YoutubeUploader extends Construct {
       }).itemProcessor(episodeProcessor),
     );
 
-    this.stepFunction = new sfn.StateMachine(
+    const stepFunction = new sfn.StateMachine(
       this,
       'YoutubeUploaderStateMachine',
       {
@@ -287,5 +294,86 @@ export default class YoutubeUploader extends Construct {
         timeout: cdk.Duration.hours(1),
       },
     );
+
+    this.apiLambda = new lambda.Function(this, 'YoutubeUploaderApiLambda', {
+      runtime: lambda.Runtime.PYTHON_3_13,
+      code: lambda.Code.fromInline(`
+    import json
+    import os
+    import boto3
+    from datetime import datetime, timedelta, timezone
+    
+    def handler(event, context):
+        # Resource setup
+        dynamodb = boto3.resource('dynamodb')
+        sfn = boto3.client('stepfunctions')
+        table = dynamodb.Table(os.environ['EPISODES_TABLE_NAME'])
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Parse the event
+        claims = event['requestContext']['authorizer']['claims']
+        user_id = claims['sub']
+        request_body = json.loads(event['body'])
+        episode_ids = request_body.get('episode_ids', [])
+
+        # Validate the input
+        if not episode_ids:
+            return {
+                'statusCode': 400,
+                'body': json.dumps('No episode IDs provided'),
+            }
+        if not all(isinstance(episode_id, str) for episode_id in episode_ids):
+            return {
+                'statusCode': 400,
+                'body': json.dumps('Invalid episode IDs provided'),
+            }
+        if not user_id:
+            return {
+                'statusCode': 401,
+                'body': json.dumps('Unauthorized'),
+            }
+
+        # Upload the records
+        for episode_id in episode_ids:
+          table.update_item(
+              Key={'id': episode_id},
+              UpdateExpression='SET #userId = :userId, #uploadStatus = :uploadStatus, #updatedAt = :now',
+              ExpressionAttributeNames={'#userId': 'user_id', '#uploadStatus': 'upload_status', '#updatedAt': 'updated_at'},
+              ExpressionAttributeValues={':userId': user_id, ':uploadStatus': '${UPLOAD_READY_TO_UPLOAD}', ':now': now},
+          )
+
+        # Check if the step function is already running
+        response = sfn.list_executions(
+            stateMachineArn=os.environ['STEPFUNCTION_ARN'],
+            statusFilter='RUNNING'
+        )
+        if not response['executions']:
+            # Start the step function execution if it's not running
+            sfn.start_execution(
+                stateMachineArn=os.environ['STEPFUNCTION_ARN'],
+                input='{}'
+            )
+
+        return {
+            'statusCode': 200,
+            'body': '{}',
+        }
+    `),
+      handler: 'index.handler',
+      environment: {
+        EPISODES_TABLE_NAME: episodeTable.tableName,
+        STEPFUNCTION_ARN: stepFunction.stateMachineArn,
+      },
+      initialPolicy: [
+        new iam.PolicyStatement({
+          actions: ['dynamodb:UpdateItem'],
+          resources: [episodeTable.tableArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['states:StartExecution', 'states:ListExecutions'],
+          resources: [stepFunction.stateMachineArn],
+        }),
+      ],
+    });
   }
 }

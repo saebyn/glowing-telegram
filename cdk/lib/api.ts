@@ -11,6 +11,7 @@ import type { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import type * as lambda from 'aws-cdk-lib/aws-lambda';
 import type * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
@@ -29,6 +30,8 @@ interface APIConstructProps {
   tasksTable: ITable;
   openaiSecret: secretsmanager.ISecret;
   youtubeAppSecret: secretsmanager.ISecret;
+
+  youtubeUploaderAPILambda: lambda.IFunction;
 
   domainName: string;
 
@@ -350,6 +353,16 @@ export default class APIConstruct extends Construct {
         renderJobSubmissionLambda.lambda,
       ),
       path: '/render',
+      methods: [apigwv2.HttpMethod.POST],
+    });
+
+    // POST /upload/youtube - run youtube uploader lambda
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'YoutubeUploadIntegration',
+        props.youtubeUploaderAPILambda,
+      ),
+      path: '/upload/youtube',
       methods: [apigwv2.HttpMethod.POST],
     });
   }
