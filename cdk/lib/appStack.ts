@@ -53,6 +53,15 @@ export default class AppStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    const youtubeAppSecret = new secretsmanager.Secret(
+      this,
+      'YoutubeAppSecret',
+      {
+        description: 'Youtube App Secret for API access in glowing-telegram',
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      },
+    );
+
     const batchEnvironment = new BatchEnvironmentConstruct(
       this,
       'BatchEnvironment',
@@ -103,7 +112,7 @@ export default class AppStack extends cdk.Stack {
       jobQueue: batchEnvironment.cpuJobQueue,
     });
 
-    const api = new APIConstruct(this, 'API', {
+    new APIConstruct(this, 'API', {
       streamIngestionFunction: streamIngestion.stepFunction,
       renderJob: {
         jobQueue: batchEnvironment.cpuJobQueue,
@@ -112,6 +121,7 @@ export default class AppStack extends cdk.Stack {
       userPool: userManagement.userPool,
       userPoolClients: [userManagement.userPoolClient],
       openaiSecret,
+      youtubeAppSecret,
       videoMetadataTable: dataStore.videoMetadataTable,
       streamsTable: dataStore.streamsTable,
       streamSeriesTable: dataStore.streamSeriesTable,
@@ -127,7 +137,7 @@ export default class AppStack extends cdk.Stack {
       jobQueue: batchEnvironment.cpuJobQueue,
       mediaOutputBucket: dataStore.outputBucket,
       eventBus: EventBus.fromEventBusName(this, 'EventBus', 'default'),
-      youtubeSecret: api.youtubeSecret,
+      youtubeSecret: youtubeAppSecret,
     });
 
     new TaskMonitoringConstruct(this, 'TaskMonitoring', {

@@ -28,6 +28,7 @@ interface APIConstructProps {
   profilesTable: ITable;
   tasksTable: ITable;
   openaiSecret: secretsmanager.ISecret;
+  youtubeAppSecret: secretsmanager.ISecret;
 
   domainName: string;
 
@@ -39,22 +40,9 @@ interface APIConstructProps {
 
 export default class APIConstruct extends Construct {
   public readonly httpApi: apigwv2.HttpApi;
-  public readonly youtubeSecret: secretsmanager.ISecret;
 
   constructor(scope: Construct, id: string, props: APIConstructProps) {
     super(scope, id);
-
-    // youtube lambda
-    const youtubeAppSecret = new secretsmanager.Secret(
-      this,
-      'YoutubeAppSecret',
-      {
-        description: 'Youtube App Secret for API access in glowing-telegram',
-        removalPolicy: cdk.RemovalPolicy.RETAIN,
-      },
-    );
-
-    this.youtubeSecret = youtubeAppSecret;
 
     const youtubeService = new ServiceLambdaConstruct(this, 'YoutubeLambda', {
       lambdaOptions: {
@@ -62,13 +50,13 @@ export default class APIConstruct extends Construct {
         timeout: cdk.Duration.seconds(30),
         environment: {
           USER_SECRET_PATH: 'gt/youtube/user',
-          YOUTUBE_SECRET_ARN: youtubeAppSecret.secretArn,
+          YOUTUBE_SECRET_ARN: props.youtubeAppSecret.secretArn,
         },
       },
       name: 'youtube-lambda',
     });
 
-    youtubeAppSecret.grantRead(youtubeService.lambda);
+    props.youtubeAppSecret.grantRead(youtubeService.lambda);
     youtubeService.lambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
