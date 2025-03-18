@@ -187,7 +187,7 @@ export interface Track {
     start: string;
 }
 
-export type UploadStatus = "FAILED" | "SUCCESS" | "THROTTLED";
+export type UploadStatus = "FAILED" | "SUCCESS" | "THROTTLED" | "ready_to_upload" | "not_ready_to_upload";
 
 export interface IDOnly {
     id: string;
