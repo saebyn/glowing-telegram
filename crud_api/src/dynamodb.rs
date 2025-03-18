@@ -79,10 +79,13 @@ pub async fn list(
                 .filter_expression(filter_expression)
                 .set_expression_attribute_names(Some(
                     expression_attribute_names.clone(),
-                ))
-                .set_expression_attribute_values(Some(
+                ));
+
+            if !expression_attribute_values.is_empty() {
+                scan_input = scan_input.set_expression_attribute_values(Some(
                     expression_attribute_values.clone(),
                 ));
+            }
         }
 
         // Apply the limit and cursor to the scan input
@@ -97,7 +100,13 @@ pub async fn list(
         scan_input = scan_input.limit(remaining);
 
         // Send the scan request to DynamoDB
-        let scan_output = scan_input.send().await?;
+        let scan_output = scan_input.send().await.inspect_err(|err| {
+            tracing::error!(
+                "Failed to scan table {}: {:?}",
+                table_config.table,
+                err
+            );
+        })?;
 
         // Convert the scanned items to JSON
         let new_items = scan_output
@@ -117,6 +126,23 @@ pub async fn list(
             break;
         }
     }
+
+    // if the partition key is not "id", add the partition key to the items as "id"
+    let items = if table_config.partition_key == "id" {
+        items
+    } else {
+        items
+            .iter()
+            .map(|item| {
+                let mut new_item = item.clone();
+                new_item["id"] = item
+                    .get(table_config.partition_key)
+                    .unwrap_or(&serde_json::Value::Null)
+                    .clone();
+                new_item
+            })
+            .collect::<Vec<serde_json::Value>>()
+    };
 
     tracing::info!("Returning {0} items", items.len());
 
@@ -430,6 +456,9 @@ fn get_operator(op_name: &str) -> &'static str {
         "gt" => ">",
         "lte" => "<=",
         "lt" => "<",
+        "ne" => "<>",
+        "exists" => "exists",
+        "contains" => "contains",
         _ => "=",
     }
 }
@@ -483,14 +512,26 @@ fn build_filter_expressions(
 
                 expression_attribute_names
                     .insert(attribute_name.clone(), base_key.to_string());
-                expression_attribute_values.insert(
-                    attribute_value.clone(),
-                    convert_json_to_attribute_value(value.clone()),
-                );
 
                 if op == "contains" {
-                    format!("contains({attribute_name}, {attribute_value})")
+                    expression_attribute_values.insert(
+                        attribute_value.clone(),
+                        convert_json_to_attribute_value(value.clone()),
+                    );
+
+                    format!("contains({attribute_value}, {attribute_name})")
+                } else if op == "exists" {
+                    if value == &serde_json::Value::Bool(false) {
+                        format!("attribute_not_exists({attribute_name})")
+                    } else {
+                        format!("attribute_exists({attribute_name})")
+                    }
                 } else {
+                    expression_attribute_values.insert(
+                        attribute_value.clone(),
+                        convert_json_to_attribute_value(value.clone()),
+                    );
+
                     format!("{attribute_name} {op} {attribute_value}")
                 }
             })
