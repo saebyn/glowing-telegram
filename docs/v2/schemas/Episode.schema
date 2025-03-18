@@ -54,6 +54,8 @@
 				"FAILED",
 				"SUCCESS",
 				"THROTTLED",
+				"ready_to_upload",
+				"not_ready_to_upload",
 			],
 		},
 		"error_message": {

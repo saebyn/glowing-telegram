@@ -257,6 +257,12 @@ pub enum UploadStatus {
     #[serde(rename = "FAILED")]
     Failed,
 
+    #[serde(rename = "not_ready_to_upload")]
+    NotReadyToUpload,
+
+    #[serde(rename = "ready_to_upload")]
+    ReadyToUpload,
+
     #[serde(rename = "SUCCESS")]
     Success,
 
