@@ -16,6 +16,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
+// Constants for upload status, should match the `UploadStatus` type in .../types/src/types.ts
 const UPLOAD_READY_TO_UPLOAD = 'ready_to_upload';
 const UPLOAD_NOT_READY_TO_UPLOAD = 'not_ready_to_upload';
 const UPLOAD_UPLOADED = 'uploaded';
@@ -131,7 +132,9 @@ export default class YoutubeUploader extends Construct {
         jobName: 'UploadVideo',
         jobQueueArn: jobQueue.jobQueueArn,
         integrationPattern: cdk.aws_stepfunctions.IntegrationPattern.RUN_JOB,
-        inputPath: '$.episode',
+        payload: sfn.TaskInput.fromObject({
+          'episode_id.$': '$.id',
+        }),
         resultPath: sfn.JsonPath.DISCARD,
       },
     );
@@ -245,7 +248,10 @@ export default class YoutubeUploader extends Construct {
           // This is working as a FIFO queue, so we want to process the oldest item first
           ScanIndexForward: true,
         },
-        iamResources: [episodeTable.tableArn],
+        iamResources: [
+          episodeTable.tableArn,
+          `${episodeTable.tableArn}/index/upload_status-upload_queue_timestamp-index`,
+        ],
         resultPath: '$.episodes',
       },
     );
@@ -279,7 +285,10 @@ export default class YoutubeUploader extends Construct {
     const stepFunctionDefinition = sfn.Chain.start(queryEpisodeState).next(
       new sfn.Map(this, 'ForEachEpisode', {
         itemsPath: '$.episodes.Items',
-        resultPath: '$.episode',
+        itemSelector: {
+          id: sfn.JsonPath.stringAt('$$.Map.Item.Value.id.S'),
+        },
+        resultPath: sfn.JsonPath.DISCARD,
         maxConcurrency: 1,
       }).itemProcessor(episodeProcessor),
     );
@@ -297,69 +306,85 @@ export default class YoutubeUploader extends Construct {
 
     this.apiLambda = new lambda.Function(this, 'YoutubeUploaderApiLambda', {
       runtime: lambda.Runtime.PYTHON_3_13,
+      timeout: cdk.Duration.seconds(30),
       code: lambda.Code.fromInline(`
-    import json
-    import os
-    import boto3
-    from datetime import datetime, timedelta, timezone
-    
-    def handler(event, context):
-        # Resource setup
-        dynamodb = boto3.resource('dynamodb')
-        sfn = boto3.client('stepfunctions')
-        table = dynamodb.Table(os.environ['EPISODES_TABLE_NAME'])
-        now = datetime.now(timezone.utc).isoformat()
+import json
+import os
+import boto3
+from datetime import datetime, timedelta, timezone
 
-        # Parse the event
-        claims = event['requestContext']['authorizer']['claims']
+def handler(event, context):
+    # Resource setup
+    dynamodb = boto3.resource('dynamodb')
+    sfn = boto3.client('stepfunctions')
+    table = dynamodb.Table(os.environ['EPISODES_TABLE_NAME'])
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Parse the event
+    try:
+        claims = event['requestContext']['authorizer']['jwt']['claims']
         user_id = claims['sub']
+    except (KeyError, TypeError):
+        return {
+            'statusCode': 401,
+            'body': 'Unauthorized',
+        }
+
+    try:
         request_body = json.loads(event['body'])
         episode_ids = request_body.get('episode_ids', [])
-
-        # Validate the input
-        if not episode_ids:
-            return {
-                'statusCode': 400,
-                'body': json.dumps('No episode IDs provided'),
-            }
-        if not all(isinstance(episode_id, str) for episode_id in episode_ids):
-            return {
-                'statusCode': 400,
-                'body': json.dumps('Invalid episode IDs provided'),
-            }
-        if not user_id:
-            return {
-                'statusCode': 401,
-                'body': json.dumps('Unauthorized'),
-            }
-
-        # Upload the records
-        for episode_id in episode_ids:
-          table.update_item(
-              Key={'id': episode_id},
-              UpdateExpression='SET #userId = :userId, #uploadStatus = :uploadStatus, #updatedAt = :now',
-              ExpressionAttributeNames={'#userId': 'user_id', '#uploadStatus': 'upload_status', '#updatedAt': 'updated_at'},
-              ExpressionAttributeValues={':userId': user_id, ':uploadStatus': '${UPLOAD_READY_TO_UPLOAD}', ':now': now},
-          )
-
-        # Check if the step function is already running
-        response = sfn.list_executions(
-            stateMachineArn=os.environ['STEPFUNCTION_ARN'],
-            statusFilter='RUNNING'
-        )
-        if not response['executions']:
-            # Start the step function execution if it's not running
-            sfn.start_execution(
-                stateMachineArn=os.environ['STEPFUNCTION_ARN'],
-                input='{}'
-            )
-
+    except (KeyError, json.JSONDecodeError):
         return {
-            'statusCode': 200,
-            'body': '{}',
+            'statusCode': 400,
+            'body': 'Invalid request format',
         }
+
+    # Validate the input
+    if not episode_ids:
+        return {
+            'statusCode': 400,
+            'body': 'No episode IDs provided',
+        }
+    if not all(isinstance(episode_id, str) for episode_id in episode_ids):
+        return {
+            'statusCode': 400,
+            'body': 'Invalid episode IDs provided',
+        }
+    if not user_id:
+        return {
+            'statusCode': 401,
+            'body': 'Unauthorized',
+        }
+
+    # Upload the records
+    for episode_id in episode_ids:
+        table.update_item(
+            Key={'id': episode_id},
+            UpdateExpression='SET #userId = :userId, #uploadStatus = :uploadStatus, #updatedAt = :now, #uploadQueueTimestamp = :now',
+            ExpressionAttributeNames={'#userId': 'user_id', '#uploadStatus': 'upload_status', '#updatedAt': 'updated_at', '#uploadQueueTimestamp': 'upload_queue_timestamp'},
+            ExpressionAttributeValues={':userId': user_id, ':uploadStatus': '${UPLOAD_READY_TO_UPLOAD}', ':now': now},
+        )
+
+    # Check if the step function is already running
+    response = sfn.list_executions(
+        stateMachineArn=os.environ['STEPFUNCTION_ARN'],
+        statusFilter='RUNNING'
+    )
+    if not response['executions']:
+        # Start the step function execution if it's not running
+        sfn.start_execution(
+            stateMachineArn=os.environ['STEPFUNCTION_ARN'],
+            input='{}'
+        )
+
+    return {
+        'statusCode': 200,
+        'body': '',
+    }
     `),
       handler: 'index.handler',
+      tracing: lambda.Tracing.ACTIVE,
+      loggingFormat: lambda.LoggingFormat.JSON,
       environment: {
         EPISODES_TABLE_NAME: episodeTable.tableName,
         STEPFUNCTION_ARN: stepFunction.stateMachineArn,
