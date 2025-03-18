@@ -60,6 +60,8 @@ def handler(event, context):
       environment: {
         TASKS_TABLE_NAME: tasksTable.tableName,
       },
+      tracing: lambda.Tracing.ACTIVE,
+      loggingFormat: lambda.LoggingFormat.JSON,
       initialPolicy: [
         new iam.PolicyStatement({
           actions: ['dynamodb:UpdateItem'],

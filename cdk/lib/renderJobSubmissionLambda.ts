@@ -58,6 +58,8 @@ def handler(event, context):
 
     return {'statusCode': 200, 'body': json.dumps(response)}
       `),
+        tracing: lambda.Tracing.ACTIVE,
+        loggingFormat: lambda.LoggingFormat.JSON,
         environment: {
           RENDER_JOB_QUEUE: props.renderJobQueue.jobQueueArn,
           RENDER_JOB_DEFINITION: props.renderJobDefinition.jobDefinitionArn,
