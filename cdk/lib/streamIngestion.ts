@@ -129,7 +129,7 @@ The summary you generate must be not only informational for content review but a
       comment:
         'Set up the initial state with the iterator, context, and stream ID',
       parameters: {
-        iterator: { index: 0 },
+        iterator: { index: 0, start_time: 0 },
         context: {
           'transcription.$': '$.initialPrompt',
           'summarization.$': '$.initialSummary',
@@ -233,6 +233,29 @@ The summary you generate must be not only informational for content review but a
       },
     );
 
+    const saveStartTimeToDynamoDB = new tasks.DynamoUpdateItem(
+      this,
+      'Save start time to DynamoDB',
+      {
+        table: props.videoMetadataTable,
+        key: {
+          key: tasks.DynamoAttributeValue.fromString(
+            stepfunctions.JsonPath.stringAt('$.dynamodb.Item.key.S'),
+          ),
+        },
+        updateExpression: 'SET start_time = :startTime',
+        expressionAttributeValues: {
+          ':startTime': tasks.DynamoAttributeValue.numberFromString(
+            stepfunctions.JsonPath.format(
+              '{}',
+              stepfunctions.JsonPath.stringAt('$.iterator.start_time'),
+            ),
+          ),
+        },
+        resultPath: stepfunctions.JsonPath.DISCARD,
+      },
+    );
+
     const invalidatePlaylistCache = new tasks.CallAwsService(
       this,
       'Invalidate CloudFront Distribution',
@@ -315,6 +338,8 @@ The summary you generate must be not only informational for content review but a
       comment: 'Increment the iterator index',
       parameters: {
         'index.$': 'States.MathAdd(1, $.iterator.index)',
+        start_time:
+          'States.MathAdd($.iterator.start_time, $.dynamodb.Item.metadata.M.format.M.duration.N)',
       },
       resultPath: '$.iterator',
     });
@@ -411,6 +436,7 @@ The summary you generate must be not only informational for content review but a
       .next(loopOverVideos.afterwards());
 
     getItemFromDynamoDB
+      .next(saveStartTimeToDynamoDB)
       .next(
         new tasks.BatchSubmitJob(this, 'Transcribe Audio to Text', {
           jobName: 'transcribe-audio',
@@ -441,6 +467,8 @@ The summary you generate must be not only informational for content review but a
               new tasks.DynamoProjectionExpression().withAttribute(
                 'transcription',
               ),
+              // extract the metadata for the duration so we can increment the start_time
+              new tasks.DynamoProjectionExpression().withAttribute('metadata'),
             ],
             expressionAttributeNames: { '#k': 'key' },
             resultPath: '$.dynamodb',
