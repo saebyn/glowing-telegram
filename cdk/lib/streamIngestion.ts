@@ -339,7 +339,7 @@ The summary you generate must be not only informational for content review but a
       parameters: {
         'index.$': 'States.MathAdd(1, $.iterator.index)',
         'start_time.$':
-          'States.MathAdd($.iterator.start_time, $.dynamodb.Item.metadata.M.format.M.duration.N)',
+          'States.MathAdd($.iterator.start_time, States.StringToJson($.dynamodb.Item.metadata.M.format.M.duration.N))',
       },
       resultPath: '$.iterator',
     });
