@@ -338,7 +338,7 @@ The summary you generate must be not only informational for content review but a
       comment: 'Increment the iterator index',
       parameters: {
         'index.$': 'States.MathAdd(1, $.iterator.index)',
-        start_time:
+        'start_time.$':
           'States.MathAdd($.iterator.start_time, $.dynamodb.Item.metadata.M.format.M.duration.N)',
       },
       resultPath: '$.iterator',
