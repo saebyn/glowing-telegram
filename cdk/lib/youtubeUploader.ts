@@ -146,7 +146,7 @@ export default class YoutubeUploader extends Construct {
         table: episodeTable,
         key: {
           id: tasks.DynamoAttributeValue.fromString(
-            cdk.aws_stepfunctions.JsonPath.stringAt('$.episode.id'),
+            cdk.aws_stepfunctions.JsonPath.stringAt('$.id'),
           ),
         },
         projectionExpression: [
@@ -172,8 +172,7 @@ export default class YoutubeUploader extends Construct {
             detail: {
               type: InputType.OBJECT,
               value: {
-                episodeId:
-                  cdk.aws_stepfunctions.JsonPath.stringAt('$.episode.id'),
+                episodeId: cdk.aws_stepfunctions.JsonPath.stringAt('$.id'),
                 errorMessage: cdk.aws_stepfunctions.JsonPath.stringAt(
                   '$.uploadVideoResult.error_message',
                 ),
@@ -194,7 +193,7 @@ export default class YoutubeUploader extends Construct {
         table: episodeTable,
         key: {
           id: tasks.DynamoAttributeValue.fromString(
-            cdk.aws_stepfunctions.JsonPath.stringAt('$.episode.id'),
+            cdk.aws_stepfunctions.JsonPath.stringAt('$.id'),
           ),
         },
         updateExpression: 'SET #status = :status',
@@ -215,7 +214,7 @@ export default class YoutubeUploader extends Construct {
         table: episodeTable,
         key: {
           id: tasks.DynamoAttributeValue.fromString(
-            cdk.aws_stepfunctions.JsonPath.stringAt('$.episode.id'),
+            cdk.aws_stepfunctions.JsonPath.stringAt('$.id'),
           ),
         },
         updateExpression: 'SET #status = :status',
