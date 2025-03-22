@@ -150,6 +150,15 @@
 		"stream_count": {
 			"type": "integer",
 			"minimum": 0
+		},
+
+		"episode_title_template": {
+			"type": "string",
+			"$comment": "Used to generate the title for each episode based on the series and stream information"
+		},
+		"episode_description_template": {
+			"type": "string",
+			"$comment": "Used to generate the description for each episode based on the series and stream information"
 		}
 	},
 	"required": ["created_at", "title", "id"],

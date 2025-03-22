@@ -202,29 +202,31 @@ export interface RenderRequest {
 }
 
 export interface Series {
-    category?:                number;
-    created_at:               string;
-    description?:             string;
-    end_date?:                string;
-    end_time?:                string;
-    id:                       string;
-    is_active?:               boolean;
-    max_episode_order_index?: number;
-    notify_subscribers?:      boolean;
-    playlist_id?:             string;
-    prep_notes?:              string;
-    recurrence?:              Recurrence;
-    skips?:                   Skip[];
-    start_date?:              string;
-    start_time?:              string;
-    stream_count?:            number;
-    stream_title_template?:   string;
-    tags?:                    string[];
-    thumbnail_url?:           string;
-    timezone?:                string;
-    title:                    string;
-    twitch_category?:         TwitchCategory;
-    updated_at?:              string;
+    category?:                     number;
+    created_at:                    string;
+    description?:                  string;
+    end_date?:                     string;
+    end_time?:                     string;
+    episode_description_template?: string;
+    episode_title_template?:       string;
+    id:                            string;
+    is_active?:                    boolean;
+    max_episode_order_index?:      number;
+    notify_subscribers?:           boolean;
+    playlist_id?:                  string;
+    prep_notes?:                   string;
+    recurrence?:                   Recurrence;
+    skips?:                        Skip[];
+    start_date?:                   string;
+    start_time?:                   string;
+    stream_count?:                 number;
+    stream_title_template?:        string;
+    tags?:                         string[];
+    thumbnail_url?:                string;
+    timezone?:                     string;
+    title:                         string;
+    twitch_category?:              TwitchCategory;
+    updated_at?:                   string;
 }
 
 export interface Recurrence {
