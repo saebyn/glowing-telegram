@@ -302,6 +302,12 @@ pub struct Series {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_time: Option<String>,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub episode_description_template: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub episode_title_template: Option<String>,
+
     pub id: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
