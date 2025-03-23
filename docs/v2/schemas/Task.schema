@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "status": { 
+      "type": "string",
+      "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED", "TIMED_OUT", "ABORTED", "PENDING_REDRIVE"]
+    },
+    "created_at": { 
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": { 
+      "type": "string",
+      "format": "date-time"
+    },
+    "task_type": { 
+      "type": "string",
+      "enum": ["ingestion", "upload", "rendering"]
+    },
+    "record_id": { "type": "string" },
+  },
+  "required": ["id", "status", "created_at", "task_type"],
+  "additionalProperties": false,
+  "description": "A task represents a unit of work in the system, with a unique identifier, status, timestamps for creation and updates, type of task, and an associated record ID."
+}
