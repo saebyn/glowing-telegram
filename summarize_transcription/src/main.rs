@@ -36,7 +36,6 @@ struct TranscriptionSegment {
 #[derive(Deserialize, Debug)]
 struct Request {
     input_key: String,
-    transcription: serde_dynamo::AttributeValue,
     transcription_context: String,
     summarization_context: String,
 }
@@ -141,9 +140,12 @@ async fn handler(
     let payload = event.payload;
     let config = &app_context.config;
 
-    let transcription: Vec<TranscriptionSegment> =
-        serde_dynamo::from_attribute_value(payload.transcription)
-            .or(Err(ErrorResponse("InvalidInput", "Invalid transcription")))?;
+    let transcription = retrieve_transcription(
+        &app_context.dynamodb,
+        payload.input_key.clone(),
+        config,
+    )
+    .await?;
 
     // Get the openai api key from secrets manager
     let openai_secret = fetch_openai_secret(app_context).await?;
@@ -239,6 +241,45 @@ async fn handler(
         summarization_context,
         transcription_context: payload.transcription_context,
     })
+}
+
+async fn retrieve_transcription(
+    dynamodb_client: &aws_sdk_dynamodb::Client,
+    key: String,
+    config: &Config,
+) -> Result<Vec<TranscriptionSegment>, ErrorResponse> {
+    let video_clip_record = dynamodb_client
+        .get_item()
+        .table_name(&config.metadata_table_name)
+        .key("key", AttributeValue::S(key))
+        .send()
+        .await
+        .or(Err(ErrorResponse("ItemNotFound", "Video clip not found")))?
+        .item
+        .ok_or(ErrorResponse("ItemNotFound", "Video clip not found"))?;
+
+    let transcription = video_clip_record
+        .get("transcription")
+        .ok_or(ErrorResponse("ItemNotFound", "Transcription not found"))?
+        .clone();
+
+    let transcription_segments = transcription
+        .as_m()
+        .map_err(|_| {
+            ErrorResponse("InvalidInput", "Invalid transcription format")
+        })?
+        .get("segments")
+        .ok_or(ErrorResponse(
+            "InvalidInput",
+            "Invalid transcription format",
+        ))?
+        .clone();
+
+    let transcription: Vec<TranscriptionSegment> =
+        serde_dynamo::from_attribute_value(transcription_segments)
+            .or(Err(ErrorResponse("InvalidInput", "Invalid transcription")))?;
+
+    Ok(transcription)
 }
 
 async fn fetch_openai_secret(
