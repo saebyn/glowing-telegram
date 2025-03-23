@@ -452,10 +452,7 @@ The summary you generate must be not only informational for content review but a
         }),
       )
       .next(
-        new tasks.DynamoGetItem(
-          this,
-          'GetItem from DynamoDB with transcription',
-          {
+        new tasks.DynamoGetItem(this, 'GetItem from DynamoDB with metadata', {
             table: props.videoMetadataTable,
             key: {
               key: tasks.DynamoAttributeValue.fromString(
@@ -464,16 +461,12 @@ The summary you generate must be not only informational for content review but a
             },
             projectionExpression: [
               new tasks.DynamoProjectionExpression().withAttribute('#k'),
-              new tasks.DynamoProjectionExpression().withAttribute(
-                'transcription',
-              ),
               // extract the metadata for the duration so we can increment the start_time
               new tasks.DynamoProjectionExpression().withAttribute('metadata'),
             ],
             expressionAttributeNames: { '#k': 'key' },
             resultPath: '$.dynamodb',
-          },
-        ),
+        }),
       )
       .next(summarizeTranscriptionTask)
       .next(incrementIndex)
