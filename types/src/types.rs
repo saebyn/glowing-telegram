@@ -485,6 +485,53 @@ pub struct StreamIngestionRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Task {
+    pub created_at: String,
+
+    pub id: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub record_id: Option<String>,
+
+    pub status: Status,
+
+    pub task_type: TaskType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Status {
+    Aborted,
+
+    Completed,
+
+    Failed,
+
+    Pending,
+
+    #[serde(rename = "PENDING_REDRIVE")]
+    PendingRedrive,
+
+    Running,
+
+    #[serde(rename = "TIMED_OUT")]
+    TimedOut,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskType {
+    Ingestion,
+
+    Rendering,
+
+    Upload,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TwitchAuthRequest {
     pub redirect_uri: String,
 

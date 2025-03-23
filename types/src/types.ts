@@ -277,6 +277,20 @@ export interface StreamIngestionRequest {
     streamId:       string;
 }
 
+export interface Task {
+    created_at:  string;
+    id:          string;
+    record_id?:  string;
+    status:      Status;
+    task_type:   TaskType;
+    updated_at?: string;
+    [property: string]: unknown;
+}
+
+export type Status = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "TIMED_OUT" | "ABORTED" | "PENDING_REDRIVE";
+
+export type TaskType = "ingestion" | "upload" | "rendering";
+
 export interface TwitchAuthRequest {
     redirect_uri: string;
     scopes:       string[];
