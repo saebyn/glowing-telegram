@@ -174,7 +174,7 @@ export default class YoutubeUploader extends Construct {
               value: {
                 episodeId: cdk.aws_stepfunctions.JsonPath.stringAt('$.id'),
                 errorMessage: cdk.aws_stepfunctions.JsonPath.stringAt(
-                  '$.uploadVideoResult.error_message',
+                  '$.uploadVideoResult.Item.error_message.S',
                 ),
               },
             },
@@ -261,20 +261,20 @@ export default class YoutubeUploader extends Construct {
         new sfn.Choice(this, 'UploadSuccess?')
           .when(
             sfn.Condition.stringEquals(
-              '$.uploadVideoResult.upload_status',
+              '$.uploadVideoResult.Item.upload_status.S',
               UPLOAD_FAILED,
             ),
             markAsNotReadyToUploadState.next(notifyFailureState),
           )
           .when(
             sfn.Condition.stringEquals(
-              '$.uploadVideoResult.upload_status',
+              '$.uploadVideoResult.Item.upload_status.S',
               UPLOAD_THROTTLED,
             ),
             new sfn.Wait(this, 'WaitForRetry', {
               comment: 'Wait for the amount of time specified in the response',
               time: sfn.WaitTime.secondsPath(
-                '$.uploadVideoResult.retry_after_seconds',
+                '$.uploadVideoResult.Item.retry_after_seconds.N',
               ),
             }).next(uploadVideoState),
           )
