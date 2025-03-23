@@ -7,12 +7,15 @@ import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as events from 'aws-cdk-lib/aws-events';
+import type TaskMonitoringConstruct from '../taskMonitoring';
 
 interface RenderJobConstructProps {
   inputBucket: s3.IBucket;
   outputBucket: s3.IBucket;
   episodeTable: dynamodb.ITable;
   jobQueue: batch.IJobQueue;
+  taskMonitoring: TaskMonitoringConstruct;
 }
 
 /**
@@ -78,6 +81,44 @@ export default class RenderJobConstruct extends Construct {
         },
         retryAttempts: 1,
       },
+    );
+
+    new events.Rule(this, 'RenderJobRule', {
+      eventPattern: {
+        source: ['aws.batch'],
+        detailType: ['Batch Job State Change'],
+        detail: {
+          jobName: [this.jobDefinition.jobDefinitionName],
+          status: ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING'],
+        },
+      },
+    }).addTarget(
+      props.taskMonitoring.newEventTarget({
+        name: events.EventField.fromPath('$.detail.jobName'),
+        status: 'PENDING',
+        time: events.EventField.fromPath('$.time'),
+        record_id: events.EventField.fromPath('$.detail.parameters.record_ids'),
+        task_type: 'render',
+      }),
+    );
+
+    new events.Rule(this, 'RenderJobCompleteRule', {
+      eventPattern: {
+        source: ['aws.batch'],
+        detailType: ['Batch Job State Change'],
+        detail: {
+          jobName: [this.jobDefinition.jobDefinitionName],
+          status: ['SUCCEEDED', 'FAILED', 'RUNNING'],
+        },
+      },
+    }).addTarget(
+      props.taskMonitoring.newEventTarget({
+        name: events.EventField.fromPath('$.detail.jobName'),
+        status: events.EventField.fromPath('$.detail.status'),
+        time: events.EventField.fromPath('$.time'),
+        record_id: events.EventField.fromPath('$.detail.parameters.record_ids'),
+        task_type: 'render',
+      }),
     );
   }
 }

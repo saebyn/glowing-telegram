@@ -1,23 +1,18 @@
-import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
-import type * as batch from 'aws-cdk-lib/aws-batch';
-import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import type * as s3 from 'aws-cdk-lib/aws-s3';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import type * as stepfunctions from 'aws-cdk-lib/aws-stepfunctions';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as event_targets from 'aws-cdk-lib/aws-events-targets';
+import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as iam from 'aws-cdk-lib/aws-iam';
 
 interface TaskMonitoringConstructProps {
   tasksTable: dynamodb.ITable;
-  streamIngestionStepFunction: stepfunctions.IStateMachine;
 }
 
 export default class TaskMonitoringConstruct extends Construct {
+  private statusLambda: lambda.IFunction;
+
   constructor(
     scope: Construct,
     id: string,
@@ -25,7 +20,7 @@ export default class TaskMonitoringConstruct extends Construct {
   ) {
     super(scope, id);
 
-    const { tasksTable, streamIngestionStepFunction } = props;
+    const { tasksTable } = props;
 
     const statusLambda = new lambda.Function(this, 'StatusLambda', {
       runtime: lambda.Runtime.PYTHON_3_13,
@@ -44,12 +39,49 @@ def handler(event, context):
     ttl_value = int(ttl.timestamp())
 
     table = dynamodb.Table(os.environ['TASKS_TABLE_NAME'])
+
+    record_id = event.get('record_id', None)
+    task_type = event.get('task_type', None)
+
+    expression_attribute_names = {
+        '#status': 'status',
+        '#time': 'time',
+        '#createdAt': 'created_at',
+        '#updatedAt': 'updated_at',
+        '#ttl': 'ttl',
+    }
+    expression_attribute_values = {
+        ':status': event['status'],
+        ':time': event['time'],
+        ':now': now,
+        ':ttl': ttl_value,
+    }
+    sets_parts = [
+        '#status = :status',
+        '#time = :time',
+        '#createdAt = if_not_exists(#createdAt, :now)',
+        '#updatedAt = :now',
+        '#ttl = :ttl',
+    ]
+
+    if record_id is not None:
+        sets_parts.append('#record_id = if_not_exists(#record_id, :record_id)')
+        expression_attribute_names['#record_id'] = 'record_id'
+        expression_attribute_values[':record_id'] = record_id
+
+    if task_type is not None:
+        sets_parts.append('#task_type = if_not_exists(#task_type, :task_type)')
+        expression_attribute_names['#task_type'] = 'task_type'
+        expression_attribute_values[':task_type'] = task_type
+
+    update_expression = 'SET ' + ', '.join(sets_parts)
+  
+
     table.update_item(
         Key={'id': event['name']},
-        UpdateExpression='SET #status = :status, #time = :time, #createdAt = if_not_exists(#createdAt, :now), #updatedAt = :now, #ttl = :ttl',
-        ConditionExpression='#status = :running OR attribute_not_exists(#status)',
-        ExpressionAttributeNames={'#status': 'status', '#time': 'time', '#createdAt': 'created_at', '#updatedAt': 'updated_at', '#ttl': 'ttl'},
-        ExpressionAttributeValues={':status': event['status'], ':time': event['time'], ':running': 'RUNNING', ':now': now, ':ttl': ttl_value},
+        UpdateExpression=update_expression,
+        ExpressionAttributeNames=expression_attribute_names,
+        ExpressionAttributeValues=expression_attribute_values,
     )
     return {
         'statusCode': 200,
@@ -70,28 +102,31 @@ def handler(event, context):
       ],
     });
 
-    const stepFunctionStatusRule = new events.Rule(
-      this,
-      'StepFunctionStatusRule',
-      {
-        eventPattern: {
-          source: ['aws.states'],
-          detailType: ['Step Functions Execution Status Change'],
-          detail: {
-            stateMachineArn: [streamIngestionStepFunction.stateMachineArn],
-          },
-        },
-        enabled: true,
-      },
-    );
-    stepFunctionStatusRule.addTarget(
-      new event_targets.LambdaFunction(statusLambda, {
-        event: events.RuleTargetInput.fromObject({
-          name: events.EventField.fromPath('$.detail.name'),
-          status: events.EventField.fromPath('$.detail.status'),
-          time: events.EventField.fromPath('$.time'),
-        }),
+    this.statusLambda = statusLambda;
+  }
+
+  public newEventTarget({
+    name,
+    status,
+    time,
+
+    record_id,
+    task_type,
+  }: {
+    name: string;
+    status: string;
+    time: string;
+    record_id?: string;
+    task_type?: string;
+  }): events.IRuleTarget {
+    return new event_targets.LambdaFunction(this.statusLambda, {
+      event: events.RuleTargetInput.fromObject({
+        name,
+        status,
+        time,
+        record_id: record_id || undefined,
+        task_type: task_type || undefined,
       }),
-    );
+    });
   }
 }

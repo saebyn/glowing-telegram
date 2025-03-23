@@ -93,6 +93,10 @@ export default class AppStack extends cdk.Stack {
       domainName,
     });
 
+    const taskMonitoring = new TaskMonitoringConstruct(this, 'TaskMonitoring', {
+      tasksTable: dataStore.tasksTable,
+    });
+
     const streamIngestion = new StreamIngestion(this, 'StreamIngestion', {
       audioTranscriberJob: audioTranscriber.jobDefinition,
       videoIngesterJob: videoIngester.jobDefinition,
@@ -103,6 +107,7 @@ export default class AppStack extends cdk.Stack {
       videoArchive: dataStore.videoArchive,
       openaiSecret,
       mediaDistribution: mediaServe.distribution,
+      taskMonitoring,
     });
 
     const renderJob = new RenderJobConstruct(this, 'RenderJob', {
@@ -110,6 +115,7 @@ export default class AppStack extends cdk.Stack {
       outputBucket: dataStore.outputBucket,
       episodeTable: dataStore.episodesTable,
       jobQueue: batchEnvironment.cpuJobQueue,
+      taskMonitoring,
     });
 
     const youtubeUploader = new YoutubeUploader(this, 'YoutubeUploader', {
@@ -118,6 +124,7 @@ export default class AppStack extends cdk.Stack {
       mediaOutputBucket: dataStore.outputBucket,
       eventBus: EventBus.fromEventBusName(this, 'EventBus', 'default'),
       youtubeAppSecret,
+      taskMonitoring,
     });
 
     new APIConstruct(this, 'API', {
@@ -140,11 +147,6 @@ export default class AppStack extends cdk.Stack {
       youtubeUploaderAPILambda: youtubeUploader.apiLambda,
 
       domainName,
-    });
-
-    new TaskMonitoringConstruct(this, 'TaskMonitoring', {
-      tasksTable: dataStore.tasksTable,
-      streamIngestionStepFunction: streamIngestion.stepFunction,
     });
   }
 }
