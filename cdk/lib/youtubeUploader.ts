@@ -2,8 +2,9 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import type { IBucket } from 'aws-cdk-lib/aws-s3';
-import { InputType, type StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
+import { InputType } from 'aws-cdk-lib/aws-stepfunctions';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
+import * as events from 'aws-cdk-lib/aws-events';
 import {
   EcsFargateContainerDefinition,
   EcsJobDefinition,
@@ -15,6 +16,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import type TaskMonitoringConstruct from './taskMonitoring';
 
 // Constants for upload status, should match the `UploadStatus` type in .../types/src/types.ts
 const UPLOAD_READY_TO_UPLOAD = 'ready_to_upload';
@@ -29,6 +31,7 @@ type YoutubeUploaderProps = {
   readonly jobQueue: IJobQueue;
   readonly eventBus: IEventBus;
   readonly youtubeAppSecret: secretsmanager.ISecret;
+  readonly taskMonitoring: TaskMonitoringConstruct;
 };
 
 export default class YoutubeUploader extends Construct {
@@ -161,6 +164,29 @@ export default class YoutubeUploader extends Construct {
       },
     );
 
+    const notifySuccessState = new tasks.EventBridgePutEvents(
+      this,
+      'NotifySuccessState',
+      {
+        entries: [
+          {
+            eventBus: eventBus,
+            detailType: 'EpisodeUploadStatus',
+            detail: {
+              type: InputType.OBJECT,
+              value: {
+                status: 'SUCCEEDED',
+                episodeId: cdk.aws_stepfunctions.JsonPath.stringAt('$.id'),
+              },
+            },
+            source: 'glowing-telegram.youtube-uploader',
+          },
+        ],
+        integrationPattern:
+          cdk.aws_stepfunctions.IntegrationPattern.REQUEST_RESPONSE,
+      },
+    );
+
     const notifyFailureState = new tasks.EventBridgePutEvents(
       this,
       'NotifyFailureState',
@@ -168,17 +194,18 @@ export default class YoutubeUploader extends Construct {
         entries: [
           {
             eventBus: eventBus,
-            detailType: 'EpisodeUploadFailed',
+            detailType: 'EpisodeUploadStatus',
             detail: {
               type: InputType.OBJECT,
               value: {
+                status: 'FAILED',
                 episodeId: cdk.aws_stepfunctions.JsonPath.stringAt('$.id'),
                 errorMessage: cdk.aws_stepfunctions.JsonPath.stringAt(
                   '$.uploadVideoResult.Item.error_message.S',
                 ),
               },
             },
-            source: 'glowing-telegram',
+            source: 'glowing-telegram.youtube-uploader',
           },
         ],
         integrationPattern:
@@ -206,6 +233,8 @@ export default class YoutubeUploader extends Construct {
         resultPath: sfn.JsonPath.DISCARD,
       },
     );
+
+    markAsUploadedState.next(notifySuccessState);
 
     const markAsNotReadyToUploadState = new tasks.DynamoUpdateItem(
       this,
@@ -316,6 +345,7 @@ def handler(event, context):
     # Resource setup
     dynamodb = boto3.resource('dynamodb')
     sfn = boto3.client('stepfunctions')
+    events = boto3.client('events')
     table = dynamodb.Table(os.environ['EPISODES_TABLE_NAME'])
     now = datetime.now(timezone.utc).isoformat()
 
@@ -355,7 +385,7 @@ def handler(event, context):
             'body': 'Unauthorized',
         }
 
-    # Upload the records
+    # Update the records
     for episode_id in episode_ids:
         table.update_item(
             Key={'id': episode_id},
@@ -363,6 +393,22 @@ def handler(event, context):
             ExpressionAttributeNames={'#userId': 'user_id', '#uploadStatus': 'upload_status', '#updatedAt': 'updated_at', '#uploadQueueTimestamp': 'upload_queue_timestamp'},
             ExpressionAttributeValues={':userId': user_id, ':uploadStatus': '${UPLOAD_READY_TO_UPLOAD}', ':now': now},
         )
+
+    # Send events
+    events.put_events(
+        Entries=[
+            {
+                'Source': 'glowing-telegram.youtube-uploader',
+                'DetailType': 'EpisodeUploadStatus',
+                'Detail': json.dumps({
+                    'status': 'PENDING',
+                    'episodeId': episode_id,
+                }),
+                'EventBusName': os.environ['EVENT_BUS_NAME'],
+            }
+            for episode_id in episode_ids
+        ]
+    )
 
     # Check if the step function is already running
     response = sfn.list_executions(
@@ -387,6 +433,7 @@ def handler(event, context):
       environment: {
         EPISODES_TABLE_NAME: episodeTable.tableName,
         STEPFUNCTION_ARN: stepFunction.stateMachineArn,
+        EVENT_BUS_NAME: eventBus.eventBusName,
       },
       initialPolicy: [
         new iam.PolicyStatement({
@@ -397,7 +444,28 @@ def handler(event, context):
           actions: ['states:StartExecution', 'states:ListExecutions'],
           resources: [stepFunction.stateMachineArn],
         }),
+        new iam.PolicyStatement({
+          actions: ['events:PutEvents'],
+          resources: [eventBus.eventBusArn],
+        }),
       ],
     });
+
+    new events.Rule(this, 'UploadCompleteEventRule', {
+      eventBus,
+      eventPattern: {
+        source: ['glowing-telegram.youtube-uploader'],
+        detailType: ['EpisodeUploadStatus'],
+      },
+      enabled: true,
+    }).addTarget(
+      props.taskMonitoring.newEventTarget({
+        name: events.EventField.fromPath('$.detail.episodeId'),
+        status: events.EventField.fromPath('$.detail.status'),
+        time: events.EventField.fromPath('$.time'),
+        task_type: 'upload',
+        record_id: events.EventField.fromPath('$.detail.episodeId'),
+      }),
+    );
   }
 }

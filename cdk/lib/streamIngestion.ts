@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
+import * as events from 'aws-cdk-lib/aws-events';
 import type * as batch from 'aws-cdk-lib/aws-batch';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
@@ -11,10 +12,12 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import type * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import ServiceLambdaConstruct from './util/serviceLambda';
+import type TaskMonitoringConstruct from './taskMonitoring';
 
 const INGESTION_VERSION = 'v1.0.0';
 
 interface StreamIngestionConstructProps {
+  taskMonitoring: TaskMonitoringConstruct;
   audioTranscriberJob: batch.IJobDefinition;
   videoIngesterJob: batch.IJobDefinition;
 
@@ -118,6 +121,40 @@ The summary you generate must be not only informational for content review but a
         resources: ['*'],
       }),
     );
+
+    new events.Rule(this, 'StepFunctionStatusRule', {
+      eventPattern: {
+        source: ['aws.states'],
+        detailType: ['Step Functions Execution Status Change'],
+        detail: {
+          stateMachineArn: [this.stepFunction.stateMachineArn],
+        },
+      },
+      enabled: true,
+    }).addTarget(
+      props.taskMonitoring.newEventTarget({
+        name: events.EventField.fromPath('$.detail.name'),
+        status: events.EventField.fromPath('$.detail.status'),
+        time: events.EventField.fromPath('$.time'),
+        task_type: 'ingestion',
+      }),
+    );
+
+    new events.Rule(this, 'StreamStartEventRule', {
+      eventPattern: {
+        source: ['glowing-telegram.stream-ingestion'],
+        detailType: ['StreamIngestionStart'],
+      },
+      enabled: true,
+    }).addTarget(
+      props.taskMonitoring.newEventTarget({
+        name: events.EventField.fromPath('$.detail.name'),
+        status: 'RUNNING',
+        time: events.EventField.fromPath('$.time'),
+        task_type: 'ingestion',
+        record_id: events.EventField.fromPath('$.detail.stream_id'),
+      }),
+    );
   }
 
   stateMachine(
@@ -137,6 +174,25 @@ The summary you generate must be not only informational for content review but a
         'stream_id.$': '$.streamId',
       },
     });
+
+    const sendStartEvent = new tasks.EventBridgePutEvents(
+      this,
+      'Send start event',
+      {
+        entries: [
+          {
+            detailType: 'StreamIngestionStart',
+            source: 'glowing-telegram.stream-ingestion',
+            detail: stepfunctions.TaskInput.fromObject({
+              stream_id: stepfunctions.JsonPath.stringAt('$.stream_id'),
+              name: stepfunctions.JsonPath.executionName,
+            }),
+          },
+        ],
+
+        resultPath: stepfunctions.JsonPath.DISCARD,
+      },
+    );
 
     const getStreamFromDynamoDB = new tasks.DynamoGetItem(
       this,
@@ -316,9 +372,6 @@ The summary you generate must be not only informational for content review but a
         lambdaFunction: props.summarizeTranscription,
         payload: stepfunctions.TaskInput.fromObject({
           input_key: stepfunctions.JsonPath.stringAt('$.dynamodb.Item.key.S'),
-          transcription: stepfunctions.JsonPath.stringAt(
-            '$.dynamodb.Item.transcription.M.segments',
-          ),
           transcription_context: stepfunctions.JsonPath.stringAt(
             '$.context.transcription',
           ),
@@ -428,6 +481,7 @@ The summary you generate must be not only informational for content review but a
     );
 
     const chain = setUpState
+      .next(sendStartEvent)
       .next(getStreamFromDynamoDB)
       .next(listVideoObjects)
       .next(parseVideoKeys)
@@ -453,19 +507,19 @@ The summary you generate must be not only informational for content review but a
       )
       .next(
         new tasks.DynamoGetItem(this, 'GetItem from DynamoDB with metadata', {
-            table: props.videoMetadataTable,
-            key: {
-              key: tasks.DynamoAttributeValue.fromString(
-                stepfunctions.JsonPath.stringAt('$.dynamodb.Item.key.S'),
-              ),
-            },
-            projectionExpression: [
-              new tasks.DynamoProjectionExpression().withAttribute('#k'),
-              // extract the metadata for the duration so we can increment the start_time
-              new tasks.DynamoProjectionExpression().withAttribute('metadata'),
-            ],
-            expressionAttributeNames: { '#k': 'key' },
-            resultPath: '$.dynamodb',
+          table: props.videoMetadataTable,
+          key: {
+            key: tasks.DynamoAttributeValue.fromString(
+              stepfunctions.JsonPath.stringAt('$.dynamodb.Item.key.S'),
+            ),
+          },
+          projectionExpression: [
+            new tasks.DynamoProjectionExpression().withAttribute('#k'),
+            // extract the metadata for the duration so we can increment the start_time
+            new tasks.DynamoProjectionExpression().withAttribute('metadata'),
+          ],
+          expressionAttributeNames: { '#k': 'key' },
+          resultPath: '$.dynamodb',
         }),
       )
       .next(summarizeTranscriptionTask)
