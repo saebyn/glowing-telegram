@@ -2386,7 +2386,7 @@ checksum = "fbe063f48e7e2da392f2beac64b0d214f8d062829770077055db3de97fac4e9d"
 dependencies = [
  "bytes",
  "derive_builder",
- "reqwest 0.12.14",
+ "reqwest 0.12.15",
  "serde",
  "serde_html_form",
  "serde_json",
@@ -2831,9 +2831,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.14"
+version = "0.12.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "989e327e510263980e231de548a33e63d34962d29ae61b467389a1a09627a254"
+checksum = "d19c46a6fdd48bc4dab94b6103fccc55d34c67cc0ad04653aad4ea2a07cd7bbb"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -3454,9 +3454,9 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.19.0"
+version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488960f40a3fd53d72c2a29a58722561dee8afdd175bd88e3db4677d7b2ba600"
+checksum = "7437ac7763b9b123ccf33c338a5cc1bac6f69b45a136c19bdd8a65e3916435bf"
 dependencies = [
  "fastrand",
  "getrandom 0.3.1",
@@ -3780,7 +3780,7 @@ dependencies = [
  "lambda_runtime",
  "oauth2",
  "redact",
- "reqwest 0.12.14",
+ "reqwest 0.12.15",
  "serde",
  "serde_json",
  "tokio",
@@ -3848,7 +3848,7 @@ dependencies = [
  "gt_secrets",
  "oauth2",
  "redact",
- "reqwest 0.12.14",
+ "reqwest 0.12.15",
  "serde",
  "serde_json",
  "tempfile",
@@ -4437,7 +4437,7 @@ dependencies = [
  "lambda_runtime",
  "oauth2",
  "redact",
- "reqwest 0.12.14",
+ "reqwest 0.12.15",
  "serde",
  "serde_json",
  "tokio",
