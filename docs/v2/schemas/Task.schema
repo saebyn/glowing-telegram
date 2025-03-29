@@ -20,8 +20,9 @@
       "enum": ["ingestion", "upload", "rendering"]
     },
     "record_id": { "type": "string" },
+    "user_id": { "type": "string" },
   },
-  "required": ["id", "status", "created_at", "task_type"],
+  "required": ["id", "status", "created_at", "task_type", "user_id"],
   "additionalProperties": false,
   "description": "A task represents a unit of work in the system, with a unique identifier, status, timestamps for creation and updates, type of task, and an associated record ID."
 }

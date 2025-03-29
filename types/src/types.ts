@@ -277,6 +277,10 @@ export interface StreamIngestionRequest {
     streamId:       string;
 }
 
+/**
+ * A task represents a unit of work in the system, with a unique identifier, status,
+ * timestamps for creation and updates, type of task, and an associated record ID.
+ */
 export interface Task {
     created_at:  string;
     id:          string;
@@ -284,7 +288,7 @@ export interface Task {
     status:      Status;
     task_type:   TaskType;
     updated_at?: string;
-    [property: string]: unknown;
+    user_id:     string;
 }
 
 export type Status = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "TIMED_OUT" | "ABORTED" | "PENDING_REDRIVE";
