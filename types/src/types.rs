@@ -484,6 +484,8 @@ pub struct StreamIngestionRequest {
     pub stream_id: String,
 }
 
+/// A task represents a unit of work in the system, with a unique identifier, status,
+/// timestamps for creation and updates, type of task, and an associated record ID.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Task {
     pub created_at: String,
@@ -499,6 +501,8 @@ pub struct Task {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+
+    pub user_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
