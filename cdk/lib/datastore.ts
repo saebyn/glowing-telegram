@@ -115,6 +115,7 @@ export default class DatastoreConstruct extends Construct {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       timeToLiveAttribute: 'ttl',
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
   }
 }
