@@ -14,6 +14,7 @@ import TaskMonitoringConstruct from './taskMonitoring';
 import MediaServeConstruct from './mediaServeConstruct';
 import RenderJobConstruct from './batch/renderJob';
 import YoutubeUploader from './youtubeUploader';
+import WebSocketAPIConstruct from './websocketApi';
 import { EventBus } from 'aws-cdk-lib/aws-events';
 
 interface AppStackProps extends cdk.StackProps {
@@ -125,6 +126,13 @@ export default class AppStack extends cdk.Stack {
       eventBus: EventBus.fromEventBusName(this, 'EventBus', 'default'),
       youtubeAppSecret,
       taskMonitoring,
+    });
+
+    new WebSocketAPIConstruct(this, 'WebSocketAPI', {
+      userPool: userManagement.userPool,
+      tasksTable: dataStore.tasksTable,
+      userPoolClient: userManagement.userPoolClient,
+      domainName,
     });
 
     new APIConstruct(this, 'API', {
