@@ -77,6 +77,7 @@ export default class WebSocketAPIConstruct extends Construct {
           USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
         },
         logRetention: logs.RetentionDays.ONE_WEEK,
+        loggingFormat: lambda.LoggingFormat.JSON,
       },
     );
 
@@ -138,6 +139,7 @@ def handler(event, context):
         CONNECTIONS_TABLE: this.connectionsTable.tableName,
       },
       logRetention: logs.RetentionDays.ONE_WEEK,
+      loggingFormat: lambda.LoggingFormat.JSON,
     });
 
     // Create Lambda for handling WebSocket disconnect events (Python)
@@ -185,6 +187,7 @@ def handler(event, context):
         CONNECTIONS_TABLE: this.connectionsTable.tableName,
       },
       logRetention: logs.RetentionDays.ONE_WEEK,
+      loggingFormat: lambda.LoggingFormat.JSON,
     });
 
     // Create Lambda for handling task changes and publishing to WebSocket (Python)
@@ -331,6 +334,7 @@ def deserialize_dynamodb_item(item):
         WEBSOCKET_ENDPOINT: this.webSocketStage.url,
       },
       logRetention: logs.RetentionDays.ONE_WEEK,
+      loggingFormat: lambda.LoggingFormat.JSON,
     });
 
     // Grant permissions to the Lambda functions
@@ -340,7 +344,11 @@ def deserialize_dynamodb_item(item):
 
     taskChangeHandler.addToRolePolicy(
       new iam.PolicyStatement({
-        actions: ['execute-api:PostToConnection', 'execute-api:ManageConnections', 'execute-api:Invoke'],
+        actions: [
+          'execute-api:PostToConnection',
+          'execute-api:ManageConnections',
+          'execute-api:Invoke',
+        ],
         resources: [
           `arn:aws:execute-api:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:${this.webSocketApi.apiId}/*`,
         ],
@@ -362,7 +370,7 @@ def deserialize_dynamodb_item(item):
       authorizerLambda,
       {
         identitySource: ['route.request.querystring.token'],
-      }
+      },
     );
 
     this.webSocketApi.addRoute('$connect', {
