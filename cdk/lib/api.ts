@@ -3,20 +3,18 @@ import { Construct } from 'constructs';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import type * as cognito from 'aws-cdk-lib/aws-cognito';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
-import {
-  HttpStepFunctionsIntegration,
-  HttpLambdaIntegration,
-} from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import type { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import type * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import type * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import ServiceLambdaConstruct from './util/serviceLambda';
 import RenderJobSubmissionLambda from './renderJobSubmissionLambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 
 interface APIConstructProps {
   userPool: cognito.IUserPool;
@@ -280,20 +278,88 @@ export default class APIConstruct extends Construct {
     // configure routes
 
     // POST /stream - run stream ingestion step function
-    httpApi.addRoutes({
-      integration: new HttpStepFunctionsIntegration(
-        'StreamIngestionIntegration',
-        {
-          stateMachine: props.streamIngestionFunction,
-          parameterMapping: new apigwv2.ParameterMapping()
-            .custom('Input', '$request.body')
-            .custom(
-              'StateMachineArn',
-              props.streamIngestionFunction.stateMachineArn,
-            ),
+    const streamIngestionStartStateMachineLambda = new lambda.Function(
+      this,
+      'StreamIngestionStartStateMachineLambda',
+      {
+        tracing: lambda.Tracing.ACTIVE,
+        description: 'Start stream ingestion state machine',
+        timeout: cdk.Duration.seconds(10),
+        logRetention: logs.RetentionDays.ONE_WEEK,
+        loggingFormat: lambda.LoggingFormat.JSON,
+        code: lambda.Code.fromInline(`
+import json
+import boto3
+import os
 
-          subtype: apigwv2.HttpIntegrationSubtype.STEPFUNCTIONS_START_EXECUTION,
+# handler function is called by http api gateway v2 endpoint
+# when the endpoint is called, the event is passed to the function
+# the event contains the input data for the state machine
+def handler(event, context):
+    client = boto3.client('stepfunctions')
+    state_machine_arn = os.environ['STATE_MACHINE_ARN']
+    try:
+        claims = event['requestContext']['authorizer']['jwt']['claims']
+        user_id = claims['sub']
+    except (KeyError, TypeError):
+        return {
+            'statusCode': 401,
+            'body': 'Unauthorized',
+        }
+
+    # get the input data from the request body
+    try:
+      body = json.loads(event['body'])
+    except json.JSONDecodeError:
+      return {
+        'statusCode': 400,
+        'body': 'Invalid JSON',
+      }
+
+    try:
+      stream_id = body['streamId']
+      initial_prompt = body['initialPrompt']
+      initial_summary = body['initialSummary']
+    except KeyError:
+      return {
+        'statusCode': 400,
+        'body': 'Missing required fields',
+      }
+
+    input_data = {
+      'streamId': stream_id,
+      'initialPrompt': initial_prompt,
+      'initialSummary': initial_summary,
+      'userId': user_id,
+    }
+
+    response = client.start_execution(
+        stateMachineArn=state_machine_arn,
+        input=json.dumps(input_data)
+    )
+    return {
+        'statusCode': 200,
+        'body': json.dumps({
+          'id': response['executionArn'],
+        })
+    }
+`),
+        handler: 'index.handler',
+        runtime: lambda.Runtime.PYTHON_3_13,
+        environment: {
+          STATE_MACHINE_ARN: props.streamIngestionFunction.stateMachineArn,
         },
+      },
+    );
+
+    props.streamIngestionFunction.grantStartExecution(
+      streamIngestionStartStateMachineLambda,
+    );
+
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'StreamIngestionIntegration2',
+        streamIngestionStartStateMachineLambda,
       ),
       path: '/stream',
       methods: [apigwv2.HttpMethod.POST],

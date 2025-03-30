@@ -78,6 +78,7 @@ export default class RenderJobConstruct extends Construct {
         timeout: cdk.Duration.hours(2),
         parameters: {
           record_ids: '<record_ids>',
+          user_id: '<user_id>',
         },
         retryAttempts: 1,
       },
@@ -99,6 +100,7 @@ export default class RenderJobConstruct extends Construct {
         time: events.EventField.fromPath('$.time'),
         record_id: events.EventField.fromPath('$.detail.parameters.record_ids'),
         task_type: 'render',
+        user_id: events.EventField.fromPath('$.detail.parameters.user_id'),
       }),
     );
 
@@ -117,6 +119,7 @@ export default class RenderJobConstruct extends Construct {
         status: events.EventField.fromPath('$.detail.status'),
         time: events.EventField.fromPath('$.time'),
         record_id: events.EventField.fromPath('$.detail.parameters.record_ids'),
+        user_id: events.EventField.fromPath('$.detail.parameters.user_id'),
         task_type: 'render',
       }),
     );

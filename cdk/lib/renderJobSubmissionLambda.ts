@@ -39,6 +39,14 @@ def handler(event, context):
     job_definition_arn = os.environ['RENDER_JOB_DEFINITION']
 
     request_body = json.loads(event['body'])
+    try:
+        claims = event['requestContext']['authorizer']['jwt']['claims']
+        user_id = claims['sub']
+    except (KeyError, TypeError):
+        return {
+            'statusCode': 401,
+            'body': 'Unauthorized',
+        }
     episode_ids = request_body['episodeIds']
 
     job_name = hashlib.md5(''.join(episode_ids).encode('utf-8')).hexdigest()
@@ -47,7 +55,7 @@ def handler(event, context):
         jobName=f'cut-list-render-job-{job_name}',
         jobQueue=job_queue_arn,
         jobDefinition=job_definition_arn,
-        parameters={'record_ids': ' '.join(episode_ids)}
+        parameters={'record_ids': ' '.join(episode_ids),'user_id': user_id},
     )
 
     response = {
