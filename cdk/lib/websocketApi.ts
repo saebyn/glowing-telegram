@@ -255,7 +255,7 @@ def handle_task_change(task, old_task):
         payload = json.dumps({
             'type': 'TASK_UPDATE',
             'task': task,
-            'old_status": old_task.get('status') if old_task else None,
+            'old_status': old_task.get('status') if old_task else None,
         })
         
         # Send the update to all connections for this user
