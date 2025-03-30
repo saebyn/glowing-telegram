@@ -48,17 +48,20 @@ def handler(event, context):
         '#time': 'time',
         '#createdAt': 'created_at',
         '#updatedAt': 'updated_at',
+        '#userId': 'user_id',
         '#ttl': 'ttl',
     }
     expression_attribute_values = {
         ':status': event['status'],
         ':time': event['time'],
+        ':userId': event['user_id'],
         ':now': now,
         ':ttl': ttl_value,
     }
     sets_parts = [
         '#status = :status',
         '#time = :time',
+        '#userId = :userId',
         '#createdAt = if_not_exists(#createdAt, :now)',
         '#updatedAt = :now',
         '#ttl = :ttl',
@@ -75,7 +78,6 @@ def handler(event, context):
         expression_attribute_values[':task_type'] = task_type
 
     update_expression = 'SET ' + ', '.join(sets_parts)
-  
 
     table.update_item(
         Key={'id': event['name']},
@@ -109,13 +111,14 @@ def handler(event, context):
     name,
     status,
     time,
-
+    user_id,
     record_id,
     task_type,
   }: {
     name: string;
     status: string;
     time: string;
+    user_id: string;
     record_id?: string;
     task_type?: string;
   }): events.IRuleTarget {
@@ -124,6 +127,7 @@ def handler(event, context):
         name,
         status,
         time,
+        user_id,
         record_id: record_id || undefined,
         task_type: task_type || undefined,
       }),

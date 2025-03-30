@@ -465,6 +465,8 @@ def handler(event, context):
         time: events.EventField.fromPath('$.time'),
         task_type: 'upload',
         record_id: events.EventField.fromPath('$.detail.episodeId'),
+        // TODO: fix me
+        user_id: 'TODO'
       }),
     );
   }

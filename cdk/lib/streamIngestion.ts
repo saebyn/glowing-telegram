@@ -2,10 +2,12 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
 import * as events from 'aws-cdk-lib/aws-events';
+import * as event_targets from 'aws-cdk-lib/aws-events-targets';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import type * as batch from 'aws-cdk-lib/aws-batch';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
-import type * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as stepfunctions from 'aws-cdk-lib/aws-stepfunctions';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -122,6 +124,49 @@ The summary you generate must be not only informational for content review but a
       }),
     );
 
+    const stepfunctionStatusEventLambda = new lambda.Function(
+      this,
+      'StepFunctionStatusEventLambda',
+      {
+        code: lambda.Code.fromInline(`
+import json
+import boto3
+
+def handler(event, context):
+  events = boto3.client('events')
+
+  input = json.loads(event['input'])
+  
+  events.put_events(
+    Entries=[
+      {
+        'Source': 'glowing-telegram.stream-ingestion',
+        'DetailType': 'StreamIngestionStatus',
+        'Detail': json.dumps({
+          'status': event['status'],
+          'name': event['name'],
+          'stream_id': input['stream_id'],
+          'user_id': input['user_id'],
+        }),
+      }
+    ]
+  )
+`),
+        handler: 'index.handler',
+        runtime: lambda.Runtime.PYTHON_3_13,
+        tracing: lambda.Tracing.ACTIVE,
+        logRetention: logs.RetentionDays.ONE_WEEK,
+        loggingFormat: lambda.LoggingFormat.JSON,
+      },
+    );
+
+    stepfunctionStatusEventLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['events:PutEvents'],
+        resources: ['*'],
+      }),
+    );
+
     new events.Rule(this, 'StepFunctionStatusRule', {
       eventPattern: {
         source: ['aws.states'],
@@ -132,27 +177,23 @@ The summary you generate must be not only informational for content review but a
       },
       enabled: true,
     }).addTarget(
-      props.taskMonitoring.newEventTarget({
-        name: events.EventField.fromPath('$.detail.name'),
-        status: events.EventField.fromPath('$.detail.status'),
-        time: events.EventField.fromPath('$.time'),
-        task_type: 'ingestion',
-      }),
+      new event_targets.LambdaFunction(stepfunctionStatusEventLambda),
     );
 
-    new events.Rule(this, 'StreamStartEventRule', {
+    new events.Rule(this, 'StreamIngestionEventRule', {
       eventPattern: {
         source: ['glowing-telegram.stream-ingestion'],
-        detailType: ['StreamIngestionStart'],
+        detailType: ['StreamIngestionStatus'],
       },
       enabled: true,
     }).addTarget(
       props.taskMonitoring.newEventTarget({
         name: events.EventField.fromPath('$.detail.name'),
-        status: 'RUNNING',
+        status: events.EventField.fromPath('$.detail.status'),
         time: events.EventField.fromPath('$.time'),
         task_type: 'ingestion',
         record_id: events.EventField.fromPath('$.detail.stream_id'),
+        user_id: events.EventField.fromPath('$.detail.user_id'),
       }),
     );
   }
@@ -172,6 +213,7 @@ The summary you generate must be not only informational for content review but a
           'summarization.$': '$.initialSummary',
         },
         'stream_id.$': '$.streamId',
+        'user_id.$': '$.userId',
       },
     });
 
@@ -181,11 +223,13 @@ The summary you generate must be not only informational for content review but a
       {
         entries: [
           {
-            detailType: 'StreamIngestionStart',
+            detailType: 'StreamIngestionStatus',
             source: 'glowing-telegram.stream-ingestion',
             detail: stepfunctions.TaskInput.fromObject({
               stream_id: stepfunctions.JsonPath.stringAt('$.stream_id'),
+              user_id: stepfunctions.JsonPath.stringAt('$.user_id'),
               name: stepfunctions.JsonPath.executionName,
+              status: 'RUNNING',
             }),
           },
         ],
