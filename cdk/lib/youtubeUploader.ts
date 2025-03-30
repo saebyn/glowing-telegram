@@ -153,6 +153,7 @@ export default class YoutubeUploader extends Construct {
           ),
         },
         projectionExpression: [
+          new tasks.DynamoProjectionExpression().withAttribute('user_id'),
           new tasks.DynamoProjectionExpression().withAttribute('upload_status'),
           new tasks.DynamoProjectionExpression().withAttribute('error_message'),
           new tasks.DynamoProjectionExpression().withAttribute(
@@ -177,6 +178,9 @@ export default class YoutubeUploader extends Construct {
               value: {
                 status: 'SUCCEEDED',
                 episodeId: cdk.aws_stepfunctions.JsonPath.stringAt('$.id'),
+                userId: cdk.aws_stepfunctions.JsonPath.stringAt(
+                  '$.uploadVideoResult.Item.user_id.S',
+                ),
               },
             },
             source: 'glowing-telegram.youtube-uploader',
@@ -199,6 +203,9 @@ export default class YoutubeUploader extends Construct {
               type: InputType.OBJECT,
               value: {
                 status: 'FAILED',
+                userId: cdk.aws_stepfunctions.JsonPath.stringAt(
+                  '$.uploadVideoResult.Item.user_id.S',
+                ),
                 episodeId: cdk.aws_stepfunctions.JsonPath.stringAt('$.id'),
                 errorMessage: cdk.aws_stepfunctions.JsonPath.stringAt(
                   '$.uploadVideoResult.Item.error_message.S',
@@ -403,6 +410,7 @@ def handler(event, context):
                 'Detail': json.dumps({
                     'status': 'PENDING',
                     'episodeId': episode_id,
+                    'userId': user_id,
                 }),
                 'EventBusName': os.environ['EVENT_BUS_NAME'],
             }
@@ -465,8 +473,7 @@ def handler(event, context):
         time: events.EventField.fromPath('$.time'),
         task_type: 'upload',
         record_id: events.EventField.fromPath('$.detail.episodeId'),
-        // TODO: fix me
-        user_id: 'TODO'
+        user_id: events.EventField.fromPath('$.detail.userId'),
       }),
     );
   }
