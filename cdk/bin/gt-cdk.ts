@@ -7,7 +7,7 @@ import FrontendStack from '../lib/frontendStack';
 const app = new cdk.App();
 
 const frontendStack = new FrontendStack(app, 'FrontendStack', {
-  frontendVersion: process.env.FRONTEND_VERSION || '0.3.0',
+  frontendVersion: process.env.FRONTEND_VERSION || '0.4.0',
 });
 
 new RepoStack(app, 'RepoStack', {
