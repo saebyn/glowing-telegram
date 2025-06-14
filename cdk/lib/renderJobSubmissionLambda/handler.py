@@ -22,7 +22,7 @@ def get_dynamodb_client():
     return dynamodb
 
 # Maximum episodes per job to stay within ~20 GiB assumption
-MAX_EPISODES_PER_JOB = int(os.environ.get('MAX_EPISODES_PER_JOB', '10'))
+MAX_EPISODES_PER_JOB = int(os.environ.get('MAX_EPISODES_PER_JOB', '3'))
 
 def split_episodes_into_chunks(episode_ids):
     """Split episode IDs into chunks that should fit within storage limits
