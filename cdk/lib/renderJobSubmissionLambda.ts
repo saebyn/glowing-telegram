@@ -32,6 +32,7 @@ export default class RenderJobSubmissionLambda extends Construct {
         environment: {
           RENDER_JOB_QUEUE: props.renderJobQueue.jobQueueArn,
           RENDER_JOB_DEFINITION: props.renderJobDefinition.jobDefinitionArn,
+          MAX_EPISODES_PER_JOB: '10',
         },
       },
     );
