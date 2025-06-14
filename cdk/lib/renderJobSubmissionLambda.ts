@@ -1,5 +1,6 @@
 import { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambdaPython from '@aws-cdk/aws-lambda-python-alpha';
 import type * as batch from 'aws-cdk-lib/aws-batch';
 import * as iam from 'aws-cdk-lib/aws-iam';
 
@@ -18,59 +19,20 @@ export default class RenderJobSubmissionLambda extends Construct {
   ) {
     super(scope, id);
 
-    const inlineLambda = new lambda.Function(
+    const inlineLambda = new lambdaPython.PythonFunction(
       this,
       'RenderJobProcessingLambda',
       {
         runtime: lambda.Runtime.PYTHON_3_9,
-        handler: 'index.handler',
-        code: lambda.Code.fromInline(`
-import json
-import boto3
-import os
-import datetime
-import hashlib
-
-batch = boto3.client('batch')
-
-# This lambda function is triggered by an API Gateway v2 HTTP API endpoint
-def handler(event, context):
-    job_queue_arn = os.environ['RENDER_JOB_QUEUE']
-    job_definition_arn = os.environ['RENDER_JOB_DEFINITION']
-
-    request_body = json.loads(event['body'])
-    try:
-        claims = event['requestContext']['authorizer']['jwt']['claims']
-        user_id = claims['sub']
-    except (KeyError, TypeError):
-        return {
-            'statusCode': 401,
-            'body': 'Unauthorized',
-        }
-    episode_ids = request_body['episodeIds']
-
-    job_name = hashlib.md5(''.join(episode_ids).encode('utf-8')).hexdigest()
-
-    result = batch.submit_job(
-        jobName=f'cut-list-render-job-{job_name}',
-        jobQueue=job_queue_arn,
-        jobDefinition=job_definition_arn,
-        parameters={'record_ids': ' '.join(episode_ids),'user_id': user_id},
-    )
-
-    response = {
-        'message': 'Job submitted successfully',
-        'jobId': result['jobId']
-    }
-
-
-    return {'statusCode': 200, 'body': json.dumps(response)}
-      `),
+        handler: 'handler',
+        entry: 'lib/renderJobSubmissionLambda',
+        index: 'handler.py',
         tracing: lambda.Tracing.ACTIVE,
         loggingFormat: lambda.LoggingFormat.JSON,
         environment: {
           RENDER_JOB_QUEUE: props.renderJobQueue.jobQueueArn,
           RENDER_JOB_DEFINITION: props.renderJobDefinition.jobDefinitionArn,
+          MAX_EPISODES_PER_JOB: '10',
         },
       },
     );
