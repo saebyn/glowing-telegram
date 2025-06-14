@@ -67,7 +67,7 @@ export default class RenderJobConstruct extends Construct {
           OUTPUT_BUCKET: props.outputBucket.bucketName,
           DYNAMODB_TABLE: props.episodeTable.tableName,
         },
-        ephemeralStorageSize: cdk.Size.gibibytes(50),
+        ephemeralStorageSize: cdk.Size.gibibytes(100),
       },
     );
 
