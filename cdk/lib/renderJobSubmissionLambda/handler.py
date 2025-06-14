@@ -5,14 +5,47 @@ import datetime
 import hashlib
 import math
 
-batch = boto3.client('batch')
-dynamodb = boto3.client('dynamodb')
+# Initialize clients lazily to avoid issues during testing
+batch = None
+dynamodb = None
+
+def get_batch_client():
+    global batch
+    if batch is None:
+        batch = boto3.client('batch')
+    return batch
+
+def get_dynamodb_client():
+    global dynamodb
+    if dynamodb is None:
+        dynamodb = boto3.client('dynamodb')
+    return dynamodb
 
 # Maximum episodes per job to stay within ~20 GiB assumption
-MAX_EPISODES_PER_JOB = 10
+MAX_EPISODES_PER_JOB = int(os.environ.get('MAX_EPISODES_PER_JOB', '10'))
 
 def split_episodes_into_chunks(episode_ids):
-    """Split episode IDs into chunks that should fit within storage limits"""
+    """Split episode IDs into chunks that should fit within storage limits
+    
+    Args:
+        episode_ids: List of episode ID strings
+        
+    Returns:
+        List of lists, where each inner list contains episode IDs for one job
+        
+    Examples:
+        >>> split_episodes_into_chunks(['ep1', 'ep2', 'ep3'])
+        [['ep1', 'ep2', 'ep3']]
+        
+        >>> # Test with more than MAX_EPISODES_PER_JOB episodes
+        >>> import os
+        >>> os.environ['MAX_EPISODES_PER_JOB'] = '2'  # Set for test
+        >>> split_episodes_into_chunks(['ep1', 'ep2', 'ep3', 'ep4', 'ep5'])
+        [['ep1', 'ep2'], ['ep3', 'ep4'], ['ep5']]
+        
+        >>> split_episodes_into_chunks([])
+        [[]]
+    """
     if len(episode_ids) <= MAX_EPISODES_PER_JOB:
         return [episode_ids]
     
@@ -24,13 +57,25 @@ def split_episodes_into_chunks(episode_ids):
     return chunks
 
 def submit_render_job(episode_chunk, user_id, job_queue_arn, job_definition_arn, chunk_index=0):
-    """Submit a single render job for a chunk of episodes"""
+    """Submit a single render job for a chunk of episodes
+    
+    Args:
+        episode_chunk: List of episode IDs for this job
+        user_id: User ID requesting the render
+        job_queue_arn: ARN of the batch job queue
+        job_definition_arn: ARN of the batch job definition
+        chunk_index: Index of this chunk (for multi-chunk jobs)
+        
+    Returns:
+        Dict containing job submission result from AWS Batch
+    """
+    batch_client = get_batch_client()
     job_name_base = hashlib.md5(''.join(episode_chunk).encode('utf-8')).hexdigest()
     job_name = f'cut-list-render-job-{job_name_base}'
     if chunk_index > 0:
         job_name += f'-chunk-{chunk_index}'
     
-    result = batch.submit_job(
+    result = batch_client.submit_job(
         jobName=job_name,
         jobQueue=job_queue_arn,
         jobDefinition=job_definition_arn,

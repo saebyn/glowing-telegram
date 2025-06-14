@@ -388,8 +388,39 @@ paths:
                 properties:
                   message:
                     type: string
-                  jobId:
-                    type: string
+                    description: Success message indicating number of jobs submitted
+                  totalEpisodes:
+                    type: integer
+                    description: Total number of episodes in the request
+                  jobChunks:
+                    type: integer
+                    description: Number of job chunks created
+                  jobs:
+                    type: array
+                    description: Array of submitted job details
+                    items:
+                      type: object
+                      properties:
+                        jobId:
+                          type: string
+                          description: AWS Batch job ID
+                        episodeIds:
+                          type: array
+                          description: Episode IDs included in this job
+                          items:
+                            type: string
+                        chunkIndex:
+                          type: integer
+                          description: Index of this chunk (0-based)
+                      required:
+                        - jobId
+                        - episodeIds
+                        - chunkIndex
+                required:
+                  - message
+                  - totalEpisodes
+                  - jobChunks
+                  - jobs
         "400":
           $ref: "#/components/responses/Error"
         "500":
