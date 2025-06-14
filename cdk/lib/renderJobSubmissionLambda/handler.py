@@ -4,18 +4,19 @@ import os
 import datetime
 import hashlib
 import math
+from typing import List, Dict, Any, Optional
 
 # Initialize clients lazily to avoid issues during testing
 batch = None
 dynamodb = None
 
-def get_batch_client():
+def get_batch_client() -> boto3.client:
     global batch
     if batch is None:
         batch = boto3.client('batch')
     return batch
 
-def get_dynamodb_client():
+def get_dynamodb_client() -> boto3.client:
     global dynamodb
     if dynamodb is None:
         dynamodb = boto3.client('dynamodb')
@@ -24,7 +25,7 @@ def get_dynamodb_client():
 # Maximum episodes per job to stay within ~20 GiB assumption
 MAX_EPISODES_PER_JOB = int(os.environ.get('MAX_EPISODES_PER_JOB', '3'))
 
-def split_episodes_into_chunks(episode_ids):
+def split_episodes_into_chunks(episode_ids: List[str]) -> List[List[str]]:
     """Split episode IDs into chunks that should fit within storage limits
     
     Args:
@@ -37,11 +38,9 @@ def split_episodes_into_chunks(episode_ids):
         >>> split_episodes_into_chunks(['ep1', 'ep2', 'ep3'])
         [['ep1', 'ep2', 'ep3']]
         
-        >>> # Test with more than MAX_EPISODES_PER_JOB episodes
-        >>> import os
-        >>> os.environ['MAX_EPISODES_PER_JOB'] = '2'  # Set for test
+        >>> # Test with more episodes than default MAX_EPISODES_PER_JOB (3)
         >>> split_episodes_into_chunks(['ep1', 'ep2', 'ep3', 'ep4', 'ep5'])
-        [['ep1', 'ep2'], ['ep3', 'ep4'], ['ep5']]
+        [['ep1', 'ep2', 'ep3'], ['ep4', 'ep5']]
         
         >>> split_episodes_into_chunks([])
         [[]]
@@ -56,7 +55,7 @@ def split_episodes_into_chunks(episode_ids):
     
     return chunks
 
-def submit_render_job(episode_chunk, user_id, job_queue_arn, job_definition_arn, chunk_index=0):
+def submit_render_job(episode_chunk: List[str], user_id: str, job_queue_arn: str, job_definition_arn: str, chunk_index: int = 0) -> Dict[str, Any]:
     """Submit a single render job for a chunk of episodes
     
     Args:
@@ -85,7 +84,7 @@ def submit_render_job(episode_chunk, user_id, job_queue_arn, job_definition_arn,
     return result
 
 # This lambda function is triggered by an API Gateway v2 HTTP API endpoint
-def handler(event, context):
+def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     job_queue_arn = os.environ['RENDER_JOB_QUEUE']
     job_definition_arn = os.environ['RENDER_JOB_DEFINITION']
 
