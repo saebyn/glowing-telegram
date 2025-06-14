@@ -116,10 +116,5 @@ test('Python Lambda Handler File Structure', () => {
   expect(handlerCode).toContain('MAX_EPISODES_PER_JOB');
   expect(handlerCode).toContain('split_episodes_into_chunks');
   expect(handlerCode).toContain('submit_render_job');
-  expect(handlerCode).toContain('def handler(event, context):');
-});
-
-// Test original SQS test placeholder
-test('SQS Queue Created', () => {
-  // Placeholder test - keeping existing test structure
+  expect(handlerCode).toContain('def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:');
 });
