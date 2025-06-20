@@ -1,0 +1,23 @@
+[tool.pytest.ini_options]
+testpaths = [
+    "."
+]
+python_files = [
+    "test_*.py",
+    "*_test.py"
+]
+python_classes = [
+    "Test*"
+]
+python_functions = [
+    "test_*"
+]
+addopts = [
+    "--verbose",
+    "--tb=short",
+    "--cov=media_lambda",
+    "--cov=cdk/lib/websocketAuthorizer",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-fail-under=20"
+]
