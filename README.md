@@ -45,4 +45,29 @@ This repository contains these directories:
 
 ## Development
 
+### Docker Images
+
+The project uses Docker for containerization with multiple service images. Docker images are automatically built and pushed to GitHub Container Registry (GHCR) via GitHub Actions on pushes to the main branch.
+
+Available images:
+- `ghcr.io/saebyn/glowing-telegram/ai-chat-lambda:latest`
+- `ghcr.io/saebyn/glowing-telegram/audio-transcriber:latest`
+- `ghcr.io/saebyn/glowing-telegram/crud-api:latest`
+- `ghcr.io/saebyn/glowing-telegram/media-lambda:latest`
+- `ghcr.io/saebyn/glowing-telegram/render-job:latest`
+- `ghcr.io/saebyn/glowing-telegram/summarize-transcription:latest`
+- `ghcr.io/saebyn/glowing-telegram/twitch-lambda:latest`
+- `ghcr.io/saebyn/glowing-telegram/upload-video:latest`
+- `ghcr.io/saebyn/glowing-telegram/video-ingestor:latest`
+- `ghcr.io/saebyn/glowing-telegram/youtube-lambda:latest`
+
+To build locally:
+```bash
+# Build all images
+docker buildx bake -f docker-bake.hcl -f docker-bake.override.hcl all
+
+# Build a specific image
+docker buildx bake -f docker-bake.hcl -f docker-bake.override.hcl crud_api
+```
+
 I should probably write some instructions here, but I haven't yet. If you're interested in contributing, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Twitter](https://twitter.com/saebyn).
