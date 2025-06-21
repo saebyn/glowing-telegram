@@ -15,9 +15,14 @@ python_functions = [
 addopts = [
     "--verbose",
     "--tb=short",
-    "--cov=media_lambda",
-    "--cov=cdk/lib/websocketAuthorizer",
+    "--cov=.",
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
-    "--cov-fail-under=20"
+    "--cov-fail-under=20",
+    "--ignore=.git",
+    "--ignore=node_modules",
+    "--ignore=target",
+    "--ignore=.vscode",
+    "--ignore=htmlcov",
+    "--ignore=.pytest_cache"
 ]
