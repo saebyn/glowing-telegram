@@ -89,7 +89,7 @@ export default class RenderJobConstruct extends Construct {
         source: ['aws.batch'],
         detailType: ['Batch Job State Change'],
         detail: {
-          jobDefinition: [this.jobDefinition.jobDefinitionName],
+          jobDefinition: [this.jobDefinition.jobDefinitionArn],
           status: ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING'],
         },
       },
@@ -109,7 +109,7 @@ export default class RenderJobConstruct extends Construct {
         source: ['aws.batch'],
         detailType: ['Batch Job State Change'],
         detail: {
-          jobDefinition: [this.jobDefinition.jobDefinitionName],
+          jobDefinition: [this.jobDefinition.jobDefinitionArn],
           status: ['SUCCEEDED', 'FAILED', 'RUNNING'],
         },
       },
