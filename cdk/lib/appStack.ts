@@ -19,11 +19,12 @@ import { EventBus } from 'aws-cdk-lib/aws-events';
 
 interface AppStackProps extends cdk.StackProps {
   domainName: string;
+  imageVersion?: string;
 }
 
 export default class AppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AppStackProps) {
-    const { domainName, ...restProps } = props;
+    const { domainName, imageVersion, ...restProps } = props;
 
     super(scope, id, restProps);
 
@@ -77,6 +78,7 @@ export default class AppStack extends cdk.Stack {
       {
         outputBucket: dataStore.outputBucket,
         videoMetadataTable: dataStore.videoMetadataTable,
+        imageVersion,
       },
     );
 
@@ -86,12 +88,14 @@ export default class AppStack extends cdk.Stack {
       videoMetadataTable: dataStore.videoMetadataTable,
       videoArchiveBucket: dataStore.videoArchive,
       enableAutomaticIngestion: true,
+      imageVersion,
     });
 
     const mediaServe = new MediaServeConstruct(this, 'MediaServe', {
       mediaOutputBucket: dataStore.outputBucket,
       videoMetadataTable: dataStore.videoMetadataTable,
       domainName,
+      imageVersion,
     });
 
     const taskMonitoring = new TaskMonitoringConstruct(this, 'TaskMonitoring', {
@@ -109,6 +113,7 @@ export default class AppStack extends cdk.Stack {
       openaiSecret,
       mediaDistribution: mediaServe.distribution,
       taskMonitoring,
+      imageVersion,
     });
 
     const renderJob = new RenderJobConstruct(this, 'RenderJob', {
@@ -117,6 +122,7 @@ export default class AppStack extends cdk.Stack {
       episodeTable: dataStore.episodesTable,
       jobQueue: batchEnvironment.cpuJobQueue,
       taskMonitoring,
+      imageVersion,
     });
 
     const youtubeUploader = new YoutubeUploader(this, 'YoutubeUploader', {
@@ -126,6 +132,7 @@ export default class AppStack extends cdk.Stack {
       eventBus: EventBus.fromEventBusName(this, 'EventBus', 'default'),
       youtubeAppSecret,
       taskMonitoring,
+      imageVersion,
     });
 
     new WebSocketAPIConstruct(this, 'WebSocketAPI', {
@@ -155,6 +162,7 @@ export default class AppStack extends cdk.Stack {
       youtubeUploaderAPILambda: youtubeUploader.apiLambda,
 
       domainName,
+      imageVersion,
     });
   }
 }

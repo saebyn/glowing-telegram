@@ -1,62 +1,66 @@
-# Override file for GitHub Container Registry (GHCR) builds
-# This overrides the existing targets to only use GHCR tags
+# Override file for versioned ECR builds
+# This overrides the existing targets to use versioned tags
+
+variable "IMAGE_TAG" {
+  default = "latest"
+}
 
 target "ai_chat_lambda" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/ai-chat-lambda:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/ai-chat-lambda:${IMAGE_TAG}"
   ]
 }
 
 target "audio_transcriber" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/audio-transcriber:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/audio-transcription:${IMAGE_TAG}"
   ]
 }
 
 target "crud_api" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/crud-api:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/crud-lambda:${IMAGE_TAG}"
   ]
 }
 
 target "media_lambda" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/media-lambda:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/media-lambda:${IMAGE_TAG}"
   ]
 }
 
 target "render_job" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/render-job:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/render-job:${IMAGE_TAG}"
   ]
 }
 
 target "summarize_transcription" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/summarize-transcription:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/summarize-transcription-lambda:${IMAGE_TAG}"
   ]
 }
 
 target "twitch_lambda" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/twitch-lambda:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/twitch-lambda:${IMAGE_TAG}"
   ]
 }
 
 target "upload_video" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/upload-video:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/upload-video:${IMAGE_TAG}"
   ]
 }
 
 target "video_ingestor" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/video-ingestor:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/video-ingestor:${IMAGE_TAG}"
   ]
 }
 
 target "youtube_lambda" {
   tags = [
-    "ghcr.io/saebyn/glowing-telegram/youtube-lambda:latest"
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/youtube-lambda:${IMAGE_TAG}"
   ]
 }

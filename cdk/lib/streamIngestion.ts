@@ -34,6 +34,7 @@ interface StreamIngestionConstructProps {
   openaiSecret: secretsmanager.ISecret;
 
   mediaDistribution: cloudfront.Distribution;
+  imageVersion?: string;
 }
 
 export default class StreamIngestionConstruct extends Construct {
@@ -51,6 +52,7 @@ export default class StreamIngestionConstruct extends Construct {
       'SummarizeTranscription',
       {
         name: 'summarize-transcription',
+        imageVersion: props.imageVersion,
         lambdaOptions: {
           timeout: cdk.Duration.minutes(15),
           environment: {
