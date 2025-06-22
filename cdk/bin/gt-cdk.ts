@@ -16,4 +16,5 @@ new RepoStack(app, 'RepoStack', {
 
 new AppStack(app, 'AppStack', {
   domainName: frontendStack.domainName,
+  imageVersion: process.env.IMAGE_VERSION,
 });
