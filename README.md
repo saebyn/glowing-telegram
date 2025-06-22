@@ -45,4 +45,54 @@ This repository contains these directories:
 
 ## Development
 
+### Docker Images
+
+The project uses Docker for containerization with multiple service images. Docker images are automatically built and pushed to Amazon ECR via GitHub Actions when releases are published. The CDK accepts an `IMAGE_VERSION` environment variable to specify which version of images to deploy.
+
+#### Release-Based Image Building
+
+Images are built and tagged with the release version when a new release is published:
+- Trigger: GitHub release events
+- Registry: Amazon ECR (159222827421.dkr.ecr.us-west-2.amazonaws.com)
+- Tagging: Uses the git tag from the release (e.g., `v1.2.3`)
+
+#### Available Services
+
+All services are built as container images:
+- `ai-chat-lambda`
+- `audio-transcription` 
+- `crud-api`
+- `media-lambda`
+- `render-job`
+- `summarize-transcription`
+- `twitch-lambda`
+- `upload-video`
+- `video-ingestor`
+- `youtube-lambda`
+
+#### Local Development
+
+To build locally:
+```bash
+# Build all images with latest tag
+docker buildx bake -f docker-bake.hcl all
+
+# Build all images with custom version
+IMAGE_TAG=v1.2.3 docker buildx bake -f docker-bake.hcl -f docker-bake.override.hcl all
+
+# Build a specific image
+docker buildx bake -f docker-bake.hcl crud_api
+```
+
+#### CDK Deployment with Versioning
+
+The CDK can be deployed with a specific image version:
+```bash
+# Deploy with specific image version
+IMAGE_VERSION=v1.2.3 cdk deploy
+
+# Deploy with latest (default)
+cdk deploy
+```
+
 I should probably write some instructions here, but I haven't yet. If you're interested in contributing, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Twitter](https://twitter.com/saebyn).

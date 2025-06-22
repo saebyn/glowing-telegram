@@ -16,6 +16,7 @@ interface RenderJobConstructProps {
   episodeTable: dynamodb.ITable;
   jobQueue: batch.IJobQueue;
   taskMonitoring: TaskMonitoringConstruct;
+  imageVersion?: string;
 }
 
 /**
@@ -60,7 +61,7 @@ export default class RenderJobConstruct extends Construct {
         jobRole,
         executionRole,
         command: ['Ref::record_ids'],
-        image: ecs.ContainerImage.fromEcrRepository(repo, 'latest'),
+        image: ecs.ContainerImage.fromEcrRepository(repo, props.imageVersion || 'latest'),
         environment: {
           INPUT_BUCKET: props.inputBucket.bucketName,
           OUTPUT_BUCKET: props.outputBucket.bucketName,

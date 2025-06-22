@@ -11,6 +11,7 @@ interface RepoStackProps extends cdk.StackProps {
 export default class RepoStack extends cdk.Stack {
   public readonly frontendAssetBucket: s3.IBucket;
   public readonly githubRole: iam.IRole;
+  public readonly dockerGithubRole: iam.IRole;
 
   constructor(scope: Construct, id: string, props: RepoStackProps) {
     const { frontendAssetBucket, ...restProps } = props;
@@ -65,6 +66,21 @@ export default class RepoStack extends cdk.Stack {
           ],
         }),
       },
+    });
+
+    // GitHub Actions role for Docker image builds in the main repository
+    const dockerPrincipal = new iam.OpenIdConnectPrincipal(provider, {
+      StringLike: {
+        'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/glowing-telegram:ref:refs/tags/*`,
+        'token.actions.githubusercontent.com:aud': audience,
+      },
+    });
+
+    this.dockerGithubRole = new iam.Role(this, 'DockerGithubActionRole', {
+      assumedBy: dockerPrincipal,
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryPowerUser'),
+      ],
     });
   }
 }
