@@ -11,6 +11,10 @@ docker-compose.override.yaml
 # ignore python things
 venv
 *.pyc
+__pycache__/
+.pytest_cache/
+htmlcov/
+.coverage
 
 # ignore rust build things
 target

@@ -1,0 +1,28 @@
+[tool.pytest.ini_options]
+testpaths = [
+    "."
+]
+python_files = [
+    "test_*.py",
+    "*_test.py"
+]
+python_classes = [
+    "Test*"
+]
+python_functions = [
+    "test_*"
+]
+addopts = [
+    "--verbose",
+    "--tb=short",
+    "--cov=.",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-fail-under=20",
+    "--ignore=.git",
+    "--ignore=node_modules",
+    "--ignore=target",
+    "--ignore=.vscode",
+    "--ignore=htmlcov",
+    "--ignore=.pytest_cache"
+]
