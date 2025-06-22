@@ -42,7 +42,6 @@ export default class AudioTranscriberJobConstruct extends Construct {
     props.videoMetadataTable.grantWriteData(jobRole);
     props.outputBucket.grantRead(jobRole);
 
-    // Use ECR pull through cache for GHCR
     const repo = ecr.Repository.fromRepositoryName(
       this,
       'AudioTranscriberJobRepository',

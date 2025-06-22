@@ -89,7 +89,6 @@ export default class YoutubeUploader extends Construct {
       }),
     );
 
-    // Use ECR pull through cache for GHCR
     const repo = cdk.aws_ecr.Repository.fromRepositoryName(
       this,
       'UploadVideoContainerImage',
