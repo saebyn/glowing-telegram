@@ -47,9 +47,11 @@ This repository contains these directories:
 
 ### Docker Images
 
-The project uses Docker for containerization with multiple service images. Docker images are automatically built and pushed to GitHub Container Registry (GHCR) via GitHub Actions on pushes to the main branch.
+The project uses Docker for containerization with multiple service images. Docker images are automatically built and pushed to GitHub Container Registry (GHCR) via GitHub Actions on pushes to the main branch. For AWS deployment, the CDK stack uses ECR pull through cache to automatically mirror GHCR images into ECR.
 
-Available images:
+#### GitHub Container Registry Images
+
+All images are publicly available from GHCR:
 - `ghcr.io/saebyn/glowing-telegram/ai-chat-lambda:latest`
 - `ghcr.io/saebyn/glowing-telegram/audio-transcriber:latest`
 - `ghcr.io/saebyn/glowing-telegram/crud-api:latest`
@@ -61,13 +63,28 @@ Available images:
 - `ghcr.io/saebyn/glowing-telegram/video-ingestor:latest`
 - `ghcr.io/saebyn/glowing-telegram/youtube-lambda:latest`
 
+#### Local Development
+
 To build locally:
 ```bash
-# Build all images
+# Build all images (pushes to GHCR only)
 docker buildx bake -f docker-bake.hcl -f docker-bake.override.hcl all
 
 # Build a specific image
 docker buildx bake -f docker-bake.hcl -f docker-bake.override.hcl crud_api
+
+# Build with ECR tags for local ECR testing (if needed)
+docker buildx bake -f docker-bake.hcl crud_api
 ```
+
+#### AWS ECR Integration
+
+The CDK deployment uses AWS ECR pull through cache to automatically mirror GHCR images. This provides:
+- Single source of truth (GHCR) with automatic ECR caching  
+- No need for ECR credentials in CI/CD
+- Faster subsequent deployments from ECR cache
+- Public access via GHCR for distribution
+
+For setup instructions, see [ECR Pull Through Cache Setup](docs/ecr-pull-through-cache-setup.md).
 
 I should probably write some instructions here, but I haven't yet. If you're interested in contributing, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Twitter](https://twitter.com/saebyn).
