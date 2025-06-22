@@ -51,7 +51,6 @@ export default class VideoIngestorConstruct extends Construct {
     props.videoArchiveBucket.grantRead(jobRole);
     props.outputBucket.grantWrite(jobRole);
 
-    // Use ECR pull through cache for GHCR
     const repo = ecr.Repository.fromRepositoryName(
       this,
       'VideoIngestorJobRepository',
