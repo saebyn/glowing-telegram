@@ -188,7 +188,7 @@ export default class APIConstruct extends Construct {
           TASKS_TABLE: props.tasksTable.tableName,
         },
       },
-      name: 'crud-lambda',
+      name: 'crud-api',
     });
 
     crudService.lambda.addToRolePolicy(

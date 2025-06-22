@@ -20,8 +20,6 @@ export default class ServiceLambdaConstruct extends Construct {
   ) {
     super(scope, id);
 
-    // Use ECR pull through cache for GHCR
-    // Repository name format: github/saebyn/glowing-telegram/{service-name}
     this.repository = ecr.Repository.fromRepositoryName(
       this,
       'Repository',
