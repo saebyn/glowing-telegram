@@ -11,6 +11,7 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 interface AudioTranscriberJobConstructProps {
   outputBucket: s3.IBucket;
   videoMetadataTable: dynamodb.ITable;
+  imageVersion?: string;
 }
 
 /**
@@ -45,7 +46,7 @@ export default class AudioTranscriberJobConstruct extends Construct {
     const repo = ecr.Repository.fromRepositoryName(
       this,
       'AudioTranscriberJobRepository',
-      'github/saebyn/glowing-telegram/audio-transcriber',
+      'glowing-telegram/audio-transcription',
     );
 
     const containerDefinition = new batch.EcsEc2ContainerDefinition(
@@ -56,7 +57,7 @@ export default class AudioTranscriberJobConstruct extends Construct {
         memory: cdk.Size.gibibytes(8),
         gpu: 1,
 
-        image: ecs.ContainerImage.fromEcrRepository(repo, 'latest'),
+        image: ecs.ContainerImage.fromEcrRepository(repo, props.imageVersion || 'latest'),
 
         environment: {
           INPUT_BUCKET: props.outputBucket.bucketName,

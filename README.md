@@ -47,44 +47,52 @@ This repository contains these directories:
 
 ### Docker Images
 
-The project uses Docker for containerization with multiple service images. Docker images are automatically built and pushed to GitHub Container Registry (GHCR) via GitHub Actions on pushes to the main branch. For AWS deployment, the CDK stack uses ECR pull through cache to automatically mirror GHCR images into ECR.
+The project uses Docker for containerization with multiple service images. Docker images are automatically built and pushed to Amazon ECR via GitHub Actions when releases are published. The CDK accepts an `IMAGE_VERSION` environment variable to specify which version of images to deploy.
 
-#### GitHub Container Registry Images
+#### Release-Based Image Building
 
-All images are publicly available from GHCR:
-- `ghcr.io/saebyn/glowing-telegram/ai-chat-lambda:latest`
-- `ghcr.io/saebyn/glowing-telegram/audio-transcriber:latest`
-- `ghcr.io/saebyn/glowing-telegram/crud-api:latest`
-- `ghcr.io/saebyn/glowing-telegram/media-lambda:latest`
-- `ghcr.io/saebyn/glowing-telegram/render-job:latest`
-- `ghcr.io/saebyn/glowing-telegram/summarize-transcription:latest`
-- `ghcr.io/saebyn/glowing-telegram/twitch-lambda:latest`
-- `ghcr.io/saebyn/glowing-telegram/upload-video:latest`
-- `ghcr.io/saebyn/glowing-telegram/video-ingestor:latest`
-- `ghcr.io/saebyn/glowing-telegram/youtube-lambda:latest`
+Images are built and tagged with the release version when a new release is published:
+- Trigger: GitHub release events
+- Registry: Amazon ECR (159222827421.dkr.ecr.us-west-2.amazonaws.com)
+- Tagging: Uses the git tag from the release (e.g., `v1.2.3`)
+
+#### Available Services
+
+All services are built as container images:
+- `ai-chat-lambda`
+- `audio-transcription` 
+- `crud-api`
+- `media-lambda`
+- `render-job`
+- `summarize-transcription`
+- `twitch-lambda`
+- `upload-video`
+- `video-ingestor`
+- `youtube-lambda`
 
 #### Local Development
 
 To build locally:
 ```bash
-# Build all images (pushes to GHCR only)
-docker buildx bake -f docker-bake.hcl -f docker-bake.override.hcl all
+# Build all images with latest tag
+docker buildx bake -f docker-bake.hcl all
+
+# Build all images with custom version
+IMAGE_TAG=v1.2.3 docker buildx bake -f docker-bake.hcl -f docker-bake.override.hcl all
 
 # Build a specific image
-docker buildx bake -f docker-bake.hcl -f docker-bake.override.hcl crud_api
-
-# Build with ECR tags for local ECR testing (if needed)
 docker buildx bake -f docker-bake.hcl crud_api
 ```
 
-#### AWS ECR Integration
+#### CDK Deployment with Versioning
 
-The CDK deployment uses AWS ECR pull through cache to automatically mirror GHCR images. This provides:
-- Single source of truth (GHCR) with automatic ECR caching  
-- No need for ECR credentials in CI/CD
-- Faster subsequent deployments from ECR cache
-- Public access via GHCR for distribution
+The CDK can be deployed with a specific image version:
+```bash
+# Deploy with specific image version
+IMAGE_VERSION=v1.2.3 cdk deploy
 
-For setup instructions, see [ECR Pull Through Cache Setup](docs/ecr-pull-through-cache-setup.md).
+# Deploy with latest (default)
+cdk deploy
+```
 
 I should probably write some instructions here, but I haven't yet. If you're interested in contributing, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Twitter](https://twitter.com/saebyn).
