@@ -11,25 +11,27 @@ interface RepoStackProps extends cdk.StackProps {
 export default class RepoStack extends cdk.Stack {
   public readonly frontendAssetBucket: s3.IBucket;
   public readonly githubRole: iam.IRole;
+  public readonly dockerGithubRole: iam.IRole;
 
   constructor(scope: Construct, id: string, props: RepoStackProps) {
     const { frontendAssetBucket, ...restProps } = props;
     super(scope, id, restProps);
 
-    // ECR Pull Through Cache repositories are created automatically by AWS
-    // when the pull through cache rule is configured. No need to create them explicitly.
-    // 
-    // The repositories will be available at:
-    // github/saebyn/glowing-telegram/crud-api
-    // github/saebyn/glowing-telegram/ai-chat-lambda
-    // github/saebyn/glowing-telegram/summarize-transcription
-    // github/saebyn/glowing-telegram/audio-transcriber
-    // github/saebyn/glowing-telegram/video-ingestor
-    // github/saebyn/glowing-telegram/twitch-lambda
-    // github/saebyn/glowing-telegram/youtube-lambda
-    // github/saebyn/glowing-telegram/media-lambda
-    // github/saebyn/glowing-telegram/render-job
-    // github/saebyn/glowing-telegram/upload-video
+    new RepoConstruct(this, 'RepoConstruct', {
+      namespace: 'glowing-telegram',
+      names: [
+        'crud-lambda',
+        'ai-chat-lambda',
+        'summarize-transcription-lambda',
+        'audio-transcription',
+        'video-ingestor',
+        'twitch-lambda',
+        'youtube-lambda',
+        'media-lambda',
+        'render-job',
+        'upload-video',
+      ],
+    });
 
     const audience = 'sts.amazonaws.com';
     const githubOrg = 'saebyn';
@@ -64,6 +66,21 @@ export default class RepoStack extends cdk.Stack {
           ],
         }),
       },
+    });
+
+    // GitHub Actions role for Docker image builds in the main repository
+    const dockerPrincipal = new iam.OpenIdConnectPrincipal(provider, {
+      StringLike: {
+        'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/glowing-telegram:ref:refs/tags/*`,
+        'token.actions.githubusercontent.com:aud': audience,
+      },
+    });
+
+    this.dockerGithubRole = new iam.Role(this, 'DockerGithubActionRole', {
+      assumedBy: dockerPrincipal,
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryPowerUser'),
+      ],
     });
   }
 }

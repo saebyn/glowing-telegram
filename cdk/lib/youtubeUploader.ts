@@ -32,6 +32,7 @@ type YoutubeUploaderProps = {
   readonly eventBus: IEventBus;
   readonly youtubeAppSecret: secretsmanager.ISecret;
   readonly taskMonitoring: TaskMonitoringConstruct;
+  readonly imageVersion?: string;
 };
 
 export default class YoutubeUploader extends Construct {
@@ -92,14 +93,14 @@ export default class YoutubeUploader extends Construct {
     const repo = cdk.aws_ecr.Repository.fromRepositoryName(
       this,
       'UploadVideoContainerImage',
-      'github/saebyn/glowing-telegram/upload-video',
+      'glowing-telegram/upload-video',
     );
 
     const containerDefinition = new EcsFargateContainerDefinition(
       this,
       'UploadVideoContainer',
       {
-        image: EcrImage.fromEcrRepository(repo),
+        image: EcrImage.fromEcrRepository(repo, props.imageVersion || 'latest'),
         cpu: 1,
         command: ['Ref::episode_id'],
         assignPublicIp: true,
