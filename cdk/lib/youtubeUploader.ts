@@ -89,10 +89,11 @@ export default class YoutubeUploader extends Construct {
       }),
     );
 
+    // Use ECR pull through cache for GHCR
     const repo = cdk.aws_ecr.Repository.fromRepositoryName(
       this,
       'UploadVideoContainerImage',
-      'glowing-telegram/upload-video',
+      'github/saebyn/glowing-telegram/upload-video',
     );
 
     const containerDefinition = new EcsFargateContainerDefinition(

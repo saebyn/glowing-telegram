@@ -44,10 +44,11 @@ export default class RenderJobConstruct extends Construct {
     props.outputBucket.grantWrite(jobRole);
     props.episodeTable.grantReadWriteData(jobRole);
 
+    // Use ECR pull through cache for GHCR
     const repo = ecr.Repository.fromRepositoryName(
       this,
       'RenderJobRepository',
-      'glowing-telegram/render-job',
+      'github/saebyn/glowing-telegram/render-job',
     );
 
     const containerDefinition = new batch.EcsFargateContainerDefinition(
