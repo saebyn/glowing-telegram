@@ -51,10 +51,11 @@ export default class VideoIngestorConstruct extends Construct {
     props.videoArchiveBucket.grantRead(jobRole);
     props.outputBucket.grantWrite(jobRole);
 
+    // Use ECR pull through cache for GHCR
     const repo = ecr.Repository.fromRepositoryName(
       this,
-      'AudioTranscriberJobRepository',
-      'glowing-telegram/video-ingestor',
+      'VideoIngestorJobRepository',
+      'github/saebyn/glowing-telegram/video-ingestor',
     );
 
     const containerDefinition = new batch.EcsFargateContainerDefinition(
