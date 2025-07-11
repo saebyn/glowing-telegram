@@ -32,6 +32,7 @@ type YoutubeUploaderProps = {
   readonly eventBus: IEventBus;
   readonly youtubeAppSecret: secretsmanager.ISecret;
   readonly taskMonitoring: TaskMonitoringConstruct;
+  readonly imageVersion?: string;
 };
 
 export default class YoutubeUploader extends Construct {
@@ -99,7 +100,7 @@ export default class YoutubeUploader extends Construct {
       this,
       'UploadVideoContainer',
       {
-        image: EcrImage.fromEcrRepository(repo),
+        image: EcrImage.fromEcrRepository(repo, props.imageVersion || 'latest'),
         cpu: 1,
         command: ['Ref::episode_id'],
         assignPublicIp: true,

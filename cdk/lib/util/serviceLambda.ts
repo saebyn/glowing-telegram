@@ -7,6 +7,7 @@ interface ServiceLambdaConstructProps {
   lambdaOptions: Omit<lambda.FunctionProps, 'code' | 'runtime' | 'handler'>;
   name: string;
   tagOrDigest?: string;
+  imageVersion?: string;
 }
 
 export default class ServiceLambdaConstruct extends Construct {
@@ -31,7 +32,7 @@ export default class ServiceLambdaConstruct extends Construct {
       handler: lambda.Handler.FROM_IMAGE,
       runtime: lambda.Runtime.FROM_IMAGE,
       code: lambda.Code.fromEcrImage(this.repository, {
-        tagOrDigest: props.tagOrDigest,
+        tagOrDigest: props.tagOrDigest || props.imageVersion || 'latest',
       }),
 
       tracing: lambda.Tracing.ACTIVE,
