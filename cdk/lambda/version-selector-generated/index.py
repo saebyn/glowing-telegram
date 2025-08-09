@@ -14,46 +14,23 @@ version_cache = {
 # Configuration key constant
 CONFIG_KEY = 'config/version.json'
 
-def get_bucket_name_from_origin(request):
-    """
-    Extract bucket name from CloudFront origin configuration.
-    CloudFront viewer request events contain origin information.
-    """
-    try:
-        # In CloudFront viewer-request events, we can access the origin
-        origin_host = request.get('origin', {}).get('s3', {}).get('domainName', '')
-        if origin_host and '.s3.' in origin_host:
-            # Extract bucket name from S3 domain (format: bucket-name.s3.region.amazonaws.com)
-            return origin_host.split('.s3.')[0]
-    except Exception as e:
-        print(f'Could not extract bucket name from origin: {e}')
-    return None
-
 def get_bucket_name():
-    """Get bucket name from config, environment, or CloudFront origin"""
+    """Get bucket name from config"""
     try:
         import config
         return config.BUCKET_NAME
     except ImportError:
         # Fallback for testing or if config is not generated
-        bucket_name = os.environ.get('BUCKET_NAME')
-        if bucket_name:
-            return bucket_name
-        # Bucket name will be extracted from CloudFront origin at runtime
-        return None
+        return os.environ.get('BUCKET_NAME')
 
 def get_fallback_version():
-    """Get fallback version from config or use default"""
+    """Get fallback version from config"""
     try:
         import config
         return config.FALLBACK_VERSION
     except ImportError:
         # Fallback for testing or if config is not generated
-        fallback = os.environ.get('FALLBACK_VERSION')
-        if fallback:
-            return fallback
-        # Use a reasonable default if nothing else is available
-        return '0.4.0'
+        return os.environ.get('FALLBACK_VERSION')
 
 def handler(event, context):
     """
@@ -65,7 +42,7 @@ def handler(event, context):
     
     try:
         # Get current version from cache or S3
-        current_version = get_current_version(request)
+        current_version = get_current_version()
         
         # Use fallback version if no version found from S3
         fallback_version = get_fallback_version()
@@ -102,20 +79,11 @@ def handler(event, context):
     
     return request
 
-def get_current_version(request=None):
+def get_current_version():
     """
     Get current version with caching
     """
     bucket_name = get_bucket_name()
-    
-    # If bucket name is not available from config/env, try to get it from CloudFront origin
-    if not bucket_name and request:
-        bucket_name = get_bucket_name_from_origin(request)
-    
-    if not bucket_name:
-        print('No bucket name available, cannot fetch version from S3')
-        return None
-        
     now = int(time.time() * 1000)  # Current time in milliseconds
     
     # Return cached version if still valid

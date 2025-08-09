@@ -33,16 +33,13 @@ export default class FrontendStack extends cdk.Stack {
 
     // Create Lambda@Edge function for dynamic version selection
     // Note: Lambda@Edge functions must be created in us-east-1 region
+    // Lambda@Edge functions cannot use environment variables
     this.versionSelectorFunction = new lambda.Function(this, 'VersionSelectorFunction', {
       runtime: lambda.Runtime.PYTHON_3_13,
       handler: 'index.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/version-selector')),
       timeout: cdk.Duration.seconds(5),
       memorySize: 128,
-      environment: {
-        BUCKET_NAME: this.assetBucket.bucketName,
-        FALLBACK_VERSION: frontendVersion, // Use original frontendVersion as fallback
-      },
       // Lambda@Edge specific configuration
       role: new iam.Role(this, 'VersionSelectorRole', {
         assumedBy: new iam.CompositePrincipal(

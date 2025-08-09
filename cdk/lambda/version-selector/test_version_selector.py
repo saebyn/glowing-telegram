@@ -92,20 +92,17 @@ class TestVersionSelector(unittest.TestCase):
         self.assertEqual(result['uri'], f'/{self.fallback_version}/index.html')
     
     @patch('index.get_current_version')
-    def test_no_version_available(self, mock_get_version):
+    @patch('index.get_fallback_version')
+    def test_no_version_available(self, mock_get_fallback, mock_get_version):
         """Test behavior when no version is available at all."""
         mock_get_version.return_value = None
-        # Remove fallback version
-        del os.environ['FALLBACK_VERSION']
+        mock_get_fallback.return_value = None  # Mock no fallback version
         
         event = self.create_cloudfront_event('/test.html')
         result = index.handler(event, {})
         
         # Should return original request unchanged
         self.assertEqual(result['uri'], '/test.html')
-        
-        # Restore for other tests
-        os.environ['FALLBACK_VERSION'] = self.fallback_version
     
     @patch('index.get_current_version')
     def test_error_handling_with_exception(self, mock_get_version):
