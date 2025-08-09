@@ -21,7 +21,9 @@ export default class FrontendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     const { frontendVersion, ...restProps } = props;
 
-    super(scope, id, restProps);
+    // Lambda@Edge functions must be deployed in us-east-1, but CDK handles this automatically
+    // when used with CloudFront. The Lambda function will be replicated to edge locations.
+    super(scope, id, { ...restProps, env: { ...restProps.env, region: 'us-east-1' } });
 
     this.assetBucket = new s3.Bucket(this, 'FrontendAssetBucket', {
       versioned: false,
@@ -30,6 +32,7 @@ export default class FrontendStack extends cdk.Stack {
     });
 
     // Create Lambda@Edge function for dynamic version selection
+    // Note: Lambda@Edge functions must be created in us-east-1 region
     this.versionSelectorFunction = new lambda.Function(this, 'VersionSelectorFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'index.handler',
@@ -38,6 +41,7 @@ export default class FrontendStack extends cdk.Stack {
       memorySize: 128,
       environment: {
         BUCKET_NAME: this.assetBucket.bucketName,
+        FALLBACK_VERSION: frontendVersion, // Use original frontendVersion as fallback
       },
       // Lambda@Edge specific configuration
       role: new iam.Role(this, 'VersionSelectorRole', {

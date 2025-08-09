@@ -10,6 +10,7 @@ let versionCache = {
 // Environment variables
 const BUCKET_NAME = process.env.BUCKET_NAME;
 const CONFIG_KEY = 'config/version.json';
+const FALLBACK_VERSION = process.env.FALLBACK_VERSION;
 
 /**
  * Lambda@Edge function to dynamically select frontend version
@@ -23,34 +24,45 @@ exports.handler = async (event) => {
     // Get current version from cache or S3
     const currentVersion = await getCurrentVersion();
     
-    // Skip rewriting if no version found (fallback behavior)
-    if (!currentVersion) {
-      console.warn('No version found, proceeding with original request');
+    // Use fallback version if no version found from S3
+    const versionToUse = currentVersion || FALLBACK_VERSION;
+    
+    if (!versionToUse) {
+      console.error('No version available (neither from S3 nor fallback), proceeding with original request');
       return request;
     }
     
     // Rewrite the origin path to include the version
     const originalUri = request.uri;
     
-    // Skip if already has the correct version prefix
-    if (originalUri.startsWith(`/${currentVersion}/`)) {
-      console.log(`URI already has correct version prefix: ${originalUri}`);
-      return request;
-    }
+    // Always strip any existing version prefix for security
+    // This prevents clients from manipulating the version via URL
+    const cleanUri = stripVersionPrefix(originalUri);
     
     // Handle root path requests
-    if (originalUri === '/' || originalUri === '') {
-      request.uri = `/${currentVersion}/index.html`;
+    if (cleanUri === '/' || cleanUri === '') {
+      request.uri = `/${versionToUse}/index.html`;
     } else {
-      // Prepend version to the path
-      request.uri = `/${currentVersion}${originalUri}`;
+      // Prepend version to the clean path
+      request.uri = `/${versionToUse}${cleanUri}`;
     }
     
-    console.log(`Rewritten URI from ${originalUri} to ${request.uri} for version ${currentVersion}`);
+    console.log(`Rewritten URI from ${originalUri} to ${request.uri} for version ${versionToUse}`);
     
   } catch (error) {
     console.error('Error in version selector:', error);
-    // Return original request on error to maintain availability
+    // Use fallback version on error to maintain availability
+    const fallbackUri = request.uri;
+    const cleanUri = stripVersionPrefix(fallbackUri);
+    
+    if (FALLBACK_VERSION) {
+      if (cleanUri === '/' || cleanUri === '') {
+        request.uri = `/${FALLBACK_VERSION}/index.html`;
+      } else {
+        request.uri = `/${FALLBACK_VERSION}${cleanUri}`;
+      }
+      console.log(`Using fallback version ${FALLBACK_VERSION} due to error`);
+    }
   }
   
   return request;
@@ -105,8 +117,25 @@ async function getCurrentVersion() {
   }
 }
 
+/**
+ * Strip any existing version prefix from URI for security
+ * This prevents clients from manipulating the version via URL
+ */
+function stripVersionPrefix(uri) {
+  // Match pattern like /1.2.3/ or /v1.2.3/ at the beginning
+  const versionPattern = /^\/v?\d+\.\d+\.\d+\//;
+  
+  if (versionPattern.test(uri)) {
+    // Remove the version prefix, keeping the leading slash
+    return uri.replace(versionPattern, '/');
+  }
+  
+  return uri;
+}
+
 // Export for testing
 exports.getCurrentVersion = getCurrentVersion;
+exports.stripVersionPrefix = stripVersionPrefix;
 exports.resetCache = () => {
   versionCache.version = null;
   versionCache.timestamp = 0;

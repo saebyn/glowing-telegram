@@ -3,13 +3,7 @@
   "version": "1.0.0",
   "description": "Lambda@Edge function for dynamic frontend version selection",
   "main": "index.js",
-  "scripts": {
-    "test": "jest"
-  },
   "dependencies": {
     "aws-sdk": "^2.1691.0"
-  },
-  "devDependencies": {
-    "jest": "^29.7.0"
   }
 }
