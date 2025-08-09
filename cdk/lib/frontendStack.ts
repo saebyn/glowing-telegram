@@ -34,7 +34,7 @@ export default class FrontendStack extends cdk.Stack {
     // Create Lambda@Edge function for dynamic version selection
     // Note: Lambda@Edge functions must be created in us-east-1 region
     this.versionSelectorFunction = new lambda.Function(this, 'VersionSelectorFunction', {
-      runtime: lambda.Runtime.PYTHON_3_9,
+      runtime: lambda.Runtime.PYTHON_3_13,
       handler: 'index.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/version-selector')),
       timeout: cdk.Duration.seconds(5),
