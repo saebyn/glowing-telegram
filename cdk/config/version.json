@@ -1,0 +1,10 @@
+{
+  "version": "0.4.0",
+  "description": "Current frontend version configuration",
+  "lastUpdated": "2024-01-01T00:00:00Z",
+  "rollbackVersion": "0.3.0",
+  "metadata": {
+    "deployedBy": "system",
+    "environment": "production"
+  }
+}
