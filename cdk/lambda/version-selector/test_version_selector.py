@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Test suite for the Lambda@Edge version selector function.
-This replaces the Jest tests with Python equivalents.
+Tests the Python implementation.
 """
 
 import json
@@ -10,7 +10,8 @@ from unittest.mock import Mock, patch, MagicMock
 import sys
 import os
 
-# Mock the Node.js Lambda function by creating equivalent test scenarios
+# Import the actual function
+import index
 
 
 class TestVersionSelector(unittest.TestCase):
@@ -20,6 +21,13 @@ class TestVersionSelector(unittest.TestCase):
         """Set up test fixtures."""
         self.test_bucket = 'test-bucket'
         self.fallback_version = '0.4.0'
+        
+        # Set environment variables for testing
+        os.environ['BUCKET_NAME'] = self.test_bucket
+        os.environ['FALLBACK_VERSION'] = self.fallback_version
+        
+        # Reset cache before each test
+        index.reset_cache()
         
     def create_cloudfront_event(self, uri):
         """Create a mock CloudFront event."""
@@ -33,132 +41,161 @@ class TestVersionSelector(unittest.TestCase):
             }]
         }
     
-    def test_uri_rewriting_with_s3_version(self):
+    @patch('index.get_current_version')
+    def test_uri_rewriting_with_s3_version(self, mock_get_version):
         """Test that URI is rewritten with version from S3 config."""
-        # This test verifies the core functionality of version rewriting
-        original_uri = '/index.html'
-        expected_version = '1.2.3'
-        expected_uri = f'/{expected_version}/index.html'
+        mock_get_version.return_value = '1.2.3'
         
-        # In a real implementation, this would call the Lambda function
-        # For now, we simulate the expected behavior
-        self.assertEqual(
-            self._simulate_version_rewrite(original_uri, expected_version),
-            expected_uri
-        )
+        event = self.create_cloudfront_event('/index.html')
+        result = index.handler(event, {})
+        
+        self.assertEqual(result['uri'], '/1.2.3/index.html')
     
-    def test_root_path_handling(self):
+    @patch('index.get_current_version')
+    def test_root_path_handling(self, mock_get_version):
         """Test that root path is handled correctly."""
-        original_uri = '/'
-        expected_version = '2.0.0'
-        expected_uri = f'/{expected_version}/index.html'
+        mock_get_version.return_value = '2.0.0'
         
-        self.assertEqual(
-            self._simulate_version_rewrite(original_uri, expected_version),
-            expected_uri
-        )
-    
-    def test_fallback_to_original_version(self):
-        """Test fallback behavior when S3 fails."""
-        original_uri = '/test.js'
-        fallback_version = self.fallback_version
-        expected_uri = f'/{fallback_version}/test.js'
+        event = self.create_cloudfront_event('/')
+        result = index.handler(event, {})
         
-        # Simulate S3 failure scenario
-        self.assertEqual(
-            self._simulate_fallback_behavior(original_uri, fallback_version),
-            expected_uri
-        )
+        self.assertEqual(result['uri'], '/2.0.0/index.html')
     
-    def test_version_prefix_stripping(self):
-        """Test that existing version prefixes are stripped for security."""
-        # Test various version prefix patterns
-        test_cases = [
-            ('/1.0.0/style.css', '/style.css'),
-            ('/v2.1.3/script.js', '/script.js'),
-            ('/3.0.0-beta.1/app.js', '/3.0.0-beta.1/app.js'),  # Should not match (beta versions)
-            ('/regular/path.html', '/regular/path.html'),  # No change
-        ]
-        
-        for input_uri, expected_clean_uri in test_cases:
-            with self.subTest(input_uri=input_uri):
-                result = self._simulate_version_strip(input_uri)
-                self.assertEqual(result, expected_clean_uri)
-    
-    def test_empty_uri_handling(self):
+    @patch('index.get_current_version')
+    def test_empty_uri_handling(self, mock_get_version):
         """Test handling of empty URI."""
-        original_uri = ''
-        expected_version = '1.0.0'
-        expected_uri = f'/{expected_version}/index.html'
+        mock_get_version.return_value = '1.0.0'
         
-        self.assertEqual(
-            self._simulate_version_rewrite(original_uri, expected_version),
-            expected_uri
-        )
+        event = self.create_cloudfront_event('')
+        result = index.handler(event, {})
+        
+        self.assertEqual(result['uri'], '/1.0.0/index.html')
     
-    def test_s3_config_parsing(self):
-        """Test S3 configuration parsing."""
-        mock_config = {
-            'version': '1.5.0',
-            'description': 'Test version',
-            'rollbackVersion': '1.4.0'
+    @patch('index.get_current_version')
+    def test_fallback_to_original_version(self, mock_get_version):
+        """Test fallback behavior when S3 fails."""
+        mock_get_version.return_value = None  # Simulate S3 failure
+        
+        event = self.create_cloudfront_event('/test.js')
+        result = index.handler(event, {})
+        
+        self.assertEqual(result['uri'], f'/{self.fallback_version}/test.js')
+    
+    @patch('index.get_current_version')
+    def test_fallback_root_path(self, mock_get_version):
+        """Test fallback behavior for root path."""
+        mock_get_version.return_value = None  # Simulate S3 failure
+        
+        event = self.create_cloudfront_event('/')
+        result = index.handler(event, {})
+        
+        self.assertEqual(result['uri'], f'/{self.fallback_version}/index.html')
+    
+    @patch('index.get_current_version')
+    def test_no_version_available(self, mock_get_version):
+        """Test behavior when no version is available at all."""
+        mock_get_version.return_value = None
+        # Remove fallback version
+        del os.environ['FALLBACK_VERSION']
+        
+        event = self.create_cloudfront_event('/test.html')
+        result = index.handler(event, {})
+        
+        # Should return original request unchanged
+        self.assertEqual(result['uri'], '/test.html')
+        
+        # Restore for other tests
+        os.environ['FALLBACK_VERSION'] = self.fallback_version
+    
+    @patch('index.get_current_version')
+    def test_error_handling_with_exception(self, mock_get_version):
+        """Test error handling when get_current_version raises exception."""
+        mock_get_version.side_effect = Exception("S3 connection error")
+        
+        event = self.create_cloudfront_event('/app.js')
+        result = index.handler(event, {})
+        
+        # Should fallback to FALLBACK_VERSION
+        self.assertEqual(result['uri'], f'/{self.fallback_version}/app.js')
+
+class TestGetCurrentVersion(unittest.TestCase):
+    """Test the get_current_version function."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.test_bucket = 'test-bucket'
+        os.environ['BUCKET_NAME'] = self.test_bucket
+        index.reset_cache()
+    
+    @patch('boto3.client')
+    def test_s3_version_fetching(self, mock_boto_client):
+        """Test fetching version from S3."""
+        mock_s3 = Mock()
+        mock_boto_client.return_value = mock_s3
+        
+        # Mock S3 response
+        mock_s3.get_object.return_value = {
+            'Body': Mock(read=Mock(return_value=json.dumps({'version': '1.5.0'}).encode('utf-8')))
         }
         
-        # In a real test, this would verify JSON parsing from S3
-        self.assertEqual(mock_config['version'], '1.5.0')
-        self.assertEqual(mock_config['rollbackVersion'], '1.4.0')
+        version = index.get_current_version()
+        
+        self.assertEqual(version, '1.5.0')
+        mock_s3.get_object.assert_called_once_with(Bucket=self.test_bucket, Key='config/version.json')
     
-    def _simulate_version_rewrite(self, original_uri, version):
-        """Simulate the version rewriting logic."""
-        clean_uri = self._simulate_version_strip(original_uri)
+    @patch('boto3.client')
+    def test_caching_behavior(self, mock_boto_client):
+        """Test that caching works properly."""
+        mock_s3 = Mock()
+        mock_boto_client.return_value = mock_s3
         
-        if clean_uri == '/' or clean_uri == '':
-            return f'/{version}/index.html'
-        else:
-            return f'/{version}{clean_uri}'
+        # Mock S3 response
+        mock_s3.get_object.return_value = {
+            'Body': Mock(read=Mock(return_value=json.dumps({'version': '2.0.0'}).encode('utf-8')))
+        }
+        
+        # First call should fetch from S3
+        version1 = index.get_current_version()
+        
+        # Second call should use cache
+        version2 = index.get_current_version()
+        
+        self.assertEqual(version1, '2.0.0')
+        self.assertEqual(version2, '2.0.0')
+        # S3 should only be called once due to caching
+        mock_s3.get_object.assert_called_once()
     
-    def _simulate_fallback_behavior(self, original_uri, fallback_version):
-        """Simulate fallback behavior on S3 error."""
-        clean_uri = self._simulate_version_strip(original_uri)
+    @patch('boto3.client')
+    def test_s3_error_handling(self, mock_boto_client):
+        """Test error handling when S3 fails."""
+        mock_s3 = Mock()
+        mock_boto_client.return_value = mock_s3
         
-        if clean_uri == '/' or clean_uri == '':
-            return f'/{fallback_version}/index.html'
-        else:
-            return f'/{fallback_version}{clean_uri}'
+        # Mock S3 error
+        from botocore.exceptions import ClientError
+        mock_s3.get_object.side_effect = ClientError(
+            error_response={'Error': {'Code': 'NoSuchKey'}},
+            operation_name='GetObject'
+        )
+        
+        version = index.get_current_version()
+        
+        self.assertIsNone(version)
     
-    def _simulate_version_strip(self, uri):
-        """Simulate the version prefix stripping logic."""
-        import re
+    @patch('boto3.client')
+    def test_invalid_json_handling(self, mock_boto_client):
+        """Test handling of invalid JSON in S3."""
+        mock_s3 = Mock()
+        mock_boto_client.return_value = mock_s3
         
-        # Match pattern like /1.2.3/ or /v1.2.3/ at the beginning
-        version_pattern = r'^/v?\d+\.\d+\.\d+/'
+        # Mock S3 response with invalid JSON
+        mock_s3.get_object.return_value = {
+            'Body': Mock(read=Mock(return_value=b'invalid json'))
+        }
         
-        if re.match(version_pattern, uri):
-            # Remove the version prefix, keeping the leading slash
-            return re.sub(version_pattern, '/', uri)
+        version = index.get_current_version()
         
-        return uri
-
-
-class TestEnvironmentConfiguration(unittest.TestCase):
-    """Test environment configuration aspects."""
-    
-    def test_required_environment_variables(self):
-        """Test that required environment variables are defined."""
-        required_vars = ['BUCKET_NAME', 'FALLBACK_VERSION']
-        
-        # In a real deployment, these would be set
-        for var in required_vars:
-            with self.subTest(var=var):
-                # This would verify the environment variable is set
-                self.assertIsNotNone(var)  # Placeholder assertion
-    
-    def test_us_east_1_region_requirement(self):
-        """Test Lambda@Edge us-east-1 region requirement."""
-        # Lambda@Edge functions must be deployed in us-east-1
-        # This test documents the requirement
-        required_region = 'us-east-1'
-        self.assertEqual(required_region, 'us-east-1')
+        self.assertIsNone(version)
 
 
 if __name__ == '__main__':
