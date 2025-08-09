@@ -1,1 +1,0 @@
-# No additional requirements - boto3 is provided by AWS Lambda runtime
