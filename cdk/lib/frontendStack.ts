@@ -21,9 +21,9 @@ export default class FrontendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     const { frontendVersion, ...restProps } = props;
 
-    // Lambda@Edge functions must be deployed in us-east-1, but CDK handles this automatically
-    // when used with CloudFront. The Lambda function will be replicated to edge locations.
-    super(scope, id, { ...restProps, env: { ...restProps.env, region: 'us-east-1' } });
+    // Lambda@Edge functions are automatically deployed to us-east-1 by CDK when used with CloudFront
+    // No need to force the entire stack region - CDK handles Lambda@Edge replication automatically
+    super(scope, id, restProps);
 
     this.assetBucket = new s3.Bucket(this, 'FrontendAssetBucket', {
       versioned: false,
