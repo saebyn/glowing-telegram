@@ -23,7 +23,7 @@ export default class RenderJobSubmissionLambda extends Construct {
       this,
       'RenderJobProcessingLambda',
       {
-        runtime: lambda.Runtime.PYTHON_3_9,
+        runtime: lambda.Runtime.PYTHON_3_13,
         handler: 'handler',
         entry: 'lib/renderJobSubmissionLambda',
         index: 'handler.py',
@@ -32,7 +32,7 @@ export default class RenderJobSubmissionLambda extends Construct {
         environment: {
           RENDER_JOB_QUEUE: props.renderJobQueue.jobQueueArn,
           RENDER_JOB_DEFINITION: props.renderJobDefinition.jobDefinitionArn,
-          MAX_EPISODES_PER_JOB: '10',
+          MAX_EPISODES_PER_JOB: '3',
         },
       },
     );
