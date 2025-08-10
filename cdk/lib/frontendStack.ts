@@ -29,6 +29,8 @@ export default class FrontendStack extends cdk.Stack {
       versioned: false,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       publicReadAccess: false, // We'll add specific policy for version config
+      // Use explicit bucket name generation to support cross-environment references for Lambda@Edge
+      bucketName: cdk.PhysicalName.GENERATE_IF_NEEDED,
     });
 
     // Create Lambda@Edge function for dynamic version selection
