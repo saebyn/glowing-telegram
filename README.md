@@ -45,16 +45,38 @@ This repository contains these directories:
 
 ## Development
 
+### Deployment
+
+The project uses automated deployment via GitHub Actions for production releases. When you publish a release on GitHub, the system automatically:
+
+1. **Builds and pushes Docker images** to Amazon ECR with the release tag
+2. **Deploys the CDK application** using the newly built images
+
+#### Production Deployment Process
+
+To deploy to production:
+
+1. **Create a release on GitHub:**
+   - Go to the GitHub repository
+   - Click "Releases" → "Create a new release"
+   - Create a new tag (e.g., `v1.2.3`)
+   - Publish the release
+
+2. **Automated deployment happens:**
+   - GitHub Actions triggers the `docker.yml` workflow
+   - Docker images are built and pushed to ECR with the release tag
+   - CDK deployment automatically updates infrastructure with the new image version
+   - All services are updated to use the new images
+
+#### Release-Based Deployment Details
+
+The automated deployment process:
+- **Trigger:** GitHub release events (when published)
+- **Registry:** Amazon ECR (159222827421.dkr.ecr.us-west-2.amazonaws.com)
+- **Tagging:** Uses the git tag from the release (e.g., `v1.2.3`)
+- **Deployment:** CDK automatically deploys with `IMAGE_VERSION` set to the release tag
+
 ### Docker Images
-
-The project uses Docker for containerization with multiple service images. Docker images are automatically built and pushed to Amazon ECR via GitHub Actions when releases are published. The CDK accepts an `IMAGE_VERSION` environment variable to specify which version of images to deploy.
-
-#### Release-Based Image Building
-
-Images are built and tagged with the release version when a new release is published:
-- Trigger: GitHub release events
-- Registry: Amazon ECR (159222827421.dkr.ecr.us-west-2.amazonaws.com)
-- Tagging: Uses the git tag from the release (e.g., `v1.2.3`)
 
 #### Available Services
 
@@ -84,9 +106,9 @@ IMAGE_TAG=v1.2.3 docker buildx bake -f docker-bake.hcl -f docker-bake.override.h
 docker buildx bake -f docker-bake.hcl crud_api
 ```
 
-#### CDK Deployment with Versioning
+#### Manual CDK Deployment
 
-The CDK can be deployed with a specific image version:
+For development or manual deployment, the CDK can be deployed with a specific image version:
 ```bash
 # Deploy with specific image version
 IMAGE_VERSION=v1.2.3 cdk deploy
@@ -94,6 +116,8 @@ IMAGE_VERSION=v1.2.3 cdk deploy
 # Deploy with latest (default)
 cdk deploy
 ```
+
+**Note:** Production deployments should use the automated GitHub Actions workflow triggered by releases rather than manual CDK deployment.
 
 ### Contributing
 
