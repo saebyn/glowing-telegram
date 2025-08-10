@@ -23,7 +23,7 @@ export default class TaskMonitoringConstruct extends Construct {
     const { tasksTable } = props;
 
     const statusLambda = new lambda.Function(this, 'StatusLambda', {
-      runtime: lambda.Runtime.PYTHON_3_13,
+      runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromInline(`
 import json
 import os

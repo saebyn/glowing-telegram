@@ -66,7 +66,7 @@ export default class WebSocketAPIConstruct extends Construct {
       this,
       'AuthorizerLambda',
       {
-        runtime: lambda.Runtime.PYTHON_3_13,
+        runtime: lambda.Runtime.PYTHON_3_11,
         tracing: lambda.Tracing.ACTIVE,
         entry: 'lib/websocketAuthorizer',
         index: 'main.py',
@@ -83,7 +83,7 @@ export default class WebSocketAPIConstruct extends Construct {
 
     // Create Lambda for handling WebSocket connect events (Python)
     const connectHandler = new lambda.Function(this, 'ConnectHandler', {
-      runtime: lambda.Runtime.PYTHON_3_13,
+      runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromInline(`
 import json
 import os
@@ -144,7 +144,7 @@ def handler(event, context):
 
     // Create Lambda for handling WebSocket disconnect events (Python)
     const disconnectHandler = new lambda.Function(this, 'DisconnectHandler', {
-      runtime: lambda.Runtime.PYTHON_3_13,
+      runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromInline(`
 import json
 import os
@@ -192,7 +192,7 @@ def handler(event, context):
 
     // Create Lambda for handling task changes and publishing to WebSocket (Python)
     const taskChangeHandler = new lambda.Function(this, 'TaskChangeHandler', {
-      runtime: lambda.Runtime.PYTHON_3_13,
+      runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromInline(`
 import json
 import os

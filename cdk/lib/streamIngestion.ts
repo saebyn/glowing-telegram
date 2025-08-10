@@ -155,7 +155,7 @@ def handler(event, context):
   )
 `),
         handler: 'index.handler',
-        runtime: lambda.Runtime.PYTHON_3_13,
+        runtime: lambda.Runtime.PYTHON_3_11,
         tracing: lambda.Tracing.ACTIVE,
         logRetention: logs.RetentionDays.ONE_WEEK,
         loggingFormat: lambda.LoggingFormat.JSON,

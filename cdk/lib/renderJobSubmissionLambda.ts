@@ -23,7 +23,7 @@ export default class RenderJobSubmissionLambda extends Construct {
       this,
       'RenderJobProcessingLambda',
       {
-        runtime: lambda.Runtime.PYTHON_3_13,
+        runtime: lambda.Runtime.PYTHON_3_11,
         handler: 'handler',
         entry: 'lib/renderJobSubmissionLambda',
         index: 'handler.py',

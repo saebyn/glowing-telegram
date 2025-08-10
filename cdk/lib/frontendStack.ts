@@ -160,7 +160,7 @@ def reset_cache():
       this,
       'VersionSelectorFunction',
       {
-        runtime: lambda.Runtime.PYTHON_3_13,
+        runtime: lambda.Runtime.PYTHON_3_11,
         handler: 'index.handler',
         code: lambda.Code.fromInline(pythonCode),
         timeout: cdk.Duration.seconds(5),
