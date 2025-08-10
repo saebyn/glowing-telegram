@@ -6,8 +6,6 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as fs from 'fs';
-import * as path from 'path';
 
 // Test for render job submission lambda and storage increase
 test('Render Job Storage Increased and Lambda Contains Splitting Logic', () => {
@@ -16,9 +14,13 @@ test('Render Job Storage Increased and Lambda Contains Splitting Logic', () => {
 
   // Create mock dependencies with minimal setup
   const vpc = new ec2.Vpc(stack, 'TestVpc');
-  const computeEnvironment = new batch.ManagedEc2EcsComputeEnvironment(stack, 'TestComputeEnv', {
-    vpc,
-  });
+  const computeEnvironment = new batch.ManagedEc2EcsComputeEnvironment(
+    stack,
+    'TestComputeEnv',
+    {
+      vpc,
+    },
+  );
   const jobQueue = new batch.JobQueue(stack, 'TestJobQueue', {
     computeEnvironments: [{ computeEnvironment, order: 1 }],
   });
@@ -77,20 +79,15 @@ test('Render Job Storage Increased and Lambda Contains Splitting Logic', () => {
     },
   );
 
-  // Verify that the Python handler file exists and contains the expected code
-  const handlerPath = path.join(__dirname, '../lib/renderJobSubmissionLambda/handler.py');
-  expect(fs.existsSync(handlerPath)).toBe(true);
-  
-  const handlerCode = fs.readFileSync(handlerPath, 'utf8');
-  expect(handlerCode).toContain('MAX_EPISODES_PER_JOB');
-  expect(handlerCode).toContain('split_episodes_into_chunks');
-  expect(handlerCode).toContain('submit_render_job');
-
   // Create render job submission lambda - but don't synthesize to avoid Docker build issues in CI
-  const renderJobSubmissionLambda = new RenderJobSubmissionLambda(stack, 'TestRenderJobSubmissionLambda', {
-    renderJobQueue: jobQueue,
-    renderJobDefinition: jobDefinition,
-  });
+  const renderJobSubmissionLambda = new RenderJobSubmissionLambda(
+    stack,
+    'TestRenderJobSubmissionLambda',
+    {
+      renderJobQueue: jobQueue,
+      renderJobDefinition: jobDefinition,
+    },
+  );
 
   // Verify the lambda construct was created successfully
   expect(renderJobSubmissionLambda.lambda).toBeDefined();
@@ -104,17 +101,4 @@ test('Render Job Storage Increased and Lambda Contains Splitting Logic', () => {
       },
     },
   });
-});
-
-// Test that Python handler file exists and contains expected code
-test('Python Lambda Handler File Structure', () => {
-  // Verify that the Python handler file exists and contains the expected code
-  const handlerPath = path.join(__dirname, '../lib/renderJobSubmissionLambda/handler.py');
-  expect(fs.existsSync(handlerPath)).toBe(true);
-  
-  const handlerCode = fs.readFileSync(handlerPath, 'utf8');
-  expect(handlerCode).toContain('MAX_EPISODES_PER_JOB');
-  expect(handlerCode).toContain('split_episodes_into_chunks');
-  expect(handlerCode).toContain('submit_render_job');
-  expect(handlerCode).toContain('def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:');
 });

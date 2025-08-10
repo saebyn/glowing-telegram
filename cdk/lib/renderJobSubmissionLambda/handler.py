@@ -45,12 +45,15 @@ def split_episodes_into_chunks(episode_ids: List[str]) -> List[List[str]]:
         [['ep1', 'ep2', 'ep3'], ['ep4', 'ep5']]
 
         >>> split_episodes_into_chunks([])
-        [[]]
+        []
     """
+    if not episode_ids:
+        return []
+
     if len(episode_ids) <= MAX_EPISODES_PER_JOB:
         return [episode_ids]
 
-    chunks = []
+    chunks: List[List[str]] = []
     for i in range(0, len(episode_ids), MAX_EPISODES_PER_JOB):
         chunk = episode_ids[i : i + MAX_EPISODES_PER_JOB]
         chunks.append(chunk)
@@ -112,7 +115,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Split episodes into manageable chunks
     episode_chunks = split_episodes_into_chunks(episode_ids)
 
-    submitted_jobs = []
+    submitted_jobs: List[Dict[str, Any]] = []
     for i, chunk in enumerate(episode_chunks):
         try:
             result = submit_render_job(
@@ -133,11 +136,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 ),
             }
 
-    response = {
-        "message": f"Successfully submitted {len(submitted_jobs)} render job(s)",
-        "totalEpisodes": len(episode_ids),
-        "jobChunks": len(submitted_jobs),
-        "jobs": submitted_jobs,
+    # If all jobs submitted successfully, return success response
+    return {
+        "statusCode": 200,
+        "body": json.dumps(
+            {
+                "message": f"Successfully submitted {len(submitted_jobs)} render job(s)",
+                "totalEpisodes": len(episode_ids),
+                "jobChunks": len(submitted_jobs),
+                "jobs": submitted_jobs,
+            }
+        ),
     }
-
-    return {"statusCode": 200, "body": json.dumps(response)}
