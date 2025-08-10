@@ -26,6 +26,7 @@ interface APIConstructProps {
   episodesTable: ITable;
   profilesTable: ITable;
   tasksTable: ITable;
+  projectsTable: ITable;
   openaiSecret: secretsmanager.ISecret;
   youtubeAppSecret: secretsmanager.ISecret;
 
@@ -190,6 +191,7 @@ export default class APIConstruct extends Construct {
           EPISODES_TABLE: props.episodesTable.tableName,
           PROFILES_TABLE: props.profilesTable.tableName,
           TASKS_TABLE: props.tasksTable.tableName,
+          PROJECTS_TABLE: props.projectsTable.tableName,
         },
       },
       name: 'crud-lambda',
@@ -215,6 +217,7 @@ export default class APIConstruct extends Construct {
           props.episodesTable.tableArn,
           props.profilesTable.tableArn,
           props.tasksTable.tableArn,
+          props.projectsTable.tableArn,
 
           // Allow access to the indexes
           `${props.videoMetadataTable.tableArn}/index/*`,
@@ -223,6 +226,7 @@ export default class APIConstruct extends Construct {
           `${props.episodesTable.tableArn}/index/*`,
           `${props.profilesTable.tableArn}/index/*`,
           `${props.tasksTable.tableArn}/index/*`,
+          `${props.projectsTable.tableArn}/index/*`,
         ],
       }),
     );

@@ -39,6 +39,7 @@ struct Config {
     series_table: String,
     profiles_table: String,
     tasks_table: String,
+    projects_table: String,
 }
 
 #[derive(Debug, Clone)]
@@ -160,6 +161,7 @@ fn get_table_config<'a>(
             "video_clips" => &state.config.video_metadata_table,
             "profiles" => &state.config.profiles_table,
             "tasks" => &state.config.tasks_table,
+            "projects" => &state.config.projects_table,
             _ => panic!("unsupported resource: {resource}"),
         },
         partition_key: match resource {

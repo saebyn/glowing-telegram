@@ -11,6 +11,8 @@ components:
       $ref: "./schemas/Stream.schema"
     Episode:
       $ref: "./schemas/Episode.schema"
+    Project:
+      $ref: "./schemas/Project.schema"
     Profile:
       $ref: "./schemas/Profile.schema"
     StreamIngestionRequest:
@@ -25,6 +27,7 @@ components:
         - $ref: "#/components/schemas/Series"
         - $ref: "#/components/schemas/Stream"
         - $ref: "#/components/schemas/Episode"
+        - $ref: "#/components/schemas/Project"
         - $ref: "#/components/schemas/Profile"
         - $ref: "#/components/schemas/VideoClip"
     TwitchAuthRequest:

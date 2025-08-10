@@ -165,7 +165,7 @@ pub struct Episode {
     pub created_at: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cut_list: Option<CutListClass>,
+    pub cut_list: Option<EpisodeCutList>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -230,7 +230,7 @@ pub struct Episode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CutListClass {
+pub struct EpisodeCutList {
     /// List of input media sources
     pub input_media: Vec<InputMedia>,
 
@@ -278,6 +278,56 @@ pub struct IdOnly {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Profile {
     pub id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Project {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cut_list: Option<ProjectCutList>,
+
+    /// Optional reference to the episode this project is linked to
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub episode_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+
+    /// Current status of the project - no backend validation enforced
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+
+    /// Array of video clip IDs that are part of this project
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_clip_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectCutList {
+    /// List of input media sources
+    pub input_media: Vec<InputMedia>,
+
+    /// Ordered media sections to form the output timeline sequence
+    pub output_track: Vec<OutputTrack>,
+
+    /// One or more overlay tracks
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overlay_tracks: Option<Vec<OverlayTrack>>,
+
+    /// Schema version
+    pub version: CutListVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

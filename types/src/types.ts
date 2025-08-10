@@ -140,7 +140,7 @@ export type OverlayTrackType = "alpha" | "colorkey";
 export interface Episode {
     category?:              number;
     created_at?:            string;
-    cut_list?:              CutListClass;
+    cut_list?:              EpisodeCutList;
     description?:           string;
     error_message?:         string;
     id?:                    string;
@@ -163,7 +163,7 @@ export interface Episode {
     youtube_video_id?:      string;
 }
 
-export interface CutListClass {
+export interface EpisodeCutList {
     /**
      * List of input media sources
      */
@@ -195,6 +195,46 @@ export interface IDOnly {
 
 export interface Profile {
     id: string;
+}
+
+export interface Project {
+    created_at?: string;
+    cut_list?:   ProjectCutList;
+    /**
+     * Optional reference to the episode this project is linked to
+     */
+    episode_id?: string;
+    id?:         string;
+    /**
+     * Current status of the project - no backend validation enforced
+     */
+    status?:     string;
+    title?:      string;
+    updated_at?: string;
+    user_id?:    string;
+    /**
+     * Array of video clip IDs that are part of this project
+     */
+    video_clip_ids?: string[];
+}
+
+export interface ProjectCutList {
+    /**
+     * List of input media sources
+     */
+    inputMedia: InputMedia[];
+    /**
+     * Ordered media sections to form the output timeline sequence
+     */
+    outputTrack: OutputTrack[];
+    /**
+     * One or more overlay tracks
+     */
+    overlayTracks?: OverlayTrack[];
+    /**
+     * Schema version
+     */
+    version: "1.0.0";
 }
 
 export interface RenderRequest {
