@@ -6,7 +6,7 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as path from 'path';
+import * as path from 'node:path';
 
 interface FrontendStackProps extends cdk.StackProps {
   // Keep frontendVersion for backwards compatibility, but it won't be used for origin path
@@ -156,34 +156,42 @@ def reset_cache():
     version_cache['timestamp'] = 0
 `;
 
-    this.versionSelectorFunction = new lambda.Function(this, 'VersionSelectorFunction', {
-      runtime: lambda.Runtime.PYTHON_3_13,
-      handler: 'index.handler',
-      code: lambda.Code.fromInline(pythonCode),
-      timeout: cdk.Duration.seconds(5),
-      memorySize: 128,
-      // Lambda@Edge specific configuration
-      role: new iam.Role(this, 'VersionSelectorRole', {
-        assumedBy: new iam.CompositePrincipal(
-          new iam.ServicePrincipal('lambda.amazonaws.com'),
-          new iam.ServicePrincipal('edgelambda.amazonaws.com')
-        ),
-        managedPolicies: [
-          iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
-        ],
-        inlinePolicies: {
-          S3ReadAccess: new iam.PolicyDocument({
-            statements: [
-              new iam.PolicyStatement({
-                effect: iam.Effect.ALLOW,
-                actions: ['s3:GetObject'],
-                resources: [`${this.assetBucket.bucketArn}/config/version.json`],
-              }),
-            ],
-          }),
-        },
-      }),
-    });
+    this.versionSelectorFunction = new lambda.Function(
+      this,
+      'VersionSelectorFunction',
+      {
+        runtime: lambda.Runtime.PYTHON_3_13,
+        handler: 'index.handler',
+        code: lambda.Code.fromInline(pythonCode),
+        timeout: cdk.Duration.seconds(5),
+        memorySize: 128,
+        // Lambda@Edge specific configuration
+        role: new iam.Role(this, 'VersionSelectorRole', {
+          assumedBy: new iam.CompositePrincipal(
+            new iam.ServicePrincipal('lambda.amazonaws.com'),
+            new iam.ServicePrincipal('edgelambda.amazonaws.com'),
+          ),
+          managedPolicies: [
+            iam.ManagedPolicy.fromAwsManagedPolicyName(
+              'service-role/AWSLambdaBasicExecutionRole',
+            ),
+          ],
+          inlinePolicies: {
+            S3ReadAccess: new iam.PolicyDocument({
+              statements: [
+                new iam.PolicyStatement({
+                  effect: iam.Effect.ALLOW,
+                  actions: ['s3:GetObject'],
+                  resources: [
+                    `${this.assetBucket.bucketArn}/config/version.json`,
+                  ],
+                }),
+              ],
+            }),
+          },
+        }),
+      },
+    );
 
     // Add bucket policy to allow public read access to version config
     this.assetBucket.addToResourcePolicy(
@@ -192,12 +200,12 @@ def reset_cache():
         principals: [new iam.AnyPrincipal()],
         actions: ['s3:GetObject'],
         resources: [`${this.assetBucket.bucketArn}/config/version.json`],
-      })
+      }),
     );
 
     // Create CloudFront origin without hardcoded version path
     const origin = origins.S3BucketOrigin.withOriginAccessControl(
-      this.assetBucket
+      this.assetBucket,
       // No originPath - Lambda@Edge will handle version routing
     );
 
@@ -205,7 +213,8 @@ def reset_cache():
       this,
       'FrontendDistribution',
       {
-        comment: 'Frontend Distribution for Glowing-Telegram with Dynamic Version Selection',
+        comment:
+          'Frontend Distribution for Glowing-Telegram with Dynamic Version Selection',
         defaultRootObject: 'index.html',
         defaultBehavior: {
           viewerProtocolPolicy:
