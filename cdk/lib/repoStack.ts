@@ -71,15 +71,19 @@ export default class RepoStack extends cdk.Stack {
     // GitHub Actions role for Docker image builds in the main repository
     const dockerPrincipal = new iam.OpenIdConnectPrincipal(provider, {
       StringLike: {
-        'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/glowing-telegram:ref:refs/tags/*`,
+        'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/glowing-telegram:*`,
         'token.actions.githubusercontent.com:aud': audience,
       },
     });
 
     this.dockerGithubRole = new iam.Role(this, 'DockerGithubActionRole', {
+      roleName: 'GlowingTelegram-DockerGithubActionRole',
+      description: 'Role for GitHub Actions to build Docker images',
       assumedBy: dockerPrincipal,
       managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryPowerUser'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          'AmazonEC2ContainerRegistryPowerUser',
+        ),
       ],
     });
   }
