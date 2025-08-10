@@ -158,6 +158,7 @@ export default class AppStack extends cdk.Stack {
       episodesTable: dataStore.episodesTable,
       profilesTable: dataStore.profilesTable,
       tasksTable: dataStore.tasksTable,
+      projectsTable: dataStore.projectsTable,
 
       youtubeUploaderAPILambda: youtubeUploader.apiLambda,
 

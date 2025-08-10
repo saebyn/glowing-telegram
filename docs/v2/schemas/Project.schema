@@ -1,0 +1,48 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "uuid"
+		},
+		"title": {
+			"type": "string"
+		},
+		"status": {
+			"type": "string",
+			"description": "Current status of the project - no backend validation enforced"
+		},
+		"video_clip_ids": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			},
+			"description": "Array of video clip IDs that are part of this project"
+		},
+		"episode_id": {
+			"type": "string",
+			"format": "uuid",
+			"description": "Optional reference to the episode this project is linked to"
+		},
+		"cut_list": {
+			"type": "object",
+			"$ref": "./CutList.schema"
+		},
+		"user_id": {
+			"type": "string",
+			"format": "uuid"
+		},
+		"created_at": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"updated_at": {
+			"type": "string",
+			"format": "date-time"
+		}
+	},
+	"required": [],
+	"additionalProperties": false,
+	"$comment": "Represents a project object that combines cuts from multiple streams for episode creation"
+}

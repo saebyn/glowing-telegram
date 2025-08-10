@@ -13,6 +13,7 @@ export default class DatastoreConstruct extends Construct {
   public readonly streamsTable: dynamodb.ITable;
   public readonly videoMetadataTable: dynamodb.ITable;
   public readonly tasksTable: dynamodb.ITable;
+  public readonly projectsTable: dynamodb.ITable;
 
   constructor(scope: Construct, id: string) {
     super(scope, id);
@@ -116,6 +117,12 @@ export default class DatastoreConstruct extends Construct {
       timeToLiveAttribute: 'ttl',
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
+    });
+
+    this.projectsTable = new dynamodb.Table(this, 'ProjectsTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
   }
 }
