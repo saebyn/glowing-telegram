@@ -201,14 +201,20 @@ fn add_video_to_output_track(
 ) -> FilterPipe {
     FilterPipe::new(
         vec![
-            Filter::new("scale", vec![
-                ("w", resolution.0.to_string()),
-                ("h", resolution.1.to_string()),
-            ]),
-            Filter::new("trim", vec![
-                ("start_frame", start_frame.to_string()),
-                ("end_frame", end_frame.to_string()),
-            ]),
+            Filter::new(
+                "scale",
+                vec![
+                    ("w", resolution.0.to_string()),
+                    ("h", resolution.1.to_string()),
+                ],
+            ),
+            Filter::new(
+                "trim",
+                vec![
+                    ("start_frame", start_frame.to_string()),
+                    ("end_frame", end_frame.to_string()),
+                ],
+            ),
             Filter::new("setpts", vec![("PTS-STARTPTS", "".to_string())]),
             Filter::new("fps", vec![("fps", frame_rate.to_string())]),
         ],
@@ -229,10 +235,13 @@ fn add_audio_to_output_track(
 
     FilterPipe::new(
         vec![
-            Filter::new("atrim", vec![
-                ("start", start_sec.to_string()),
-                ("end", end_sec.to_string()),
-            ]),
+            Filter::new(
+                "atrim",
+                vec![
+                    ("start", start_sec.to_string()),
+                    ("end", end_sec.to_string()),
+                ],
+            ),
             Filter::new("asetpts", vec![("PTS-STARTPTS", "".to_string())]),
         ],
         vec![FilterChannel::SourceAudio(media_index as u8)],
@@ -265,11 +274,14 @@ fn assemble_track_segments(
                 let offset = prev_len_sec - duration_sec;
                 // xfade
                 parts.push(FilterPipe::new(
-                    vec![Filter::new("xfade", vec![
-                        ("duration", duration_sec.to_string()),
-                        ("transition", "fade".to_string()),
-                        ("offset", offset.to_string()),
-                    ])],
+                    vec![Filter::new(
+                        "xfade",
+                        vec![
+                            ("duration", duration_sec.to_string()),
+                            ("transition", "fade".to_string()),
+                            ("offset", offset.to_string()),
+                        ],
+                    )],
                     vec![
                         FilterChannel::MyVideo((i - 1) as u8),
                         FilterChannel::MyVideo(i as u8),
@@ -278,10 +290,10 @@ fn assemble_track_segments(
                 ));
 
                 parts.push(FilterPipe::new(
-                    vec![Filter::new("acrossfade", vec![(
-                        "d",
-                        duration_sec.to_string(),
-                    )])],
+                    vec![Filter::new(
+                        "acrossfade",
+                        vec![("d", duration_sec.to_string())],
+                    )],
                     vec![
                         FilterChannel::MyAudio((i - 1) as u8),
                         FilterChannel::MyAudio(i as u8),
@@ -301,21 +313,24 @@ fn assemble_track_segments(
     // Concat final streams
     if !video_streams.is_empty() {
         parts.push(FilterPipe::new(
-            vec![Filter::new("concat", vec![(
-                "n",
-                video_streams.len().to_string(),
-            )])],
+            vec![Filter::new(
+                "concat",
+                vec![("n", video_streams.len().to_string())],
+            )],
             video_streams,
             FilterChannel::MyVideo(255),
         ));
     }
     if !audio_streams.is_empty() {
         parts.push(FilterPipe::new(
-            vec![Filter::new("concat", vec![
-                ("n", audio_streams.len().to_string()),
-                ("v", "0".to_string()),
-                ("a", "1".to_string()),
-            ])],
+            vec![Filter::new(
+                "concat",
+                vec![
+                    ("n", audio_streams.len().to_string()),
+                    ("v", "0".to_string()),
+                    ("a", "1".to_string()),
+                ],
+            )],
             audio_streams,
             FilterChannel::MyAudio(255),
         ));
@@ -344,33 +359,42 @@ fn create_overlay_tracks(
         let mut filters = Vec::new();
 
         if overlay.overlay_track_type == types::OverlayTrackType::Colorkey {
-            filters.push(Filter::new("colorkey", vec![(
-                "black",
-                "".to_string(),
-            )]));
-            filters.push(Filter::new("colorchannelmixer", vec![(
-                "aa",
-                "0.8".to_string(),
-            )]));
+            filters.push(Filter::new(
+                "colorkey",
+                vec![("black", "".to_string())],
+            ));
+            filters.push(Filter::new(
+                "colorchannelmixer",
+                vec![("aa", "0.8".to_string())],
+            ));
         }
 
         filters.extend(vec![
-            Filter::new("trim", vec![
-                ("start_frame", section.start_frame.to_string()),
-                ("end_frame", section.end_frame.to_string()),
-            ]),
-            Filter::new("scale", vec![
-                ("w", resolution.0.to_string()),
-                ("h", resolution.1.to_string()),
-            ]),
-            Filter::new("setpts", vec![(
-                format!(
-                    "PTS+{}/TB",
-                    convert_frame_to_time(overlay.start_frame, frame_rate)
-                )
-                .as_str(),
-                "".to_string(),
-            )]),
+            Filter::new(
+                "trim",
+                vec![
+                    ("start_frame", section.start_frame.to_string()),
+                    ("end_frame", section.end_frame.to_string()),
+                ],
+            ),
+            Filter::new(
+                "scale",
+                vec![
+                    ("w", resolution.0.to_string()),
+                    ("h", resolution.1.to_string()),
+                ],
+            ),
+            Filter::new(
+                "setpts",
+                vec![(
+                    format!(
+                        "PTS+{}/TB",
+                        convert_frame_to_time(overlay.start_frame, frame_rate)
+                    )
+                    .as_str(),
+                    "".to_string(),
+                )],
+            ),
             Filter::new("format", vec![("yuva420p", "".to_string())]),
         ]);
 
@@ -381,11 +405,14 @@ fn create_overlay_tracks(
         ));
 
         parts.push(FilterPipe::new(
-            vec![Filter::new("overlay", vec![
-                ("eof_action", "pass".to_string()),
-                ("x", overlay.x.unwrap_or(0.0).to_string()),
-                ("y", overlay.y.unwrap_or(0.0).to_string()),
-            ])],
+            vec![Filter::new(
+                "overlay",
+                vec![
+                    ("eof_action", "pass".to_string()),
+                    ("x", overlay.x.unwrap_or(0.0).to_string()),
+                    ("y", overlay.y.unwrap_or(0.0).to_string()),
+                ],
+            )],
             vec![
                 FilterChannel::MyVideo(255),
                 FilterChannel::OverlayVideo(i as u8),
