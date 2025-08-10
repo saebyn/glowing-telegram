@@ -102,10 +102,6 @@ def get_current_version():
     """
     Get current version with caching
     """
-    if not BUCKET_NAME:
-        print('No bucket name available, cannot fetch version from S3')
-        return None
-        
     now = int(time.time() * 1000)  # Current time in milliseconds
     
     # Return cached version if still valid
