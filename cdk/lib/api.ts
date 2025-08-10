@@ -192,7 +192,7 @@ export default class APIConstruct extends Construct {
           TASKS_TABLE: props.tasksTable.tableName,
         },
       },
-      name: 'crud-api',
+      name: 'crud-lambda',
       imageVersion: props.imageVersion,
     });
 

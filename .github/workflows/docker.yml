@@ -21,7 +21,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::159222827421:role/RepoStack-DockerGithubActionRole
+          role-to-assume: arn:aws:iam::159222827421:role/GlowingTelegram-DockerGithubActionRole
           aws-region: us-west-2
 
       - name: Log in to Amazon ECR

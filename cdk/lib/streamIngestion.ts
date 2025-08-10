@@ -51,7 +51,7 @@ export default class StreamIngestionConstruct extends Construct {
       this,
       'SummarizeTranscription',
       {
-        name: 'summarize-transcription',
+        name: 'summarize-transcription-lambda',
         imageVersion: props.imageVersion,
         lambdaOptions: {
           timeout: cdk.Duration.minutes(15),

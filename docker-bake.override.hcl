@@ -1,4 +1,4 @@
-# Override file for versioned ECR builds
+# Override file providing ECR tagging configuration
 # This overrides the existing targets to use versioned tags
 
 variable "IMAGE_TAG" {
