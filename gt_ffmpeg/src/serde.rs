@@ -1,7 +1,9 @@
 use serde::Deserialize;
 
 // take a string representing an ISO8601 duration and convert it to std::time::Duration, using the iso8601 crate
-pub fn deserialize_duration<'de, D>(deserializer: D) -> Result<std::time::Duration, D::Error>
+pub fn deserialize_duration<'de, D>(
+    deserializer: D,
+) -> Result<std::time::Duration, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -21,7 +23,8 @@ pub fn serialize_duration<S>(
 where
     S: serde::Serializer,
 {
-    let duration = chrono::Duration::from_std(*duration).map_err(serde::ser::Error::custom)?;
+    let duration = chrono::Duration::from_std(*duration)
+        .map_err(serde::ser::Error::custom)?;
     let s = format!("{}", duration);
     serializer.serialize_str(&s)
 }

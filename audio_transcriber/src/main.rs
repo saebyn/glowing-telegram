@@ -1,7 +1,7 @@
-use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
+use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_s3::primitives::ByteStream;
-use figment::{providers::Env, Figment};
+use figment::{Figment, providers::Env};
 use serde::Deserialize;
 use std::env;
 use std::process::Stdio;
@@ -220,7 +220,7 @@ async fn run_whisper_on_bytestream(
         Err(e) => {
             return Err(AudioTranscriberError {
                 message: format!("Error running whisper: {e}"),
-            })
+            });
         }
     };
 
@@ -258,7 +258,7 @@ async fn run_whisper_on_bytestream(
         Err(e) => {
             return Err(AudioTranscriberError {
                 message: format!("Error waiting for whisper: {e}"),
-            })
+            });
         }
     };
 
@@ -275,7 +275,7 @@ async fn run_whisper_on_bytestream(
             Err(e) => {
                 return Err(AudioTranscriberError {
                     message: format!("Error reading transcription file: {e}"),
-                })
+                });
             }
         };
 
