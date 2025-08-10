@@ -10,7 +10,7 @@ Always reference these instructions first and fallback to search or bash command
 - Rust workspace build (release): `cargo build --release --workspace` -- takes 5-6 minutes. NEVER CANCEL. Set timeout to 15+ minutes.
 - Rust tests: `cargo test --workspace` -- takes 10-15 seconds (minimal tests exist). Set timeout to 5+ minutes.
 - CDK dependencies: `cd cdk && npm ci` -- takes 30-45 seconds. Set timeout to 5+ minutes.
-- CDK build: `cd cdk && npm run build` -- takes 8-10 seconds. Set timeout to 5+ minutes.
+- CDK build: `cd cdk && npm run build` -- takes 30-45 seconds. Set timeout to 5+ minutes.
 - CDK tests: `cd cdk && npm test` -- takes 10-15 seconds. Set timeout to 5+ minutes.
 
 ### Linting and Formatting
