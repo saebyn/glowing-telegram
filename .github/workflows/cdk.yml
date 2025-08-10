@@ -34,7 +34,7 @@ jobs:
       - name: Validate CDK synth
         run: |
           cd cdk
-          npx cdk synth
+          npm run cdk synth
         env:
           AWS_DEFAULT_REGION: us-east-1
           AWS_REGION: us-east-1
