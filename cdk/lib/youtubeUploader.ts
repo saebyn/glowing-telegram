@@ -341,7 +341,7 @@ export default class YoutubeUploader extends Construct {
     );
 
     this.apiLambda = new lambda.Function(this, 'YoutubeUploaderApiLambda', {
-      runtime: lambda.Runtime.PYTHON_3_13,
+      runtime: lambda.Runtime.PYTHON_3_11,
       timeout: cdk.Duration.seconds(30),
       code: lambda.Code.fromInline(`
 import json
