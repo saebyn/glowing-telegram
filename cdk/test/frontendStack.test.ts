@@ -19,7 +19,7 @@ describe('FrontendStack', () => {
   test('creates Lambda@Edge function with inlined code', () => {
     // Check that the Lambda function is created
     template.hasResourceProperties('AWS::Lambda::Function', {
-      Runtime: 'python3.13',
+      Runtime: 'python3.11',
       Handler: 'index.handler',
       Timeout: 5,
       MemorySize: 128,
