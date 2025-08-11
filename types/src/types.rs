@@ -11,7 +11,7 @@
 //     let model: AccessTokenResponse = serde_json::from_str(&json).unwrap();
 // }
 
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccessTokenResponse {
@@ -28,6 +28,10 @@ pub struct AuthorizationUrlResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CutList {
+    /// Audio channel mixing and volume control configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_mixing: Option<Vec<AudioChannelMixing>>,
+
     /// List of input media sources
     pub input_media: Vec<InputMedia>,
 
@@ -40,6 +44,31 @@ pub struct CutList {
 
     /// Schema version
     pub version: CutListVersion,
+}
+
+/// Audio mixing configuration for a specific channel
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioChannelMixing {
+    /// Volume keyframes for this channel throughout the timeline
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyframes: Option<Vec<AudioChannelKeyframe>>,
+
+    /// 0-indexed output audio channel number
+    pub output_channel: i64,
+
+    /// 0-indexed source audio channel number
+    pub source_channel: i64,
+}
+
+/// A keyframe defining volume level for an audio channel at a specific timeline position
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AudioChannelKeyframe {
+    /// Timeline frame position for this keyframe
+    pub frame: i64,
+
+    /// Volume level (0.0 = mute, 1.0 = original, >1.0 = amplified)
+    pub volume: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -231,6 +260,10 @@ pub struct Episode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpisodeCutList {
+    /// Audio channel mixing and volume control configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_mixing: Option<Vec<AudioChannelMixing>>,
+
     /// List of input media sources
     pub input_media: Vec<InputMedia>,
 
@@ -316,6 +349,10 @@ pub struct Project {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectCutList {
+    /// Audio channel mixing and volume control configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_mixing: Option<Vec<AudioChannelMixing>>,
+
     /// List of input media sources
     pub input_media: Vec<InputMedia>,
 

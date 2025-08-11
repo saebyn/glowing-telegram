@@ -9,6 +9,10 @@ export interface AuthorizationURLResponse {
 
 export interface CutList {
     /**
+     * Audio channel mixing and volume control configuration
+     */
+    audioMixing?: AudioChannelMixing[];
+    /**
      * List of input media sources
      */
     inputMedia: InputMedia[];
@@ -24,6 +28,40 @@ export interface CutList {
      * Schema version
      */
     version: "1.0.0";
+}
+
+/**
+ * Audio mixing configuration for a specific channel
+ */
+export interface AudioChannelMixing {
+    /**
+     * Volume keyframes for this channel throughout the timeline
+     */
+    keyframes?: AudioChannelKeyframe[];
+    /**
+     * 0-indexed output audio channel number
+     */
+    outputChannel: number;
+    /**
+     * 0-indexed source audio channel number
+     */
+    sourceChannel: number;
+    [property: string]: unknown;
+}
+
+/**
+ * A keyframe defining volume level for an audio channel at a specific timeline position
+ */
+export interface AudioChannelKeyframe {
+    /**
+     * Timeline frame position for this keyframe
+     */
+    frame: number;
+    /**
+     * Volume level (0.0 = mute, 1.0 = original, >1.0 = amplified)
+     */
+    volume: number;
+    [property: string]: unknown;
 }
 
 export interface InputMedia {
@@ -165,6 +203,10 @@ export interface Episode {
 
 export interface EpisodeCutList {
     /**
+     * Audio channel mixing and volume control configuration
+     */
+    audioMixing?: AudioChannelMixing[];
+    /**
      * List of input media sources
      */
     inputMedia: InputMedia[];
@@ -219,6 +261,10 @@ export interface Project {
 }
 
 export interface ProjectCutList {
+    /**
+     * Audio channel mixing and volume control configuration
+     */
+    audioMixing?: AudioChannelMixing[];
     /**
      * List of input media sources
      */

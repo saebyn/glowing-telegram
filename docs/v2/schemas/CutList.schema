@@ -13,6 +13,32 @@
         "duration": { "type": "integer", "minimum": 0, "description": "Duration of the transition in frames, relative to the start/end of the section" }
       },
       "required": ["type","duration"]
+    },
+    "audioChannelKeyframe": {
+      "title": "AudioChannelKeyframe",
+      "description": "A keyframe defining volume level for an audio channel at a specific timeline position",
+      "type": "object",
+      "properties": {
+        "frame": { "type": "integer", "minimum": 0, "description": "Timeline frame position for this keyframe" },
+        "volume": { "type": "number", "minimum": 0, "maximum": 2, "description": "Volume level (0.0 = mute, 1.0 = original, >1.0 = amplified)" }
+      },
+      "required": ["frame", "volume"]
+    },
+    "audioChannelMixing": {
+      "title": "AudioChannelMixing",
+      "description": "Audio mixing configuration for a specific channel",
+      "type": "object",
+      "properties": {
+        "sourceChannel": { "type": "integer", "minimum": 0, "description": "0-indexed source audio channel number" },
+        "outputChannel": { "type": "integer", "minimum": 0, "description": "0-indexed output audio channel number" },
+        "keyframes": {
+          "type": "array",
+          "description": "Volume keyframes for this channel throughout the timeline",
+          "items": { "$ref": "#/definitions/audioChannelKeyframe" },
+          "minItems": 0
+        }
+      },
+      "required": ["sourceChannel", "outputChannel"]
     }
   },
   "properties": {
@@ -92,6 +118,12 @@
         "required": ["startFrame","mediaIndex","sectionIndex","type"],
         "additionalProperties": false
       },
+      "minItems": 0
+    },
+    "audioMixing": {
+      "type": "array",
+      "description": "Audio channel mixing and volume control configuration",
+      "items": { "$ref": "#/definitions/audioChannelMixing" },
       "minItems": 0
     }
   },

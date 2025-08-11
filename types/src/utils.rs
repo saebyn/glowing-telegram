@@ -15,6 +15,7 @@ pub struct YouTubeCredentials {
 impl From<EpisodeCutList> for CutList {
     fn from(cut_list: EpisodeCutList) -> Self {
         CutList {
+            audio_mixing: cut_list.audio_mixing,
             input_media: cut_list.input_media,
             output_track: cut_list.output_track,
             overlay_tracks: cut_list.overlay_tracks,
