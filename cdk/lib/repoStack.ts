@@ -84,88 +84,17 @@ export default class RepoStack extends cdk.Stack {
         iam.ManagedPolicy.fromAwsManagedPolicyName(
           'AmazonEC2ContainerRegistryPowerUser',
         ),
-        // CDK deployment requires CloudFormation permissions
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          'CloudWatchFullAccess',
-        ),
-        // For comprehensive CDK deployment capabilities
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          'PowerUserAccess',
-        ),
       ],
       inlinePolicies: {
-        CDKDeploymentPolicy: new iam.PolicyDocument({
+        CDKAssumeRolePolicy: new iam.PolicyDocument({
           statements: [
-            // CloudFormation permissions for CDK
+            // CDK v2 manages its own roles, we only need permission to assume them
             new iam.PolicyStatement({
               actions: [
-                'cloudformation:CreateStack',
-                'cloudformation:UpdateStack',
-                'cloudformation:DeleteStack',
-                'cloudformation:DescribeStacks',
-                'cloudformation:DescribeStackEvents',
-                'cloudformation:DescribeStackResources',
-                'cloudformation:GetTemplate',
-                'cloudformation:ListStacks',
-                'cloudformation:ListStackResources',
-                'cloudformation:CreateChangeSet',
-                'cloudformation:DescribeChangeSet',
-                'cloudformation:ExecuteChangeSet',
-                'cloudformation:DeleteChangeSet',
-                'cloudformation:GetStackPolicy',
-                'cloudformation:SetStackPolicy',
-                'cloudformation:ValidateTemplate',
-              ],
-              resources: ['*'],
-            }),
-            // IAM permissions for CDK to manage roles and policies
-            new iam.PolicyStatement({
-              actions: [
-                'iam:CreateRole',
-                'iam:UpdateRole',
-                'iam:DeleteRole',
-                'iam:GetRole',
-                'iam:PassRole',
-                'iam:CreateInstanceProfile',
-                'iam:DeleteInstanceProfile',
-                'iam:AddRoleToInstanceProfile',
-                'iam:RemoveRoleFromInstanceProfile',
-                'iam:AttachRolePolicy',
-                'iam:DetachRolePolicy',
-                'iam:PutRolePolicy',
-                'iam:DeleteRolePolicy',
-                'iam:GetRolePolicy',
-                'iam:ListRolePolicies',
-                'iam:ListAttachedRolePolicies',
-                'iam:CreatePolicy',
-                'iam:DeletePolicy',
-                'iam:GetPolicy',
-                'iam:CreatePolicyVersion',
-                'iam:DeletePolicyVersion',
-                'iam:ListPolicyVersions',
-                'iam:SetDefaultPolicyVersion',
-                'iam:CreateOpenIDConnectProvider',
-                'iam:DeleteOpenIDConnectProvider',
-                'iam:GetOpenIDConnectProvider',
-                'iam:UpdateOpenIDConnectProviderThumbprint',
-                'iam:TagRole',
-                'iam:UntagRole',
-                'iam:TagPolicy',
-                'iam:UntagPolicy',
-                'iam:TagOpenIDConnectProvider',
-                'iam:UntagOpenIDConnectProvider',
-              ],
-              resources: ['*'],
-            }),
-            // SSM permissions for CDK bootstrap
-            new iam.PolicyStatement({
-              actions: [
-                'ssm:GetParameter',
-                'ssm:PutParameter',
-                'ssm:DeleteParameter',
+                'sts:AssumeRole',
               ],
               resources: [
-                `arn:aws:ssm:*:${cdk.Aws.ACCOUNT_ID}:parameter/cdk-bootstrap/*`,
+                'arn:aws:iam::*:role/cdk-*',
               ],
             }),
           ],
