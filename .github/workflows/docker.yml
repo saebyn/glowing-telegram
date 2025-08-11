@@ -65,7 +65,7 @@ jobs:
       - name: Deploy CDK with new image version
         run: |
           cd cdk
-          npx cdk deploy --all --require-approval never
+          npm run cdk deploy --all --require-approval never
         env:
           IMAGE_VERSION: ${{ github.ref_name }}
           AWS_DEFAULT_REGION: us-west-2
