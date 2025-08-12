@@ -434,6 +434,10 @@ def send_response(event, context, response_status, response_data):
   }
 }
 
+/**
+ * Generates a random 8-character alphanumeric string.
+ * Used to create unique identifiers for Lambda function naming to avoid conflicts.
+ */
 function randomId() {
   // return a random 8-character alphanumeric string
   return Math.random().toString(36).substring(2, 10);
