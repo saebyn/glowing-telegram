@@ -6,6 +6,7 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as cr from 'aws-cdk-lib/custom-resources';
 import * as path from 'node:path';
 
 interface FrontendStackProps extends cdk.StackProps {
@@ -16,7 +17,8 @@ interface FrontendStackProps extends cdk.StackProps {
 export default class FrontendStack extends cdk.Stack {
   public readonly assetBucket: s3.IBucket;
   public readonly domainName: string;
-  public readonly versionSelectorFunction: lambda.Function;
+  public readonly versionSelectorFunction: lambda.IFunction;
+  public readonly versionSelectorFunctionVersion: lambda.IVersion;
 
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     const { frontendVersion, ...restProps } = props;
@@ -28,9 +30,9 @@ export default class FrontendStack extends cdk.Stack {
     this.assetBucket = new s3.Bucket(this, 'FrontendAssetBucket', {
       versioned: false,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
-      publicReadAccess: false, // We'll add specific policy for version config
-      // Use explicit bucket name generation to support cross-environment references for Lambda@Edge
-      bucketName: cdk.PhysicalName.GENERATE_IF_NEEDED,
+      publicReadAccess: false,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS_ONLY,
+      autoDeleteObjects: false, // Prevent accidental deletion of assets
     });
 
     // Create Lambda@Edge function for dynamic version selection
@@ -156,41 +158,221 @@ def reset_cache():
     version_cache['timestamp'] = 0
 `;
 
-    this.versionSelectorFunction = new lambda.Function(
-      this,
-      'VersionSelectorFunction',
-      {
-        runtime: lambda.Runtime.PYTHON_3_11,
-        handler: 'index.handler',
-        code: lambda.Code.fromInline(pythonCode),
-        timeout: cdk.Duration.seconds(5),
-        memorySize: 128,
-        // Lambda@Edge specific configuration
-        role: new iam.Role(this, 'VersionSelectorRole', {
-          assumedBy: new iam.CompositePrincipal(
-            new iam.ServicePrincipal('lambda.amazonaws.com'),
-            new iam.ServicePrincipal('edgelambda.amazonaws.com'),
-          ),
-          managedPolicies: [
-            iam.ManagedPolicy.fromAwsManagedPolicyName(
-              'service-role/AWSLambdaBasicExecutionRole',
-            ),
-          ],
-          inlinePolicies: {
-            S3ReadAccess: new iam.PolicyDocument({
-              statements: [
-                new iam.PolicyStatement({
-                  effect: iam.Effect.ALLOW,
-                  actions: ['s3:GetObject'],
-                  resources: [
-                    `${this.assetBucket.bucketArn}/config/version.json`,
-                  ],
-                }),
-              ],
+    // Create IAM role for Lambda@Edge function
+    const versionSelectorRole = new iam.Role(this, 'VersionSelectorRole', {
+      assumedBy: new iam.CompositePrincipal(
+        new iam.ServicePrincipal('lambda.amazonaws.com'),
+        new iam.ServicePrincipal('edgelambda.amazonaws.com'),
+      ),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          'service-role/AWSLambdaBasicExecutionRole',
+        ),
+      ],
+      inlinePolicies: {
+        S3ReadAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: ['s3:GetObject'],
+              resources: [`${this.assetBucket.bucketArn}/config/version.json`],
             }),
-          },
+          ],
         }),
       },
+    });
+
+    // Create custom resource to deploy Lambda@Edge function in us-east-1
+    const lambdaEdgeProvider = new cr.Provider(this, 'LambdaEdgeProvider', {
+      onEventHandler: new lambda.Function(this, 'LambdaEdgeHandler', {
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: 'index.handler',
+        timeout: cdk.Duration.minutes(5),
+        code: lambda.Code.fromInline(`
+import boto3
+import json
+import zipfile
+import io
+import base64
+from urllib.request import Request, urlopen
+
+def handler(event, context):
+    """Custom resource handler for Lambda@Edge deployment in us-east-1"""
+    print(f'Event: {json.dumps(event)}')
+    
+    request_type = event['RequestType']
+    props = event['ResourceProperties']
+    
+    # Always use us-east-1 for Lambda@Edge
+    lambda_client = boto3.client('lambda', region_name='us-east-1')
+    
+    try:
+        if request_type == 'Create':
+            return create_lambda_function(lambda_client, props, event)
+        elif request_type == 'Update':
+            return update_lambda_function(lambda_client, props, event)
+        elif request_type == 'Delete':
+            return delete_lambda_function(lambda_client, props, event)
+    except Exception as e:
+        print(f'Error: {str(e)}')
+        send_response(event, context, 'FAILED', {'Error': str(e)})
+        raise
+
+def create_lambda_function(lambda_client, props, event):
+    """Create Lambda@Edge function in us-east-1"""
+    function_name = props['FunctionName']
+    python_code = props['Code']
+    role_arn = props['RoleArn']
+    
+    # Create zip file in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr('index.py', python_code)
+    
+    zip_buffer.seek(0)
+    zip_data = zip_buffer.read()
+    
+    # Create the function
+    response = lambda_client.create_function(
+        FunctionName=function_name,
+        Runtime='python3.11',
+        Role=role_arn,
+        Handler='index.handler',
+        Code={'ZipFile': zip_data},
+        Timeout=5,
+        MemorySize=128,
+        Publish=True  # Publish version for Lambda@Edge
+    )
+    
+    function_arn = response['FunctionArn']
+    version_arn = response['FunctionArn']  + ':' + response['Version']
+    
+    print(f'Created Lambda function: {function_arn}')
+    print(f'Version ARN: {version_arn}')
+    
+    return {
+        'PhysicalResourceId': function_name,
+        'Data': {
+            'FunctionArn': function_arn,
+            'VersionArn': version_arn,
+            'FunctionName': function_name
+        }
+    }
+
+def update_lambda_function(lambda_client, props, event):
+    """Update Lambda@Edge function"""
+    function_name = props['FunctionName']
+    python_code = props['Code']
+    
+    # Create zip file in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr('index.py', python_code)
+    
+    zip_buffer.seek(0)
+    zip_data = zip_buffer.read()
+    
+    # Update function code
+    lambda_client.update_function_code(
+        FunctionName=function_name,
+        ZipFile=zip_data
+    )
+    
+    # Publish new version
+    version_response = lambda_client.publish_version(
+        FunctionName=function_name
+    )
+    
+    function_arn = version_response['FunctionArn']
+
+    version_arn = version_response['FunctionArn'] + ':' + version_response['Version']
+    
+    print(f'Updated Lambda function: {function_name}')
+    print(f'New version ARN: {version_arn}')
+    
+    return {
+        'PhysicalResourceId': function_name,
+        'Data': {
+            'FunctionArn': function_arn,
+            'VersionArn': version_arn,
+            'FunctionName': function_name
+        }
+    }
+
+def delete_lambda_function(lambda_client, props, event):
+    """Delete Lambda@Edge function"""
+    function_name = props['FunctionName']
+    
+    try:
+        lambda_client.delete_function(FunctionName=function_name)
+        print(f'Deleted Lambda function: {function_name}')
+    except lambda_client.exceptions.ResourceNotFoundException:
+        print(f'Function {function_name} not found, already deleted')
+    
+    return {'PhysicalResourceId': function_name}
+
+def send_response(event, context, response_status, response_data):
+    """Send response to CloudFormation"""
+    response_url = event['ResponseURL']
+    response_body = {
+        'Status': response_status,
+        'Reason': f'See CloudWatch Log Stream: {context.log_stream_name}',
+        'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
+        'StackId': event['StackId'],
+        'RequestId': event['RequestId'],
+        'LogicalResourceId': event['LogicalResourceId'],
+        'Data': response_data
+    }
+    
+    json_response_body = json.dumps(response_body)
+    headers = {'content-type': '', 'content-length': str(len(json_response_body))}
+    
+    req = Request(response_url, data=json_response_body.encode('utf-8'), headers=headers)
+    req.get_method = lambda: 'PUT'
+    
+    try:
+        urlopen(req)
+        print('Response sent successfully')
+    except Exception as e:
+        print(f'Error sending response: {e}')
+        raise
+`),
+        initialPolicy: [
+          new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            actions: [
+              'lambda:CreateFunction',
+              'lambda:UpdateFunctionCode',
+              'lambda:DeleteFunction',
+              'lambda:PublishVersion',
+              'lambda:GetFunction',
+              'iam:PassRole',
+            ],
+            resources: ['*'],
+          }),
+        ],
+      }),
+    });
+
+    // Custom resource to create Lambda@Edge function in us-east-1
+    const versionSelectorCustomResource = new cdk.CustomResource(
+      this,
+      'VersionSelectorCustomResource',
+      {
+        serviceToken: lambdaEdgeProvider.serviceToken,
+        properties: {
+          FunctionName: `${cdk.Stack.of(this).stackName}-VersionSelector-${randomId()}`,
+          Code: pythonCode,
+          RoleArn: versionSelectorRole.roleArn,
+        },
+      },
+    );
+
+    // Create a version reference for Lambda@Edge
+    this.versionSelectorFunctionVersion = lambda.Version.fromVersionArn(
+      this,
+      'VersionSelectorFunctionVersionRef',
+      versionSelectorCustomResource.getAttString('VersionArn'),
     );
 
     // Add bucket policy to allow public read access to version config
@@ -223,7 +405,7 @@ def reset_cache():
           // Add Lambda@Edge function for viewer request
           edgeLambdas: [
             {
-              functionVersion: this.versionSelectorFunction.currentVersion,
+              functionVersion: this.versionSelectorFunctionVersion,
               eventType: cloudfront.LambdaEdgeEventType.VIEWER_REQUEST,
             },
           ],
@@ -247,4 +429,9 @@ def reset_cache():
       destinationKeyPrefix: 'config/',
     });
   }
+}
+
+function randomId() {
+  // return a random 8-character alphanumeric string
+  return Math.random().toString(36).substring(2, 10);
 }
