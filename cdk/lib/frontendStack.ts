@@ -348,7 +348,10 @@ def send_response(event, context, response_status, response_data):
               'lambda:GetFunction',
               'iam:PassRole',
             ],
-            resources: ['*'],
+            resources: [
+              versionSelectorRole.roleArn,
+              `arn:aws:lambda:us-east-1:${cdk.Stack.of(this).account}:function:${cdk.Stack.of(this).stackName}-VersionSelector-*`,
+            ],
           }),
         ],
       }),
