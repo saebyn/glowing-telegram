@@ -110,11 +110,16 @@ docker buildx bake -f docker-bake.hcl crud_api
 
 For development or manual deployment, the CDK can be deployed with a specific image version:
 ```bash
+cd cdk
+
+# Install dependencies
+npm install
+
 # Deploy with specific image version
-IMAGE_VERSION=v1.2.3 cdk deploy
+IMAGE_VERSION=v1.2.3 npm run cdk deploy
 
 # Deploy with latest (default)
-cdk deploy
+npm run cdk deploy
 ```
 
 **Note:** Production deployments should use the automated GitHub Actions workflow triggered by releases rather than manual CDK deployment.
