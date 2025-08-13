@@ -28,6 +28,39 @@ jobs:
       - name: Install dependencies
         run: npm ci
         
+      - name: Update package.json version to match release tag
+        run: |
+          # Extract version from release tag (remove 'v' prefix if present)
+          RELEASE_VERSION="${{ github.event.release.tag_name }}"
+          VERSION=${RELEASE_VERSION#v}
+          
+          # Validate version format (strict semver check)
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?(\+[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?$ ]]; then
+            echo "Error: Invalid version format '$VERSION'. Must follow semver format (x.y.z with optional pre-release and build metadata)"
+            exit 1
+          fi
+          
+          echo "Updating package.json version from release tag: $RELEASE_VERSION -> $VERSION"
+          
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          
+          # Update package.json version only if different
+          if [ "$CURRENT_VERSION" != "$VERSION" ]; then
+            npm version "$VERSION" --no-git-tag-version
+          else
+            echo "Version is already $VERSION, no update needed"
+          fi
+          
+          # Verify the update
+          UPDATED_VERSION=$(node -p "require('./package.json').version")
+          if [ "$UPDATED_VERSION" != "$VERSION" ]; then
+            echo "Error: Version update failed. Expected: $VERSION, Got: $UPDATED_VERSION"
+            exit 1
+          fi
+          
+          echo "Successfully updated package.json version to $VERSION"
+
       - name: Generate TypeScript types
         run: ./import.sh
 
