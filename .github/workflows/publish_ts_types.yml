@@ -64,7 +64,50 @@ jobs:
       - name: Generate TypeScript types
         run: ./import.sh
 
+      - name: Check if types have changed
+        id: check_changes
+        run: |
+          # Get the latest published version from npm
+          LATEST_PUBLISHED=$(npm view @saebyn/glowing-telegram-types version 2>/dev/null || echo "")
+          
+          if [ -z "$LATEST_PUBLISHED" ]; then
+            echo "No published version found, proceeding with publish"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Checking for changes against latest published version: $LATEST_PUBLISHED"
+          
+          # Download the currently published types file from npm
+          # Create temp directory for comparison
+          mkdir -p /tmp/published_types
+          
+          # Try to download the published package
+          if npm pack @saebyn/glowing-telegram-types@$LATEST_PUBLISHED --pack-destination /tmp/published_types 2>/dev/null; then
+            # Extract the package
+            cd /tmp/published_types
+            tar -xzf *.tgz
+            
+            # Compare the types files
+            if diff -q package/src/types.ts /home/runner/work/glowing-telegram/glowing-telegram/types/src/types.ts > /dev/null 2>&1; then
+              echo "No changes detected in types.ts file compared to published version $LATEST_PUBLISHED"
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+            else
+              echo "Changes detected in types.ts file compared to published version $LATEST_PUBLISHED"
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Could not download published version $LATEST_PUBLISHED, proceeding with publish"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Publish to npm
+        if: steps.check_changes.outputs.has_changes == 'true'
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Skip publishing - no changes
+        if: steps.check_changes.outputs.has_changes == 'false'
+        run: |
+          echo "Skipping npm publish - no changes detected in TypeScript types since last published version"
