@@ -33,7 +33,7 @@ RUN useradd \
 
 # Install runtime dependencies
 RUN apt-get update \
-  apt-get install -y --no-install-recommends \
+  && apt-get install -y --no-install-recommends \
   curl \
   ffmpeg \
   libssl-dev \
