@@ -208,9 +208,9 @@ def handler(event, context):
     
     try:
         if request_type == 'Create':
-            return create_lambda_function(lambda_client, props, event)
+            return create_or_update_lambda_function(lambda_client, props, event)
         elif request_type == 'Update':
-            return update_lambda_function(lambda_client, props, event)
+            return create_or_update_lambda_function(lambda_client, props, event)
         elif request_type == 'Delete':
             return delete_lambda_function(lambda_client, props, event)
     except Exception as e:
@@ -218,51 +218,28 @@ def handler(event, context):
         send_response(event, context, 'FAILED', {'Error': str(e)})
         raise
 
-def create_lambda_function(lambda_client, props, event):
-    """Create Lambda@Edge function in us-east-1"""
-    function_name = props['FunctionName']
+def find_existing_function(lambda_client, function_name_prefix):
+    """Find existing Lambda function matching the prefix pattern"""
+    try:
+        paginator = lambda_client.get_paginator('list_functions')
+        for page in paginator.paginate():
+            for func in page['Functions']:
+                if func['FunctionName'].startswith(function_name_prefix):
+                    print(f'Found existing function: {func["FunctionName"]}')
+                    return func['FunctionName']
+        return None
+    except Exception as e:
+        print(f'Error listing functions: {str(e)}')
+        return None
+
+def create_or_update_lambda_function(lambda_client, props, event):
+    """Create or update Lambda@Edge function in us-east-1"""
+    function_name_prefix = props['FunctionNamePrefix']
     python_code = props['Code']
     role_arn = props['RoleArn']
     
-    # Create zip file in memory
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        zip_file.writestr('index.py', python_code)
-    
-    zip_buffer.seek(0)
-    zip_data = zip_buffer.read()
-    
-    # Create the function
-    response = lambda_client.create_function(
-        FunctionName=function_name,
-        Runtime='python3.11',
-        Role=role_arn,
-        Handler='index.handler',
-        Code={'ZipFile': zip_data},
-        Timeout=5,
-        MemorySize=128,
-        Publish=True  # Publish version for Lambda@Edge
-    )
-    
-    function_arn = response['FunctionArn']
-    version_arn = response['FunctionArn']  + ':' + response['Version']
-    
-    print(f'Created Lambda function: {function_arn}')
-    print(f'Version ARN: {version_arn}')
-    
-    return {
-        'PhysicalResourceId': function_name,
-        'Data': {
-            'FunctionArn': function_arn,
-            'VersionArn': version_arn,
-            'FunctionName': function_name
-        }
-    }
-
-def update_lambda_function(lambda_client, props, event):
-    """Update Lambda@Edge function"""
-    function_name = props['FunctionName']
-    python_code = props['Code']
+    # Look for existing function
+    existing_function = find_existing_function(lambda_client, function_name_prefix)
     
     # Create zip file in memory
     zip_buffer = io.BytesIO()
@@ -272,23 +249,48 @@ def update_lambda_function(lambda_client, props, event):
     zip_buffer.seek(0)
     zip_data = zip_buffer.read()
     
-    # Update function code
-    lambda_client.update_function_code(
-        FunctionName=function_name,
-        ZipFile=zip_data
-    )
-    
-    # Publish new version
-    version_response = lambda_client.publish_version(
-        FunctionName=function_name
-    )
-    
-    function_arn = version_response['FunctionArn']
-
-    version_arn = version_response['FunctionArn'] + ':' + version_response['Version']
-    
-    print(f'Updated Lambda function: {function_name}')
-    print(f'New version ARN: {version_arn}')
+    if existing_function:
+        # Update existing function
+        print(f'Updating existing Lambda function: {existing_function}')
+        lambda_client.update_function_code(
+            FunctionName=existing_function,
+            ZipFile=zip_data
+        )
+        
+        # Publish new version
+        version_response = lambda_client.publish_version(
+            FunctionName=existing_function
+        )
+        
+        function_arn = version_response['FunctionArn']
+        version_arn = version_response['FunctionArn'] + ':' + version_response['Version']
+        function_name = existing_function
+        
+        print(f'Updated Lambda function: {function_name}')
+        print(f'New version ARN: {version_arn}')
+    else:
+        # Create new function with timestamp suffix for uniqueness
+        import time
+        timestamp_suffix = str(int(time.time()))
+        function_name = f'{function_name_prefix}-{timestamp_suffix}'
+        
+        print(f'Creating new Lambda function: {function_name}')
+        response = lambda_client.create_function(
+            FunctionName=function_name,
+            Runtime='python3.11',
+            Role=role_arn,
+            Handler='index.handler',
+            Code={'ZipFile': zip_data},
+            Timeout=5,
+            MemorySize=128,
+            Publish=True  # Publish version for Lambda@Edge
+        )
+        
+        function_arn = response['FunctionArn']
+        version_arn = response['FunctionArn'] + ':' + response['Version']
+        
+        print(f'Created Lambda function: {function_arn}')
+        print(f'Version ARN: {version_arn}')
     
     return {
         'PhysicalResourceId': function_name,
@@ -301,15 +303,27 @@ def update_lambda_function(lambda_client, props, event):
 
 def delete_lambda_function(lambda_client, props, event):
     """Delete Lambda@Edge function"""
-    function_name = props['FunctionName']
+    # Try to find the function by prefix since we might not have the exact name
+    function_name_prefix = props.get('FunctionNamePrefix')
+    physical_resource_id = event.get('PhysicalResourceId')
     
-    try:
-        lambda_client.delete_function(FunctionName=function_name)
-        print(f'Deleted Lambda function: {function_name}')
-    except lambda_client.exceptions.ResourceNotFoundException:
-        print(f'Function {function_name} not found, already deleted')
+    # If we have the physical resource ID, try to delete that specific function
+    if physical_resource_id and physical_resource_id != 'None':
+        function_name = physical_resource_id
+    else:
+        # Fallback to finding by prefix
+        function_name = find_existing_function(lambda_client, function_name_prefix)
     
-    return {'PhysicalResourceId': function_name}
+    if function_name:
+        try:
+            lambda_client.delete_function(FunctionName=function_name)
+            print(f'Deleted Lambda function: {function_name}')
+        except lambda_client.exceptions.ResourceNotFoundException:
+            print(f'Function {function_name} not found, already deleted')
+    else:
+        print('No function found to delete')
+    
+    return {'PhysicalResourceId': physical_resource_id or function_name_prefix}
 
 def send_response(event, context, response_status, response_data):
     """Send response to CloudFormation"""
@@ -346,11 +360,13 @@ def send_response(event, context, response_status, response_data):
               'lambda:DeleteFunction',
               'lambda:PublishVersion',
               'lambda:GetFunction',
+              'lambda:ListFunctions',
               'iam:PassRole',
             ],
             resources: [
               versionSelectorRole.roleArn,
-              `arn:aws:lambda:us-east-1:${cdk.Stack.of(this).account}:function:${cdk.Stack.of(this).stackName}-VersionSelector-*`,
+              `arn:aws:lambda:us-east-1:${cdk.Stack.of(this).account}:function:${cdk.Stack.of(this).stackName}-VersionSelector*`,
+              `arn:aws:lambda:us-east-1:${cdk.Stack.of(this).account}:function:*`,
             ],
           }),
         ],
@@ -358,13 +374,14 @@ def send_response(event, context, response_status, response_data):
     });
 
     // Custom resource to create Lambda@Edge function in us-east-1
+    // Uses FunctionNamePrefix instead of FunctionName to enable finding and updating existing functions
     const versionSelectorCustomResource = new cdk.CustomResource(
       this,
       'VersionSelectorCustomResource',
       {
         serviceToken: lambdaEdgeProvider.serviceToken,
         properties: {
-          FunctionName: `${cdk.Stack.of(this).stackName}-VersionSelector-${randomId()}`,
+          FunctionNamePrefix: `${cdk.Stack.of(this).stackName}-VersionSelector`,
           Code: pythonCode,
           RoleArn: versionSelectorRole.roleArn,
         },
