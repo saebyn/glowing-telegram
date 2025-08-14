@@ -56,6 +56,6 @@ jobs:
           cd cdk
           npm run cdk -- deploy --all --require-approval never
         env:
-          IMAGE_VERSION: ${{ github.event.inputs.image_version }}
+          IMAGE_VERSION: ${{ inputs.image_version }}
           AWS_DEFAULT_REGION: us-west-2
           AWS_REGION: us-west-2
