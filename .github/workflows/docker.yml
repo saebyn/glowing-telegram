@@ -3,6 +3,17 @@ name: Build and Push Docker Images, Deploy CDK
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      image_version:
+        description: 'Image version/tag to use'
+        required: true
+        type: string
+      deploy_cdk:
+        description: 'Deploy CDK after building images'
+        required: false
+        default: true
+        type: boolean
 
 env:
   REGISTRY: 159222827421.dkr.ecr.us-west-2.amazonaws.com
@@ -14,7 +25,7 @@ jobs:
       build_batch1: true
       build_batch2: true
       push_images: true
-      image_tag: ${{ github.ref_name }}
+      image_tag: ${{ github.event_name == 'release' && github.ref_name || github.event.inputs.image_version }}
       aws_region: us-west-2
       registry: 159222827421.dkr.ecr.us-west-2.amazonaws.com
       aws_role_arn: arn:aws:iam::159222827421:role/GlowingTelegram-DockerGithubActionRole
@@ -25,6 +36,7 @@ jobs:
   deploy-cdk:
     needs: build-and-push
     runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_cdk == 'true')
     permissions:
       contents: read
       id-token: write
@@ -62,6 +74,6 @@ jobs:
           cd cdk
           npm run cdk -- deploy --all --require-approval never
         env:
-          IMAGE_VERSION: ${{ github.ref_name }}
+          IMAGE_VERSION: ${{ github.event_name == 'release' && github.ref_name || github.event.inputs.image_version }}
           AWS_DEFAULT_REGION: us-west-2
           AWS_REGION: us-west-2
