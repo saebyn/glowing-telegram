@@ -29,14 +29,10 @@ RUN apt-get update \
   && apt-get -y upgrade \
   && apt-get install -y --no-install-recommends \
   ca-certificates
-
-RUN adduser \
-  --disabled-password \
-  --gecos "" \
-  --home "/nonexistent" \
-  --shell "/sbin/nologin" \
-  --no-create-home \
+RUN useradd \
+  --system \
   --uid "${UID}" \
+  --shell "/sbin/nologin" \
   "${USER}"
 
 ################################################################################
