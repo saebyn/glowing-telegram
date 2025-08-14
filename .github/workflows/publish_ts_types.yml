@@ -119,10 +119,14 @@ jobs:
           git config --local user.name "GitHub Actions"
           git config --local user.email "actions@github.com"
           git checkout -b update-types-${{ steps.update_version.outputs.updated_version }}
-          git add package.json
-          git commit -m "Update package.json version to ${{ steps.update_version.outputs.updated_version }}"
-          git add src
-          git commit -m "Update generated types"
+          if [ -n "${{ steps.update_version.outputs.updated_version }}" ]; then
+            git add package.json
+            git commit -m "Update package.json version to ${{ steps.update_version.outputs.updated_version }}"
+          fi
+          if [ -n "${{ steps.check_changes.outputs.has_changes }}" ] && [ "${{ steps.check_changes.outputs.has_changes }}" == 'true' ]; then
+            git add src
+            git commit -m "Update generated types"
+          fi
           git push --set-upstream origin update-types-${{ steps.update_version.outputs.updated_version }}
           gh pr create --title "Update TypeScript types package" --body "This PR updates the TypeScript types package to the latest version based on the release tag. It includes changes to the package.json version and the generated types." --base main --head update-types-${{ steps.update_version.outputs.updated_version }}
 
