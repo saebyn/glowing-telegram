@@ -88,8 +88,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
+      - name: Free up space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          echo "Available storage:"
+          sudo df -h
+      
       - name: Configure AWS credentials
         if: ${{ inputs.push_images }}
         uses: aws-actions/configure-aws-credentials@v4
@@ -119,13 +125,6 @@ jobs:
             *.cache-to=type=gha,mode=max
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
-
-      - name: Clean up Docker build artifacts between batches
-        if: ${{ inputs.build_batch1 && inputs.build_batch2 }}
-        run: |
-          echo "Cleaning up Docker build artifacts to free space for batch 2..."
-          docker system prune -af --volumes
-          echo "Docker cleanup completed"
 
       - name: Build and push Docker images (Batch 2)
         if: ${{ inputs.build_batch2 }}
