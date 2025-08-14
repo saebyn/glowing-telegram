@@ -88,13 +88,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Set up Docker
-        uses: docker/setup-docker-action@v4
-        with:
-          runtime-basedir: "/mnt/setup-docker-action"
-        
+      - name: Free up space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          echo "Available storage:"
+          sudo df -h
+      
       - name: Configure AWS credentials
         if: ${{ inputs.push_images }}
         uses: aws-actions/configure-aws-credentials@v4
