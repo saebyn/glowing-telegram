@@ -374,6 +374,7 @@ def send_response(event, context, response_status, response_data):
     });
 
     // Custom resource to create Lambda@Edge function in us-east-1
+    // Uses FunctionNamePrefix instead of FunctionName to enable finding and updating existing functions
     const versionSelectorCustomResource = new cdk.CustomResource(
       this,
       'VersionSelectorCustomResource',
