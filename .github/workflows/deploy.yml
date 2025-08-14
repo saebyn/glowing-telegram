@@ -1,0 +1,32 @@
+name: Build and Push Docker Images, Deploy CDK
+
+on:
+  release:
+    types: [published]
+
+
+env:
+  REGISTRY: 159222827421.dkr.ecr.us-west-2.amazonaws.com
+
+jobs:
+  build-and-push:
+    uses: ./.github/workflows/docker-build-reusable.yml
+    with:
+      build_batch1: true
+      build_batch2: true
+      push_images: true
+      image_tag: ${{ github.ref_name }}
+      aws_region: us-west-2
+      registry: 159222827421.dkr.ecr.us-west-2.amazonaws.com
+      aws_role_arn: arn:aws:iam::159222827421:role/GlowingTelegram-DockerGithubActionRole
+    permissions:
+      contents: read
+      id-token: write
+
+  deploy-cdk:
+    uses: ./.github/workflows/cdk-deploy-reusable.yml
+    with:
+      image_version: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      id-token: write
