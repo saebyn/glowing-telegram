@@ -79,17 +79,18 @@ jobs:
           echo "Checking for changes against latest published version: $LATEST_PUBLISHED"
           
           # Download the currently published types file from npm
-          # Create temp directory for comparison
-          mkdir -p /tmp/published_types
+          # Create a unique temp directory for comparison
+          PUBLISHED_TYPES_DIR=$(mktemp -d)
           
           # Try to download the published package
-          if npm pack @saebyn/glowing-telegram-types@$LATEST_PUBLISHED --pack-destination /tmp/published_types 2>/dev/null; then
+          PACKED_FILE=$(npm pack @saebyn/glowing-telegram-types@$LATEST_PUBLISHED --pack-destination "$PUBLISHED_TYPES_DIR" 2>/dev/null)
+          if [ $? -eq 0 ] && [ -n "$PACKED_FILE" ]; then
             # Extract the package
-            cd /tmp/published_types
-            tar -xzf *.tgz
+            cd "$PUBLISHED_TYPES_DIR"
+            tar -xzf "$PACKED_FILE"
             
             # Compare the types files
-            if diff -q package/src/types.ts /home/runner/work/glowing-telegram/glowing-telegram/types/src/types.ts > /dev/null 2>&1; then
+            if diff -q package/src/types.ts "$GITHUB_WORKSPACE/types/src/types.ts" > /dev/null 2>&1; then
               echo "No changes detected in types.ts file compared to published version $LATEST_PUBLISHED"
               echo "has_changes=false" >> $GITHUB_OUTPUT
             else
@@ -100,6 +101,9 @@ jobs:
             echo "Could not download published version $LATEST_PUBLISHED, proceeding with publish"
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
+          
+          # Clean up temporary directory
+          rm -rf "$PUBLISHED_TYPES_DIR"
 
       - name: Publish to npm
         if: steps.check_changes.outputs.has_changes == 'true'
