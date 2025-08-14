@@ -29,6 +29,7 @@ jobs:
         run: npm ci
         
       - name: Update package.json version to match release tag
+        id: update_version
         run: |
           # Extract version from release tag (remove 'v' prefix if present)
           RELEASE_VERSION="${{ github.event.release.tag_name }}"
@@ -48,6 +49,8 @@ jobs:
           # Update package.json version only if different
           if [ "$CURRENT_VERSION" != "$VERSION" ]; then
             npm version "$VERSION" --no-git-tag-version
+            echo "Successfully updated package.json version to $VERSION"
+            echo "updated_version=$VERSION" >> $GITHUB_OUTPUT
           else
             echo "Version is already $VERSION, no update needed"
           fi
@@ -59,7 +62,6 @@ jobs:
             exit 1
           fi
           
-          echo "Successfully updated package.json version to $VERSION"
 
       - name: Generate TypeScript types
         run: ./import.sh
@@ -84,7 +86,7 @@ jobs:
           
           # Try to download the published package
           PACKED_FILE=$(npm pack @saebyn/glowing-telegram-types@$LATEST_PUBLISHED --pack-destination "$PUBLISHED_TYPES_DIR" 2>/dev/null)
-          if [ $? -eq 0 ] && [ -n "$PACKED_FILE" ]; then
+          if [ -n "$PUBLISHED_TYPES_DIR/$PACKED_FILE" ]; then
             # Extract the package
             cd "$PUBLISHED_TYPES_DIR"
             tar -xzf "$PACKED_FILE"
@@ -110,6 +112,19 @@ jobs:
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create PR to update types package
+        if: steps.update_version.outputs.updated_version != '' || steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config --local user.name "GitHub Actions"
+          git config --local user.email "actions@github.com"
+          git checkout -b update-types-${{ steps.update_version.outputs.updated_version }}
+          git add package.json
+          git commit -m "Update package.json version to ${{ steps.update_version.outputs.updated_version }}"
+          git add src
+          git commit -m "Update generated types"
+          git push --set-upstream origin update-types-${{ steps.update_version.outputs.updated_version }}
+          gh pr create --title "Update TypeScript types package" --body "This PR updates the TypeScript types package to the latest version based on the release tag. It includes changes to the package.json version and the generated types." --base main --head update-types-${{ steps.update_version.outputs.updated_version }}
 
       - name: Skip publishing - no changes
         if: steps.check_changes.outputs.has_changes == 'false'
