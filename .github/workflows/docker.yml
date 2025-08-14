@@ -21,7 +21,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::159222827421:role/GlowingTelegram-DockerGithubActionRole
+          role-to-assume: >-
+            arn:aws:iam::159222827421:role/GlowingTelegram-DockerGithubActionRole
           aws-region: us-west-2
 
       - name: Log in to Amazon ECR
@@ -31,13 +32,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Docker images
+      - name: Build and push Docker images (Batch 1)
         uses: docker/bake-action@v5
         with:
           files: |
             ./docker-bake.hcl
             ./docker-bake.override.hcl
-          targets: all
+          targets: batch1
+          push: true
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+        env:
+          IMAGE_TAG: ${{ github.ref_name }}
+
+      - name: Build and push Docker images (Batch 2)
+        uses: docker/bake-action@v5
+        with:
+          files: |
+            ./docker-bake.hcl
+            ./docker-bake.override.hcl
+          targets: batch2
           push: true
           set: |
             *.cache-from=type=gha

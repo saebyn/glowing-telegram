@@ -13,13 +13,6 @@ target
 # Ignore node_modules
 **/node_modules
 
-# Ignore Dockerfiles
-Dockerfile
-**/Dockerfile
-Dockerfile.*
-.dockerignore
-docker-bake.hcl
-
 # Ignore scripts
 scripts
 

@@ -1,5 +1,6 @@
 # Build all images with `docker buildx bake all`
 # Build a specific image with `docker buildx bake ai_chat_lambda`
+# Build in batches: `docker buildx bake batch1`, `docker buildx bake batch2`
 group "all" {
   targets = [
     "ai_chat_lambda",
@@ -12,6 +13,28 @@ group "all" {
     "upload_video",
     "video_ingestor",
     "youtube_lambda",
+  ]
+}
+
+# First batch - smaller images
+group "batch1" {
+  targets = [
+    "ai_chat_lambda",
+    "crud_api", 
+    "summarize_transcription",
+    "twitch_lambda",
+    "upload_video",
+    "youtube_lambda",
+  ]
+}
+
+# Second batch - larger images with special requirements  
+group "batch2" {
+  targets = [
+    "audio_transcriber",
+    "media_lambda",
+    "render_job",
+    "video_ingestor",
   ]
 }
 
