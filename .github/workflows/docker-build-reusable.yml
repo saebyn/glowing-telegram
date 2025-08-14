@@ -124,9 +124,9 @@ jobs:
         if: ${{ inputs.build_batch1 && inputs.build_batch2 }}
         run: |
           df -h
-          docker rmi $(docker image ls -aq) >/dev/null 2>&1 || true
+          docker rmi -f $(docker image ls -aq) >/dev/null 2>&1 || true
           df -h
-          docker buildx prune
+          docker buildx prune -f
           df -h
           docker system prune -af --volumes
           df -h
