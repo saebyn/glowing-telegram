@@ -120,6 +120,13 @@ jobs:
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
 
+      - name: Clean up Docker build artifacts between batches
+        if: ${{ inputs.build_batch1 && inputs.build_batch2 }}
+        run: |
+          echo "Cleaning up Docker build artifacts to free space for batch 2..."
+          docker system prune -af --volumes
+          echo "Docker cleanup completed"
+
       - name: Build and push Docker images (Batch 2)
         if: ${{ inputs.build_batch2 }}
         uses: docker/bake-action@v5
