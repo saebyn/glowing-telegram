@@ -93,10 +93,7 @@ jobs:
       - name: Set up Docker
         uses: docker/setup-docker-action@v4
         with:
-          daemon-config: |
-            {
-              "data-root": "/mnt/var/lib/docker"
-            }
+          runtime-basedir: "/mnt/setup-docker-action"
         
       - name: Configure AWS credentials
         if: ${{ inputs.push_images }}
