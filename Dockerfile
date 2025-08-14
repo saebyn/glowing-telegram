@@ -85,6 +85,10 @@ RUN if [ "$RUN_TESTS" = "true" ]; then cargo test --release; fi
 # Build all the subcrates
 RUN cargo build --release
 
+# Clean up build artifacts to save space
+RUN rm -rf /app/target/release/build /app/target/release/deps/*.rlib /app/target/release/.fingerprint
+RUN find /app/target/release -name "*.d" -delete
+
 ################################################################################
 # Target stages for each binary
 ################################################################################
