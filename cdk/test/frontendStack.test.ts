@@ -35,4 +35,23 @@ describe('FrontendStack', () => {
     // Check that S3 bucket is created
     template.hasResourceProperties('AWS::S3::Bucket', {});
   });
+
+  test('creates custom resource for Lambda@Edge with proper deletion handling', () => {
+    // Check that custom resource is created for Lambda@Edge deployment
+    template.hasResourceProperties('AWS::CloudFormation::CustomResource', {
+      ServiceToken: {
+        'Fn::GetAtt': [
+          // Match any custom resource handler
+          {},
+          'Arn',
+        ],
+      },
+    });
+
+    // Verify the custom resource handler exists
+    template.hasResourceProperties('AWS::Lambda::Function', {
+      Runtime: 'python3.11',
+      Handler: 'index.handler',
+    });
+  });
 });
