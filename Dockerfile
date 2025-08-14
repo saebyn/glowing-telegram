@@ -25,15 +25,23 @@ ARG UID=10001
 
 WORKDIR /app
 
-RUN apt-get update \
-  && apt-get -y upgrade \
-  && apt-get install -y --no-install-recommends \
-  ca-certificates
 RUN useradd \
   --system \
   --uid "${UID}" \
   --shell "/sbin/nologin" \
   "${USER}"
+
+# Install runtime dependencies
+RUN apt-get update \
+  apt-get install -y --no-install-recommends \
+  curl \
+  ffmpeg \
+  libssl-dev \
+  pkg-config \
+  python3 \
+  python3-pip \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 
 ################################################################################
 # Chef stage
@@ -89,16 +97,6 @@ ENTRYPOINT ["/bootstrap"]
 # audio_transcriber
 FROM runtime AS audio_transcriber
 
-RUN apt-get install -y --no-install-recommends \
-  curl \
-  ffmpeg \
-  libssl-dev \
-  pkg-config \
-  python3 \
-  python3-pip \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/*
-
 RUN pip3 install --break-system-packages openai-whisper
 
 RUN mkdir /model
@@ -127,13 +125,6 @@ CMD [ "main.handler" ]
 # render_job
 FROM runtime AS render_job
 
-RUN apt-get install -y --no-install-recommends \
-  ffmpeg \
-  libssl-dev \
-  pkg-config \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/*
-
 COPY --from=rust_builder --chown=${USER}:${USER} /app/target/release/render_job /app/render_job
 ENTRYPOINT [ "/app/render_job" ]
 
@@ -154,14 +145,6 @@ ENTRYPOINT ["/bootstrap"]
 
 # video_ingestor
 FROM runtime AS video_ingestor
-
-RUN apt-get install -y --no-install-recommends \
-  curl \
-  libssl-dev \
-  pkg-config \
-  ffmpeg \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=rust_builder --chown=${USER}:${USER} /app/target/release/video_ingestor /app/video_ingestor
 ENTRYPOINT [ "/app/video_ingestor" ]
