@@ -90,14 +90,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Patch Docker Daemon data-root
-        run: |
-          DOCKER_DATA_ROOT='/mnt/var/lib/docker'
-          DOCKER_DAEMON_JSON='/etc/docker/daemon.json'
-          sudo mkdir -p "${DOCKER_DATA_ROOT}"
-          jq --arg dataroot "${DOCKER_DATA_ROOT}" '. + {"data-root": $dataroot}' "${DOCKER_DAEMON_JSON}" > "/tmp/docker.json.tmp"
-          sudo mv "/tmp/docker.json.tmp" "${DOCKER_DAEMON_JSON}"
-          sudo systemctl restart docker
+      - name: Set up Docker
+        uses: docker/setup-docker-action@v4
+        with:
+          daemon-config: |
+            {
+              "data-root": "/mnt/var/lib/docker"
+            }
         
       - name: Configure AWS credentials
         if: ${{ inputs.push_images }}
