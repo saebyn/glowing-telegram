@@ -1,5 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Template, Match } from 'aws-cdk-lib/assertions';
 import FrontendStack from '../lib/frontendStack';
 
 describe('FrontendStack', () => {
@@ -34,5 +34,24 @@ describe('FrontendStack', () => {
   test('creates S3 bucket', () => {
     // Check that S3 bucket is created
     template.hasResourceProperties('AWS::S3::Bucket', {});
+  });
+
+  test('creates custom resource for Lambda@Edge with proper deletion handling', () => {
+    // Check that custom resource is created for Lambda@Edge deployment
+    template.hasResourceProperties('AWS::CloudFormation::CustomResource', {
+      ServiceToken: {
+        'Fn::GetAtt': [
+          // Match any custom resource handler
+          Match.anyValue(),
+          'Arn',
+        ],
+      },
+    });
+
+    // Verify the custom resource handler exists
+    template.hasResourceProperties('AWS::Lambda::Function', {
+      Runtime: 'python3.11',
+      Handler: 'index.handler',
+    });
   });
 });

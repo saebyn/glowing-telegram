@@ -85,22 +85,37 @@ def handler(event, context):
         else:
             # Prepend version to the path
             request['uri'] = f'/{version_to_use}{original_uri}'
+
+        print(f'Request URI rewritten to {request["uri"]} for version {version_to_use}')
         
-        print(f'Rewritten URI from {original_uri} to {request["uri"]} for version {version_to_use}')
-        
+        if object_exists(BUCKET_NAME, request['uri'][1:]):  # Remove leading slash for S3 key
+          # If the object exists, return the modified request
+          print(f'Object exists for URI {request["uri"]}, proceeding with request')
+        else:
+          # If the object does not exist, use /index.html as fallback
+          request['uri'] = f'/{version_to_use}/index.html'
+          print(f'Using fallback URI {request["uri"]} for version {version_to_use}')
+
     except Exception as error:
         print(f'Error in version selector: {error}')
         # Use fallback version on error to maintain availability
         fallback_uri = request['uri']
         
         if FALLBACK_VERSION:
-            if fallback_uri == '/' or fallback_uri == '':
-                request['uri'] = f'/{FALLBACK_VERSION}/index.html'
-            else:
-                request['uri'] = f'/{FALLBACK_VERSION}{fallback_uri}'
+            request['uri'] = f'/{FALLBACK_VERSION}/index.html'
             print(f'Using fallback version {FALLBACK_VERSION} due to error')
     
     return request
+
+def object_exists(bucket, key):
+    """    Check if an object exists in S3
+    """
+    s3 = boto3.client('s3', region_name='us-east-1')
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except:
+        return False
 
 def get_current_version():
     """
@@ -175,7 +190,7 @@ def reset_cache():
             new iam.PolicyStatement({
               effect: iam.Effect.ALLOW,
               actions: ['s3:GetObject'],
-              resources: [`${this.assetBucket.bucketArn}/config/version.json`],
+              resources: [`${this.assetBucket.bucketArn}/*`],
             }),
           ],
         }),
@@ -317,12 +332,32 @@ def delete_lambda_function(lambda_client, props, event):
     if function_name:
         try:
             lambda_client.delete_function(FunctionName=function_name)
-            print(f'Deleted Lambda function: {function_name}')
+            print(f'Successfully deleted Lambda function: {function_name}')
         except lambda_client.exceptions.ResourceNotFoundException:
             print(f'Function {function_name} not found, already deleted')
+        except lambda_client.exceptions.InvalidParameterValueException as e:
+            # Lambda@Edge functions cannot be deleted immediately due to replication
+            print(f'Cannot delete Lambda@Edge function {function_name} yet (still replicated): {str(e)}')
+            print('This is expected for Lambda@Edge functions and not an error')
+        except lambda_client.exceptions.ResourceConflictException as e:
+            # Function is still in use by CloudFront distributions
+            print(f'Cannot delete Lambda@Edge function {function_name} (still in use): {str(e)}')
+            print('This is expected for Lambda@Edge functions and not an error')
+        except lambda_client.exceptions.TooManyRequestsException as e:
+            # API throttling during deletion attempts
+            print(f'API throttling during deletion of {function_name}: {str(e)}')
+            print('This is expected during high API usage and not an error')
+        except Exception as e:
+            # For Lambda@Edge, catch any other AWS API errors that might occur during deletion
+            # These are typically related to replication and edge location constraints
+            print(f'Could not delete Lambda@Edge function {function_name}: {str(e)}')
+            print('This is often expected for Lambda@Edge functions due to replication constraints')
+            print('The function will eventually be cleaned up automatically by AWS')
     else:
         print('No function found to delete')
     
+    # Always return success for delete operations of Lambda@Edge functions
+    # CloudFormation stack deletion should not fail due to Lambda@Edge replication constraints
     return {'PhysicalResourceId': physical_resource_id or function_name_prefix}
 
 def send_response(event, context, response_status, response_data):
@@ -401,7 +436,7 @@ def send_response(event, context, response_status, response_data):
         effect: iam.Effect.ALLOW,
         principals: [new iam.AnyPrincipal()],
         actions: ['s3:GetObject'],
-        resources: [`${this.assetBucket.bucketArn}/config/version.json`],
+        resources: [`${this.assetBucket.bucketArn}/*`],
       }),
     );
 

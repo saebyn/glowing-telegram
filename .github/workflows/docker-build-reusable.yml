@@ -120,6 +120,7 @@ jobs:
             ./docker-bake.override.hcl
           targets: batch1
           push: ${{ inputs.push_images }}
+          provenance: false
           set: |
             *.cache-from=type=gha
             *.cache-to=type=gha,mode=max
@@ -135,6 +136,7 @@ jobs:
             ./docker-bake.override.hcl
           targets: batch2
           push: ${{ inputs.push_images }}
+          provenance: false
           set: |
             *.cache-from=type=gha
             *.cache-to=type=gha,mode=max
