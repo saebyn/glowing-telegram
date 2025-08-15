@@ -1,5 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Template, Match } from 'aws-cdk-lib/assertions';
 import FrontendStack from '../lib/frontendStack';
 
 describe('FrontendStack', () => {
@@ -42,7 +42,7 @@ describe('FrontendStack', () => {
       ServiceToken: {
         'Fn::GetAtt': [
           // Match any custom resource handler
-          {},
+          Match.anyValue(),
           'Arn',
         ],
       },
