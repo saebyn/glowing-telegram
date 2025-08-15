@@ -85,9 +85,12 @@ def handler(event, context):
         else:
             # Prepend version to the path
             request['uri'] = f'/{version_to_use}{original_uri}'
+
+        print(f'Request URI rewritten to {request["uri"]} for version {version_to_use}')
         
-        if object_exists(BUCKET_NAME, request['uri']):
-          print(f'Rewritten URI from {original_uri} to {request["uri"]} for version {version_to_use}')
+        if object_exists(BUCKET_NAME, request['uri'][1:]):  # Remove leading slash for S3 key
+          # If the object exists, return the modified request
+          print(f'Object exists for URI {request["uri"]}, proceeding with request')
         else:
           # If the object does not exist, use /index.html as fallback
           request['uri'] = f'/{version_to_use}/index.html'
