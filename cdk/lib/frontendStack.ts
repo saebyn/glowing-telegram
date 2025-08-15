@@ -187,7 +187,7 @@ def reset_cache():
             new iam.PolicyStatement({
               effect: iam.Effect.ALLOW,
               actions: ['s3:GetObject'],
-              resources: [`${this.assetBucket.bucketArn}/config/version.json`],
+              resources: [`${this.assetBucket.bucketArn}/*`],
             }),
           ],
         }),
