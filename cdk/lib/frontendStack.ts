@@ -99,10 +99,7 @@ def handler(event, context):
         fallback_uri = request['uri']
         
         if FALLBACK_VERSION:
-            if fallback_uri == '/' or fallback_uri == '':
-                request['uri'] = f'/{FALLBACK_VERSION}/index.html'
-            else:
-                request['uri'] = f'/{FALLBACK_VERSION}{fallback_uri}'
+            request['uri'] = f'/{FALLBACK_VERSION}/index.html'
             print(f'Using fallback version {FALLBACK_VERSION} due to error')
     
     return request
