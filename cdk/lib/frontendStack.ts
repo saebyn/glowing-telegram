@@ -86,8 +86,13 @@ def handler(event, context):
             # Prepend version to the path
             request['uri'] = f'/{version_to_use}{original_uri}'
         
-        print(f'Rewritten URI from {original_uri} to {request["uri"]} for version {version_to_use}')
-        
+        if object_exists(BUCKET_NAME, request['uri']):
+          print(f'Rewritten URI from {original_uri} to {request["uri"]} for version {version_to_use}')
+        else:
+          # If the object does not exist, use /index.html as fallback
+          request['uri'] = f'/{version_to_use}/index.html'
+          print(f'Using fallback URI {request["uri"]} for version {version_to_use}')
+
     except Exception as error:
         print(f'Error in version selector: {error}')
         # Use fallback version on error to maintain availability
@@ -101,6 +106,18 @@ def handler(event, context):
             print(f'Using fallback version {FALLBACK_VERSION} due to error')
     
     return request
+
+def object_exists(bucket, key):
+    """    Check if an object exists in S3
+    """
+    s3 = boto3.client('s3', region_name='us-east-1')
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except ClientError as e:
+        if e.response['Error']['Code'] == '404':
+            return False
+        raise
 
 def get_current_version():
     """
@@ -421,7 +438,7 @@ def send_response(event, context, response_status, response_data):
         effect: iam.Effect.ALLOW,
         principals: [new iam.AnyPrincipal()],
         actions: ['s3:GetObject'],
-        resources: [`${this.assetBucket.bucketArn}/config/version.json`],
+        resources: [`${this.assetBucket.bucketArn}/*`],
       }),
     );
 
