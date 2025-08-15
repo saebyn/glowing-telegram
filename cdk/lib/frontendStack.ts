@@ -114,10 +114,8 @@ def object_exists(bucket, key):
     try:
         s3.head_object(Bucket=bucket, Key=key)
         return True
-    except ClientError as e:
-        if e.response['Error']['Code'] == '404':
-            return False
-        raise
+    except:
+        return False
 
 def get_current_version():
     """
