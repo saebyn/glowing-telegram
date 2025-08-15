@@ -24,6 +24,7 @@ jobs:
       id-token: write
 
   deploy-cdk:
+    needs: build-and-push
     uses: ./.github/workflows/cdk-deploy-reusable.yml
     with:
       image_version: ${{ github.ref_name }}
