@@ -40,7 +40,7 @@ export default class AudioTranscriberJobConstruct extends Construct {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
 
-    props.videoMetadataTable.grantWriteData(jobRole);
+    props.videoMetadataTable.grantReadWriteData(jobRole);
     props.outputBucket.grantRead(jobRole);
 
     const repo = ecr.Repository.fromRepositoryName(

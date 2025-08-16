@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::env;
 use std::process::Stdio;
 use tokio::{io::AsyncWriteExt, process::Command};
-use types::Transcription;
+use types::{Transcription, Silence};
 
 #[derive(Deserialize, Debug, Clone)]
 struct Config {
@@ -68,16 +68,6 @@ async fn main() {
     let initial_prompt = args[3].clone();
     let language = args[4].clone();
 
-    let options = WhisperOptions {
-        model: WhisperModel::Turbo,
-        model_dir: "/model/".to_string(),
-        initial_prompt,
-        language,
-        // TODO: make this configurable
-        clip_timestamps: "0".to_string(),
-        verbose: false,
-    };
-
     tracing::info!("Processing audio with key: {}", input_key);
 
     // Load AWS configuration
@@ -88,8 +78,34 @@ async fn main() {
         .load()
         .await;
 
-    // Create an S3 client
+    // Create clients
     let client = aws_sdk_s3::Client::new(&aws_config);
+    let dynamodb = aws_sdk_dynamodb::Client::new(&aws_config);
+
+    // Get silence data from DynamoDB
+    let silence_segments = match get_silence_data_from_dynamodb(&dynamodb, &config.dynamodb_table, &item_key).await {
+        Ok(segments) => {
+            tracing::info!("Retrieved {} silence segments", segments.len());
+            segments
+        }
+        Err(e) => {
+            tracing::warn!("Failed to retrieve silence data: {}. Using default transcription.", e);
+            Vec::new()
+        }
+    };
+
+    // Convert silence to clip timestamps
+    let clip_timestamps = convert_silence_to_clip_timestamps(&silence_segments, None);
+    tracing::info!("Using clip_timestamps: {}", clip_timestamps);
+
+    let options = WhisperOptions {
+        model: WhisperModel::Turbo,
+        model_dir: "/model/".to_string(),
+        initial_prompt,
+        language,
+        clip_timestamps,
+        verbose: false,
+    };
 
     // capture output
     let whisper_output =
@@ -98,8 +114,6 @@ async fn main() {
             .expect("failed to run whisper");
 
     // write output to dynamodb
-    let dynamodb = aws_sdk_dynamodb::Client::new(&aws_config);
-
     dynamodb
         .update_item()
         .table_name(config.dynamodb_table.clone())
@@ -112,6 +126,97 @@ async fn main() {
         .send()
         .await
         .expect("failed to write to dynamodb");
+}
+
+async fn get_silence_data_from_dynamodb(
+    dynamodb: &aws_sdk_dynamodb::Client,
+    table_name: &str,
+    item_key: &str,
+) -> Result<Vec<Silence>, Box<dyn std::error::Error>> {
+    let response = dynamodb
+        .get_item()
+        .table_name(table_name)
+        .key("key", AttributeValue::S(item_key.to_string()))
+        .send()
+        .await?;
+
+    let item = response.item.ok_or("Item not found in DynamoDB")?;
+    
+    let silence_attr = item.get("silence").ok_or("No silence data found")?;
+    
+    if let AttributeValue::L(silence_list) = silence_attr {
+        let mut silence_segments = Vec::new();
+        
+        for segment_attr in silence_list {
+            if let AttributeValue::M(segment_map) = segment_attr {
+                let start = if let Some(AttributeValue::N(start_str)) = segment_map.get("start") {
+                    start_str.parse::<f64>()?
+                } else {
+                    continue;
+                };
+                
+                let end = if let Some(AttributeValue::N(end_str)) = segment_map.get("end") {
+                    end_str.parse::<f64>()?
+                } else {
+                    continue;
+                };
+                
+                silence_segments.push(Silence {
+                    start: Some(start),
+                    end: Some(end),
+                });
+            }
+        }
+        
+        Ok(silence_segments)
+    } else {
+        Ok(Vec::new())
+    }
+}
+
+fn convert_silence_to_clip_timestamps(silence_segments: &[Silence], total_duration: Option<f64>) -> String {
+    if silence_segments.is_empty() {
+        return "0".to_string();
+    }
+
+    let mut speaking_segments = Vec::new();
+    let mut current_time = 0.0;
+    
+    // Sort silence segments by start time
+    let mut sorted_silence: Vec<_> = silence_segments.iter().collect();
+    sorted_silence.sort_by(|a, b| {
+        let a_start = a.start.unwrap_or(0.0);
+        let b_start = b.start.unwrap_or(0.0);
+        a_start.partial_cmp(&b_start).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    
+    for silence in sorted_silence {
+        let silence_start = silence.start.unwrap_or(0.0);
+        let silence_end = silence.end.unwrap_or(0.0);
+        
+        // Add speaking segment before this silence
+        if current_time < silence_start {
+            speaking_segments.push(format!("{current_time},{silence_start}"));
+        }
+        
+        current_time = silence_end;
+    }
+    
+    // Add final speaking segment if there's time remaining
+    if let Some(duration) = total_duration {
+        if current_time < duration {
+            speaking_segments.push(format!("{current_time},{duration}"));
+        }
+    } else if current_time > 0.0 {
+        // If we don't have total duration, just add a segment from last silence end to a reasonable end
+        speaking_segments.push(format!("{current_time}"));
+    }
+    
+    if speaking_segments.is_empty() {
+        "0".to_string()
+    } else {
+        speaking_segments.join(",")
+    }
 }
 
 fn convert_transcription_to_attributevalue(
