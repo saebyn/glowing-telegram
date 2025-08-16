@@ -30,6 +30,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional, TypedDict
 
 from mypy_boto3_dynamodb import DynamoDBServiceResource
+from mypy_boto3_dynamodb.service_resource import Table
 from mypy_boto3_s3 import S3Client
 
 logging.basicConfig(
@@ -37,10 +38,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configuration
-BUCKET_NAME = "saebyn-video-archive"
-STREAMS_TABLE = "streams-963700c"
-VIDEO_METADATA_TABLE = "metadata-table-aa16405"
+# Default configuration for S3 bucket and DynamoDB tables
+DEFAULT_BUCKET_NAME = "saebyn-video-archive"
+DEFAULT_STREAMS_TABLE = "streams-963700c"
+DEFAULT_VIDEO_METADATA_TABLE = "metadata-table-aa16405"
 
 # Pattern to match expected S3 key structure: date/date time.extension
 # More strict pattern that validates date and time ranges
@@ -179,18 +180,16 @@ def group_objects_by_date(objects: List[VideoObjects]) -> Dict[str, List[VideoOb
     return dict(grouped)
 
 
-def stream_exists(dynamodb: DynamoDBServiceResource, stream_date: str) -> bool:
+def stream_exists(streams_table: Table, stream_date: str) -> bool:
     """Check if a stream record already exists for the given date.
 
     Args:
-        dynamodb: Boto3 DynamoDB resource
+        streams_table: DynamoDB table resource
         stream_date: Date string in YYYY-MM-DD format
 
     Returns:
         True if stream exists, False otherwise
     """
-    streams_table = dynamodb.Table(STREAMS_TABLE)
-
     try:
         # Query by stream_date to see if any stream exists for this date
         response = streams_table.scan(
@@ -205,7 +204,7 @@ def stream_exists(dynamodb: DynamoDBServiceResource, stream_date: str) -> bool:
 
 
 def create_stream_record(
-    dynamodb: DynamoDBServiceResource,
+    streams_table: Table,
     stream_date: str,
     video_count: int,
     dry_run: bool = False,
@@ -213,7 +212,7 @@ def create_stream_record(
     """Create a new stream record for the given date.
 
     Args:
-        dynamodb: Boto3 DynamoDB resource
+        streams_table: DynamoDB table resource for streams
         stream_date: Date string in YYYY-MM-DD format
         video_count: Number of video clips in this stream
         dry_run: If True, don't actually create the record
@@ -221,8 +220,6 @@ def create_stream_record(
     Returns:
         The created stream ID
     """
-    streams_table = dynamodb.Table(STREAMS_TABLE)
-
     stream_id = str(uuid.uuid4())
     now = datetime.now().isoformat()
 
@@ -254,18 +251,16 @@ def create_stream_record(
         raise S3ImportError(f"Failed to create stream record: {e}")
 
 
-def video_clip_exists(dynamodb: DynamoDBServiceResource, key: str) -> bool:
+def video_clip_exists(video_metadata_table: Table, key: str) -> bool:
     """Check if a video clip record already exists for the given S3 key.
 
     Args:
-        dynamodb: Boto3 DynamoDB resource
+        video_metadata_table: DynamoDB table resource for video metadata
         key: S3 object key
 
     Returns:
         True if video clip exists, False otherwise
     """
-    video_metadata_table = dynamodb.Table(VIDEO_METADATA_TABLE)
-
     try:
         response = video_metadata_table.get_item(Key={"key": key})
         return "Item" in response
@@ -275,7 +270,7 @@ def video_clip_exists(dynamodb: DynamoDBServiceResource, key: str) -> bool:
 
 
 def create_video_clip_record(
-    dynamodb: DynamoDBServiceResource,
+    video_metadata_table: Table,
     obj: VideoObjects,
     stream_id: str,
     dry_run: bool = False,
@@ -288,8 +283,6 @@ def create_video_clip_record(
         stream_id: ID of the associated stream
         dry_run: If True, don't actually create the record
     """
-    video_metadata_table = dynamodb.Table(VIDEO_METADATA_TABLE)
-
     if dry_run:
         logger.info(f"🔍 [DRY RUN] Would create video clip record for {obj['key']}")
         return
@@ -310,7 +303,8 @@ def create_video_clip_record(
 
 
 def process_date_group(
-    dynamodb: DynamoDBServiceResource,
+    streams_table: Table,
+    video_metadata_table: Table,
     date: str,
     objects: List[VideoObjects],
     dry_run: bool = False,
@@ -318,7 +312,8 @@ def process_date_group(
     """Process all objects for a single date.
 
     Args:
-        dynamodb: Boto3 DynamoDB resource
+        streams_table: DynamoDB table resource for streams
+        video_metadata_table: DynamoDB table resource for video metadata
         date: Date string in YYYY-MM-DD format
         objects: List of objects for this date
         dry_run: If True, don't actually create records
@@ -329,12 +324,11 @@ def process_date_group(
     logger.info(f"🗓️ Processing {len(objects)} objects for date {date}")
 
     # Check if stream already exists for this date
-    if stream_exists(dynamodb, date):
+    if stream_exists(streams_table, date):
         logger.info(
             f"⏭️ Stream already exists for date {date}, skipping stream creation"
         )
         # We still need to find the stream ID to create video clip records
-        streams_table = dynamodb.Table(STREAMS_TABLE)
         response = streams_table.scan(
             FilterExpression=Attr("stream_date").eq(date),
             ProjectionExpression="id",
@@ -348,18 +342,18 @@ def process_date_group(
             return None
     else:
         # Create new stream record
-        stream_id = create_stream_record(dynamodb, date, len(objects), dry_run)
+        stream_id = create_stream_record(streams_table, date, len(objects), dry_run)
 
     # Create video clip records for objects that don't already exist
     created_clips = 0
     skipped_clips = 0
 
     for obj in objects:
-        if video_clip_exists(dynamodb, obj["key"]):
+        if video_clip_exists(video_metadata_table, obj["key"]):
             logger.debug(f"Video clip already exists for {obj['key']}, skipping")
             skipped_clips += 1
         else:
-            create_video_clip_record(dynamodb, obj, stream_id, dry_run)
+            create_video_clip_record(video_metadata_table, obj, stream_id, dry_run)
             created_clips += 1
 
     if dry_run:
@@ -396,6 +390,24 @@ def main():
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
+    parser.add_argument(
+        "--bucket",
+        type=str,
+        default=DEFAULT_BUCKET_NAME,
+        help=f"S3 bucket name (default: {DEFAULT_BUCKET_NAME})",
+    )
+    parser.add_argument(
+        "--streams-table",
+        type=str,
+        default=DEFAULT_STREAMS_TABLE,
+        help=f"DynamoDB streams table name (default: {DEFAULT_STREAMS_TABLE})",
+    )
+    parser.add_argument(
+        "--video-metadata-table",
+        type=str,
+        default=DEFAULT_VIDEO_METADATA_TABLE,
+        help=f"DynamoDB video metadata table name (default: {DEFAULT_VIDEO_METADATA_TABLE})",
+    )
 
     args = parser.parse_args()
 
@@ -429,11 +441,11 @@ def main():
 
         # List all video objects in the bucket
         try:
-            objects = list_video_objects(s3_client, BUCKET_NAME, prefix)
+            objects = list_video_objects(s3_client, args.bucket, prefix)
         except Exception as e:
             if "NoSuchBucket" in str(e):
                 logger.error(
-                    f"❌ S3 bucket '{BUCKET_NAME}' does not exist or is not accessible"
+                    f"❌ S3 bucket '{args.bucket}' does not exist or is not accessible"
                 )
             else:
                 logger.error(f"❌ Failed to list objects from S3: {e}")
@@ -458,12 +470,20 @@ def main():
         total_clips_processed = 0
 
         for date, date_objects in sorted(date_groups.items()):
-            stream_id = process_date_group(dynamodb, date, date_objects, args.dry_run)
+            stream_id = process_date_group(
+                dynamodb.Table(args.streams_table),
+                dynamodb.Table(args.video_metadata_table),
+                date,
+                date_objects,
+                args.dry_run,
+            )
             if stream_id:
                 total_streams_processed += 1
                 # Count clips that would be processed
                 for obj in date_objects:
-                    if not video_clip_exists(dynamodb, obj["key"]):
+                    if not video_clip_exists(
+                        dynamodb.Table(args.video_metadata_table), obj["key"]
+                    ):
                         total_clips_processed += 1
 
         if args.dry_run:
