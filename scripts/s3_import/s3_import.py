@@ -180,7 +180,7 @@ def group_objects_by_date(objects: List[VideoObjects]) -> Dict[str, List[VideoOb
     return dict(grouped)
 
 
-def stream_exists(streams_table: Table, stream_date: str) -> bool:
+def find_stream_id_if_exists(streams_table: Table, stream_date: str) -> Optional[str]:
     """Check if a stream record already exists for the given date.
 
     Args:
@@ -193,14 +193,15 @@ def stream_exists(streams_table: Table, stream_date: str) -> bool:
     try:
         # Query by stream_date to see if any stream exists for this date
         response = streams_table.scan(
-            FilterExpression=Attr("stream_date").eq(stream_date),
+            FilterExpression=Attr("prefix").eq(stream_date),
             ProjectionExpression="id",
         )
 
-        return len(response["Items"]) > 0
+        if len(response["Items"]) > 0:
+            return str(response["Items"][0]["id"])
     except Exception as e:
         logger.error(f"Error checking if stream exists for date {stream_date}: {e}")
-        return False
+        return None
 
 
 def create_stream_record(
@@ -230,6 +231,7 @@ def create_stream_record(
         return stream_id
 
     try:
+        # ⚠️ This will create a new stream record in DynamoDB
         streams_table.put_item(
             Item={
                 "id": stream_id,
@@ -269,6 +271,37 @@ def video_clip_exists(video_metadata_table: Table, key: str) -> bool:
         return False
 
 
+def update_video_clip_record(
+    video_metadata_table: Table,
+    obj: VideoObjects,
+    stream_id: str,
+    dry_run: bool = False,
+):
+    """Update an existing video clip record with the stream ID.
+
+    Args:
+        video_metadata_table: DynamoDB table resource for video metadata
+        obj: Object metadata dictionary
+        stream_id: ID of the associated stream
+        dry_run: If True, don't actually update the record
+    """
+    if dry_run:
+        logger.info(f"🔍 [DRY RUN] Would update video clip record for {obj['key']}")
+        return
+
+    try:
+        # ⚠️ This will update the existing video clip record in DynamoDB
+        video_metadata_table.update_item(
+            Key={"key": obj["key"]},
+            UpdateExpression="SET stream_id = :stream_id",
+            ExpressionAttributeValues={":stream_id": stream_id},
+        )
+        logger.info(f"🔄 Updated video clip record for {obj['key']}")
+    except Exception as e:
+        logger.error(f"Error updating video clip record for {obj['key']}: {e}")
+        raise S3ImportError(f"Failed to update video clip record: {e}")
+
+
 def create_video_clip_record(
     video_metadata_table: Table,
     obj: VideoObjects,
@@ -288,6 +321,7 @@ def create_video_clip_record(
         return
 
     try:
+        # ⚠️ This will create a new video clip record in DynamoDB
         video_metadata_table.put_item(
             Item={
                 "key": obj["key"],
@@ -324,45 +358,44 @@ def process_date_group(
     logger.info(f"🗓️ Processing {len(objects)} objects for date {date}")
 
     # Check if stream already exists for this date
-    if stream_exists(streams_table, date):
+    stream_id: Optional[str] = find_stream_id_if_exists(streams_table, date)
+    if stream_id:
         logger.info(
             f"⏭️ Stream already exists for date {date}, skipping stream creation"
         )
-        # We still need to find the stream ID to create video clip records
-        response = streams_table.scan(
-            FilterExpression=Attr("stream_date").eq(date),
-            ProjectionExpression="id",
-        )
-        if response["Items"]:
-            stream_id = str(response["Items"][0]["id"])
-        else:
-            logger.error(
-                f"Stream exists check returned true, but couldn't find stream for date {date}"
-            )
-            return None
     else:
         # Create new stream record
         stream_id = create_stream_record(streams_table, date, len(objects), dry_run)
 
     # Create video clip records for objects that don't already exist
     created_clips = 0
+    updated_clips = 0
     skipped_clips = 0
 
     for obj in objects:
         if video_clip_exists(video_metadata_table, obj["key"]):
-            logger.debug(f"Video clip already exists for {obj['key']}, skipping")
-            skipped_clips += 1
+            logger.debug(f"Video clip already exists for {obj['key']}")
+            # if the clip does not have a stream_id, we can update it
+            if (
+                not video_metadata_table.get_item(Key={"key": obj["key"]})
+                .get("Item", {})
+                .get("stream_id")
+            ):
+                update_video_clip_record(video_metadata_table, obj, stream_id, dry_run)
+                updated_clips += 1
+            else:
+                skipped_clips += 1
         else:
             create_video_clip_record(video_metadata_table, obj, stream_id, dry_run)
             created_clips += 1
 
     if dry_run:
         logger.info(
-            f"🔍 [DRY RUN] Date {date}: Would create {created_clips} video clips, skip {skipped_clips} existing"
+            f"🔍 [DRY RUN] Date {date}: Would create {created_clips} video clips, updated {updated_clips} existing, skipped {skipped_clips} existing"
         )
     else:
         logger.info(
-            f"📊 Date {date}: Created {created_clips} video clips, skipped {skipped_clips} existing"
+            f"📊 Date {date}: Created {created_clips} video clips, updated {updated_clips} existing, skipped {skipped_clips} existing"
         )
     return stream_id
 
@@ -452,14 +485,14 @@ def main():
             raise S3ImportError("Failed to access S3 bucket")
 
         if not objects:
-            logger.warning("⚠️ No video objects found matching the expected pattern")
+            logger.warning("No video objects found matching the expected pattern")
             return
 
         # Filter by specific date if requested
         if args.date:
             objects = [obj for obj in objects if obj["date"] == args.date]
             if not objects:
-                logger.warning(f"⚠️ No objects found for date {args.date}")
+                logger.warning(f"No objects found for date {args.date}")
                 return
 
         # Group objects by date
