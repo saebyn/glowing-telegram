@@ -350,9 +350,21 @@ import boto3
 from datetime import datetime, timedelta, timezone
 
 def check_youtube_auth_valid(user_id):
-    """Check if user has valid YouTube refresh token for authentication."""
+    """Check if user has valid YouTube refresh token by testing it against Google OAuth."""
     try:
         secrets_client = boto3.client('secretsmanager')
+        
+        # Get YouTube app credentials
+        youtube_secret_arn = os.environ['YOUTUBE_SECRET_ARN']
+        app_secret_response = secrets_client.get_secret_value(SecretId=youtube_secret_arn)
+        app_credentials = json.loads(app_secret_response['SecretString'])
+        
+        client_id = app_credentials.get('client_id')
+        client_secret = app_credentials.get('client_secret')
+        
+        if not client_id or not client_secret:
+            print(f"YouTube app credentials missing for user {user_id}")
+            return False
         
         # Get user's YouTube session secret
         user_secret_path = f"{os.environ['USER_SECRET_PATH']}/{user_id}"
@@ -361,13 +373,40 @@ def check_youtube_auth_valid(user_id):
         # Parse the secret
         secret_data = json.loads(response['SecretString'])
         
-        # Check if we have refresh token (access_token is not needed since upload always refreshes)
+        # Check if we have refresh token
         refresh_token = secret_data.get('refresh_token')
         
         if not refresh_token:
             return False
         
-        return True
+        # Test the refresh token by actually using it to get an access token
+        import urllib.request
+        import urllib.parse
+        
+        token_data = urllib.parse.urlencode({
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'refresh_token': refresh_token,
+            'grant_type': 'refresh_token'
+        }).encode('utf-8')
+        
+        req = urllib.request.Request(
+            'https://oauth2.googleapis.com/token',
+            data=token_data,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        
+        try:
+            with urllib.request.urlopen(req) as response:
+                if response.status == 200:
+                    # Successfully refreshed token, refresh token is valid
+                    return True
+                else:
+                    print(f"Token refresh failed with status {response.status} for user {user_id}")
+                    return False
+        except urllib.error.HTTPError as e:
+            print(f"Token refresh failed with HTTP error {e.code} for user {user_id}")
+            return False
         
     except Exception as e:
         print(f"YouTube auth check failed for user {user_id}: {str(e)}")
@@ -478,6 +517,7 @@ def handler(event, context):
         STEPFUNCTION_ARN: stepFunction.stateMachineArn,
         EVENT_BUS_NAME: eventBus.eventBusName,
         USER_SECRET_PATH: 'gt/youtube/user',
+        YOUTUBE_SECRET_ARN: youtubeAppSecret.secretArn,
       },
       initialPolicy: [
         new iam.PolicyStatement({
@@ -495,6 +535,7 @@ def handler(event, context):
         new iam.PolicyStatement({
           actions: ['secretsmanager:GetSecretValue'],
           resources: [
+            youtubeAppSecret.secretArn,
             cdk.Arn.format(
               {
                 service: 'secretsmanager',
