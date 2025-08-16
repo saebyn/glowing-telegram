@@ -349,6 +349,40 @@ import os
 import boto3
 from datetime import datetime, timedelta, timezone
 
+def check_youtube_auth_valid(user_id):
+    """Check if user has valid YouTube authentication tokens."""
+    try:
+        secrets_client = boto3.client('secretsmanager')
+        
+        # Get user's YouTube session secret
+        user_secret_path = f"{os.environ['USER_SECRET_PATH']}/{user_id}"
+        response = secrets_client.get_secret_value(SecretId=user_secret_path)
+        
+        # Parse the secret
+        secret_data = json.loads(response['SecretString'])
+        
+        # Check if we have access token and refresh token
+        access_token = secret_data.get('access_token')
+        refresh_token = secret_data.get('refresh_token')
+        
+        if not access_token or not refresh_token:
+            return False
+            
+        # Check if token is still valid (not expired)
+        valid_until = secret_data.get('valid_until')
+        if valid_until:
+            # valid_until is timestamp in seconds since epoch
+            current_time = datetime.now(timezone.utc).timestamp()
+            if current_time >= valid_until:
+                # Token is expired, but we have refresh token so it's still usable
+                pass
+        
+        return True
+        
+    except Exception as e:
+        print(f"YouTube auth check failed for user {user_id}: {str(e)}")
+        return False
+
 def handler(event, context):
     # Resource setup
     dynamodb = boto3.resource('dynamodb')
@@ -391,6 +425,16 @@ def handler(event, context):
         return {
             'statusCode': 401,
             'body': 'Unauthorized',
+        }
+
+    # Check YouTube authentication before queuing episodes
+    if not check_youtube_auth_valid(user_id):
+        return {
+            'statusCode': 403,
+            'body': json.dumps({
+                'error': 'YouTube authentication required',
+                'message': 'Please authorize YouTube access before queuing episodes for upload.'
+            }),
         }
 
     # Update the records
@@ -443,6 +487,7 @@ def handler(event, context):
         EPISODES_TABLE_NAME: episodeTable.tableName,
         STEPFUNCTION_ARN: stepFunction.stateMachineArn,
         EVENT_BUS_NAME: eventBus.eventBusName,
+        USER_SECRET_PATH: 'gt/youtube/user',
       },
       initialPolicy: [
         new iam.PolicyStatement({
@@ -456,6 +501,20 @@ def handler(event, context):
         new iam.PolicyStatement({
           actions: ['events:PutEvents'],
           resources: [eventBus.eventBusArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: [
+            cdk.Arn.format(
+              {
+                service: 'secretsmanager',
+                resource: 'secret',
+                resourceName: 'gt/youtube/user/*',
+                arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
+              },
+              cdk.Stack.of(this),
+            ),
+          ],
         }),
       ],
     });
