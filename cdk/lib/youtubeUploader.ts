@@ -350,7 +350,7 @@ import boto3
 from datetime import datetime, timedelta, timezone
 
 def check_youtube_auth_valid(user_id):
-    """Check if user has valid YouTube authentication tokens."""
+    """Check if user has valid YouTube refresh token for authentication."""
     try:
         secrets_client = boto3.client('secretsmanager')
         
@@ -361,21 +361,11 @@ def check_youtube_auth_valid(user_id):
         # Parse the secret
         secret_data = json.loads(response['SecretString'])
         
-        # Check if we have access token and refresh token
-        access_token = secret_data.get('access_token')
+        # Check if we have refresh token (access_token is not needed since upload always refreshes)
         refresh_token = secret_data.get('refresh_token')
         
-        if not access_token or not refresh_token:
+        if not refresh_token:
             return False
-            
-        # Check if token is still valid (not expired)
-        valid_until = secret_data.get('valid_until')
-        if valid_until:
-            # valid_until is timestamp in seconds since epoch
-            current_time = datetime.now(timezone.utc).timestamp()
-            if current_time >= valid_until:
-                # Token is expired, but we have refresh token so it's still usable
-                pass
         
         return True
         
