@@ -367,10 +367,6 @@ def main():
     
     logger.info("🚀 Starting S3 import script for glowing-telegram")
     
-    # Initialize AWS clients
-    s3_client = boto3.client('s3')
-    dynamodb = boto3.resource('dynamodb')
-    
     try:
         # Determine prefix to use
         prefix = args.prefix or ""
@@ -380,8 +376,24 @@ def main():
         elif args.prefix:
             logger.info(f"🔍 Processing only objects with prefix: {args.prefix}")
         
+        # Initialize AWS clients
+        try:
+            s3_client = boto3.client('s3')
+            dynamodb = boto3.resource('dynamodb')
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize AWS clients. Please ensure AWS credentials are configured.")
+            logger.error(f"Error details: {e}")
+            raise S3ImportError("AWS credentials not configured or invalid")
+        
         # List all video objects in the bucket
-        objects = list_video_objects(s3_client, BUCKET_NAME, prefix)
+        try:
+            objects = list_video_objects(s3_client, BUCKET_NAME, prefix)
+        except Exception as e:
+            if "NoSuchBucket" in str(e):
+                logger.error(f"❌ S3 bucket '{BUCKET_NAME}' does not exist or is not accessible")
+            else:
+                logger.error(f"❌ Failed to list objects from S3: {e}")
+            raise S3ImportError("Failed to access S3 bucket")
         
         if not objects:
             logger.warning("⚠️ No video objects found matching the expected pattern")
