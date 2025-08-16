@@ -370,43 +370,43 @@ def process_date_group(
 def main():
     """Main function to orchestrate the S3 import process."""
     parser = argparse.ArgumentParser(
-        description="Import S3 video objects into DynamoDB stream and video clip records"
+        description="📥 Import S3 video objects into DynamoDB stream and video clip records for glowing-telegram."
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Don't actually create records, just show what would be done",
+        help="🔍 Don't actually create records, just show what would be done",
     )
     parser.add_argument(
         "--prefix",
         type=str,
-        help="Only process objects with this prefix (e.g., '2023-08')",
+        help="🔎 Only process objects with this prefix (e.g., '2023-08')",
     )
     parser.add_argument(
         "--date",
         type=str,
-        help="Only process objects for this specific date (YYYY-MM-DD)",
+        help="📅 Only process objects for this specific date (YYYY-MM-DD)",
     )
     parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose logging"
+        "--verbose", "-v", action="store_true", help="🐛 Enable verbose logging"
     )
     parser.add_argument(
         "--bucket",
         type=str,
         default=DEFAULT_BUCKET_NAME,
-        help=f"S3 bucket name (default: {DEFAULT_BUCKET_NAME})",
+        help=f"🪣 S3 bucket name (default: {DEFAULT_BUCKET_NAME})",
     )
     parser.add_argument(
         "--streams-table",
         type=str,
         default=DEFAULT_STREAMS_TABLE,
-        help=f"DynamoDB streams table name (default: {DEFAULT_STREAMS_TABLE})",
+        help=f"📊 DynamoDB streams table name (default: {DEFAULT_STREAMS_TABLE})",
     )
     parser.add_argument(
         "--video-metadata-table",
         type=str,
         default=DEFAULT_VIDEO_METADATA_TABLE,
-        help=f"DynamoDB video metadata table name (default: {DEFAULT_VIDEO_METADATA_TABLE})",
+        help=f"🎬 DynamoDB video metadata table name (default: {DEFAULT_VIDEO_METADATA_TABLE})",
     )
 
     args = parser.parse_args()
