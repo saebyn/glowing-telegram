@@ -1,42 +1,41 @@
-# Dynamic Frontend Version Selection
+# Static Frontend Version Configuration
 
-This document describes the dynamic frontend version selection feature implemented using CloudFront and Lambda@Edge.
+This document describes the static frontend version configuration feature implemented using CloudFront origin paths.
 
 ## Overview
 
-The dynamic frontend version selection feature allows you to change the frontend version served by CloudFront without redeploying the CDK stack. This is achieved through:
+The static frontend version configuration feature allows you to deploy specific frontend versions through CloudFront by setting the origin path to point directly to the version folder. This approach provides:
 
-1. A Lambda@Edge function that reads version configuration from S3
-2. Dynamic path rewriting based on the version configuration
-3. In-memory caching for performance optimization
-4. Public read access for the version configuration file
+1. Direct origin path configuration based on version configuration in S3
+2. Simplified request processing without dynamic rewriting
+3. Version management through CDK deployments
+4. Elimination of Lambda@Edge execution overhead
 
 ## Architecture
 
 ```
-CloudFront Request → Lambda@Edge (Viewer Request) → S3 Origin
-                           ↓
-                    Version Config (S3)
+CloudFront Request → CloudFront Distribution → S3 Origin (with version path)
+                           ↑
+                    Version Config (deployment time)
                     config/version.json
 ```
 
 ### Components
 
-1. **Lambda@Edge Function**: `version-selector`
-   - Triggers on viewer requests to CloudFront
-   - Reads version configuration from S3
-   - Rewrites request URI to include version path
-   - Implements 60-second in-memory caching
+1. **CloudFront Distribution**
+   - Configured with origin path pointing directly to version folder
+   - No dynamic request processing required
+   - Standard CDN caching benefits
 
 2. **Version Configuration File**: `config/version.json`
    - Stored in the frontend assets S3 bucket
-   - Publicly readable for Lambda@Edge access
+   - Read during CDK deployment to set origin path
    - Contains current version and metadata
 
-3. **CloudFront Distribution**
-   - Configured without hardcoded origin path
-   - Uses Lambda@Edge for dynamic routing
-   - Maintains CDN caching benefits
+3. **CDK Deployment Process**
+   - Reads version configuration at deployment time
+   - Sets CloudFront origin path to `/version-folder`
+   - Deploys updated distribution configuration
 
 ## Version Configuration File
 
@@ -84,15 +83,25 @@ To change the frontend version:
 
 1. **Update the version file**:
    ```bash
-   aws s3 cp updated-version.json s3://your-bucket/config/version.json
+   ./scripts/update-frontend-version.sh 1.2.0
    ```
+   This script will:
+   - Update `config/version.json` in S3
+   - Trigger CDK deployment to update CloudFront origin path
+   - Verify the deployment was successful
 
-2. **Or use AWS CLI to update directly**:
+2. **Manual process** (if automated script fails):
    ```bash
+   # Update version config
    echo '{"version": "1.2.0"}' | aws s3 cp - s3://your-bucket/config/version.json
+   
+   # Deploy CDK stack
+   cd cdk
+   npm run build
+   cdk deploy FrontendStack
    ```
 
-3. **Wait for cache expiration**: Changes take effect within 60 seconds due to Lambda@Edge caching
+3. **Wait for propagation**: Changes may take 5-15 minutes to propagate to all CloudFront edge locations
 
 ### Rollback
 
@@ -106,86 +115,72 @@ echo '{"version": "0.3.0"}' | aws s3 cp - s3://your-bucket/config/version.json
 
 ### Caching Strategy
 
-1. **Lambda@Edge Caching**: 60-second TTL for version config
-2. **CloudFront Caching**: Standard CDN caching for static assets
-3. **S3 Access**: Minimized through in-memory caching
+1. **CloudFront Caching**: Standard CDN caching for static assets
+2. **No Runtime Processing**: No Lambda execution or S3 calls on each request
+3. **Origin Path**: Direct serving from version-specific S3 folder
 
 ### Latency Impact
 
-- First request after cache expiry: +50-100ms (S3 read)
-- Subsequent requests: No additional latency
-- Failed S3 requests: Fallback to cached version or pass-through
+- No additional request latency (no Lambda@Edge execution)
+- Standard CloudFront performance characteristics
+- Edge cache invalidation required for immediate updates (optional)
 
 ## Monitoring and Troubleshooting
 
 ### CloudWatch Logs
 
-Lambda@Edge logs are available in CloudWatch Logs in the region where the function executes (typically us-east-1 for global distributions).
+CDK deployment logs are available in CloudWatch Logs and CDK CLI output.
 
 Common log messages:
-- `Fetched and cached new version: X.Y.Z` - Successful version update
-- `Using cached version: X.Y.Z` - Cache hit
-- `Error fetching version from S3` - S3 access error
-- `No version found, proceeding with original request` - Fallback behavior
+- `Using version from config: X.Y.Z` - Version read from config file
+- `Using fallback version: X.Y.Z` - Config file not found, using default
+- `✅ CDK deployment successful!` - Origin path updated successfully
 
 ### Common Issues
 
 1. **Version not updating**
    - Check if version.json is properly formatted JSON
-   - Verify S3 bucket permissions
-   - Wait 60 seconds for cache expiration
+   - Verify CDK deployment completed successfully
+   - Check CloudFormation stack status
 
-2. **S3 Access Denied**
-   - Ensure version.json has public read permissions
-   - Check Lambda@Edge execution role permissions
+2. **CDK Deployment Failures**
+   - Review CDK CLI output for errors
+   - Check AWS credentials and permissions
+   - Verify CDK CLI is installed and up to date
 
-3. **Lambda@Edge Errors**
-   - Review CloudWatch Logs in us-east-1
-   - Check function timeout settings
-   - Verify function code deployment
+3. **CloudFront Caching**
+   - Create invalidation if immediate update needed
+   - Wait 5-15 minutes for natural cache expiration
+   - Check CloudFront distribution configuration
 
 ### Testing
 
-Test the Lambda@Edge function locally:
+Test the CDK stack configuration:
 
 ```bash
-cd cdk/lambda/version-selector
+cd cdk
+npm run build
 npm test
 ```
 
 Test version configuration:
 
 ```bash
-curl -s https://your-cloudfront-domain.cloudfront.net/ -v
-# Check X-Forwarded-For headers and response paths
+./scripts/update-frontend-version.sh 1.0.0
 ```
 
 ## Security Considerations
 
-### S3 Bucket Policy
+### S3 Bucket Access
 
-The version configuration file requires public read access:
+The S3 bucket uses Origin Access Control (OAC) for secure access from CloudFront. No public bucket policies are required.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::your-bucket/config/version.json"
-    }
-  ]
-}
-```
+### CDK Deployment Permissions
 
-### Lambda@Edge Permissions
-
-The Lambda@Edge function requires:
-- Basic execution role for Lambda
-- S3 GetObject permission for the version config file
-- CloudWatch Logs permissions for debugging
+The deployment process requires:
+- CloudFormation permissions for stack updates
+- CloudFront permissions for distribution updates
+- S3 permissions for bucket and object access
 
 ## Future Enhancements
 
@@ -231,23 +226,23 @@ This foundation supports future features:
 
 ### Additional Costs
 
-1. **Lambda@Edge Invocations**: $0.0000006 per request
-2. **S3 GET Requests**: $0.0004 per 1,000 requests (cached, so minimal)
-3. **CloudWatch Logs**: Standard logging costs
+1. **CloudFormation Stack Updates**: No additional cost for updates
+2. **CloudFront Distribution Updates**: No additional cost for configuration changes
+3. **S3 Storage**: Minimal cost for version configuration file
 
 ### Cost Optimization
 
-- 60-second caching reduces S3 requests by ~99%
-- Single version config file minimizes S3 storage costs
-- Lambda@Edge function optimized for minimal execution time
+- No Lambda@Edge execution costs
+- No additional S3 API calls during request processing
+- Simplified architecture reduces operational overhead
 
-## Migration from Static Version
+## Migration from Lambda@Edge Version
 
-To migrate from the previous static version system:
+To migrate from the previous Lambda@Edge system:
 
-1. Deploy the updated CDK stack
-2. Upload initial version.json with current version
-3. Verify functionality with a test version change
-4. Update deployment scripts to modify version.json instead of redeploying CDK
+1. Deploy the updated CDK stack (this change)
+2. Verify initial version.json matches current deployment
+3. Test version change with update script
+4. Remove any Lambda@Edge monitoring that's no longer needed
 
-The migration is backward compatible - if version.json is missing or invalid, requests pass through unchanged.
+The migration removes the Lambda@Edge function and simplifies the architecture while maintaining version management capabilities.

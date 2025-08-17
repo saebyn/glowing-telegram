@@ -96,7 +96,26 @@ UPLOADED_VERSION=$(echo "$UPLOADED_CONFIG" | jq -r '.version')
 if [ "$UPLOADED_VERSION" = "$NEW_VERSION" ]; then
     echo "✅ Version update successful!"
     echo "New version: $NEW_VERSION"
-    echo "Changes will take effect within 60 seconds due to Lambda@Edge caching"
+    echo "Now deploying CloudFront distribution with new origin path..."
+    
+    # Deploy the CDK stack to update CloudFront with new origin path
+    if command -v cdk &> /dev/null; then
+        echo "Deploying CDK stack..."
+        cd "$(dirname "$0")/../cdk" || exit 1
+        
+        # Build and deploy
+        npm run build && cdk deploy FrontendStack --require-approval never
+        
+        if [ $? -eq 0 ]; then
+            echo "✅ CDK deployment successful! CloudFront distribution updated."
+        else
+            echo "❌ CDK deployment failed. CloudFront distribution may not be updated."
+            echo "Manual deployment may be required: cd cdk && cdk deploy FrontendStack"
+        fi
+    else
+        echo "⚠️ CDK CLI not found. Manual deployment required:"
+        echo "  cd cdk && npm run build && cdk deploy FrontendStack"
+    fi
 else
     echo "❌ Version update failed!"
     echo "Expected: $NEW_VERSION"
@@ -116,7 +135,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     
     if [ -n "$CF_DOMAIN" ]; then
         echo "Testing CloudFront distribution: https://$CF_DOMAIN"
-        echo "Note: It may take up to 60 seconds for changes to propagate"
+        echo "Note: CloudFront edge caches may take 5-15 minutes to update"
         
         # Simple test request
         HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$CF_DOMAIN/" || echo "000")

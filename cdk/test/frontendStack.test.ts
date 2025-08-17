@@ -16,17 +16,21 @@ describe('FrontendStack', () => {
     template = Template.fromStack(stack);
   });
 
-  test('creates CloudFront distribution with Lambda@Edge', () => {
-    // Check that CloudFront distribution is created with Lambda@Edge
+  test('creates CloudFront distribution with static origin path', () => {
+    // Check that CloudFront distribution is created with origin path
     template.hasResourceProperties('AWS::CloudFront::Distribution', {
       DistributionConfig: {
         DefaultCacheBehavior: {
-          LambdaFunctionAssociations: [
-            {
-              EventType: 'viewer-request',
-            },
-          ],
+          // Should not have Lambda@Edge function associations
+          ViewerProtocolPolicy: 'redirect-to-https',
         },
+        // Check that origin has a path
+        Origins: [
+          {
+            S3OriginConfig: Match.anyValue(),
+            OriginPath: '/0.4.0', // Should match version from config file
+          },
+        ],
       },
     });
   });
@@ -36,22 +40,18 @@ describe('FrontendStack', () => {
     template.hasResourceProperties('AWS::S3::Bucket', {});
   });
 
-  test('creates custom resource for Lambda@Edge with proper deletion handling', () => {
-    // Check that custom resource is created for Lambda@Edge deployment
-    template.hasResourceProperties('AWS::CloudFormation::CustomResource', {
-      ServiceToken: {
-        'Fn::GetAtt': [
-          // Match any custom resource handler
-          Match.anyValue(),
-          'Arn',
-        ],
-      },
-    });
-
-    // Verify the custom resource handler exists
-    template.hasResourceProperties('AWS::Lambda::Function', {
-      Runtime: 'python3.11',
-      Handler: 'index.handler',
-    });
+  test('does not create Lambda@Edge function or custom resources', () => {
+    // Verify no Lambda@Edge custom resource is created
+    template.resourcePropertiesCountIs('AWS::CloudFormation::CustomResource', {}, 0);
+    
+    // Verify no Lambda function is created specifically for Lambda@Edge version selection
+    // Note: BucketDeployment creates its own Lambda function which is expected
+    const lambdaFunctions = template.findResources('AWS::Lambda::Function');
+    const versionSelectorFunctions = Object.values(lambdaFunctions).filter((resource: any) => 
+      resource.Properties?.Code?.ZipFile && 
+      typeof resource.Properties.Code.ZipFile === 'string' &&
+      resource.Properties.Code.ZipFile.includes('version-selector')
+    );
+    expect(versionSelectorFunctions).toHaveLength(0);
   });
 });
