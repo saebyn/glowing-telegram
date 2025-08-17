@@ -13,7 +13,20 @@ The script addresses the issue of older stream VOD segments in S3 that were neve
 - Access to DynamoDB tables:
   - `streams-963700c` (streams table)
   - `metadata-table-aa16405` (video metadata table)
-- Python 3.6+ with boto3 installed
+- Python 3.11+
+
+## Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/glowing-telegram.git
+   cd glowing-telegram/scripts/s3_import
+   ```
+
+2. Install dependencies:
+   ```bash
+  pip install -r requirements.txt
+   ```
 
 ## Usage
 
