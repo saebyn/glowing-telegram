@@ -350,6 +350,8 @@ import json
 import os
 import boto3
 from datetime import datetime, timedelta, timezone
+import urllib.request
+import urllib.parse
 
 def check_youtube_auth_valid(user_id):
     """Check if user has valid YouTube refresh token by testing it against Google OAuth."""
@@ -382,9 +384,6 @@ def check_youtube_auth_valid(user_id):
             return False
         
         # Test the refresh token by actually using it to get an access token
-        import urllib.request
-        import urllib.parse
-        
         token_data = urllib.parse.urlencode({
             'client_id': client_id,
             'client_secret': client_secret,
