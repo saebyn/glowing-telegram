@@ -22,6 +22,9 @@ interface AppStackProps extends cdk.StackProps {
   imageVersion?: string;
 }
 
+const YOUTUBE_USER_SECRET_BASE_PATH = 'gt/youtube/user';
+const TWITCH_USER_SECRET_BASE_PATH = 'gt/twitch/user';
+
 export default class AppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AppStackProps) {
     const { domainName, imageVersion, ...restProps } = props;
@@ -131,6 +134,7 @@ export default class AppStack extends cdk.Stack {
       mediaOutputBucket: dataStore.outputBucket,
       eventBus: EventBus.fromEventBusName(this, 'EventBus', 'default'),
       youtubeAppSecret,
+      youtubeUserSecretBasePath: YOUTUBE_USER_SECRET_BASE_PATH,
       taskMonitoring,
       imageVersion,
     });
@@ -151,7 +155,11 @@ export default class AppStack extends cdk.Stack {
       userPool: userManagement.userPool,
       userPoolClients: [userManagement.userPoolClient],
       openaiSecret,
+
       youtubeAppSecret,
+      youtubeUserSecretBasePath: YOUTUBE_USER_SECRET_BASE_PATH,
+      twitchUserSecretBasePath: TWITCH_USER_SECRET_BASE_PATH,
+
       videoMetadataTable: dataStore.videoMetadataTable,
       streamsTable: dataStore.streamsTable,
       streamSeriesTable: dataStore.streamSeriesTable,

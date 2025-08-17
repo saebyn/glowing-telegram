@@ -31,6 +31,7 @@ type YoutubeUploaderProps = {
   readonly jobQueue: IJobQueue;
   readonly eventBus: IEventBus;
   readonly youtubeAppSecret: secretsmanager.ISecret;
+  readonly youtubeUserSecretBasePath: string;
   readonly taskMonitoring: TaskMonitoringConstruct;
   readonly imageVersion?: string;
 };
@@ -48,6 +49,7 @@ export default class YoutubeUploader extends Construct {
       jobQueue,
       eventBus,
       youtubeAppSecret,
+      youtubeUserSecretBasePath,
     } = props;
 
     const executionRole = new cdk.aws_iam.Role(
@@ -81,7 +83,7 @@ export default class YoutubeUploader extends Construct {
             {
               service: 'secretsmanager',
               resource: 'secret',
-              resourceName: 'gt/youtube/user/*',
+              resourceName: `${youtubeUserSecretBasePath}/*`,
               arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
             },
             cdk.Stack.of(this),
@@ -108,7 +110,7 @@ export default class YoutubeUploader extends Construct {
         environment: {
           EPISODE_RENDER_BUCKET: mediaOutputBucket.bucketName,
           EPISODE_TABLE_NAME: episodeTable.tableName,
-          USER_SECRET_PATH: 'gt/youtube/user',
+          USER_SECRET_PATH: props.youtubeUserSecretBasePath,
           YOUTUBE_SECRET_ARN: youtubeAppSecret.secretArn,
           MAX_RETRY_SECONDS: '3600',
           USER_AGENT: 'glowing-telegram/1.0',
