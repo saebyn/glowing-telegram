@@ -240,7 +240,7 @@ def create_stream_record(
                 "id": stream_id,
                 "title": f"Stream {stream_date}",
                 "description": f"Imported stream from S3 for date {stream_date}",
-                "prefix": f"{stream_date}/",
+                "prefix": f"{stream_date}",
                 "created_at": now,
                 "updated_at": now,
                 "stream_date": stream_date,
