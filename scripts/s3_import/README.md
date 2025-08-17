@@ -25,7 +25,7 @@ The script addresses the issue of older stream VOD segments in S3 that were neve
 
 2. Install dependencies:
    ```bash
-  pip install -r requirements.txt
+   pip install -r requirements.txt
    ```
 
 ## Usage
