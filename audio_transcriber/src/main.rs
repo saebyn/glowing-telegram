@@ -227,7 +227,8 @@ fn convert_silence_to_clip_timestamps(
             speaking_segments.push(format!("{current_time},{duration}"));
         }
     } else if current_time > 0.0 {
-        // If we don't have total duration, just add a segment from last silence end to a reasonable end
+        // If we don't have total duration, just add a segment from last silence end.
+        // If we omit the end of a segment, it will use the end of the file.
         speaking_segments.push(format!("{current_time}"));
     }
 
@@ -261,6 +262,12 @@ mod tests {
             "0,30,40,100"
         );
 
+        // Test case 2.1: Single silence in the middle with no total duration
+        assert_eq!(
+            convert_silence_to_clip_timestamps(&single_silence, None),
+            "0,30,40"
+        );
+
         // Test case 3: Multiple silences
         let multiple_silences = vec![
             Silence {
@@ -280,6 +287,12 @@ mod tests {
             "0,10,20,50,60,100"
         );
 
+        // Test case 3.1: Multiple silences with no total duration
+        assert_eq!(
+            convert_silence_to_clip_timestamps(&multiple_silences, None),
+            "0,10,20,50,60"
+        );
+
         // Test case 4: Silence at the beginning
         let silence_at_start = vec![Silence {
             start: Some(0.0),
@@ -288,6 +301,12 @@ mod tests {
         assert_eq!(
             convert_silence_to_clip_timestamps(&silence_at_start, Some(100.0)),
             "10,100"
+        );
+
+        // Test case 4.1: Silence at the beginning with no total duration
+        assert_eq!(
+            convert_silence_to_clip_timestamps(&silence_at_start, None),
+            "10"
         );
 
         // Test case 5: Silence at the end
