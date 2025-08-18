@@ -32,6 +32,17 @@ pub enum AudioTranscriberError {
     JsonParseError(#[from] serde_json::Error),
 }
 
+/// Represents the Whisper model to be used for transcription.
+////// The available models are:
+/// - Tiny
+/// - Base
+/// - Small
+/// - Medium
+/// - Large
+/// - Turbo
+///
+/// Each model has different performance characteristics and resource requirements.
+/// You can choose the model based on your application's needs and available resources.
 #[derive(Debug)]
 pub enum WhisperModel {
     Tiny,
@@ -42,6 +53,24 @@ pub enum WhisperModel {
     Turbo,
 }
 
+/// Configuration options for the Whisper transcription model.
+/// # Fields
+/// - `model`: The Whisper model to use for transcription.
+/// - `model_dir`: Directory where the Whisper model files are located.
+/// - `initial_prompt`: Initial prompt to provide to the Whisper model.
+/// - `language`: Language code for the transcription.
+/// - `clip_timestamps`: Comma-separated list of timestamps to clip the transcription.
+/// - `verbose`: Whether to enable verbose output during transcription.
+/// # Example
+/// ```
+/// let options = WhisperOptions {
+///     model: WhisperModel::Turbo,
+///     model_dir: "/model/".to_string(),
+///     initial_prompt: "Transcribe this audio".to_string(),
+///     language: "en".to_string(),
+///     clip_timestamps: "0:00-0:30".to_string(),
+///     verbose: true,
+/// };
 #[derive(Debug)]
 pub struct WhisperOptions {
     pub model: WhisperModel,
@@ -52,6 +81,26 @@ pub struct WhisperOptions {
     pub verbose: bool,
 }
 
+/// Runs the Whisper transcription model on an audio file stored in an S3 bucket.
+///
+/// # Parameters
+/// - `client`: Reference to an AWS S3 client used to access the bucket.
+/// - `input_bucket`: The name of the S3 bucket containing the audio file.
+/// - `input_key`: The key (path) of the audio file within the S3 bucket.
+/// - `options`: Configuration options for the Whisper model and transcription.
+///
+/// # Returns
+/// Returns a `Result` containing the transcription on success, or an `AudioTranscriberError` on failure.
+///
+/// # Errors
+/// This function can return the following errors:
+/// - `AudioTranscriberError::S3Error`: If there is a problem accessing the S3 object.
+/// - `AudioTranscriberError::TempDirError`: If a temporary directory cannot be created.
+/// - `AudioTranscriberError::ByteStreamError`: If reading from the S3 bytestream fails.
+/// - `AudioTranscriberError::StdinWriteError`: If writing to the Whisper process stdin fails.
+/// - `AudioTranscriberError::WhisperProcessError`: If the Whisper process fails.
+/// - `AudioTranscriberError::TranscriptionFileError`: If reading the transcription file fails.
+/// - `AudioTranscriberError::JsonParseError`: If parsing the transcription JSON fails.
 pub async fn run_whisper_on_s3_object(
     client: &aws_sdk_s3::Client,
     input_bucket: &str,
@@ -157,6 +206,19 @@ fn build_whisper_command(
         .spawn()
 }
 
+/// Converts a list of silence segments into a string of speaking segments for Whisper's `--clip_timestamps` argument.
+///
+/// # Parameters
+/// - `silence_segments`: A slice of `Silence` structs, each representing a period of silence with optional start and end times (in seconds).
+/// - `total_duration`: The total duration of the audio (in seconds). If `None`, the last segment will extend to the end of the file.
+///
+/// # Returns
+/// A string representing the speaking segments, formatted as comma-separated pairs of start and end times (e.g., `"0,5,10,15"`).
+/// Each pair `"start,end"` indicates a segment of speech between silences. If the end time is omitted, the segment continues to the end of the file.
+/// If there are no silence segments, returns `"0"`.
+///
+/// # Example
+/// For silences at 5-10s and 15-20s in a 25s file, returns `"0,5,10,15,20,25"`.
 pub fn convert_silence_to_clip_timestamps(
     silence_segments: &[Silence],
     total_duration: Option<f64>,
