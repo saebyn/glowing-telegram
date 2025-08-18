@@ -38,7 +38,7 @@ export default class FrontendStack extends cdk.Stack {
       this.assetBucket,
       {
         originPath: `/${frontendVersion}`, // Initial path - will be updated by Lambda
-      }
+      },
     );
 
     this.distribution = new cloudfront.Distribution(
@@ -66,12 +66,16 @@ export default class FrontendStack extends cdk.Stack {
     this.domainName = this.distribution.distributionDomainName;
 
     // Create Lambda function to handle CloudFront origin updates
-    const originUpdaterFunction = new lambda.Function(this, 'OriginUpdaterFunction', {
-      runtime: lambda.Runtime.PYTHON_3_11,
-      handler: 'index.handler',
-      timeout: cdk.Duration.minutes(5),
-      code: lambda.Code.fromInline(`
+    const originUpdaterFunction = new lambda.Function(
+      this,
+      'OriginUpdaterFunction',
+      {
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: 'index.handler',
+        timeout: cdk.Duration.minutes(5),
+        code: lambda.Code.fromInline(`
 import json
+import time
 import boto3
 import logging
 from urllib.parse import unquote_plus
@@ -197,14 +201,13 @@ def get_version_from_s3(bucket_name, config_key):
     except Exception as e:
         logger.error(f'Error reading version from S3: {str(e)}')
         return None
-
-import time
 `),
-      environment: {
-        'DISTRIBUTION_ID': this.distribution.distributionId,
-        'FALLBACK_VERSION': frontendVersion,
+        environment: {
+          DISTRIBUTION_ID: this.distribution.distributionId,
+          FALLBACK_VERSION: frontendVersion,
+        },
       },
-    });
+    );
 
     // Grant permissions to the Lambda function
     originUpdaterFunction.addToRolePolicy(
@@ -219,7 +222,7 @@ import time
         resources: [
           `arn:aws:cloudfront::${cdk.Stack.of(this).account}:distribution/${this.distribution.distributionId}`,
         ],
-      })
+      }),
     );
 
     originUpdaterFunction.addToRolePolicy(
@@ -227,7 +230,7 @@ import time
         effect: iam.Effect.ALLOW,
         actions: ['s3:GetObject'],
         resources: [`${this.assetBucket.bucketArn}/*`],
-      })
+      }),
     );
 
     // Add S3 event notification to trigger Lambda when config/version.json changes
@@ -235,16 +238,16 @@ import time
       s3.EventType.OBJECT_CREATED,
       new s3n.LambdaDestination(originUpdaterFunction),
       {
-        prefix: 'config/version.json'
-      }
+        prefix: 'config/version.json',
+      },
     );
 
     this.assetBucket.addEventNotification(
       s3.EventType.OBJECT_REMOVED,
       new s3n.LambdaDestination(originUpdaterFunction),
       {
-        prefix: 'config/version.json'
-      }
+        prefix: 'config/version.json',
+      },
     );
 
     // Upload the default version config file
@@ -254,5 +257,4 @@ import time
       destinationKeyPrefix: 'config/',
     });
   }
-
 }
