@@ -86,7 +86,8 @@ s3 = boto3.client('s3')
 
 # Configuration constants
 DISTRIBUTION_ID = '${this.distribution.distributionId}'
-FALLBACK_VERSION = '${frontendVersion}'
+DISTRIBUTION_ID = os.environ.get('DISTRIBUTION_ID')
+FALLBACK_VERSION = os.environ.get('FALLBACK_VERSION')
 
 def handler(event, context):
     """
