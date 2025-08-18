@@ -259,7 +259,7 @@ pub fn convert_silence_to_clip_timestamps(
         }
     } else if current_time > 0.0 {
         // If we don't have total duration, just add a segment from last silence end.
-        // If we omit the end of a segment, it will use the end of the file.
+        // Adding `current_time` as a single value creates an open-ended segment from `current_time` to the end of the file.
         speaking_segments.push(format!("{current_time}"));
     }
 
