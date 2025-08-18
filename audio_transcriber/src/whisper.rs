@@ -68,7 +68,7 @@ pub enum WhisperModel {
 ///     model_dir: "/model/".to_string(),
 ///     initial_prompt: "Transcribe this audio".to_string(),
 ///     language: "en".to_string(),
-///     clip_timestamps: "0:00-0:30".to_string(),
+///     clip_timestamps: "0,30".to_string(),
 ///     verbose: true,
 /// };
 #[derive(Debug)]
