@@ -1,3 +1,8 @@
+/// This module provides functionality to transcribe audio files using the Whisper model.
+/// It handles downloading audio files from S3, running the Whisper model on them,
+/// and processing the transcription results.
+use types::Silence;
+
 use aws_sdk_s3::primitives::ByteStream;
 use std::process::Stdio;
 use thiserror::Error;

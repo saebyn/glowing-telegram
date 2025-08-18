@@ -3,10 +3,9 @@ use aws_sdk_dynamodb::types::AttributeValue;
 use figment::{Figment, providers::Env};
 use serde::Deserialize;
 use std::env;
-use types::{Silence, Transcription};
 
 mod dynamodb;
-mod whisper;
+pub mod whisper;
 
 use whisper::{WhisperModel, WhisperOptions};
 
@@ -68,9 +67,7 @@ async fn main() {
     .await
     {
         Ok(item) => {
-            let segments = match dynamodb::get_silence_data_from_item(&item)
-                .await
-            {
+            let segments = match dynamodb::get_silence_data_from_item(&item) {
                 Ok(segments) => {
                     tracing::info!(
                         "Retrieved {} silence segments",
@@ -87,8 +84,7 @@ async fn main() {
                 }
             };
 
-            let duration = match dynamodb::get_duration_from_item(&item).await
-            {
+            let duration = match dynamodb::get_duration_from_item(&item) {
                 Ok(duration) => {
                     tracing::info!("Retrieved duration: {} seconds", duration);
                     Some(duration)
