@@ -96,26 +96,8 @@ UPLOADED_VERSION=$(echo "$UPLOADED_CONFIG" | jq -r '.version')
 if [ "$UPLOADED_VERSION" = "$NEW_VERSION" ]; then
     echo "✅ Version update successful!"
     echo "New version: $NEW_VERSION"
-    echo "Now deploying CloudFront distribution with new origin path..."
-    
-    # Deploy the CDK stack to update CloudFront with new origin path
-    if command -v cdk &> /dev/null; then
-        echo "Deploying CDK stack..."
-        cd "$(dirname "$0")/../cdk" || exit 1
-        
-        # Build and deploy
-        npm run build && cdk deploy FrontendStack --require-approval never
-        
-        if [ $? -eq 0 ]; then
-            echo "✅ CDK deployment successful! CloudFront distribution updated."
-        else
-            echo "❌ CDK deployment failed. CloudFront distribution may not be updated."
-            echo "Manual deployment may be required: cd cdk && cdk deploy FrontendStack"
-        fi
-    else
-        echo "⚠️ CDK CLI not found. Manual deployment required:"
-        echo "  cd cdk && npm run build && cdk deploy FrontendStack"
-    fi
+    echo "CloudFront distribution will be automatically updated via Lambda function..."
+    echo "⏳ Update may take 1-2 minutes to propagate through CloudFront"
 else
     echo "❌ Version update failed!"
     echo "Expected: $NEW_VERSION"
