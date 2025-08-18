@@ -1,42 +1,45 @@
-# Dynamic Frontend Version Selection
+# Dynamic Frontend Version Configuration with Lambda Updates
 
-This document describes the dynamic frontend version selection feature implemented using CloudFront and Lambda@Edge.
+This document describes the dynamic frontend version configuration feature implemented using S3 event-triggered Lambda functions to update CloudFront distribution configurations.
 
 ## Overview
 
-The dynamic frontend version selection feature allows you to change the frontend version served by CloudFront without redeploying the CDK stack. This is achieved through:
+The dynamic frontend version configuration feature allows you to deploy specific frontend versions through CloudFront by automatically updating the origin path whenever the configuration file changes. This approach provides:
 
-1. A Lambda@Edge function that reads version configuration from S3
-2. Dynamic path rewriting based on the version configuration
-3. In-memory caching for performance optimization
-4. Public read access for the version configuration file
+1. Real-time origin path updates triggered by S3 config changes
+2. No CDK deployments required for version changes
+3. Automatic CloudFront distribution updates via AWS SDK
+4. Rapid version deployment (1-2 minutes vs 5-10 minutes for CDK)
 
 ## Architecture
 
 ```
-CloudFront Request → Lambda@Edge (Viewer Request) → S3 Origin
-                           ↓
-                    Version Config (S3)
-                    config/version.json
+S3 Config Update → S3 Event → Lambda Function → CloudFront API → Updated Origin Path
+     ↓                           ↓                      ↓
+config/version.json    Origin Updater Function    Distribution Config
 ```
 
 ### Components
 
-1. **Lambda@Edge Function**: `version-selector`
-   - Triggers on viewer requests to CloudFront
-   - Reads version configuration from S3
-   - Rewrites request URI to include version path
-   - Implements 60-second in-memory caching
+1. **CloudFront Distribution**
+   - Configured with origin path that gets updated dynamically
+   - Initial path set from CDK deployment
+   - Subsequent updates handled by Lambda function
 
-2. **Version Configuration File**: `config/version.json`
+2. **Origin Updater Lambda Function**
+   - Triggered by S3 events when config/version.json changes
+   - Reads new version from config file
+   - Updates CloudFront distribution's origin path via AWS SDK
+   - Creates cache invalidation for immediate updates
+
+3. **Version Configuration File**: `config/version.json`
    - Stored in the frontend assets S3 bucket
-   - Publicly readable for Lambda@Edge access
+   - Changes trigger Lambda function execution
    - Contains current version and metadata
 
-3. **CloudFront Distribution**
-   - Configured without hardcoded origin path
-   - Uses Lambda@Edge for dynamic routing
-   - Maintains CDN caching benefits
+4. **S3 Event Notifications**
+   - Monitor changes to `config/version.json`
+   - Trigger Lambda function on OBJECT_CREATED and OBJECT_REMOVED events
 
 ## Version Configuration File
 
@@ -78,114 +81,152 @@ npm run build
 cdk deploy FrontendStack
 ```
 
+This deploys:
+- CloudFront distribution with initial origin path
+- Lambda function for updating CloudFront
+- S3 event notifications for config changes
+- IAM permissions for CloudFront updates
+
 ### Updating Version Configuration
 
-To change the frontend version:
+To change the frontend version, simply update the config file:
 
-1. **Update the version file**:
+1. **Using the update script**:
    ```bash
-   aws s3 cp updated-version.json s3://your-bucket/config/version.json
+   ./scripts/update-frontend-version.sh 1.2.0
    ```
+   This script will:
+   - Update `config/version.json` in S3
+   - Automatically trigger Lambda function via S3 event
+   - CloudFront distribution will be updated within 1-2 minutes
 
-2. **Or use AWS CLI to update directly**:
+2. **Manual process**:
    ```bash
+   # Update version config - this triggers automatic CloudFront update
    echo '{"version": "1.2.0"}' | aws s3 cp - s3://your-bucket/config/version.json
    ```
 
-3. **Wait for cache expiration**: Changes take effect within 60 seconds due to Lambda@Edge caching
+3. **Wait for propagation**: 
+   - Lambda function updates CloudFront: ~30-60 seconds
+   - CloudFront edge cache propagation: 5-15 minutes (same as before)
 
 ### Rollback
 
 To rollback to a previous version:
 
 ```bash
-echo '{"version": "0.3.0"}' | aws s3 cp - s3://your-bucket/config/version.json
+./scripts/rollback-frontend-version.sh
 ```
+
+This reads the `rollbackVersion` from the current config and automatically updates the distribution.
 
 ## Performance Considerations
 
-### Caching Strategy
+### Update Speed
 
-1. **Lambda@Edge Caching**: 60-second TTL for version config
-2. **CloudFront Caching**: Standard CDN caching for static assets
-3. **S3 Access**: Minimized through in-memory caching
+1. **Config File Update**: Immediate (S3 PUT operation)
+2. **Lambda Function Execution**: 30-60 seconds
+3. **CloudFront Distribution Update**: 1-2 minutes
+4. **Edge Cache Propagation**: 5-15 minutes (unchanged)
 
 ### Latency Impact
 
-- First request after cache expiry: +50-100ms (S3 read)
-- Subsequent requests: No additional latency
-- Failed S3 requests: Fallback to cached version or pass-through
+- No additional request latency (no runtime processing)
+- Standard CloudFront performance characteristics
+- Cache invalidation ensures immediate updates after distribution update
+
+## Lambda Function Details
+
+The Origin Updater Lambda function:
+
+```python
+def handler(event, context):
+    """
+    Lambda function to update CloudFront distribution origin path
+    when config/version.json is updated in S3
+    """
+    # Process S3 event records
+    # Read new version from config file
+    # Update CloudFront distribution configuration
+    # Create cache invalidation
+```
+
+### Function Permissions
+
+The Lambda function has the following IAM permissions:
+- `cloudfront:GetDistribution`
+- `cloudfront:GetDistributionConfig` 
+- `cloudfront:UpdateDistribution`
+- `cloudfront:CreateInvalidation`
+- `s3:GetObject` (for reading config file)
 
 ## Monitoring and Troubleshooting
 
 ### CloudWatch Logs
 
-Lambda@Edge logs are available in CloudWatch Logs in the region where the function executes (typically us-east-1 for global distributions).
+Lambda function logs are available in CloudWatch Logs under `/aws/lambda/[FunctionName]`.
 
 Common log messages:
-- `Fetched and cached new version: X.Y.Z` - Successful version update
-- `Using cached version: X.Y.Z` - Cache hit
-- `Error fetching version from S3` - S3 access error
-- `No version found, proceeding with original request` - Fallback behavior
+- `Retrieved version from S3: X.Y.Z` - Successfully read version
+- `Updating CloudFront distribution to version: X.Y.Z` - Starting update
+- `CloudFront distribution updated successfully` - Update completed
+- `Cache invalidation created: [ID]` - Cache cleared
 
 ### Common Issues
 
 1. **Version not updating**
-   - Check if version.json is properly formatted JSON
-   - Verify S3 bucket permissions
-   - Wait 60 seconds for cache expiration
+   - Check Lambda function logs in CloudWatch
+   - Verify S3 event was triggered
+   - Ensure version.json is properly formatted JSON
 
-2. **S3 Access Denied**
-   - Ensure version.json has public read permissions
-   - Check Lambda@Edge execution role permissions
+2. **Lambda Function Errors**
+   - Review CloudWatch Logs for error details
+   - Check IAM permissions for CloudFront access
+   - Verify S3 object accessibility
 
-3. **Lambda@Edge Errors**
-   - Review CloudWatch Logs in us-east-1
-   - Check function timeout settings
-   - Verify function code deployment
+3. **CloudFront Update Failures**
+   - Check if another update is in progress
+   - Verify distribution exists and is accessible
+   - Review CloudFront service limits
 
 ### Testing
 
-Test the Lambda@Edge function locally:
+Test the CDK stack configuration:
 
 ```bash
-cd cdk/lambda/version-selector
+cd cdk
+npm run build
 npm test
 ```
 
-Test version configuration:
+Test the Lambda function integration:
 
 ```bash
-curl -s https://your-cloudfront-domain.cloudfront.net/ -v
-# Check X-Forwarded-For headers and response paths
+# Update version and monitor logs
+./scripts/update-frontend-version.sh 1.0.0
+
+# Check CloudWatch logs
+aws logs tail /aws/lambda/[FunctionName] --follow
 ```
 
 ## Security Considerations
 
-### S3 Bucket Policy
+### Lambda Function Security
 
-The version configuration file requires public read access:
+The Lambda function uses:
+- Least privilege IAM permissions (only CloudFront and S3 read access)
+- No sensitive data in environment variables
+- Secure S3 event integration
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::your-bucket/config/version.json"
-    }
-  ]
-}
-```
+### S3 Bucket Access
 
-### Lambda@Edge Permissions
+The S3 bucket uses Origin Access Control (OAC) for secure access from CloudFront.
 
-The Lambda@Edge function requires:
-- Basic execution role for Lambda
-- S3 GetObject permission for the version config file
-- CloudWatch Logs permissions for debugging
+### CloudFront Updates
+
+- Updates are performed using AWS SDK with proper authentication
+- Only the origin path is modified, not security settings
+- Function validates version format before applying changes
 
 ## Future Enhancements
 
@@ -216,38 +257,46 @@ This foundation supports future features:
    }
    ```
 
-3. **Geographic Routing**
+3. **Staged Rollouts**
    ```json
    {
      "version": "1.0.0",
-     "geographic": {
-       "US": "1.0.0",
-       "EU": "1.0.1"
+     "rollout": {
+       "enabled": true,
+       "percentage": 25,
+       "targetVersion": "1.1.0"
      }
    }
    ```
 
 ## Cost Analysis
 
+### Lambda Function Costs
+
+- **Invocations**: Minimal cost (only triggered on config changes)
+- **Duration**: ~3-5 seconds per execution
+- **Memory**: 128MB (default)
+- **Estimated cost**: <$1/month for typical usage
+
 ### Additional Costs
 
-1. **Lambda@Edge Invocations**: $0.0000006 per request
-2. **S3 GET Requests**: $0.0004 per 1,000 requests (cached, so minimal)
-3. **CloudWatch Logs**: Standard logging costs
+1. **CloudWatch Logs**: Minimal cost for function logs
+2. **CloudFront API Calls**: No additional cost for distribution updates
+3. **S3 Events**: No additional cost for notifications
 
 ### Cost Optimization
 
-- 60-second caching reduces S3 requests by ~99%
-- Single version config file minimizes S3 storage costs
-- Lambda@Edge function optimized for minimal execution time
+- No Lambda@Edge execution costs during request processing
+- Faster updates reduce operational overhead
+- Simplified architecture with fewer moving parts
 
 ## Migration from Static Version
 
-To migrate from the previous static version system:
+To migrate from the previous static CDK approach:
 
-1. Deploy the updated CDK stack
-2. Upload initial version.json with current version
-3. Verify functionality with a test version change
-4. Update deployment scripts to modify version.json instead of redeploying CDK
+1. Deploy the updated CDK stack (this change)
+2. Verify S3 event notifications are working
+3. Test version change with update script
+4. Monitor Lambda function logs for successful execution
 
-The migration is backward compatible - if version.json is missing or invalid, requests pass through unchanged.
+The migration adds the Lambda function and S3 event triggers while maintaining the existing S3 bucket and CloudFront distribution.

@@ -96,7 +96,8 @@ UPLOADED_VERSION=$(echo "$UPLOADED_CONFIG" | jq -r '.version')
 if [ "$UPLOADED_VERSION" = "$NEW_VERSION" ]; then
     echo "✅ Version update successful!"
     echo "New version: $NEW_VERSION"
-    echo "Changes will take effect within 60 seconds due to Lambda@Edge caching"
+    echo "CloudFront distribution will be automatically updated via Lambda function..."
+    echo "⏳ Update may take 1-2 minutes to propagate through CloudFront"
 else
     echo "❌ Version update failed!"
     echo "Expected: $NEW_VERSION"
@@ -116,7 +117,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     
     if [ -n "$CF_DOMAIN" ]; then
         echo "Testing CloudFront distribution: https://$CF_DOMAIN"
-        echo "Note: It may take up to 60 seconds for changes to propagate"
+        echo "Note: CloudFront edge caches may take 5-15 minutes to update"
         
         # Simple test request
         HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$CF_DOMAIN/" || echo "000")
