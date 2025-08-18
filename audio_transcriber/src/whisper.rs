@@ -33,7 +33,7 @@ pub enum AudioTranscriberError {
 }
 
 /// Represents the Whisper model to be used for transcription.
-////// The available models are:
+/// The available models are:
 /// - Tiny
 /// - Base
 /// - Small
