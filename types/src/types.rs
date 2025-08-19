@@ -11,7 +11,8 @@
 //     let model: AccessTokenResponse = serde_json::from_str(&json).unwrap();
 // }
 
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccessTokenResponse {
@@ -23,6 +24,40 @@ pub struct AccessTokenResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AuthorizationUrlResponse {
     pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChatSubscriptionStatusResponse {
+    /// Whether the user has any active chat subscriptions
+    pub has_active_subscription: bool,
+
+    /// Array of active EventSub chat subscriptions for the user
+    pub subscriptions: Vec<EventSubSubscription>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EventSubSubscription {
+    /// The condition object for the subscription
+    pub condition: HashMap<String, Option<serde_json::Value>>,
+
+    /// When the subscription was created
+    pub created_at: String,
+
+    /// The subscription ID
+    pub id: String,
+
+    /// The status of the subscription
+    pub status: String,
+
+    /// The transport object for the subscription
+    pub transport: HashMap<String, Option<serde_json::Value>>,
+
+    /// The type of the subscription
+    #[serde(rename = "type")]
+    pub event_sub_subscription_type: String,
+
+    /// The version of the subscription
+    pub version: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -569,6 +604,22 @@ pub struct StreamIngestionRequest {
     pub initial_summary: String,
 
     pub stream_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubscribeChatRequest {
+    /// The webhook URL where Twitch will send EventSub notifications
+    pub webhook_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubscribeChatResponse {
+    /// The status of the subscription request
+    pub status: String,
+
+    /// The ID of the created EventSub subscription, if successful
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscription_id: Option<String>,
 }
 
 /// A task represents a unit of work in the system, with a unique identifier, status,

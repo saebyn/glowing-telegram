@@ -7,6 +7,48 @@ export interface AuthorizationURLResponse {
     url: string;
 }
 
+export interface ChatSubscriptionStatusResponse {
+    /**
+     * Whether the user has any active chat subscriptions
+     */
+    has_active_subscription: boolean;
+    /**
+     * Array of active EventSub chat subscriptions for the user
+     */
+    subscriptions: EventSubSubscription[];
+}
+
+export interface EventSubSubscription {
+    /**
+     * The condition object for the subscription
+     */
+    condition: { [key: string]: any };
+    /**
+     * When the subscription was created
+     */
+    created_at: string;
+    /**
+     * The subscription ID
+     */
+    id: string;
+    /**
+     * The status of the subscription
+     */
+    status: string;
+    /**
+     * The transport object for the subscription
+     */
+    transport: { [key: string]: any };
+    /**
+     * The type of the subscription
+     */
+    type: string;
+    /**
+     * The version of the subscription
+     */
+    version: string;
+}
+
 export interface CutList {
     /**
      * Audio channel mixing and volume control configuration
@@ -361,6 +403,24 @@ export interface StreamIngestionRequest {
     initialPrompt:  string;
     initialSummary: string;
     streamId:       string;
+}
+
+export interface SubscribeChatRequest {
+    /**
+     * The webhook URL where Twitch will send EventSub notifications
+     */
+    webhook_url: string;
+}
+
+export interface SubscribeChatResponse {
+    /**
+     * The status of the subscription request
+     */
+    status: string;
+    /**
+     * The ID of the created EventSub subscription, if successful
+     */
+    subscription_id?: null | string;
 }
 
 /**

@@ -31,6 +31,7 @@ export default class RepoStack extends cdk.Stack {
         'media-lambda',
         'render-job',
         'upload-video',
+        'chat-processor-lambda',
       ],
     });
 

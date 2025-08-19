@@ -12,6 +12,8 @@ use tracing::instrument;
 use types::{
     AccessTokenResponse, AuthorizationUrlResponse, TwitchAuthRequest,
     TwitchCallbackRequest, TwitchCallbackResponse, TwitchSessionSecret,
+    SubscribeChatRequest, SubscribeChatResponse, ChatSubscriptionStatusResponse,
+    EventSubSubscription,
 };
 
 use crate::{structs::AppContext, twitch};
@@ -286,34 +288,11 @@ struct EventSubSubscriptionResponse {
     data: Vec<EventSubSubscription>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct EventSubSubscription {
-    id: String,
-    status: String,
-    #[serde(rename = "type")]
-    event_type: String,
-    version: String,
-    condition: serde_json::Value,
-    transport: serde_json::Value,
-    created_at: String,
-}
-
 #[derive(Debug, Deserialize)]
 struct EventSubWebhookRequest {
     challenge: Option<String>,
     subscription: Option<EventSubSubscription>,
     event: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SubscribeChatRequest {
-    webhook_url: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SubscribeChatResponse {
-    subscription_id: Option<String>,
-    status: String,
 }
 
 /// Subscribe to Twitch chat events for the authenticated user's channel
@@ -548,4 +527,157 @@ pub async fn eventsub_webhook_handler(
             (StatusCode::BAD_REQUEST, "Invalid JSON".to_string())
         }
     }
+}
+
+/// Check the status of EventSub chat subscriptions for the authenticated user
+#[instrument(skip(state))]
+pub async fn chat_subscription_status_handler(
+    State(state): State<AppContext>,
+    CognitoUserId(cognito_user_id): CognitoUserId,
+) -> impl IntoResponse {
+    tracing::info!("Chat subscription status handler called");
+
+    // Get the user's access token
+    let secret_id =
+        state.config.user_secret_path.secret_path(&cognito_user_id);
+
+    let secret = match gt_secrets::get::<TwitchSessionSecret>(
+        &state.secrets_manager,
+        &secret_id,
+    )
+    .await
+    {
+        Ok(secret) => secret,
+        Err(e) => {
+            tracing::error!("failed to get secret: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(ChatSubscriptionStatusResponse {
+                    has_active_subscription: false,
+                    subscriptions: vec![],
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let Some(access_token) = secret.access_token else {
+        tracing::warn!("access_token not found in secret");
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!(ChatSubscriptionStatusResponse {
+                has_active_subscription: false,
+                subscriptions: vec![],
+            })),
+        )
+            .into_response();
+    };
+
+    // Validate token and get broadcaster_id
+    let validation_response = match twitch::validate_token(&access_token).await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Failed to validate access token: {:?}", e);
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!(ChatSubscriptionStatusResponse {
+                    has_active_subscription: false,
+                    subscriptions: vec![],
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    // Get EventSub subscriptions from Twitch
+    let client = reqwest::Client::new();
+    let response = match client
+        .get("https://api.twitch.tv/helix/eventsub/subscriptions")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Client-Id", &state.twitch_credentials.id)
+        .query(&[("type", "channel.chat.message")])
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Failed to get subscriptions: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(ChatSubscriptionStatusResponse {
+                    has_active_subscription: false,
+                    subscriptions: vec![],
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    if !response.status().is_success() {
+        let status_code = response.status();
+        let error_body = response.text().await.unwrap_or_default();
+        tracing::error!("Twitch API error {}: {}", status_code, error_body);
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!(ChatSubscriptionStatusResponse {
+                has_active_subscription: false,
+                subscriptions: vec![],
+            })),
+        )
+            .into_response();
+    }
+
+    let subscription_response: EventSubSubscriptionResponse = match response
+        .json()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Failed to parse subscription response: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(ChatSubscriptionStatusResponse {
+                    has_active_subscription: false,
+                    subscriptions: vec![],
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    // Filter subscriptions for this user's channel and enabled status
+    let user_id = &validation_response.user_id;
+    let active_subscriptions: Vec<EventSubSubscription> = subscription_response
+        .data
+        .into_iter()
+        .filter(|sub| {
+            // Check if this subscription is for the user's channel
+            if let Some(broadcaster_user_id) = sub.condition.get("broadcaster_user_id") {
+                if let Some(broadcaster_id_value) = broadcaster_user_id {
+                    if let Some(broadcaster_id_str) = broadcaster_id_value.as_str() {
+                        return broadcaster_id_str == user_id && sub.status == "enabled";
+                    }
+                }
+            }
+            false
+        })
+        .collect();
+
+    let has_active = !active_subscriptions.is_empty();
+
+    tracing::info!(
+        "Found {} active chat subscriptions for user {}",
+        active_subscriptions.len(),
+        user_id
+    );
+
+    (
+        StatusCode::OK,
+        Json(json!(ChatSubscriptionStatusResponse {
+            has_active_subscription: has_active,
+            subscriptions: active_subscriptions,
+        })),
+    )
+        .into_response()
 }

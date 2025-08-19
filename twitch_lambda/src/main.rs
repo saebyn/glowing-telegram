@@ -62,6 +62,10 @@ async fn initialize_api(state: AppContext) {
             post(handlers::subscribe_chat_handler),
         )
         .route(
+            "/eventsub/chat/status",
+            get(handlers::chat_subscription_status_handler),
+        )
+        .route(
             "/eventsub/webhook",
             post(handlers::eventsub_webhook_handler),
         )
