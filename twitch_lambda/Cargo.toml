@@ -33,6 +33,7 @@ oauth2 = { version = "4", features = ["reqwest", "rustls-tls"] }
 gt_secrets = { workspace = true }
 gt_axum = { workspace = true }
 gt_app = { path = "../gt_app" }
+aws-sdk-sqs = "1.71.0"
 
 [lints]
 workspace = true

@@ -11,7 +11,7 @@
 //     let model: AccessTokenResponse = serde_json::from_str(&json).unwrap();
 // }
 
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccessTokenResponse {
@@ -642,6 +642,27 @@ pub struct TwitchCallbackRequest {
 pub struct TwitchCallbackResponse {
     /// The URL to redirect the client to after the authorization flow is complete.
     pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TwitchChatMessage {
+    pub channel_id: String,
+
+    pub event_type: String,
+
+    pub message: String,
+
+    pub sender_id: String,
+
+    pub timestamp: String,
+
+    pub ttl: f64,
+
+    pub user_id: String,
+
+    pub user_login: String,
+
+    pub user_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

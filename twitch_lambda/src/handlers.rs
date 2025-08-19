@@ -1,7 +1,7 @@
 use axum::{
     Json,
     extract::State,
-    http::{StatusCode, header},
+    http::{StatusCode, header, HeaderMap},
     response::IntoResponse,
 };
 use gt_axum::cognito::CognitoUserId;
@@ -12,6 +12,7 @@ use types::{
     AccessTokenResponse, AuthorizationUrlResponse, TwitchAuthRequest,
     TwitchCallbackRequest, TwitchCallbackResponse, TwitchSessionSecret,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{structs::AppContext, twitch};
 
@@ -261,4 +262,203 @@ pub async fn obtain_twitch_access_token_handler(
             return (StatusCode::INTERNAL_SERVER_ERROR,).into_response();
         }
     };
+}
+
+// EventSub subscription request/response structures
+#[derive(Debug, Serialize)]
+struct EventSubSubscriptionRequest {
+    #[serde(rename = "type")]
+    event_type: String,
+    version: String,
+    condition: serde_json::Value,
+    transport: EventSubTransport,
+}
+
+#[derive(Debug, Serialize)]
+struct EventSubTransport {
+    method: String,
+    callback: String,
+    secret: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventSubSubscriptionResponse {
+    data: Vec<EventSubSubscription>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct EventSubSubscription {
+    id: String,
+    status: String,
+    #[serde(rename = "type")]
+    event_type: String,
+    version: String,
+    condition: serde_json::Value,
+    transport: serde_json::Value,
+    created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventSubWebhookRequest {
+    challenge: Option<String>,
+    subscription: Option<EventSubSubscription>,
+    event: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize)]
+struct SubscribeChatRequest {
+    webhook_url: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SubscribeChatResponse {
+    subscription_id: Option<String>,
+    status: String,
+}
+
+/// Subscribe to Twitch chat events for the authenticated user's channel
+#[instrument(skip(state))]
+pub async fn subscribe_chat_handler(
+    State(state): State<AppContext>,
+    CognitoUserId(cognito_user_id): CognitoUserId,
+    Json(request): Json<SubscribeChatRequest>,
+) -> Json<serde_json::Value> {
+    // Get user's Twitch tokens
+    let secret_id = state.config.user_secret_path.secret_path(&cognito_user_id);
+    
+    let Ok(secret) = gt_secrets::get::<TwitchSessionSecret>(
+        &state.secrets_manager,
+        &secret_id,
+    )
+    .await
+    else {
+        tracing::error!("failed to get user's Twitch secret");
+        return Json(json!({"error": "missing Twitch secret"}));
+    };
+
+    let Some(access_token) = secret.access_token else {
+        tracing::error!("user has no Twitch access token");
+        return Json(json!({"error": "no access token"}));
+    };
+
+    // Validate token and get user info
+    let Ok(validation) = twitch::validate_token(&access_token).await else {
+        tracing::error!("failed to validate Twitch token");
+        return Json(json!({"error": "invalid token"}));
+    };
+
+    let broadcaster_id = validation.user_id;
+
+    // Create EventSub subscription
+    let subscription = EventSubSubscriptionRequest {
+        event_type: "channel.chat.message".to_string(),
+        version: "1".to_string(),
+        condition: json!({
+            "broadcaster_user_id": broadcaster_id,
+            "user_id": broadcaster_id
+        }),
+        transport: EventSubTransport {
+            method: "webhook".to_string(),
+            callback: request.webhook_url,
+            secret: uuid::Uuid::now_v7().to_string(),
+        },
+    };
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.twitch.tv/helix/eventsub/subscriptions")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Client-Id", &state.twitch_credentials.id)
+        .header("Content-Type", "application/json")
+        .json(&subscription)
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) if resp.status().is_success() => {
+            if let Ok(sub_response) = resp.json::<EventSubSubscriptionResponse>().await {
+                if let Some(sub) = sub_response.data.first() {
+                    let response = SubscribeChatResponse {
+                        subscription_id: Some(sub.id.clone()),
+                        status: sub.status.clone(),
+                    };
+                    
+                    Json(json!(response))
+                } else {
+                    tracing::error!("no subscription data in response");
+                    Json(json!({"error": "no subscription data"}))
+                }
+            } else {
+                tracing::error!("failed to parse subscription response");
+                Json(json!({"error": "failed to parse response"}))
+            }
+        }
+        Ok(resp) => {
+            tracing::error!("Twitch API error: status {}", resp.status());
+            Json(json!({"error": "Twitch API error"}))
+        }
+        Err(e) => {
+            tracing::error!("failed to call Twitch API: {:?}", e);
+            Json(json!({"error": "API call failed"}))
+        }
+    }
+}
+
+/// Handle incoming Twitch EventSub webhooks
+#[instrument(skip(_state))]
+pub async fn eventsub_webhook_handler(
+    State(_state): State<AppContext>,
+    headers: HeaderMap,
+    body: String,
+) -> impl IntoResponse {
+    // Verify the webhook signature
+    let signature = headers.get("Twitch-Eventsub-Message-Signature");
+    let timestamp = headers.get("Twitch-Eventsub-Message-Timestamp");
+    let message_id = headers.get("Twitch-Eventsub-Message-Id");
+
+    if signature.is_none() || timestamp.is_none() || message_id.is_none() {
+        tracing::warn!("missing required Twitch headers");
+        return (StatusCode::BAD_REQUEST,).into_response();
+    }
+
+    // For now, we'll skip signature verification as we need the webhook secret
+    // In a real implementation, we'd verify using HMAC-SHA256
+
+    // Parse the request
+    let webhook_request: EventSubWebhookRequest = match serde_json::from_str(&body) {
+        Ok(req) => req,
+        Err(e) => {
+            tracing::error!("failed to parse webhook request: {:?}", e);
+            return (StatusCode::BAD_REQUEST,).into_response();
+        }
+    };
+
+    // Handle challenge verification
+    if let Some(challenge) = webhook_request.challenge {
+        tracing::info!("responding to EventSub challenge");
+        return (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "text/plain")],
+            challenge,
+        ).into_response();
+    }
+
+    // Handle actual events
+    if let (Some(subscription), Some(event)) = (webhook_request.subscription, webhook_request.event) {
+        tracing::info!("received EventSub event: {}", subscription.event_type);
+        
+        // Send to SQS for processing
+        let message_body = json!({
+            "subscription": subscription,
+            "event": event
+        }).to_string();
+
+        // Here we would send to SQS, but for now just log
+        tracing::info!("would send to SQS: {}", message_body);
+        
+        return (StatusCode::NO_CONTENT,).into_response();
+    }
+
+    tracing::warn!("unhandled webhook request");
+    (StatusCode::BAD_REQUEST,).into_response()
 }

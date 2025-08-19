@@ -40,6 +40,7 @@ struct Config {
     profiles_table: String,
     tasks_table: String,
     projects_table: String,
+    chat_messages_table: String,
 }
 
 #[derive(Debug, Clone)]
@@ -162,19 +163,23 @@ fn get_table_config<'a>(
             "profiles" => &state.config.profiles_table,
             "tasks" => &state.config.tasks_table,
             "projects" => &state.config.projects_table,
+            "chat_messages" => &state.config.chat_messages_table,
             _ => panic!("unsupported resource: {resource}"),
         },
         partition_key: match resource {
             "video_clips" => "key",
+            "chat_messages" => "user_id",
             _ => "id",
         },
         q_key: match resource {
             "video_clips" => "key",
             "profiles" => "id",
+            "chat_messages" => "timestamp",
             _ => "title",
         },
         indexes: match resource {
             "video_clips" => vec!["stream_id"],
+            "chat_messages" => vec!["channel_id"],
             _ => vec![],
         },
     }

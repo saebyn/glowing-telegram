@@ -14,6 +14,7 @@ export default class DatastoreConstruct extends Construct {
   public readonly videoMetadataTable: dynamodb.ITable;
   public readonly tasksTable: dynamodb.ITable;
   public readonly projectsTable: dynamodb.ITable;
+  public readonly chatMessagesTable: dynamodb.ITable;
 
   constructor(scope: Construct, id: string) {
     super(scope, id);
@@ -124,5 +125,29 @@ export default class DatastoreConstruct extends Construct {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
+
+    const chatMessagesTable = new dynamodb.Table(this, 'ChatMessagesTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'user_id', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'timestamp', type: dynamodb.AttributeType.STRING },
+      timeToLiveAttribute: 'ttl',
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    // Add GSI for querying by channel_id
+    chatMessagesTable.addGlobalSecondaryIndex({
+      indexName: 'channel_id-timestamp-index',
+      partitionKey: {
+        name: 'channel_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'timestamp',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    this.chatMessagesTable = chatMessagesTable;
   }
 }

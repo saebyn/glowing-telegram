@@ -399,6 +399,18 @@ export interface TwitchCallbackResponse {
     url: string;
 }
 
+export interface TwitchChatMessage {
+    channel_id: string;
+    event_type: string;
+    message:    string;
+    sender_id:  string;
+    timestamp:  string;
+    ttl:        number;
+    user_id:    string;
+    user_login: string;
+    user_name:  string;
+}
+
 export interface TwitchSessionSecret {
     access_token?:  string;
     csrf_token:     string;

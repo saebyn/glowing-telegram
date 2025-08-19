@@ -57,6 +57,14 @@ async fn initialize_api(state: AppContext) {
             "/auth/twitch/token",
             get(handlers::obtain_twitch_access_token_handler),
         )
+        // .route(
+        //     "/eventsub/chat/subscribe",
+        //     post(handlers::subscribe_chat_handler),
+        // )
+        // .route(
+        //     "/eventsub/webhook",
+        //     post(handlers::eventsub_webhook_handler),
+        // )
         .fallback(|| async {
             (
                 StatusCode::NOT_FOUND,
