@@ -1,4 +1,5 @@
 use aws_sdk_secretsmanager::client::Client as SecretsManagerClient;
+use aws_sdk_sqs::Client as SqsClient;
 use gt_secrets::UserSecretPathProvider;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -11,6 +12,8 @@ pub struct Config {
     pub is_global_refresh_service: bool,
 
     pub user_secret_path: UserSecretPathProvider,
+    
+    pub chat_queue_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -23,6 +26,7 @@ pub struct TwitchCredentials {
 #[derive(Debug, Clone)]
 pub struct AppContext {
     pub secrets_manager: Arc<SecretsManagerClient>,
+    pub sqs_client: Arc<SqsClient>,
     pub twitch_credentials: TwitchCredentials,
     pub config: Config,
 }
@@ -30,6 +34,7 @@ pub struct AppContext {
 impl gt_app::ContextProvider<Config> for AppContext {
     async fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
         let secrets_manager = SecretsManagerClient::new(&aws_config);
+        let sqs_client = SqsClient::new(&aws_config);
 
         let twitch_credentials = match secrets_manager
             .get_secret_value()
@@ -55,6 +60,7 @@ impl gt_app::ContextProvider<Config> for AppContext {
         // Create a shared state to pass to the handler
         Self {
             secrets_manager: Arc::new(secrets_manager),
+            sqs_client: Arc::new(sqs_client),
             twitch_credentials,
             config,
         }

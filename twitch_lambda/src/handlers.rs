@@ -326,13 +326,59 @@ pub async fn subscribe_chat_handler(
 }
 
 /// Handle incoming Twitch EventSub webhooks
-#[instrument(skip(_state))]
+#[instrument(skip(state))]
 pub async fn eventsub_webhook_handler(
-    State(_state): State<AppContext>,
+    State(state): State<AppContext>,
     body: String,
 ) -> impl IntoResponse {
     tracing::info!("EventSub webhook received: {}", body);
     
-    // For now, just return a placeholder response
-    (StatusCode::OK, "OK")
+    // Parse the webhook request to handle challenges and events
+    let webhook_request: Result<serde_json::Value, _> = serde_json::from_str(&body);
+    
+    match webhook_request {
+        Ok(json) => {
+            // Check if this is a challenge verification
+            if let Some(challenge) = json.get("challenge") {
+                if let Some(challenge_str) = challenge.as_str() {
+                    tracing::info!("Responding to EventSub challenge");
+                    return (StatusCode::OK, challenge_str.to_string());
+                }
+            }
+            
+            // Check if this is an actual event
+            if json.get("subscription").is_some() && json.get("event").is_some() {
+                // Send the entire message to SQS for processing
+                if let Some(queue_url) = &state.config.chat_queue_url {
+                    match state
+                        .sqs_client
+                        .send_message()
+                        .queue_url(queue_url)
+                        .message_body(&body)
+                        .send()
+                        .await
+                    {
+                        Ok(_) => {
+                            tracing::info!("Successfully sent message to SQS");
+                            return (StatusCode::NO_CONTENT, "".to_string());
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to send message to SQS: {:?}", e);
+                            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to process".to_string());
+                        }
+                    }
+                } else {
+                    tracing::warn!("No chat queue URL configured");
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "No queue configured".to_string());
+                }
+            }
+            
+            tracing::warn!("Unhandled webhook request format");
+            (StatusCode::BAD_REQUEST, "Invalid request".to_string())
+        }
+        Err(e) => {
+            tracing::error!("Failed to parse webhook request: {:?}", e);
+            (StatusCode::BAD_REQUEST, "Invalid JSON".to_string())
+        }
+    }
 }

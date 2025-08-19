@@ -15,6 +15,7 @@ import MediaServeConstruct from './mediaServeConstruct';
 import RenderJobConstruct from './batch/renderJob';
 import YoutubeUploader from './youtubeUploader';
 import WebSocketAPIConstruct from './websocketApi';
+import TwitchChatProcessingConstruct from './twitchChatProcessing';
 import { EventBus } from 'aws-cdk-lib/aws-events';
 
 interface AppStackProps extends cdk.StackProps {
@@ -146,6 +147,11 @@ export default class AppStack extends cdk.Stack {
       domainName,
     });
 
+    const twitchChatProcessing = new TwitchChatProcessingConstruct(this, 'TwitchChatProcessing', {
+      chatMessagesTable: dataStore.chatMessagesTable,
+      imageVersion,
+    });
+
     new APIConstruct(this, 'API', {
       streamIngestionFunction: streamIngestion.stepFunction,
       renderJob: {
@@ -168,6 +174,7 @@ export default class AppStack extends cdk.Stack {
       tasksTable: dataStore.tasksTable,
       projectsTable: dataStore.projectsTable,
       chatMessagesTable: dataStore.chatMessagesTable,
+      chatQueue: twitchChatProcessing.chatQueue,
 
       youtubeUploaderAPILambda: youtubeUploader.apiLambda,
 

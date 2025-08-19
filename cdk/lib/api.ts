@@ -11,6 +11,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import type * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
+import type * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import ServiceLambdaConstruct from './util/serviceLambda';
 import RenderJobSubmissionLambda from './renderJobSubmissionLambda';
@@ -28,6 +29,7 @@ interface APIConstructProps {
   tasksTable: ITable;
   projectsTable: ITable;
   chatMessagesTable: ITable;
+  chatQueue: sqs.IQueue;
   openaiSecret: secretsmanager.ISecret;
   youtubeAppSecret: secretsmanager.ISecret;
 
@@ -101,6 +103,7 @@ export default class APIConstruct extends Construct {
           USER_SECRET_PATH: props.twitchUserSecretBasePath,
           TWITCH_SECRET_ARN: twitchAppSecret.secretArn,
           IS_GLOBAL_REFRESH_SERVICE: 'false',
+          CHAT_QUEUE_URL: props.chatQueue.queueUrl,
         },
       },
       name: 'twitch-lambda',
@@ -129,6 +132,9 @@ export default class APIConstruct extends Construct {
         ],
       }),
     );
+
+    // Grant Twitch lambda permission to send messages to the chat queue
+    props.chatQueue.grantSendMessages(twitchService.lambda);
 
     // create a lambda and an event rule to run it every hour to refresh the twitch tokens for all users
     const tokenRefreshLambda = new ServiceLambdaConstruct(
