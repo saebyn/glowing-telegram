@@ -6,13 +6,13 @@ use axum::{
 };
 use gt_axum::cognito::CognitoUserId;
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::instrument;
 use types::{
     AccessTokenResponse, AuthorizationUrlResponse, TwitchAuthRequest,
     TwitchCallbackRequest, TwitchCallbackResponse, TwitchSessionSecret,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{structs::AppContext, twitch};
 
@@ -318,11 +318,166 @@ pub struct SubscribeChatResponse {
 
 /// Subscribe to Twitch chat events for the authenticated user's channel
 pub async fn subscribe_chat_handler(
-    State(_state): State<AppContext>,
+    State(state): State<AppContext>,
+    CognitoUserId(cognito_user_id): CognitoUserId,
     Json(request): Json<SubscribeChatRequest>,
 ) -> impl IntoResponse {
-    tracing::info!("Subscribe chat handler called with webhook_url: {}", request.webhook_url);
-    "not implemented yet"
+    tracing::info!(
+        "Subscribe chat handler called with webhook_url: {}",
+        request.webhook_url
+    );
+
+    // Get the user's access token
+    let secret_id =
+        state.config.user_secret_path.secret_path(&cognito_user_id);
+
+    let secret = match gt_secrets::get::<TwitchSessionSecret>(
+        &state.secrets_manager,
+        &secret_id,
+    )
+    .await
+    {
+        Ok(secret) => secret,
+        Err(e) => {
+            tracing::error!("failed to get secret: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(SubscribeChatResponse {
+                    subscription_id: None,
+                    status: "error".to_string(),
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let Some(access_token) = secret.access_token else {
+        tracing::warn!("access_token not found in secret");
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!(SubscribeChatResponse {
+                subscription_id: None,
+                status: "unauthorized".to_string(),
+            })),
+        )
+            .into_response();
+    };
+
+    // Validate token and get broadcaster_id
+    let validation_response = match twitch::validate_token(&access_token).await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Failed to validate access token: {:?}", e);
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!(SubscribeChatResponse {
+                    subscription_id: None,
+                    status: "invalid_token".to_string(),
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    // Create EventSub subscription request
+    let subscription_request = EventSubSubscriptionRequest {
+        event_type: "channel.chat.message".to_string(),
+        version: "1".to_string(),
+        condition: json!({
+            "broadcaster_user_id": validation_response.user_id,
+            "user_id": validation_response.user_id
+        }),
+        transport: EventSubTransport {
+            method: "webhook".to_string(),
+            callback: request.webhook_url,
+            secret: std::env::var("EVENTSUB_SECRET")
+                .unwrap_or_else(|_| "default_secret".to_string()),
+        },
+    };
+
+    // Make the subscription request to Twitch
+    let client = reqwest::Client::new();
+    let response = match client
+        .post("https://api.twitch.tv/helix/eventsub/subscriptions")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Client-Id", &state.twitch_credentials.id)
+        .header("Content-Type", "application/json")
+        .json(&subscription_request)
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Failed to make subscription request: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(SubscribeChatResponse {
+                    subscription_id: None,
+                    status: "request_failed".to_string(),
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    if !response.status().is_success() {
+        let status_code = response.status();
+        let error_body = response.text().await.unwrap_or_default();
+        tracing::error!("Twitch API error {}: {}", status_code, error_body);
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!(SubscribeChatResponse {
+                subscription_id: None,
+                status: format!("twitch_error_{}", status_code.as_u16()),
+            })),
+        )
+            .into_response();
+    }
+
+    let subscription_response: EventSubSubscriptionResponse = match response
+        .json()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Failed to parse subscription response: {:?}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(SubscribeChatResponse {
+                    subscription_id: None,
+                    status: "parse_error".to_string(),
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    if let Some(subscription) = subscription_response.data.first() {
+        tracing::info!(
+            "Created subscription: {} with status: {}",
+            subscription.id,
+            subscription.status
+        );
+        (
+            StatusCode::OK,
+            Json(json!(SubscribeChatResponse {
+                subscription_id: Some(subscription.id.clone()),
+                status: subscription.status.clone(),
+            })),
+        )
+            .into_response()
+    } else {
+        tracing::error!("No subscription data in response");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!(SubscribeChatResponse {
+                subscription_id: None,
+                status: "no_data".to_string(),
+            })),
+        )
+            .into_response()
+    }
 }
 
 /// Handle incoming Twitch EventSub webhooks
@@ -332,10 +487,11 @@ pub async fn eventsub_webhook_handler(
     body: String,
 ) -> impl IntoResponse {
     tracing::info!("EventSub webhook received: {}", body);
-    
+
     // Parse the webhook request to handle challenges and events
-    let webhook_request: Result<serde_json::Value, _> = serde_json::from_str(&body);
-    
+    let webhook_request: Result<serde_json::Value, _> =
+        serde_json::from_str(&body);
+
     match webhook_request {
         Ok(json) => {
             // Check if this is a challenge verification
@@ -345,9 +501,11 @@ pub async fn eventsub_webhook_handler(
                     return (StatusCode::OK, challenge_str.to_string());
                 }
             }
-            
+
             // Check if this is an actual event
-            if json.get("subscription").is_some() && json.get("event").is_some() {
+            if json.get("subscription").is_some()
+                && json.get("event").is_some()
+            {
                 // Send the entire message to SQS for processing
                 if let Some(queue_url) = &state.config.chat_queue_url {
                     match state
@@ -363,16 +521,25 @@ pub async fn eventsub_webhook_handler(
                             return (StatusCode::NO_CONTENT, "".to_string());
                         }
                         Err(e) => {
-                            tracing::error!("Failed to send message to SQS: {:?}", e);
-                            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to process".to_string());
+                            tracing::error!(
+                                "Failed to send message to SQS: {:?}",
+                                e
+                            );
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                "Failed to process".to_string(),
+                            );
                         }
                     }
                 } else {
                     tracing::warn!("No chat queue URL configured");
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "No queue configured".to_string());
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "No queue configured".to_string(),
+                    );
                 }
             }
-            
+
             tracing::warn!("Unhandled webhook request format");
             (StatusCode::BAD_REQUEST, "Invalid request".to_string())
         }

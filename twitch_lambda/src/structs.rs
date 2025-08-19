@@ -12,7 +12,7 @@ pub struct Config {
     pub is_global_refresh_service: bool,
 
     pub user_secret_path: UserSecretPathProvider,
-    
+
     pub chat_queue_url: Option<String>,
 }
 

@@ -1,11 +1,11 @@
 use aws_lambda_events::event::sqs::{SqsEvent, SqsMessage};
-use lambda_runtime::{service_fn, Error, LambdaEvent};
-use serde::Deserialize;
-use tracing::{info, error};
 use aws_sdk_dynamodb::Client as DynamoDbClient;
 use aws_sdk_dynamodb::types::AttributeValue;
-use std::collections::HashMap;
 use chrono::{DateTime, Utc};
+use lambda_runtime::{Error, LambdaEvent, service_fn};
+use serde::Deserialize;
+use std::collections::HashMap;
+use tracing::{error, info};
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(clippy::struct_field_names)]
@@ -99,14 +99,17 @@ async fn process_message(
     context: &AppContext,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let body = message.body.as_ref().ok_or("No message body")?;
-    
+
     info!("Processing message: {}", body);
 
     // Parse the EventSub message
     let eventsub_message: EventSubMessage = serde_json::from_str(body)?;
-    
+
     if eventsub_message.subscription.event_type != "channel.chat.message" {
-        info!("Ignoring non-chat message event: {}", eventsub_message.subscription.event_type);
+        info!(
+            "Ignoring non-chat message event: {}",
+            eventsub_message.subscription.event_type
+        );
         return Ok(());
     }
 
@@ -115,43 +118,40 @@ async fn process_message(
 
     // Create a chat message record for DynamoDB
     let mut item = HashMap::new();
-    
+
     // Use the broadcaster (channel owner) as the user_id for partitioning
     item.insert(
         "user_id".to_string(),
         AttributeValue::S(event.broadcaster_user_id.clone()),
     );
-    
+
     item.insert(
         "timestamp".to_string(),
         AttributeValue::S(event.timestamp.to_rfc3339()),
     );
-    
+
     item.insert(
         "sender_id".to_string(),
         AttributeValue::S(event.chatter_user_id),
     );
-    
+
     item.insert(
         "channel_id".to_string(),
         AttributeValue::S(event.broadcaster_user_id),
     );
-    
-    item.insert(
-        "message".to_string(),
-        AttributeValue::S(event.message.text),
-    );
-    
+
+    item.insert("message".to_string(), AttributeValue::S(event.message.text));
+
     item.insert(
         "user_name".to_string(),
         AttributeValue::S(event.chatter_user_name),
     );
-    
+
     item.insert(
         "user_login".to_string(),
         AttributeValue::S(event.chatter_user_login),
     );
-    
+
     item.insert(
         "event_type".to_string(),
         AttributeValue::S("channel.chat.message".to_string()),
@@ -159,10 +159,7 @@ async fn process_message(
 
     // Set TTL to 30 days from now (configurable)
     let ttl = Utc::now().timestamp() + (30 * 24 * 60 * 60);
-    item.insert(
-        "ttl".to_string(),
-        AttributeValue::N(ttl.to_string()),
-    );
+    item.insert("ttl".to_string(), AttributeValue::N(ttl.to_string()));
 
     // Store in DynamoDB
     context
