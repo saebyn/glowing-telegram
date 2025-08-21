@@ -53,6 +53,16 @@ pub enum WhisperModel {
     Turbo,
 }
 
+/// Represents the device to run the Whisper model on.
+/// The available devices are:
+/// - CPU: Runs on the CPU, suitable for low-resource environments.
+/// - GPU: Runs on a CUDA-capable GPU, providing faster processing for larger models.
+#[derive(Debug)]
+pub enum Device {
+    CPU,
+    GPU,
+}
+
 /// Configuration options for the Whisper transcription model.
 /// # Fields
 /// - `model`: The Whisper model to use for transcription.
@@ -79,6 +89,7 @@ pub struct WhisperOptions {
     pub language: String,
     pub clip_timestamps: String,
     pub verbose: bool,
+    pub device: Device,
 }
 
 /// Runs the Whisper transcription model on an audio file stored in an S3 bucket.
@@ -193,7 +204,10 @@ fn build_whisper_command(
             "--task",
             "transcribe",
             "--device",
-            "cuda",
+            match options.device {
+                Device::CPU => "cpu",
+                Device::GPU => "cuda",
+            },
             "--language",
             &options.language,
             "--clip_timestamps",

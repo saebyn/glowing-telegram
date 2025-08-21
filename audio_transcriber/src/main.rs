@@ -14,6 +14,10 @@ struct Config {
     input_bucket: String,
 
     dynamodb_table: String,
+
+    aws_endpoint_url: Option<String>,
+
+    device: Option<String>,
 }
 
 fn load_config() -> Result<Config, figment::Error> {
@@ -49,13 +53,23 @@ async fn main() {
     // Load AWS configuration
     let region_provider =
         RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = aws_config::defaults(BehaviorVersion::latest())
-        .region(region_provider)
-        .load()
-        .await;
+    let aws_config_builder = aws_config::defaults(BehaviorVersion::latest())
+        .region(region_provider);
+
+    let aws_config_builder = if let Some(endpoint) = &config.aws_endpoint_url {
+        tracing::info!("Using custom AWS endpoint: {}", endpoint);
+        aws_config_builder.endpoint_url(endpoint)
+    } else {
+        aws_config_builder
+    };
+
+    let aws_config = aws_config_builder.load().await;
 
     // Create clients
-    let client = aws_sdk_s3::Client::new(&aws_config);
+    let s3_config = aws_sdk_s3::config::Builder::from(&aws_config)
+        .force_path_style(true)
+        .build();
+    let s3 = aws_sdk_s3::Client::from_conf(s3_config);
     let dynamodb = aws_sdk_dynamodb::Client::new(&aws_config);
 
     // Get silence data from DynamoDB
@@ -123,11 +137,25 @@ async fn main() {
         language,
         clip_timestamps,
         verbose: false,
+        device: match config.device {
+            Some(device) => match device.as_str() {
+                "cpu" => whisper::Device::CPU,
+                "cuda" => whisper::Device::GPU,
+                _ => {
+                    tracing::warn!(
+                        "Unknown device '{}', defaulting to CPU",
+                        device
+                    );
+                    whisper::Device::CPU
+                }
+            },
+            None => whisper::Device::GPU, // Default to CUDA if not specified for backwards compatibility
+        },
     };
 
     // capture output
     let whisper_output = whisper::run_whisper_on_s3_object(
-        &client,
+        &s3,
         &config.input_bucket,
         &input_key,
         options,
