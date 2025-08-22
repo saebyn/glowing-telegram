@@ -37,7 +37,7 @@
 			"$comment": "The type of event (e.g., 'channel.chat.message')"
 		},
 		"ttl": {
-			"type": "number",
+			"type": "integer",
 			"$comment": "TTL timestamp for automatic message expiration"
 		}
 	},
