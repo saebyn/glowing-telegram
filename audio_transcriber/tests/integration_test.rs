@@ -13,6 +13,7 @@ use test_config::TestConfig;
 
 /// Integration test using real audio fixture file
 #[tokio::test]
+#[ignore]
 async fn test_audio_transcriber_with_real_audio() {
     let config = TestConfig::from_env();
 

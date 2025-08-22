@@ -204,7 +204,7 @@ print_info "  Image name: $IMAGE_NAME"
 print_info "Starting integration tests..."
 
 print_info "Running integration tests..."
-if cargo test ${VERBOSE} --test integration_test -- --nocapture; then
+if cargo test ${VERBOSE} -- --ignored --nocapture; then
     print_success "Integration tests completed successfully!"
 else
     print_error "Integration test failed!"
