@@ -17,6 +17,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import type TaskMonitoringConstruct from './taskMonitoring';
+import ServiceLambdaConstruct from './util/serviceLambda';
 
 // Constants for upload status, should match the `UploadStatus` type in .../types/src/types.ts
 const UPLOAD_READY_TO_UPLOAD = 'ready_to_upload';
@@ -31,6 +32,7 @@ type YoutubeUploaderProps = {
   readonly jobQueue: IJobQueue;
   readonly eventBus: IEventBus;
   readonly youtubeAppSecret: secretsmanager.ISecret;
+  readonly youtubeUserSecretBasePath: string;
   readonly taskMonitoring: TaskMonitoringConstruct;
   readonly imageVersion?: string;
 };
@@ -48,6 +50,7 @@ export default class YoutubeUploader extends Construct {
       jobQueue,
       eventBus,
       youtubeAppSecret,
+      youtubeUserSecretBasePath,
     } = props;
 
     const executionRole = new cdk.aws_iam.Role(
@@ -81,7 +84,7 @@ export default class YoutubeUploader extends Construct {
             {
               service: 'secretsmanager',
               resource: 'secret',
-              resourceName: 'gt/youtube/user/*',
+              resourceName: `${youtubeUserSecretBasePath}/*`,
               arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
             },
             cdk.Stack.of(this),
@@ -108,7 +111,7 @@ export default class YoutubeUploader extends Construct {
         environment: {
           EPISODE_RENDER_BUCKET: mediaOutputBucket.bucketName,
           EPISODE_TABLE_NAME: episodeTable.tableName,
-          USER_SECRET_PATH: 'gt/youtube/user',
+          USER_SECRET_PATH: props.youtubeUserSecretBasePath,
           YOUTUBE_SECRET_ARN: youtubeAppSecret.secretArn,
           MAX_RETRY_SECONDS: '3600',
           USER_AGENT: 'glowing-telegram/1.0',
@@ -340,125 +343,50 @@ export default class YoutubeUploader extends Construct {
       },
     );
 
-    this.apiLambda = new lambda.Function(this, 'YoutubeUploaderApiLambda', {
-      runtime: lambda.Runtime.PYTHON_3_11,
-      timeout: cdk.Duration.seconds(30),
-      code: lambda.Code.fromInline(`
-import json
-import os
-import boto3
-from datetime import datetime, timedelta, timezone
-
-def handler(event, context):
-    # Resource setup
-    dynamodb = boto3.resource('dynamodb')
-    sfn = boto3.client('stepfunctions')
-    events = boto3.client('events')
-    table = dynamodb.Table(os.environ['EPISODES_TABLE_NAME'])
-    now = datetime.now(timezone.utc).isoformat()
-
-    # Parse the event
-    try:
-        claims = event['requestContext']['authorizer']['jwt']['claims']
-        user_id = claims['sub']
-    except (KeyError, TypeError):
-        return {
-            'statusCode': 401,
-            'body': 'Unauthorized',
-        }
-
-    try:
-        request_body = json.loads(event['body'])
-        episode_ids = request_body.get('episode_ids', [])
-    except (KeyError, json.JSONDecodeError):
-        return {
-            'statusCode': 400,
-            'body': 'Invalid request format',
-        }
-
-    # Validate the input
-    if not episode_ids:
-        return {
-            'statusCode': 400,
-            'body': 'No episode IDs provided',
-        }
-    if not all(isinstance(episode_id, str) for episode_id in episode_ids):
-        return {
-            'statusCode': 400,
-            'body': 'Invalid episode IDs provided',
-        }
-    if not user_id:
-        return {
-            'statusCode': 401,
-            'body': 'Unauthorized',
-        }
-
-    # Update the records
-    for episode_id in episode_ids:
-        table.update_item(
-            Key={'id': episode_id},
-            UpdateExpression='SET #userId = :userId, #uploadStatus = :uploadStatus, #updatedAt = :now, #uploadQueueTimestamp = :now',
-            ExpressionAttributeNames={'#userId': 'user_id', '#uploadStatus': 'upload_status', '#updatedAt': 'updated_at', '#uploadQueueTimestamp': 'upload_queue_timestamp'},
-            ExpressionAttributeValues={':userId': user_id, ':uploadStatus': '${UPLOAD_READY_TO_UPLOAD}', ':now': now},
-        )
-
-    # Send events
-    events.put_events(
-        Entries=[
-            {
-                'Source': 'glowing-telegram.youtube-uploader',
-                'DetailType': 'EpisodeUploadStatus',
-                'Detail': json.dumps({
-                    'status': 'PENDING',
-                    'episodeId': episode_id,
-                    'userId': user_id,
-                }),
-                'EventBusName': os.environ['EVENT_BUS_NAME'],
-            }
-            for episode_id in episode_ids
-        ]
-    )
-
-    # Check if the step function is already running
-    response = sfn.list_executions(
-        stateMachineArn=os.environ['STEPFUNCTION_ARN'],
-        statusFilter='RUNNING'
-    )
-    if not response['executions']:
-        # Start the step function execution if it's not running
-        sfn.start_execution(
-            stateMachineArn=os.environ['STEPFUNCTION_ARN'],
-            input='{}'
-        )
-
-    return {
-        'statusCode': 200,
-        'body': '',
-    }
-    `),
-      handler: 'index.handler',
-      tracing: lambda.Tracing.ACTIVE,
-      loggingFormat: lambda.LoggingFormat.JSON,
-      environment: {
-        EPISODES_TABLE_NAME: episodeTable.tableName,
-        STEPFUNCTION_ARN: stepFunction.stateMachineArn,
-        EVENT_BUS_NAME: eventBus.eventBusName,
+    this.apiLambda = new ServiceLambdaConstruct(this, 'YoutubeUploaderApiLambda', {
+      lambdaOptions: {
+        timeout: cdk.Duration.seconds(30),
+        environment: {
+          EPISODES_TABLE_NAME: episodeTable.tableName,
+          STEPFUNCTION_ARN: stepFunction.stateMachineArn,
+          EVENT_BUS_NAME: eventBus.eventBusName,
+          USER_SECRET_PATH: youtubeUserSecretBasePath,
+          YOUTUBE_SECRET_ARN: youtubeAppSecret.secretArn,
+          UPLOAD_READY_TO_UPLOAD: UPLOAD_READY_TO_UPLOAD,
+        },
+        initialPolicy: [
+          new iam.PolicyStatement({
+            actions: ['dynamodb:UpdateItem'],
+            resources: [episodeTable.tableArn],
+          }),
+          new iam.PolicyStatement({
+            actions: ['states:StartExecution', 'states:ListExecutions'],
+            resources: [stepFunction.stateMachineArn],
+          }),
+          new iam.PolicyStatement({
+            actions: ['events:PutEvents'],
+            resources: [eventBus.eventBusArn],
+          }),
+          new iam.PolicyStatement({
+            actions: ['secretsmanager:GetSecretValue'],
+            resources: [
+              youtubeAppSecret.secretArn,
+              cdk.Arn.format(
+                {
+                  service: 'secretsmanager',
+                  resource: 'secret',
+                  resourceName: `${youtubeUserSecretBasePath}/*`,
+                  arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
+                },
+                cdk.Stack.of(this),
+              ),
+            ],
+          }),
+        ],
       },
-      initialPolicy: [
-        new iam.PolicyStatement({
-          actions: ['dynamodb:UpdateItem'],
-          resources: [episodeTable.tableArn],
-        }),
-        new iam.PolicyStatement({
-          actions: ['states:StartExecution', 'states:ListExecutions'],
-          resources: [stepFunction.stateMachineArn],
-        }),
-        new iam.PolicyStatement({
-          actions: ['events:PutEvents'],
-          resources: [eventBus.eventBusArn],
-        }),
-      ],
-    });
+      name: 'youtube-uploader-lambda',
+      imageVersion: props.imageVersion,
+    }).lambda;
 
     new events.Rule(this, 'UploadCompleteEventRule', {
       eventBus,

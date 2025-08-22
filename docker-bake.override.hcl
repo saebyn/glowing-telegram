@@ -64,3 +64,9 @@ target "youtube_lambda" {
     "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/youtube-lambda:${IMAGE_TAG}"
   ]
 }
+
+target "youtube_uploader_lambda" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/youtube-uploader-lambda:${IMAGE_TAG}"
+  ]
+}

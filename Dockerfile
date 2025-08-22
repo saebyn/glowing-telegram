@@ -157,3 +157,8 @@ ENTRYPOINT [ "/app/video_ingestor" ]
 FROM runtime_base AS youtube_lambda
 COPY --from=rust_builder /app/target/release/youtube_lambda /bootstrap
 ENTRYPOINT ["/bootstrap"]
+
+# youtube_uploader_lambda
+FROM public.ecr.aws/lambda/python:3 AS youtube_uploader_lambda
+COPY youtube_uploader_lambda/main.py ${LAMBDA_TASK_ROOT}
+CMD [ "main.handler" ]

@@ -13,6 +13,7 @@ group "all" {
     "upload_video",
     "video_ingestor",
     "youtube_lambda",
+    "youtube_uploader_lambda",
   ]
 }
 
@@ -25,6 +26,7 @@ group "batch1" {
     "twitch_lambda",
     "upload_video",
     "youtube_lambda",
+    "youtube_uploader_lambda",
   ]
 }
 
@@ -106,4 +108,11 @@ target "youtube_lambda" {
   context = "."
   target = "youtube_lambda"
   tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/youtube-lambda:latest"]
+}
+
+target "youtube_uploader_lambda" {
+  dockerfile = "Dockerfile"
+  context = "."
+  target = "youtube_uploader_lambda"
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/youtube-uploader-lambda:latest"]
 }

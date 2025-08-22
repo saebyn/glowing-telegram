@@ -30,6 +30,9 @@ interface APIConstructProps {
   openaiSecret: secretsmanager.ISecret;
   youtubeAppSecret: secretsmanager.ISecret;
 
+  youtubeUserSecretBasePath: string;
+  twitchUserSecretBasePath: string;
+
   youtubeUploaderAPILambda: lambda.IFunction;
 
   domainName: string;
@@ -52,7 +55,7 @@ export default class APIConstruct extends Construct {
         description: 'Youtube OAuth Lambda for Glowing-Telegram',
         timeout: cdk.Duration.seconds(30),
         environment: {
-          USER_SECRET_PATH: 'gt/youtube/user',
+          USER_SECRET_PATH: props.youtubeUserSecretBasePath,
           YOUTUBE_SECRET_ARN: props.youtubeAppSecret.secretArn,
         },
       },
@@ -74,7 +77,7 @@ export default class APIConstruct extends Construct {
             {
               service: 'secretsmanager',
               resource: 'secret',
-              resourceName: 'gt/youtube/user/*',
+              resourceName: `${props.youtubeUserSecretBasePath}/*`,
               arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
             },
             cdk.Stack.of(this),
@@ -94,7 +97,7 @@ export default class APIConstruct extends Construct {
         description: 'Twitch OAuth Lambda for Glowing-Telegram',
         timeout: cdk.Duration.seconds(30),
         environment: {
-          USER_SECRET_PATH: 'gt/twitch/user',
+          USER_SECRET_PATH: props.twitchUserSecretBasePath,
           TWITCH_SECRET_ARN: twitchAppSecret.secretArn,
           IS_GLOBAL_REFRESH_SERVICE: 'false',
         },
@@ -117,7 +120,7 @@ export default class APIConstruct extends Construct {
             {
               service: 'secretsmanager',
               resource: 'secret',
-              resourceName: 'gt/twitch/user/*',
+              resourceName: `${props.twitchUserSecretBasePath}/*`,
               arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
             },
             cdk.Stack.of(this),
@@ -137,7 +140,7 @@ export default class APIConstruct extends Construct {
           description: 'Twitch Token Refresh Lambda for Glowing-Telegram',
           timeout: cdk.Duration.minutes(5),
           environment: {
-            USER_SECRET_PATH: 'gt/twitch/user',
+            USER_SECRET_PATH: props.twitchUserSecretBasePath,
             TWITCH_SECRET_ARN: twitchAppSecret.secretArn,
             IS_GLOBAL_REFRESH_SERVICE: 'true',
           },
