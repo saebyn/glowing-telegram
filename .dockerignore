@@ -22,3 +22,6 @@ scripts
 # Ignore the cdk and cdk.out directories
 cdk
 cdk.out
+
+# Ignore test files
+**/tests
