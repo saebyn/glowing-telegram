@@ -28,7 +28,6 @@ thiserror = "2.0.15"
 testcontainers = "0.24.0"
 testcontainers-modules = { version = "0.12.1", features = ["localstack"] }
 tokio-test = "0.4.4"
-bytes = "1.10"
 chrono = { version = "0.4", features = ["serde"] }
 
 [lints]
