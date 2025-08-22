@@ -18,6 +18,7 @@ CLEANUP="true"
 BUILD_TIMEOUT="600"
 RUN_TIMEOUT="300"
 BUILD="false"
+IMAGE_NAME="159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/audio-transcription:latest"
 
 # Function to print colored output
 print_info() {
@@ -49,6 +50,7 @@ OPTIONS:
     -n, --no-cleanup        Don't cleanup resources after test (for debugging)
     --build-timeout SECS    Container build timeout in seconds (default: 600)
     --run-timeout SECS      Container run timeout in seconds (default: 300)
+    --image-name NAME       Docker image name to test (default: ECR image)
     -h, --help              Show this help message
     --build                 Build the Docker image before running tests
 
@@ -65,6 +67,9 @@ EXAMPLES:
     # Run with extended timeouts for slow systems
     $0 --build-timeout 1200 --run-timeout 600
 
+    # Run with custom image
+    $0 --image-name my-custom-image:latest
+
 ENVIRONMENT VARIABLES:
     You can also configure the tests using environment variables:
     
@@ -74,6 +79,7 @@ ENVIRONMENT VARIABLES:
     TEST_TABLE              DynamoDB table name for testing
     TEST_CLEANUP            Whether to cleanup after test (true/false)
     TEST_KEEP_CONTAINERS    Keep containers running for debugging (true/false)
+    TEST_IMAGE_NAME         Docker image name to test
 
 PREREQUISITES:
     - Docker must be installed and running
@@ -104,6 +110,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --run-timeout)
             RUN_TIMEOUT="$2"
+            shift 2
+            ;;
+        --image-name)
+            IMAGE_NAME="$2"
             shift 2
             ;;
         -h|--help)
@@ -178,6 +188,7 @@ fi
 export TEST_BUILD_TIMEOUT="${BUILD_TIMEOUT}"
 export TEST_RUN_TIMEOUT="${RUN_TIMEOUT}"
 export TEST_CLEANUP="${CLEANUP}"
+export TEST_IMAGE_NAME="${IMAGE_NAME}"
 
 if [[ "$CLEANUP" == "false" ]]; then
     export TEST_KEEP_CONTAINERS="true"
@@ -187,6 +198,7 @@ print_info "Configuration:"
 print_info "  Build timeout: ${BUILD_TIMEOUT}s"
 print_info "  Run timeout: ${RUN_TIMEOUT}s"
 print_info "  Cleanup after test: $CLEANUP"
+print_info "  Image name: $IMAGE_NAME"
 
 # Run the tests
 print_info "Starting integration tests..."

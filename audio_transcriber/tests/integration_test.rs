@@ -137,6 +137,7 @@ async fn test_audio_transcriber_integration() {
     let run_result = timeout(
         config.container_run_timeout,
         run_audio_transcriber_container(
+            &config,
             &endpoint_url,
             &config.test_bucket,
             &config.test_table,
@@ -320,6 +321,7 @@ async fn test_audio_transcriber_with_real_audio() {
     let run_result = timeout(
         config.container_run_timeout,
         run_real_audio_transcriber_container(
+            &config,
             &endpoint_url,
             &config.test_bucket,
             &config.test_table,
@@ -424,6 +426,7 @@ async fn setup_test_dynamodb_data(
 }
 
 async fn run_audio_transcriber_container(
+    config: &TestConfig,
     endpoint_url: &str,
     bucket: &str,
     table: &str,
@@ -432,7 +435,6 @@ async fn run_audio_transcriber_container(
 ) -> Result<String, String> {
     let container_name =
         format!("test-audio-transcriber-{}", chrono::Utc::now().timestamp());
-    let image_name = "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/audio-transcription:latest";
 
     let output = Command::new("docker")
         .args(&[
@@ -448,7 +450,7 @@ async fn run_audio_transcriber_container(
             "-e", "AWS_SECRET_ACCESS_KEY=test",
             "-e", "AWS_REGION=us-east-1",
             "-e", "RUST_LOG=info", // Enable logging
-            image_name,
+            &config.image_name,
             item_key,
             audio_key,
             "This is a comprehensive test transcription with multiple speakers and background noise.",
@@ -661,6 +663,7 @@ async fn setup_minimal_test_dynamodb_data(
 }
 
 async fn run_real_audio_transcriber_container(
+    config: &TestConfig,
     endpoint_url: &str,
     bucket: &str,
     table: &str,
@@ -671,7 +674,6 @@ async fn run_real_audio_transcriber_container(
         "test-real-audio-transcriber-{}",
         chrono::Utc::now().timestamp()
     );
-    let image_name = "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/audio-transcription:latest";
 
     let output = Command::new("docker")
         .args(&[
@@ -697,7 +699,7 @@ async fn run_real_audio_transcriber_container(
             "AWS_REGION=us-east-1",
             "-e",
             "RUST_LOG=info", // Enable logging
-            image_name,
+            &config.image_name,
             item_key,
             audio_key,
             "",   // No initial prompt for real audio test

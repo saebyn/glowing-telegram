@@ -27,6 +27,9 @@ pub struct TestConfig {
 
     /// Whether to keep containers running for debugging
     pub keep_containers_for_debug: bool,
+
+    /// Docker image name for the audio transcriber
+    pub image_name: String,
 }
 
 impl Default for TestConfig {
@@ -40,6 +43,7 @@ impl Default for TestConfig {
             test_table: "test-table".to_string(),
             cleanup_after_test: true,
             keep_containers_for_debug: false,
+            image_name: "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/audio-transcription:latest".to_string(),
         }
     }
 }
@@ -82,6 +86,10 @@ impl TestConfig {
 
         if let Ok(val) = std::env::var("TEST_KEEP_CONTAINERS") {
             config.keep_containers_for_debug = val.to_lowercase() == "true";
+        }
+
+        if let Ok(val) = std::env::var("TEST_IMAGE_NAME") {
+            config.image_name = val;
         }
 
         config
