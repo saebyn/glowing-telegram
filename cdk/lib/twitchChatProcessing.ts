@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
+import type * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -32,17 +32,22 @@ export default class TwitchChatProcessingConstruct extends Construct {
     });
 
     // Create Lambda to process chat messages from SQS
-    const chatProcessor = new ServiceLambdaConstruct(this, 'ChatProcessorLambda', {
-      lambdaOptions: {
-        description: 'Process Twitch chat messages from SQS and store in DynamoDB',
-        timeout: cdk.Duration.seconds(30),
-        environment: {
-          CHAT_MESSAGES_TABLE: props.chatMessagesTable.tableName,
+    const chatProcessor = new ServiceLambdaConstruct(
+      this,
+      'ChatProcessorLambda',
+      {
+        lambdaOptions: {
+          description:
+            'Process Twitch chat messages from SQS and store in DynamoDB',
+          timeout: cdk.Duration.seconds(30),
+          environment: {
+            CHAT_MESSAGES_TABLE: props.chatMessagesTable.tableName,
+          },
         },
+        name: 'chat-processor-lambda',
+        imageVersion: props.imageVersion,
       },
-      name: 'chat-processor-lambda',
-      imageVersion: props.imageVersion,
-    });
+    );
 
     this.processingLambda = chatProcessor.lambda;
 
@@ -51,7 +56,7 @@ export default class TwitchChatProcessingConstruct extends Construct {
       new lambdaEventSources.SqsEventSource(this.chatQueue, {
         batchSize: 10, // Process up to 10 messages at once
         maxBatchingWindow: cdk.Duration.seconds(5),
-      })
+      }),
     );
 
     // Grant Lambda permissions to read from SQS
@@ -65,10 +70,8 @@ export default class TwitchChatProcessingConstruct extends Construct {
           'dynamodb:UpdateItem',
           'dynamodb:GetItem',
         ],
-        resources: [
-          props.chatMessagesTable.tableArn,
-        ],
-      })
+        resources: [props.chatMessagesTable.tableArn],
+      }),
     );
   }
 }

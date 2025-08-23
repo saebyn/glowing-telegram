@@ -22,7 +22,7 @@ export interface EventSubSubscription {
     /**
      * The condition object for the subscription
      */
-    condition: { [key: string]: any };
+    condition: Condition;
     /**
      * When the subscription was created
      */
@@ -38,7 +38,7 @@ export interface EventSubSubscription {
     /**
      * The transport object for the subscription
      */
-    transport: { [key: string]: any };
+    transport: Transport;
     /**
      * The type of the subscription
      */
@@ -48,6 +48,63 @@ export interface EventSubSubscription {
      */
     version: string;
 }
+
+/**
+ * The condition object for the subscription
+ */
+export interface Condition {
+    /**
+     * The ID of the broadcaster user
+     */
+    broadcaster_user_id?: string;
+    [property: string]: unknown;
+}
+
+/**
+ * The transport object for the subscription
+ */
+export interface Transport {
+    /**
+     * The callback URL where the notifications are sent. The URL must use the HTTPS protocol
+     * and port 443. See Processing an event. Specify this field only if method is set to
+     * webhook.
+     */
+    callback?: string;
+    /**
+     * The UTC date and time that the WebSocket connection was established. This is a
+     * response-only field that Create EventSub Subscription and Get EventSub Subscription
+     * returns if the method field is set to websocket.
+     */
+    connected_at?: string;
+    /**
+     * The UTC date and time that the WebSocket connection was lost. This is a response-only
+     * field that Get EventSub Subscription returns if the method field is set to websocket.
+     */
+    disconnected_at?: string;
+    /**
+     * The transport method
+     */
+    method: Method;
+    /**
+     * The secret used to verify the signature. The secret must be an ASCII string that's a
+     * minimum of 10 characters long and a maximum of 100 characters long. For information about
+     * how the secret is used, see Verifying the event message. Specify this field only if
+     * method is set to webhook.
+     */
+    secret?: string;
+    /**
+     * An ID that identifies the WebSocket to send notifications to. When you connect to
+     * EventSub using WebSockets, the server returns the ID in the Welcome message. Specify this
+     * field only if method is set to websocket.
+     */
+    session_id?: string;
+    [property: string]: unknown;
+}
+
+/**
+ * The transport method
+ */
+export type Method = "webhook" | "websocket";
 
 export interface CutList {
     /**

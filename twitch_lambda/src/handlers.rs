@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::instrument;
 use types::{
-    AccessTokenResponse, AuthorizationUrlResponse, TwitchAuthRequest,
+    AccessTokenResponse, AuthorizationUrlResponse,
+    ChatSubscriptionStatusResponse, EventSubSubscription,
+    SubscribeChatRequest, SubscribeChatResponse, TwitchAuthRequest,
     TwitchCallbackRequest, TwitchCallbackResponse, TwitchSessionSecret,
-    SubscribeChatRequest, SubscribeChatResponse, ChatSubscriptionStatusResponse,
-    EventSubSubscription,
 };
 
 use crate::{structs::AppContext, twitch};
@@ -648,21 +648,27 @@ pub async fn chat_subscription_status_handler(
 
     // Filter subscriptions for this user's channel and enabled status
     let user_id = &validation_response.user_id;
-    let active_subscriptions: Vec<EventSubSubscription> = subscription_response
-        .data
-        .into_iter()
-        .filter(|sub| {
-            // Check if this subscription is for the user's channel
-            if let Some(broadcaster_user_id) = sub.condition.get("broadcaster_user_id") {
-                if let Some(broadcaster_id_value) = broadcaster_user_id {
-                    if let Some(broadcaster_id_str) = broadcaster_id_value.as_str() {
-                        return broadcaster_id_str == user_id && sub.status == "enabled";
+    let active_subscriptions: Vec<EventSubSubscription> =
+        subscription_response
+            .data
+            .into_iter()
+            .filter(|sub| {
+                // Check if this subscription is for the user's channel
+                if let Some(broadcaster_user_id) =
+                    sub.condition.broadcaster_user_id
+                {
+                    if let Some(broadcaster_id_value) = broadcaster_user_id {
+                        if let Some(broadcaster_id_str) =
+                            broadcaster_id_value.as_str()
+                        {
+                            return broadcaster_id_str == user_id
+                                && sub.status == "enabled";
+                        }
                     }
                 }
-            }
-            false
-        })
-        .collect();
+                false
+            })
+            .collect();
 
     let has_active = !active_subscriptions.is_empty();
 

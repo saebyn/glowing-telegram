@@ -12,7 +12,6 @@
 // }
 
 use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccessTokenResponse {
@@ -38,7 +37,7 @@ pub struct ChatSubscriptionStatusResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EventSubSubscription {
     /// The condition object for the subscription
-    pub condition: HashMap<String, Option<serde_json::Value>>,
+    pub condition: Condition,
 
     /// When the subscription was created
     pub created_at: String,
@@ -50,7 +49,7 @@ pub struct EventSubSubscription {
     pub status: String,
 
     /// The transport object for the subscription
-    pub transport: HashMap<String, Option<serde_json::Value>>,
+    pub transport: Transport,
 
     /// The type of the subscription
     #[serde(rename = "type")]
@@ -58,6 +57,60 @@ pub struct EventSubSubscription {
 
     /// The version of the subscription
     pub version: String,
+}
+
+/// The condition object for the subscription
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Condition {
+    /// The ID of the broadcaster user
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub broadcaster_user_id: Option<String>,
+}
+
+/// The transport object for the subscription
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Transport {
+    /// The callback URL where the notifications are sent. The URL must use the HTTPS protocol
+    /// and port 443. See Processing an event. Specify this field only if method is set to
+    /// webhook.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callback: Option<String>,
+
+    /// The UTC date and time that the WebSocket connection was established. This is a
+    /// response-only field that Create EventSub Subscription and Get EventSub Subscription
+    /// returns if the method field is set to websocket.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connected_at: Option<String>,
+
+    /// The UTC date and time that the WebSocket connection was lost. This is a response-only
+    /// field that Get EventSub Subscription returns if the method field is set to websocket.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disconnected_at: Option<String>,
+
+    /// The transport method
+    pub method: Method,
+
+    /// The secret used to verify the signature. The secret must be an ASCII string that's a
+    /// minimum of 10 characters long and a maximum of 100 characters long. For information about
+    /// how the secret is used, see Verifying the event message. Specify this field only if
+    /// method is set to webhook.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret: Option<String>,
+
+    /// An ID that identifies the WebSocket to send notifications to. When you connect to
+    /// EventSub using WebSockets, the server returns the ID in the Welcome message. Specify this
+    /// field only if method is set to websocket.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+/// The transport method
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Method {
+    Webhook,
+
+    Websocket,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -707,7 +760,7 @@ pub struct TwitchChatMessage {
 
     pub timestamp: String,
 
-    pub ttl: f64,
+    pub ttl: i64,
 
     pub user_id: String,
 
