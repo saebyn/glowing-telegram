@@ -102,3 +102,54 @@ test('Render Job Storage Increased and Lambda Contains Splitting Logic', () => {
     },
   });
 });
+
+// Test for GPU compute environment with launch template
+test('GPU Compute Environment Has Launch Template with Larger Disk', () => {
+  const app = new cdk.App();
+  const stack = new cdk.Stack(app, 'TestGPUStack');
+
+  // Create mock VPC
+  const vpc = new ec2.Vpc(stack, 'TestVpc');
+
+  // Import the BatchEnvironmentConstruct
+  const BatchEnvironmentConstruct = require('../lib/batch/environment').default;
+  
+  const batchEnvironment = new BatchEnvironmentConstruct(
+    stack,
+    'TestBatchEnvironment',
+    { vpc }
+  );
+
+  // Verify the batch environment was created successfully
+  expect(batchEnvironment.gpuJobQueue).toBeDefined();
+
+  // Verify that the GPU launch template is created with 100 GiB root volume
+  const template = Template.fromStack(stack);
+  template.hasResourceProperties('AWS::EC2::LaunchTemplate', {
+    LaunchTemplateData: {
+      BlockDeviceMappings: [
+        {
+          DeviceName: '/dev/xvda',
+          Ebs: {
+            VolumeSize: 100,
+            VolumeType: 'gp3',
+            DeleteOnTermination: true,
+          },
+        },
+      ],
+    },
+  });
+
+  // Verify that the compute environment references the launch template
+  template.hasResourceProperties('AWS::Batch::ComputeEnvironment', {
+    ComputeResources: {
+      Type: 'SPOT',
+      AllocationStrategy: 'SPOT_PRICE_CAPACITY_OPTIMIZED',
+      LaunchTemplate: {
+        LaunchTemplateId: {
+          Ref: Match.anyValue(),
+        },
+      },
+    },
+  });
+});

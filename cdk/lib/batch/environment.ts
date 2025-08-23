@@ -41,6 +41,19 @@ export default class BatchEnvironmentConstruct extends Construct {
       },
     );
 
+    // Create launch template with larger root volume for GPU instances
+    const gpuLaunchTemplate = new ec2.LaunchTemplate(this, 'GPULaunchTemplate', {
+      blockDevices: [
+        {
+          deviceName: '/dev/xvda',
+          volume: ec2.BlockDeviceVolume.ebs(100, {
+            volumeType: ec2.EbsDeviceVolumeType.GP3,
+            deleteOnTermination: true,
+          }),
+        },
+      ],
+    });
+
     const spotComputeEnvironment = new batch.ManagedEc2EcsComputeEnvironment(
       this,
       'SpotComputeEnvironment',
@@ -63,6 +76,7 @@ export default class BatchEnvironmentConstruct extends Construct {
         allocationStrategy:
           batch.AllocationStrategy.SPOT_PRICE_CAPACITY_OPTIMIZED,
         replaceComputeEnvironment: true,
+        launchTemplate: gpuLaunchTemplate,
       },
     );
 
