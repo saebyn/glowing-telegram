@@ -668,19 +668,8 @@ pub async fn chat_subscription_status_handler(
             .into_iter()
             .filter(|sub| {
                 // Check if this subscription is for the user's channel
-                if let Some(broadcaster_user_id) =
-                    sub.condition.broadcaster_user_id
-                {
-                    if let Some(broadcaster_id_value) = broadcaster_user_id {
-                        if let Some(broadcaster_id_str) =
-                            broadcaster_id_value.as_str()
-                        {
-                            return broadcaster_id_str == user_id
-                                && sub.status == "enabled";
-                        }
-                    }
-                }
-                false
+                sub.condition.broadcaster_user_id == Some(user_id)
+                    && sub.status == "enabled"
             })
             .collect();
 
