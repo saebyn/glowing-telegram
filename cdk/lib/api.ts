@@ -95,6 +95,18 @@ export default class APIConstruct extends Construct {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    // EventSub webhook secret for signature verification
+    const eventSubSecret = new secretsmanager.Secret(this, 'EventSubSecret', {
+      description: 'EventSub webhook secret for signature verification',
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      generateSecretString: {
+        excludeCharacters: '"@/\\',
+        excludePunctuation: true,
+        generateStringKey: 'secret',
+        secretStringTemplate: '{}',
+      },
+    });
+
     const twitchService = new ServiceLambdaConstruct(this, 'TwitchLambda', {
       lambdaOptions: {
         description: 'Twitch OAuth Lambda for Glowing-Telegram',
@@ -104,6 +116,7 @@ export default class APIConstruct extends Construct {
           TWITCH_SECRET_ARN: twitchAppSecret.secretArn,
           IS_GLOBAL_REFRESH_SERVICE: 'false',
           CHAT_QUEUE_URL: props.chatQueue.queueUrl,
+          EVENTSUB_SECRET_ARN: eventSubSecret.secretArn,
         },
       },
       name: 'twitch-lambda',
@@ -111,6 +124,7 @@ export default class APIConstruct extends Construct {
     });
 
     twitchAppSecret.grantRead(twitchService.lambda);
+    eventSubSecret.grantRead(twitchService.lambda);
     twitchService.lambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [

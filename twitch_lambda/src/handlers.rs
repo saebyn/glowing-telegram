@@ -1,13 +1,15 @@
 use axum::{
     Json,
     extract::State,
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::IntoResponse,
 };
 use gt_axum::cognito::CognitoUserId;
+use hmac::{Hmac, Mac};
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sha2::Sha256;
 use tracing::instrument;
 use types::{
     AccessTokenResponse, AuthorizationUrlResponse,
@@ -370,11 +372,11 @@ pub async fn subscribe_chat_handler(
         transport: EventSubTransport {
             method: "webhook".to_string(),
             callback: request.webhook_url,
-            secret: match std::env::var("EVENTSUB_SECRET") {
-                Ok(secret) => secret,
-                Err(_) => {
+            secret: match &state.eventsub_secret {
+                Some(secret) => secret.clone(),
+                None => {
                     tracing::error!(
-                        "EVENTSUB_SECRET environment variable not set"
+                        "EventSub secret not configured or failed to load"
                     );
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -473,13 +475,75 @@ pub async fn subscribe_chat_handler(
     }
 }
 
+/// Verify Twitch EventSub webhook signature
+fn verify_webhook_signature(
+    headers: &HeaderMap,
+    body: &str,
+    secret: &str,
+) -> Result<(), String> {
+    // Get required headers
+    let message_id = headers
+        .get("twitch-eventsub-message-id")
+        .and_then(|h| h.to_str().ok())
+        .ok_or("Missing Twitch-Eventsub-Message-Id header")?;
+
+    let timestamp = headers
+        .get("twitch-eventsub-message-timestamp")
+        .and_then(|h| h.to_str().ok())
+        .ok_or("Missing Twitch-Eventsub-Message-Timestamp header")?;
+
+    let signature = headers
+        .get("twitch-eventsub-message-signature")
+        .and_then(|h| h.to_str().ok())
+        .ok_or("Missing Twitch-Eventsub-Message-Signature header")?;
+
+    // Remove "sha256=" prefix from signature
+    let signature = signature
+        .strip_prefix("sha256=")
+        .ok_or("Invalid signature format")?;
+
+    // Create HMAC message: message_id + timestamp + body
+    let message = format!("{}{}{}", message_id, timestamp, body);
+
+    // Create HMAC-SHA256
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|e| format!("HMAC key error: {}", e))?;
+    mac.update(message.as_bytes());
+
+    // Get expected signature
+    let expected_signature = hex::encode(mac.finalize().into_bytes());
+
+    // Compare signatures
+    if expected_signature.eq_ignore_ascii_case(signature) {
+        Ok(())
+    } else {
+        Err("Signature mismatch".to_string())
+    }
+}
+
 /// Handle incoming Twitch EventSub webhooks
 #[instrument(skip(state))]
 pub async fn eventsub_webhook_handler(
     State(state): State<AppContext>,
+    headers: HeaderMap,
     body: String,
 ) -> impl IntoResponse {
     tracing::info!("EventSub webhook received: {}", body);
+
+    // Verify webhook signature for security
+    if let Some(eventsub_secret) = &state.eventsub_secret {
+        if let Err(err) =
+            verify_webhook_signature(&headers, &body, eventsub_secret)
+        {
+            tracing::error!("Webhook signature verification failed: {}", err);
+            return (StatusCode::FORBIDDEN, "Invalid signature".to_string());
+        }
+    } else {
+        tracing::warn!(
+            "EventSub secret not configured, skipping signature verification"
+        );
+    }
 
     // Parse the webhook request to handle challenges and events
     let webhook_request: Result<serde_json::Value, _> =
@@ -668,7 +732,7 @@ pub async fn chat_subscription_status_handler(
             .into_iter()
             .filter(|sub| {
                 // Check if this subscription is for the user's channel
-                sub.condition.broadcaster_user_id == Some(user_id)
+                sub.condition.broadcaster_user_id == Some(user_id.to_string())
                     && sub.status == "enabled"
             })
             .collect();

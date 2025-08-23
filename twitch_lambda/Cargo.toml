@@ -34,6 +34,9 @@ gt_secrets = { workspace = true }
 gt_axum = { workspace = true }
 gt_app = { path = "../gt_app" }
 aws-sdk-sqs = "1.71.0"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
 
 [lints]
 workspace = true
