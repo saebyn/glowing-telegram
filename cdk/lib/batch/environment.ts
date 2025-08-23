@@ -49,8 +49,16 @@ export default class BatchEnvironmentConstruct extends Construct {
         securityGroups: [sg],
         vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
         minvCpus: 0,
-        maxvCpus: 16,
-        instanceTypes: [new ec2.InstanceType('g4dn')],
+        maxvCpus: 64,
+        instanceTypes: [
+          // exclude g4dn.xlarge as disk size is too small
+          new ec2.InstanceType('g4dn.2xlarge'),
+          new ec2.InstanceType('g4dn.4xlarge'),
+          new ec2.InstanceType('g4dn.8xlarge'),
+          new ec2.InstanceType('g4dn.12xlarge'),
+          new ec2.InstanceType('g4dn.16xlarge'),
+          new ec2.InstanceType('g4dn.metal'),
+        ],
         spot: true,
         allocationStrategy:
           batch.AllocationStrategy.SPOT_PRICE_CAPACITY_OPTIMIZED,
