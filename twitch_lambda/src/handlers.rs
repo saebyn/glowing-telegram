@@ -370,8 +370,22 @@ pub async fn subscribe_chat_handler(
         transport: EventSubTransport {
             method: "webhook".to_string(),
             callback: request.webhook_url,
-            secret: std::env::var("EVENTSUB_SECRET")
-                .unwrap_or_else(|_| "default_secret".to_string()),
+            secret: match std::env::var("EVENTSUB_SECRET") {
+                Ok(secret) => secret,
+                Err(_) => {
+                    tracing::error!(
+                        "EVENTSUB_SECRET environment variable not set"
+                    );
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!(SubscribeChatResponse {
+                            subscription_id: None,
+                            status: "missing_eventsub_secret".to_string(),
+                        })),
+                    )
+                        .into_response();
+                }
+            },
         },
     };
 
