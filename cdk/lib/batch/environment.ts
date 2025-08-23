@@ -49,7 +49,7 @@ export default class BatchEnvironmentConstruct extends Construct {
         securityGroups: [sg],
         vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
         minvCpus: 0,
-        maxvCpus: 16,
+        maxvCpus: 64,
         instanceTypes: [
           // exclude g4dn.xlarge as disk size is too small
           new ec2.InstanceType('g4dn.2xlarge'),
