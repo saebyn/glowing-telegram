@@ -8,12 +8,22 @@ on:
         required: true
         default: 'latest'
         type: string
+      stacks:
+        description: 'Specific stacks to deploy (space separated), or "all" for all stacks'
+        required: false
+        default: 'all'
+        type: string
   workflow_call:
     inputs:
       image_version:
         description: 'Image version/tag to use'
         required: true
         default: 'latest'
+        type: string
+      stacks:
+        description: 'Specific stacks to deploy (space separated), or "all" for all stacks'
+        required: false
+        default: 'all'
         type: string
 
 jobs:
@@ -51,10 +61,22 @@ jobs:
           cd cdk
           npm run build
 
-      - name: Deploy CDK with new image version
+      - name: Deploy CDK stacks
         run: |
           cd cdk
-          npm run cdk -- deploy --all --require-approval never
+          if [ "${{ inputs.stacks }}" = "all" ] || [ -z "${{ inputs.stacks }}" ]; then
+            echo "Deploying all stacks"
+            npm run cdk -- deploy --all --require-approval never
+          else
+            echo "Deploying specific stacks: ${{ inputs.stacks }}"
+            # Validate that stacks parameter is not empty/whitespace only
+            STACKS_TRIMMED=$(echo "${{ inputs.stacks }}" | xargs)
+            if [ -z "$STACKS_TRIMMED" ]; then
+              echo "Error: stacks parameter is empty or contains only whitespace"
+              exit 1
+            fi
+            npm run cdk -- deploy $STACKS_TRIMMED --require-approval never
+          fi
         env:
           IMAGE_VERSION: ${{ inputs.image_version }}
           AWS_DEFAULT_REGION: us-west-2
