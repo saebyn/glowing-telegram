@@ -42,6 +42,14 @@ components:
       $ref: "./schemas/AccessTokenResponse.schema"
     SimpleChatMessage:
       $ref: "./schemas/SimpleChatMessage.schema"
+    SubscribeChatRequest:
+      $ref: "./schemas/SubscribeChatRequest.schema"
+    SubscribeChatResponse:
+      $ref: "./schemas/SubscribeChatResponse.schema"
+    EventSubSubscription:
+      $ref: "./schemas/EventSubSubscription.schema"
+    ChatSubscriptionStatusResponse:
+      $ref: "./schemas/ChatSubscriptionStatusResponse.schema"
     RenderRequest:
       $ref: "./schemas/RenderRequest.schema"
 
@@ -370,6 +378,90 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AccessTokenResponse"
+  /eventsub/chat/subscribe:
+    post:
+      summary: Subscribe to Twitch chat events
+      tags:
+        - twitch
+        - eventsub
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeChatRequest"
+      responses:
+        "200":
+          description: Successfully created EventSub subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscribeChatResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          description: Unauthorized - invalid or missing access token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscribeChatResponse"
+        "500":
+          $ref: "#/components/responses/Error"
+  /eventsub/chat/status:
+    get:
+      summary: Check EventSub chat subscription status
+      tags:
+        - twitch
+        - eventsub
+      responses:
+        "200":
+          description: Chat subscription status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSubscriptionStatusResponse"
+        "401":
+          description: Unauthorized - invalid or missing access token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSubscriptionStatusResponse"
+        "500":
+          $ref: "#/components/responses/Error"
+  /eventsub/webhook:
+    post:
+      summary: Handle Twitch EventSub webhooks
+      tags:
+        - twitch
+        - eventsub
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: EventSub webhook payload
+      responses:
+        "200":
+          description: Challenge verification response
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          description: Event processed successfully
+        "400":
+          description: Invalid request
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Server error
+          content:
+            text/plain:
+              schema:
+                type: string
   /render:
     post:
       summary: Render a video

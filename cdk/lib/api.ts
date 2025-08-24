@@ -11,6 +11,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import type * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
+import type * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import ServiceLambdaConstruct from './util/serviceLambda';
 import RenderJobSubmissionLambda from './renderJobSubmissionLambda';
@@ -27,6 +28,8 @@ interface APIConstructProps {
   profilesTable: ITable;
   tasksTable: ITable;
   projectsTable: ITable;
+  chatMessagesTable: ITable;
+  chatQueue: sqs.IQueue;
   openaiSecret: secretsmanager.ISecret;
   youtubeAppSecret: secretsmanager.ISecret;
 
@@ -92,6 +95,18 @@ export default class APIConstruct extends Construct {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    // EventSub webhook secret for signature verification
+    const eventSubSecret = new secretsmanager.Secret(this, 'EventSubSecret', {
+      description: 'EventSub webhook secret for signature verification',
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      generateSecretString: {
+        excludeCharacters: '"@/\\',
+        excludePunctuation: true,
+        generateStringKey: 'secret',
+        secretStringTemplate: '{}',
+      },
+    });
+
     const twitchService = new ServiceLambdaConstruct(this, 'TwitchLambda', {
       lambdaOptions: {
         description: 'Twitch OAuth Lambda for Glowing-Telegram',
@@ -100,6 +115,8 @@ export default class APIConstruct extends Construct {
           USER_SECRET_PATH: props.twitchUserSecretBasePath,
           TWITCH_SECRET_ARN: twitchAppSecret.secretArn,
           IS_GLOBAL_REFRESH_SERVICE: 'false',
+          CHAT_QUEUE_URL: props.chatQueue.queueUrl,
+          EVENTSUB_SECRET_ARN: eventSubSecret.secretArn,
         },
       },
       name: 'twitch-lambda',
@@ -107,6 +124,7 @@ export default class APIConstruct extends Construct {
     });
 
     twitchAppSecret.grantRead(twitchService.lambda);
+    eventSubSecret.grantRead(twitchService.lambda);
     twitchService.lambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
@@ -128,6 +146,9 @@ export default class APIConstruct extends Construct {
         ],
       }),
     );
+
+    // Grant Twitch lambda permission to send messages to the chat queue
+    props.chatQueue.grantSendMessages(twitchService.lambda);
 
     // create a lambda and an event rule to run it every hour to refresh the twitch tokens for all users
     const tokenRefreshLambda = new ServiceLambdaConstruct(
@@ -195,6 +216,7 @@ export default class APIConstruct extends Construct {
           PROFILES_TABLE: props.profilesTable.tableName,
           TASKS_TABLE: props.tasksTable.tableName,
           PROJECTS_TABLE: props.projectsTable.tableName,
+          CHAT_MESSAGES_TABLE: props.chatMessagesTable.tableName,
         },
       },
       name: 'crud-lambda',
@@ -221,6 +243,7 @@ export default class APIConstruct extends Construct {
           props.profilesTable.tableArn,
           props.tasksTable.tableArn,
           props.projectsTable.tableArn,
+          props.chatMessagesTable.tableArn,
 
           // Allow access to the indexes
           `${props.videoMetadataTable.tableArn}/index/*`,
@@ -230,6 +253,7 @@ export default class APIConstruct extends Construct {
           `${props.profilesTable.tableArn}/index/*`,
           `${props.tasksTable.tableArn}/index/*`,
           `${props.projectsTable.tableArn}/index/*`,
+          `${props.chatMessagesTable.tableArn}/index/*`,
         ],
       }),
     );

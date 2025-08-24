@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SubscribeChatRequest",
+  "type": "object",
+  "properties": {
+    "webhook_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "The webhook URL where Twitch will send EventSub notifications"
+    }
+  },
+  "required": ["webhook_url"],
+  "additionalProperties": false
+}

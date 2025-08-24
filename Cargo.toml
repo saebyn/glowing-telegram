@@ -15,6 +15,7 @@ members = [
   "youtube_lambda",
   "upload_video",
   "gt_app",
+  "chat_processor_lambda",
 ]
 
 [workspace.package]

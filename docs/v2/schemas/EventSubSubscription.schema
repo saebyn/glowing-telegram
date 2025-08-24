@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EventSubSubscription",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The subscription ID"
+    },
+    "status": {
+      "type": "string",
+      "description": "The status of the subscription"
+    },
+    "type": {
+      "type": "string",
+      "description": "The type of the subscription"
+    },
+    "version": {
+      "type": "string",
+      "description": "The version of the subscription"
+    },
+    "condition": {
+      "type": "object",
+      "description": "The condition object for the subscription",
+      "additionalProperties": true,
+      "patternProperties": {
+        ".*": {
+          "type": "string"
+        }
+      },
+      "properties": {
+        "broadcaster_user_id": {
+          "type": "string",
+          "description": "The ID of the broadcaster user"
+        }
+      },
+      "required": []
+    },
+    "transport": {
+      "type": "object",
+      "description": "The transport object for the subscription",
+      "properties": {
+        "method": {
+          "type": "string",
+          "description": "The transport method",
+          "enum": ["webhook", "websocket"]
+        },
+        "callback": {
+          "type": "string",
+          "description": "The callback URL where the notifications are sent. The URL must use the HTTPS protocol and port 443. See Processing an event. Specify this field only if method is set to webhook.",
+          "$comment": "NOTE: Redirects are not followed.",
+          "format": "uri"
+        },
+        "secret": {
+          "type": "string",
+          "description": "The secret used to verify the signature. The secret must be an ASCII string that's a minimum of 10 characters long and a maximum of 100 characters long. For information about how the secret is used, see Verifying the event message. Specify this field only if method is set to webhook."
+        },
+        "session_id": {
+          "type": "string",
+          "description": "An ID that identifies the WebSocket to send notifications to. When you connect to EventSub using WebSockets, the server returns the ID in the Welcome message. Specify this field only if method is set to websocket."
+        },
+        "connected_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UTC date and time that the WebSocket connection was established. This is a response-only field that Create EventSub Subscription and Get EventSub Subscription returns if the method field is set to websocket."
+        },
+        "disconnected_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The UTC date and time that the WebSocket connection was lost. This is a response-only field that Get EventSub Subscription returns if the method field is set to websocket."
+        }
+      },
+      "required": ["method"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the subscription was created"
+    }
+  },
+  "required": ["id", "status", "type", "version", "condition", "transport", "created_at"],
+  "additionalProperties": false
+}

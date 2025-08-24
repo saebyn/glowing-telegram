@@ -7,6 +7,105 @@ export interface AuthorizationURLResponse {
     url: string;
 }
 
+export interface ChatSubscriptionStatusResponse {
+    /**
+     * Whether the user has any active chat subscriptions
+     */
+    has_active_subscription: boolean;
+    /**
+     * Array of active EventSub chat subscriptions for the user
+     */
+    subscriptions: EventSubSubscription[];
+}
+
+export interface EventSubSubscription {
+    /**
+     * The condition object for the subscription
+     */
+    condition: Condition;
+    /**
+     * When the subscription was created
+     */
+    created_at: string;
+    /**
+     * The subscription ID
+     */
+    id: string;
+    /**
+     * The status of the subscription
+     */
+    status: string;
+    /**
+     * The transport object for the subscription
+     */
+    transport: Transport;
+    /**
+     * The type of the subscription
+     */
+    type: string;
+    /**
+     * The version of the subscription
+     */
+    version: string;
+}
+
+/**
+ * The condition object for the subscription
+ */
+export interface Condition {
+    /**
+     * The ID of the broadcaster user
+     */
+    broadcaster_user_id?: string;
+    [property: string]: unknown;
+}
+
+/**
+ * The transport object for the subscription
+ */
+export interface Transport {
+    /**
+     * The callback URL where the notifications are sent. The URL must use the HTTPS protocol
+     * and port 443. See Processing an event. Specify this field only if method is set to
+     * webhook.
+     */
+    callback?: string;
+    /**
+     * The UTC date and time that the WebSocket connection was established. This is a
+     * response-only field that Create EventSub Subscription and Get EventSub Subscription
+     * returns if the method field is set to websocket.
+     */
+    connected_at?: string;
+    /**
+     * The UTC date and time that the WebSocket connection was lost. This is a response-only
+     * field that Get EventSub Subscription returns if the method field is set to websocket.
+     */
+    disconnected_at?: string;
+    /**
+     * The transport method
+     */
+    method: Method;
+    /**
+     * The secret used to verify the signature. The secret must be an ASCII string that's a
+     * minimum of 10 characters long and a maximum of 100 characters long. For information about
+     * how the secret is used, see Verifying the event message. Specify this field only if
+     * method is set to webhook.
+     */
+    secret?: string;
+    /**
+     * An ID that identifies the WebSocket to send notifications to. When you connect to
+     * EventSub using WebSockets, the server returns the ID in the Welcome message. Specify this
+     * field only if method is set to websocket.
+     */
+    session_id?: string;
+    [property: string]: unknown;
+}
+
+/**
+ * The transport method
+ */
+export type Method = "webhook" | "websocket";
+
 export interface CutList {
     /**
      * Audio channel mixing and volume control configuration
@@ -363,6 +462,24 @@ export interface StreamIngestionRequest {
     streamId:       string;
 }
 
+export interface SubscribeChatRequest {
+    /**
+     * The webhook URL where Twitch will send EventSub notifications
+     */
+    webhook_url: string;
+}
+
+export interface SubscribeChatResponse {
+    /**
+     * The status of the subscription request
+     */
+    status: string;
+    /**
+     * The ID of the created EventSub subscription, if successful
+     */
+    subscription_id?: null | string;
+}
+
 /**
  * A task represents a unit of work in the system, with a unique identifier, status,
  * timestamps for creation and updates, type of task, and an associated record ID.
@@ -397,6 +514,18 @@ export interface TwitchCallbackResponse {
      * The URL to redirect the client to after the authorization flow is complete.
      */
     url: string;
+}
+
+export interface TwitchChatMessage {
+    channel_id: string;
+    event_type: string;
+    message:    string;
+    sender_id:  string;
+    timestamp:  string;
+    ttl:        number;
+    user_id:    string;
+    user_login: string;
+    user_name:  string;
 }
 
 export interface TwitchSessionSecret {

@@ -121,6 +121,11 @@ FROM runtime_base AS crud_api
 COPY --from=rust_builder /app/target/release/crud_api /bootstrap
 ENTRYPOINT ["/bootstrap"]
 
+# chat_processor_lambda
+FROM runtime_base AS chat_processor_lambda
+COPY --from=rust_builder /app/target/release/chat_processor_lambda /bootstrap
+ENTRYPOINT ["/bootstrap"]
+
 # media_lambda
 FROM public.ecr.aws/lambda/python:3 AS media_lambda
 COPY media_lambda/main.py ${LAMBDA_TASK_ROOT}

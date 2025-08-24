@@ -26,6 +26,94 @@ pub struct AuthorizationUrlResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChatSubscriptionStatusResponse {
+    /// Whether the user has any active chat subscriptions
+    pub has_active_subscription: bool,
+
+    /// Array of active EventSub chat subscriptions for the user
+    pub subscriptions: Vec<EventSubSubscription>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EventSubSubscription {
+    /// The condition object for the subscription
+    pub condition: Condition,
+
+    /// When the subscription was created
+    pub created_at: String,
+
+    /// The subscription ID
+    pub id: String,
+
+    /// The status of the subscription
+    pub status: String,
+
+    /// The transport object for the subscription
+    pub transport: Transport,
+
+    /// The type of the subscription
+    #[serde(rename = "type")]
+    pub event_sub_subscription_type: String,
+
+    /// The version of the subscription
+    pub version: String,
+}
+
+/// The condition object for the subscription
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Condition {
+    /// The ID of the broadcaster user
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub broadcaster_user_id: Option<String>,
+}
+
+/// The transport object for the subscription
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Transport {
+    /// The callback URL where the notifications are sent. The URL must use the HTTPS protocol
+    /// and port 443. See Processing an event. Specify this field only if method is set to
+    /// webhook.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callback: Option<String>,
+
+    /// The UTC date and time that the WebSocket connection was established. This is a
+    /// response-only field that Create EventSub Subscription and Get EventSub Subscription
+    /// returns if the method field is set to websocket.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connected_at: Option<String>,
+
+    /// The UTC date and time that the WebSocket connection was lost. This is a response-only
+    /// field that Get EventSub Subscription returns if the method field is set to websocket.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disconnected_at: Option<String>,
+
+    /// The transport method
+    pub method: Method,
+
+    /// The secret used to verify the signature. The secret must be an ASCII string that's a
+    /// minimum of 10 characters long and a maximum of 100 characters long. For information about
+    /// how the secret is used, see Verifying the event message. Specify this field only if
+    /// method is set to webhook.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret: Option<String>,
+
+    /// An ID that identifies the WebSocket to send notifications to. When you connect to
+    /// EventSub using WebSockets, the server returns the ID in the Welcome message. Specify this
+    /// field only if method is set to websocket.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+/// The transport method
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Method {
+    Webhook,
+
+    Websocket,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CutList {
     /// Audio channel mixing and volume control configuration
@@ -571,6 +659,22 @@ pub struct StreamIngestionRequest {
     pub stream_id: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubscribeChatRequest {
+    /// The webhook URL where Twitch will send EventSub notifications
+    pub webhook_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubscribeChatResponse {
+    /// The status of the subscription request
+    pub status: String,
+
+    /// The ID of the created EventSub subscription, if successful
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscription_id: Option<String>,
+}
+
 /// A task represents a unit of work in the system, with a unique identifier, status,
 /// timestamps for creation and updates, type of task, and an associated record ID.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -642,6 +746,27 @@ pub struct TwitchCallbackRequest {
 pub struct TwitchCallbackResponse {
     /// The URL to redirect the client to after the authorization flow is complete.
     pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TwitchChatMessage {
+    pub channel_id: String,
+
+    pub event_type: String,
+
+    pub message: String,
+
+    pub sender_id: String,
+
+    pub timestamp: String,
+
+    pub ttl: i64,
+
+    pub user_id: String,
+
+    pub user_login: String,
+
+    pub user_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

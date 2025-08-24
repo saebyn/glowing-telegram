@@ -5,6 +5,7 @@ group "all" {
   targets = [
     "ai_chat_lambda",
     "audio_transcriber",
+    "chat_processor_lambda",
     "crud_api",
     "media_lambda",
     "render_job",
@@ -21,6 +22,7 @@ group "all" {
 group "batch1" {
   targets = [
     "ai_chat_lambda",
+    "chat_processor_lambda",
     "crud_api", 
     "summarize_transcription",
     "twitch_lambda",
@@ -52,6 +54,13 @@ target "audio_transcriber" {
   context = "."
   target = "audio_transcriber"
   tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/audio-transcription:latest"]
+}
+
+target "chat_processor_lambda" {
+  dockerfile = "Dockerfile"
+  context = "."
+  target = "chat_processor_lambda"
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/chat-processor-lambda:latest"]
 }
 
 target "crud_api" {

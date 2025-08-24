@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ChatSubscriptionStatusResponse",
+  "type": "object",
+  "properties": {
+    "has_active_subscription": {
+      "type": "boolean",
+      "description": "Whether the user has any active chat subscriptions"
+    },
+    "subscriptions": {
+      "type": "array",
+      "items": {
+        "$ref": "./EventSubSubscription.schema"
+      },
+      "description": "Array of active EventSub chat subscriptions for the user"
+    }
+  },
+  "required": ["has_active_subscription", "subscriptions"],
+  "additionalProperties": false
+}

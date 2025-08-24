@@ -1,0 +1,46 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"$comment": "Represents a Twitch chat message stored in DynamoDB",
+	"properties": {
+		"user_id": {
+			"type": "string",
+			"$comment": "The ID of the user who owns this chat log (DynamoDB partition key)"
+		},
+		"timestamp": {
+			"type": "string",
+			"format": "date-time",
+			"$comment": "ISO 8601 timestamp when the message was sent (DynamoDB sort key)"
+		},
+		"sender_id": {
+			"type": "string",
+			"$comment": "The Twitch user ID of the message sender"
+		},
+		"channel_id": {
+			"type": "string",
+			"$comment": "The Twitch channel ID where the message was sent (used for GSI)"
+		},
+		"message": {
+			"type": "string",
+			"$comment": "The content of the chat message"
+		},
+		"user_name": {
+			"type": "string",
+			"$comment": "The display name of the message sender"
+		},
+		"user_login": {
+			"type": "string",
+			"$comment": "The login name of the message sender"
+		},
+		"event_type": {
+			"type": "string",
+			"$comment": "The type of event (e.g., 'channel.chat.message')"
+		},
+		"ttl": {
+			"type": "integer",
+			"$comment": "TTL timestamp for automatic message expiration"
+		}
+	},
+	"required": ["user_id", "timestamp", "sender_id", "channel_id", "message", "user_name", "user_login", "event_type", "ttl"],
+	"additionalProperties": false
+}
