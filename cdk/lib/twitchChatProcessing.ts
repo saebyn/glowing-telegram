@@ -42,6 +42,7 @@ export default class TwitchChatProcessingConstruct extends Construct {
           timeout: cdk.Duration.seconds(30),
           environment: {
             CHAT_MESSAGES_TABLE: props.chatMessagesTable.tableName,
+            CHAT_MESSAGE_TTL_DAYS: '365', // Set TTL for chat messages
           },
         },
         name: 'chat-processor-lambda',

@@ -11,6 +11,7 @@ use tracing::{error, info};
 #[allow(clippy::struct_field_names)]
 struct Config {
     chat_messages_table: String,
+    chat_message_ttl_days: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -157,8 +158,9 @@ async fn process_message(
         AttributeValue::S("channel.chat.message".to_string()),
     );
 
-    // Set TTL to 30 days from now (configurable)
-    let ttl = Utc::now().timestamp() + (30 * 24 * 60 * 60);
+    // Set TTL to some number of days from now
+    let ttl = Utc::now().timestamp()
+        + (context.config.chat_message_ttl_days * 24 * 60 * 60);
     item.insert("ttl".to_string(), AttributeValue::N(ttl.to_string()));
 
     // Store in DynamoDB
