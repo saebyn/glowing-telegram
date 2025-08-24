@@ -9,6 +9,9 @@ env:
   REGISTRY: 159222827421.dkr.ecr.us-west-2.amazonaws.com
 
 jobs:
+  # Phase 1: Deploy infrastructure dependencies
+  # - FrontendStack: Creates S3 bucket needed by RepoStack
+  # - RepoStack: Creates ECR repositories needed for Docker images
   deploy-repo-dependencies:
     uses: ./.github/workflows/cdk-deploy-reusable.yml
     with:
@@ -18,6 +21,8 @@ jobs:
       contents: read
       id-token: write
 
+  # Phase 2: Build and push Docker images to ECR
+  # - Requires ECR repositories to exist (created in Phase 1)
   build-and-push:
     needs: deploy-repo-dependencies
     uses: ./.github/workflows/docker-build-reusable.yml
@@ -33,6 +38,8 @@ jobs:
       contents: read
       id-token: write
 
+  # Phase 3: Deploy application stack
+  # - Requires Docker images to be available in ECR (created in Phase 2)
   deploy-app-stack:
     needs: build-and-push
     uses: ./.github/workflows/cdk-deploy-reusable.yml

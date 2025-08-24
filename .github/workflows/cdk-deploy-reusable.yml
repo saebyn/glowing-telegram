@@ -64,12 +64,18 @@ jobs:
       - name: Deploy CDK stacks
         run: |
           cd cdk
-          if [ "${{ inputs.stacks }}" = "all" ]; then
+          if [ "${{ inputs.stacks }}" = "all" ] || [ -z "${{ inputs.stacks }}" ]; then
             echo "Deploying all stacks"
             npm run cdk -- deploy --all --require-approval never
           else
             echo "Deploying specific stacks: ${{ inputs.stacks }}"
-            npm run cdk -- deploy ${{ inputs.stacks }} --require-approval never
+            # Validate that stacks parameter is not empty/whitespace only
+            STACKS_TRIMMED=$(echo "${{ inputs.stacks }}" | xargs)
+            if [ -z "$STACKS_TRIMMED" ]; then
+              echo "Error: stacks parameter is empty or contains only whitespace"
+              exit 1
+            fi
+            npm run cdk -- deploy $STACKS_TRIMMED --require-approval never
           fi
         env:
           IMAGE_VERSION: ${{ inputs.image_version }}
