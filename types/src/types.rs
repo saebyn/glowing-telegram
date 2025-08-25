@@ -11,7 +11,7 @@
 //     let model: AccessTokenResponse = serde_json::from_str(&json).unwrap();
 // }
 
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccessTokenResponse {
@@ -661,8 +661,6 @@ pub struct StreamIngestionRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubscribeChatRequest {
-    /// The webhook URL where Twitch will send EventSub notifications
-    pub webhook_url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

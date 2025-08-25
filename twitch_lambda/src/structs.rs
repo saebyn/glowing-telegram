@@ -16,6 +16,8 @@ pub struct Config {
     pub chat_queue_url: Option<String>,
 
     pub eventsub_secret_arn: Option<String>,
+
+    pub eventsub_webhook_url: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]

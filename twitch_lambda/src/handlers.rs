@@ -14,7 +14,7 @@ use tracing::instrument;
 use types::{
     AccessTokenResponse, AuthorizationUrlResponse,
     ChatSubscriptionStatusResponse, EventSubSubscription,
-    SubscribeChatRequest, SubscribeChatResponse, TwitchAuthRequest,
+    SubscribeChatResponse, TwitchAuthRequest,
     TwitchCallbackRequest, TwitchCallbackResponse, TwitchSessionSecret,
 };
 
@@ -301,11 +301,10 @@ struct EventSubWebhookRequest {
 pub async fn subscribe_chat_handler(
     State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
-    Json(request): Json<SubscribeChatRequest>,
 ) -> impl IntoResponse {
     tracing::info!(
-        "Subscribe chat handler called with webhook_url: {}",
-        request.webhook_url
+        "Subscribe chat handler called for user: {}",
+        cognito_user_id
     );
 
     // Get the user's access token
@@ -371,7 +370,7 @@ pub async fn subscribe_chat_handler(
         }),
         transport: EventSubTransport {
             method: "webhook".to_string(),
-            callback: request.webhook_url,
+            callback: state.config.eventsub_webhook_url.clone(),
             secret: match &state.eventsub_secret {
                 Some(secret) => secret.clone(),
                 None => {
