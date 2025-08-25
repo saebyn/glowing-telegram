@@ -10,11 +10,10 @@ use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_s3::primitives::ByteStream;
 use figment::{Figment, providers::Env};
-use openai_dive::v1::api::Client;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::collections::HashMap;
+use std::env;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct OpenAIEmbeddingRequest {
@@ -38,7 +37,6 @@ struct Config {
     vector_bucket: String,
     openai_secret_arn: String,
     openai_model: Option<String>,
-    aws_endpoint_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -47,7 +45,7 @@ struct VectorDocument {
     stream_id: String,
     video_key: String,
     content: String,
-    content_type: String, // "transcription", "summary", "keywords" 
+    content_type: String, // "transcription", "summary", "keywords"
     embedding: Vec<f32>,
     timestamp: String,
     metadata: HashMap<String, String>,
@@ -71,9 +69,15 @@ async fn main() {
     if args.len() < 2 {
         eprintln!("Usage: embedding_service <command> [args...]");
         eprintln!("Commands:");
-        eprintln!("  scan                     - Scan all existing data and create embeddings");
-        eprintln!("  process <video_key>      - Process a specific video clip");
-        eprintln!("  scan-stream <stream_id>  - Scan all clips for a specific stream");
+        eprintln!(
+            "  scan                     - Scan all existing data and create embeddings"
+        );
+        eprintln!(
+            "  process <video_key>      - Process a specific video clip"
+        );
+        eprintln!(
+            "  scan-stream <stream_id>  - Scan all clips for a specific stream"
+        );
         std::process::exit(1);
     }
 
@@ -115,10 +119,13 @@ async fn main() {
     }
 }
 
-async fn scan_all_data(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+async fn scan_all_data(
+    config: &Config,
+) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Starting scan of all data for embedding generation");
-    
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
+
+    let region_provider =
+        RegionProviderChain::default_provider().or_else("us-east-1");
     let sdk_config = aws_config::defaults(BehaviorVersion::latest())
         .region(region_provider)
         .load()
@@ -137,7 +144,8 @@ async fn scan_all_data(config: &Config) -> Result<(), Box<dyn std::error::Error>
 
     loop {
         if let Some(key) = &last_evaluated_key {
-            scan_request = scan_request.set_exclusive_start_key(Some(key.clone()));
+            scan_request =
+                scan_request.set_exclusive_start_key(Some(key.clone()));
         }
 
         let response = scan_request.clone().send().await?;
@@ -150,11 +158,18 @@ async fn scan_all_data(config: &Config) -> Result<(), Box<dyn std::error::Error>
                             Ok(_) => {
                                 processed_count += 1;
                                 if processed_count % 10 == 0 {
-                                    tracing::info!("Processed {} video clips", processed_count);
+                                    tracing::info!(
+                                        "Processed {} video clips",
+                                        processed_count
+                                    );
                                 }
                             }
                             Err(e) => {
-                                tracing::warn!("Failed to process video clip {}: {:?}", video_key, e);
+                                tracing::warn!(
+                                    "Failed to process video clip {}: {:?}",
+                                    video_key,
+                                    e
+                                );
                             }
                         }
                     }
@@ -168,14 +183,21 @@ async fn scan_all_data(config: &Config) -> Result<(), Box<dyn std::error::Error>
         }
     }
 
-    tracing::info!("Completed scan. Processed {} video clips", processed_count);
+    tracing::info!(
+        "Completed scan. Processed {} video clips",
+        processed_count
+    );
     Ok(())
 }
 
-async fn scan_stream_data(config: &Config, stream_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn scan_stream_data(
+    config: &Config,
+    stream_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Scanning stream {} for embedding generation", stream_id);
-    
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
+
+    let region_provider =
+        RegionProviderChain::default_provider().or_else("us-east-1");
     let sdk_config = aws_config::defaults(BehaviorVersion::latest())
         .region(region_provider)
         .load()
@@ -189,7 +211,10 @@ async fn scan_stream_data(config: &Config, stream_id: &str) -> Result<(), Box<dy
         .table_name(&config.dynamodb_table)
         .index_name("stream_id-index")
         .key_condition_expression("stream_id = :stream_id")
-        .expression_attribute_values(":stream_id", AttributeValue::S(stream_id.to_string()))
+        .expression_attribute_values(
+            ":stream_id",
+            AttributeValue::S(stream_id.to_string()),
+        )
         .filter_expression("attribute_exists(transcription)")
         .send()
         .await?;
@@ -202,22 +227,34 @@ async fn scan_stream_data(config: &Config, stream_id: &str) -> Result<(), Box<dy
                     match process_video_clip(config, video_key).await {
                         Ok(_) => processed_count += 1,
                         Err(e) => {
-                            tracing::warn!("Failed to process video clip {}: {:?}", video_key, e);
+                            tracing::warn!(
+                                "Failed to process video clip {}: {:?}",
+                                video_key,
+                                e
+                            );
                         }
                     }
                 }
             }
         }
-        tracing::info!("Processed {} video clips for stream {}", processed_count, stream_id);
+        tracing::info!(
+            "Processed {} video clips for stream {}",
+            processed_count,
+            stream_id
+        );
     }
 
     Ok(())
 }
 
-async fn process_video_clip(config: &Config, video_key: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn process_video_clip(
+    config: &Config,
+    video_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     tracing::debug!("Processing video clip: {}", video_key);
 
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
+    let region_provider =
+        RegionProviderChain::default_provider().or_else("us-east-1");
     let sdk_config = aws_config::defaults(BehaviorVersion::latest())
         .region(region_provider)
         .load()
@@ -227,7 +264,8 @@ async fn process_video_clip(config: &Config, video_key: &str) -> Result<(), Box<
     let s3_client = aws_sdk_s3::Client::new(&sdk_config);
 
     // Check if embedding already exists
-    let embedding_key = format!("embeddings/{}.json", video_key.replace('/', "_"));
+    let embedding_key =
+        format!("embeddings/{}.json", video_key.replace('/', "_"));
     match s3_client
         .head_object()
         .bucket(&config.vector_bucket)
@@ -236,7 +274,10 @@ async fn process_video_clip(config: &Config, video_key: &str) -> Result<(), Box<
         .await
     {
         Ok(_) => {
-            tracing::debug!("Embedding already exists for {}, skipping", video_key);
+            tracing::debug!(
+                "Embedding already exists for {}, skipping",
+                video_key
+            );
             return Ok(());
         }
         Err(_) => {
@@ -253,7 +294,7 @@ async fn process_video_clip(config: &Config, video_key: &str) -> Result<(), Box<
         .await?;
 
     let item = response.item.ok_or("Video clip not found")?;
-    
+
     // Extract relevant data
     let stream_id = extract_string_attribute(&item, "stream_id")?;
     let transcription = extract_transcription(&item)?;
@@ -267,7 +308,8 @@ async fn process_video_clip(config: &Config, video_key: &str) -> Result<(), Box<
 
     // Create embedding for transcription text
     if !transcription.is_empty() {
-        let embedding = generate_embedding(&openai_client, &transcription, config).await?;
+        let embedding =
+            generate_embedding(&openai_client, &transcription, config).await?;
         documents.push(VectorDocument {
             id: format!("{}:transcription", video_key),
             stream_id: stream_id.clone(),
@@ -283,7 +325,9 @@ async fn process_video_clip(config: &Config, video_key: &str) -> Result<(), Box<
     // Create embedding for summary if available
     if let Some(summary_text) = summary {
         if !summary_text.is_empty() {
-            let embedding = generate_embedding(&openai_client, &summary_text, config).await?;
+            let embedding =
+                generate_embedding(&openai_client, &summary_text, config)
+                    .await?;
             documents.push(VectorDocument {
                 id: format!("{}:summary", video_key),
                 stream_id: stream_id.clone(),
@@ -309,15 +353,22 @@ async fn process_video_clip(config: &Config, video_key: &str) -> Result<(), Box<
             .send()
             .await?;
 
-        tracing::debug!("Stored {} embeddings for {}", documents.len(), video_key);
+        tracing::debug!(
+            "Stored {} embeddings for {}",
+            documents.len(),
+            video_key
+        );
     }
 
     Ok(())
 }
 
-async fn get_openai_client(config: &Config, sdk_config: &aws_config::SdkConfig) -> Result<reqwest::Client, Box<dyn std::error::Error>> {
+async fn get_openai_client(
+    config: &Config,
+    sdk_config: &aws_config::SdkConfig,
+) -> Result<reqwest::Client, Box<dyn std::error::Error>> {
     let secrets_client = aws_sdk_secretsmanager::Client::new(sdk_config);
-    
+
     let secret_response = secrets_client
         .get_secret_value()
         .secret_id(&config.openai_secret_arn)
@@ -329,7 +380,10 @@ async fn get_openai_client(config: &Config, sdk_config: &aws_config::SdkConfig) 
         .ok_or("No secret string found")?;
 
     let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", api_key))?);
+    headers.insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&format!("Bearer {}", api_key))?,
+    );
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
     let client = reqwest::Client::builder()
@@ -339,9 +393,16 @@ async fn get_openai_client(config: &Config, sdk_config: &aws_config::SdkConfig) 
     Ok(client)
 }
 
-async fn generate_embedding(client: &reqwest::Client, text: &str, config: &Config) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
-    let model = config.openai_model.as_deref().unwrap_or("text-embedding-3-small");
-    
+async fn generate_embedding(
+    client: &reqwest::Client,
+    text: &str,
+    config: &Config,
+) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+    let model = config
+        .openai_model
+        .as_deref()
+        .unwrap_or("text-embedding-3-small");
+
     let request = OpenAIEmbeddingRequest {
         input: text.to_string(),
         model: model.to_string(),
@@ -359,7 +420,7 @@ async fn generate_embedding(client: &reqwest::Client, text: &str, config: &Confi
     }
 
     let embedding_response: OpenAIEmbeddingResponse = response.json().await?;
-    
+
     if let Some(embedding_data) = embedding_response.data.first() {
         Ok(embedding_data.embedding.clone())
     } else {
@@ -367,14 +428,19 @@ async fn generate_embedding(client: &reqwest::Client, text: &str, config: &Confi
     }
 }
 
-fn extract_string_attribute(item: &HashMap<String, AttributeValue>, key: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn extract_string_attribute(
+    item: &HashMap<String, AttributeValue>,
+    key: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     match item.get(key) {
         Some(AttributeValue::S(value)) => Ok(value.clone()),
         _ => Err(format!("Missing or invalid {} attribute", key).into()),
     }
 }
 
-fn extract_transcription(item: &HashMap<String, AttributeValue>) -> Result<String, Box<dyn std::error::Error>> {
+fn extract_transcription(
+    item: &HashMap<String, AttributeValue>,
+) -> Result<String, Box<dyn std::error::Error>> {
     match item.get("transcription") {
         Some(AttributeValue::M(transcription_map)) => {
             match transcription_map.get("text") {
@@ -388,10 +454,13 @@ fn extract_transcription(item: &HashMap<String, AttributeValue>) -> Result<Strin
 
 fn extract_summary(item: &HashMap<String, AttributeValue>) -> Option<String> {
     if let Some(AttributeValue::M(summary_map)) = item.get("summary") {
-        if let Some(AttributeValue::S(summary_text)) = summary_map.get("summary_main_discussion") {
+        if let Some(AttributeValue::S(summary_text)) =
+            summary_map.get("summary_main_discussion")
+        {
             return Some(summary_text.clone());
         }
-        if let Some(AttributeValue::S(summary_text)) = summary_map.get("title") {
+        if let Some(AttributeValue::S(summary_text)) = summary_map.get("title")
+        {
             return Some(summary_text.clone());
         }
     }
