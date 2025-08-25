@@ -53,7 +53,7 @@ export default class AppStack extends cdk.Stack {
       domainName,
     });
 
-    const dataStore = new DatastoreConstruct(this, 'Datastore');
+    const dataStore = new DatastoreConstruct(this, 'Datastore', { vpc });
 
     const openaiSecret = new secretsmanager.Secret(this, 'OpenAISecret', {
       description: 'OpenAI API key',
@@ -98,7 +98,8 @@ export default class AppStack extends cdk.Stack {
 
     const embeddingService = new EmbeddingServiceConstruct(this, 'EmbeddingService', {
       videoMetadataTable: dataStore.videoMetadataTable,
-      vectorBucket: dataStore.vectorBucket,
+      vectorDatabase: dataStore.vectorDatabase,
+      vectorDatabaseSecret: dataStore.vectorDatabaseSecret,
       openaiSecret,
       jobQueue: batchEnvironment.cpuJobQueue,
       imageVersion,
