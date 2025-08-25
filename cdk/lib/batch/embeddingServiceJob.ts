@@ -3,7 +3,7 @@ import { Construct } from 'constructs';
 
 import * as batch from 'aws-cdk-lib/aws-batch';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import type * as s3 from 'aws-cdk-lib/aws-s3';
+import type * as rds from 'aws-cdk-lib/aws-rds';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
@@ -11,7 +11,8 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 
 interface EmbeddingServiceConstructProps {
   videoMetadataTable: dynamodb.ITable;
-  vectorBucket: s3.IBucket;
+  vectorDatabase: rds.IDatabaseCluster;
+  vectorDatabaseSecret: secretsmanager.ISecret;
   openaiSecret: secretsmanager.ISecret;
 
   jobQueue: batch.IJobQueue;
@@ -45,7 +46,8 @@ export default class EmbeddingServiceConstruct extends Construct {
     });
 
     props.videoMetadataTable.grantReadData(jobRole);
-    props.vectorBucket.grantReadWrite(jobRole);
+    props.vectorDatabase.grantConnect(jobRole, 'postgres');
+    props.vectorDatabaseSecret.grantRead(jobRole);
     props.openaiSecret.grantRead(jobRole);
 
     const repo = ecr.Repository.fromRepositoryName(
@@ -67,7 +69,10 @@ export default class EmbeddingServiceConstruct extends Construct {
         image: ecs.ContainerImage.fromEcrRepository(repo, props.imageVersion || 'latest'),
         environment: {
           DYNAMODB_TABLE: props.videoMetadataTable.tableName,
-          VECTOR_BUCKET: props.vectorBucket.bucketName,
+          DATABASE_SECRET_ARN: props.vectorDatabaseSecret.secretArn,
+          DATABASE_ENDPOINT: props.vectorDatabase.clusterEndpoint.hostname,
+          DATABASE_PORT: '5432',
+          DATABASE_NAME: 'vectors',
           OPENAI_SECRET_ARN: props.openaiSecret.secretArn,
           OPENAI_MODEL: 'text-embedding-3-small',
         },
