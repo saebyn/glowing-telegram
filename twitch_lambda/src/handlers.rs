@@ -539,10 +539,11 @@ pub async fn eventsub_webhook_handler(
             return (StatusCode::FORBIDDEN, "Invalid signature".to_string());
         }
     } else {
-        tracing::error!(
-            "EventSub secret not configured, failing request"
+        tracing::error!("EventSub secret not configured, failing request");
+        return (
+            StatusCode::FORBIDDEN,
+            "Signature verification not possible".to_string(),
         );
-        return (StatusCode::FORBIDDEN, "Signature verification not possible".to_string());
     }
 
     // Parse the webhook request to handle challenges and events
