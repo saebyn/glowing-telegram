@@ -14,8 +14,8 @@ use tracing::instrument;
 use types::{
     AccessTokenResponse, AuthorizationUrlResponse,
     ChatSubscriptionStatusResponse, EventSubSubscription,
-    SubscribeChatResponse, TwitchAuthRequest,
-    TwitchCallbackRequest, TwitchCallbackResponse, TwitchSessionSecret,
+    SubscribeChatResponse, TwitchAuthRequest, TwitchCallbackRequest,
+    TwitchCallbackResponse, TwitchSessionSecret,
 };
 
 use crate::{structs::AppContext, twitch};

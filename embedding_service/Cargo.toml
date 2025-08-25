@@ -2,6 +2,7 @@
 name = "embedding_service"
 version = "0.1.0"
 edition = "2024"
+description = "Service for generating vector embeddings from stream content and storing in Aurora PostgreSQL with pgvector"
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
