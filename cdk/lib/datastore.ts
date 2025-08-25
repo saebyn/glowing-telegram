@@ -7,6 +7,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 export default class DatastoreConstruct extends Construct {
   public readonly videoArchive: s3.IBucket;
   public readonly outputBucket: s3.IBucket;
+  public readonly vectorBucket: s3.IBucket;
   public readonly episodesTable: dynamodb.ITable;
   public readonly profilesTable: dynamodb.ITable;
   public readonly streamSeriesTable: dynamodb.ITable;
@@ -53,6 +54,13 @@ export default class DatastoreConstruct extends Construct {
     });
 
     this.outputBucket = new s3.Bucket(this, 'OutputBucket', {
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    this.vectorBucket = new s3.Bucket(this, 'VectorBucket', {
+      versioned: true,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
