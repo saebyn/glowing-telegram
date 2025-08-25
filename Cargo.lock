@@ -1331,6 +1331,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedding_service"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-dynamodb",
+ "aws-sdk-s3",
+ "aws-sdk-secretsmanager",
+ "chrono",
+ "figment",
+ "gt_app",
+ "gt_secrets",
+ "openai_dive",
+ "reqwest 0.12.15",
+ "serde",
+ "serde_dynamo",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "types",
+ "uuid",
+]
+
+[[package]]
 name = "encoding_rs"
 version = "0.8.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
