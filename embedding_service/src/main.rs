@@ -101,9 +101,16 @@ async fn main() {
                 std::process::exit(1);
             }
             let video_key = &args[2];
-            let db_client = connect_to_database(&config, &sdk_config).await.expect("Failed to connect to database");
-            init_database_schema(&db_client).await.expect("Failed to initialize database");
-            if let Err(e) = process_video_clip(&config, video_key, &db_client, &sdk_config).await {
+            let db_client = connect_to_database(&config, &sdk_config)
+                .await
+                .expect("Failed to connect to database");
+            init_database_schema(&db_client)
+                .await
+                .expect("Failed to initialize database");
+            if let Err(e) =
+                process_video_clip(&config, video_key, &db_client, &sdk_config)
+                    .await
+            {
                 eprintln!("Error processing video clip: {:?}", e);
                 std::process::exit(1);
             }
@@ -167,7 +174,14 @@ async fn scan_all_data(
             for item in items {
                 if let Some(key_attr) = item.get("key") {
                     if let AttributeValue::S(video_key) = key_attr {
-                        match process_video_clip(config, video_key, &db_client, &sdk_config).await {
+                        match process_video_clip(
+                            config,
+                            video_key,
+                            &db_client,
+                            &sdk_config,
+                        )
+                        .await
+                        {
                             Ok(_) => {
                                 processed_count += 1;
                                 if processed_count % 10 == 0 {
@@ -243,7 +257,14 @@ async fn scan_stream_data(
         for item in items {
             if let Some(key_attr) = item.get("key") {
                 if let AttributeValue::S(video_key) = key_attr {
-                    match process_video_clip(config, video_key, &db_client, &sdk_config).await {
+                    match process_video_clip(
+                        config,
+                        video_key,
+                        &db_client,
+                        &sdk_config,
+                    )
+                    .await
+                    {
                         Ok(_) => processed_count += 1,
                         Err(e) => {
                             tracing::warn!(
@@ -282,8 +303,9 @@ async fn connect_to_database(
         .secret_string()
         .ok_or("No secret string found")?;
 
-    let credentials: DatabaseCredentials = serde_json::from_str(secret_string)?;
-    
+    let credentials: DatabaseCredentials =
+        serde_json::from_str(secret_string)?;
+
     let port = config.database_port.as_deref().unwrap_or("5432");
     let connection_string = format!(
         "host={} port={} dbname={} user={} password={}",
@@ -294,7 +316,8 @@ async fn connect_to_database(
         credentials.password
     );
 
-    let (client, connection) = tokio_postgres::connect(&connection_string, NoTls).await?;
+    let (client, connection) =
+        tokio_postgres::connect(&connection_string, NoTls).await?;
 
     // Spawn the connection task
     tokio::spawn(async move {
@@ -310,11 +333,14 @@ async fn init_database_schema(
     client: &Client,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Create pgvector extension if it doesn't exist
-    client.execute("CREATE EXTENSION IF NOT EXISTS vector", &[]).await?;
-    
+    client
+        .execute("CREATE EXTENSION IF NOT EXISTS vector", &[])
+        .await?;
+
     // Create embeddings table if it doesn't exist
-    client.execute(
-        r#"
+    client
+        .execute(
+            r#"
         CREATE TABLE IF NOT EXISTS embeddings (
             id TEXT PRIMARY KEY,
             stream_id TEXT NOT NULL,
@@ -326,8 +352,9 @@ async fn init_database_schema(
             metadata JSONB DEFAULT '{}'::jsonb
         )
         "#,
-        &[],
-    ).await?;
+            &[],
+        )
+        .await?;
 
     // Create indexes for better query performance
     client.execute(
@@ -408,9 +435,9 @@ async fn process_video_clip(
     if !transcription.is_empty() {
         let embedding =
             generate_embedding(&openai_client, &transcription, config).await?;
-        
+
         let id = format!("{}:transcription", video_key);
-        
+
         // Store in database
         db_client
             .execute(
@@ -433,7 +460,7 @@ async fn process_video_clip(
                 ],
             )
             .await?;
-        
+
         stored_count += 1;
     }
 
@@ -443,9 +470,9 @@ async fn process_video_clip(
             let embedding =
                 generate_embedding(&openai_client, &summary_text, config)
                     .await?;
-            
+
             let id = format!("{}:summary", video_key);
-            
+
             // Store in database
             db_client
                 .execute(
@@ -468,7 +495,7 @@ async fn process_video_clip(
                     ],
                 )
                 .await?;
-            
+
             stored_count += 1;
         }
     }
