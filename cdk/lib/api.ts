@@ -53,6 +53,35 @@ export default class APIConstruct extends Construct {
   constructor(scope: Construct, id: string, props: APIConstructProps) {
     super(scope, id);
 
+    // configure authorizer
+    const authorizer = new HttpUserPoolAuthorizer(
+      'Authorizer',
+      props.userPool,
+      {
+        userPoolClients: props.userPoolClients,
+      },
+    );
+
+    const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
+      defaultAuthorizer: authorizer,
+      createDefaultStage: true,
+      corsPreflight: {
+        allowOrigins: ['http://localhost:5173', `https://${props.domainName}`],
+        allowMethods: [apigwv2.CorsHttpMethod.ANY],
+        allowHeaders: ['authorization', 'content-type', 'accept'],
+        exposeHeaders: [
+          'location',
+          'content-range',
+          'content-length',
+          'content-type',
+        ],
+        allowCredentials: true,
+        maxAge: cdk.Duration.days(1),
+      },
+    });
+
+    this.httpApi = httpApi;
+
     const youtubeService = new ServiceLambdaConstruct(this, 'YoutubeLambda', {
       lambdaOptions: {
         description: 'Youtube OAuth Lambda for Glowing-Telegram',
@@ -117,7 +146,7 @@ export default class APIConstruct extends Construct {
           IS_GLOBAL_REFRESH_SERVICE: 'false',
           CHAT_QUEUE_URL: props.chatQueue.queueUrl,
           EVENTSUB_SECRET_ARN: eventSubSecret.secretArn,
-          EVENTSUB_WEBHOOK_URL: '', // Will be set after httpApi creation
+          EVENTSUB_WEBHOOK_URL: `${httpApi.url}/eventsub/webhook`,
         },
       },
       name: 'twitch-lambda',
@@ -275,34 +304,6 @@ export default class APIConstruct extends Construct {
 
     props.openaiSecret.grantRead(aiChatService.lambda);
 
-    // configure authorizer
-    const authorizer = new HttpUserPoolAuthorizer(
-      'Authorizer',
-      props.userPool,
-      {
-        userPoolClients: props.userPoolClients,
-      },
-    );
-
-    const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
-      defaultAuthorizer: authorizer,
-
-      corsPreflight: {
-        allowOrigins: ['http://localhost:5173', `https://${props.domainName}`],
-        allowMethods: [apigwv2.CorsHttpMethod.ANY],
-        allowHeaders: ['authorization', 'content-type', 'accept'],
-        exposeHeaders: [
-          'location',
-          'content-range',
-          'content-length',
-          'content-type',
-        ],
-        allowCredentials: true,
-        maxAge: cdk.Duration.days(1),
-      },
-    });
-
-    this.httpApi = httpApi;
 
     const renderJobSubmissionLambda = new RenderJobSubmissionLambda(
       this,
@@ -479,11 +480,5 @@ def handler(event, context):
       path: '/upload/youtube',
       methods: [apigwv2.HttpMethod.POST],
     });
-
-    // Update the Twitch service environment with the webhook URL now that httpApi is created
-    twitchService.lambda.addEnvironment(
-      'EVENTSUB_WEBHOOK_URL',
-      `${httpApi.url}eventsub/webhook`
-    );
   }
 }
