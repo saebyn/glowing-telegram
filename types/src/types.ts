@@ -463,10 +463,6 @@ export interface StreamIngestionRequest {
 }
 
 export interface SubscribeChatRequest {
-    /**
-     * The webhook URL where Twitch will send EventSub notifications
-     */
-    webhook_url: string;
 }
 
 export interface SubscribeChatResponse {

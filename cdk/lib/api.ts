@@ -117,6 +117,7 @@ export default class APIConstruct extends Construct {
           IS_GLOBAL_REFRESH_SERVICE: 'false',
           CHAT_QUEUE_URL: props.chatQueue.queueUrl,
           EVENTSUB_SECRET_ARN: eventSubSecret.secretArn,
+          EVENTSUB_WEBHOOK_URL: '', // Will be set after httpApi creation
         },
       },
       name: 'twitch-lambda',
@@ -428,6 +429,16 @@ def handler(event, context):
       methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.GET],
     });
 
+    // POST /eventsub/* - run twitch lambda for EventSub endpoints
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'TwitchEventSubIntegration',
+        twitchService.lambda,
+      ),
+      path: '/eventsub/{proxy+}',
+      methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.GET],
+    });
+
     // POST/GET /auth/youtube/* - run youtube lambda
     httpApi.addRoutes({
       integration: new HttpLambdaIntegration(
@@ -468,5 +479,11 @@ def handler(event, context):
       path: '/upload/youtube',
       methods: [apigwv2.HttpMethod.POST],
     });
+
+    // Update the Twitch service environment with the webhook URL now that httpApi is created
+    twitchService.lambda.addEnvironment(
+      'EVENTSUB_WEBHOOK_URL',
+      `${httpApi.url}eventsub/webhook`
+    );
   }
 }
