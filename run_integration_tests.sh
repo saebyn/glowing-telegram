@@ -221,8 +221,8 @@ if [[ "$BUILD" == "true" ]]; then
         exit 1
     fi
 
-    # Convert service name to docker-bake target (replace underscores with hyphens)
-    DOCKER_SERVICE=$(echo "$SERVICE" | sed 's/_/-/g')
+    # Use service name as-is for docker-bake target (most targets use underscores)
+    DOCKER_SERVICE="$SERVICE"
     
     print_info "Building docker image for target: $DOCKER_SERVICE"
     if ! docker buildx bake --load --file docker-bake.hcl "$DOCKER_SERVICE"; then
