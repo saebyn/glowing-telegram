@@ -1,0 +1,57 @@
+# Simple Dockerfile for embedding service testing
+# This avoids the complex multi-stage build that can have SSL issues
+
+FROM rust:latest as builder
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+
+# Copy all workspace members (required by workspace resolver)
+COPY gt_ffmpeg ./gt_ffmpeg
+COPY video_ingestor ./video_ingestor
+COPY audio_transcriber ./audio_transcriber
+COPY summarize_transcription ./summarize_transcription
+COPY crud_api ./crud_api
+COPY ai_chat_lambda ./ai_chat_lambda
+COPY types ./types
+COPY twitch_lambda ./twitch_lambda
+COPY render_job ./render_job
+COPY gt_secrets ./gt_secrets
+COPY gt_axum ./gt_axum
+COPY youtube_lambda ./youtube_lambda
+COPY upload_video ./upload_video
+COPY gt_app ./gt_app
+COPY chat_processor_lambda ./chat_processor_lambda
+COPY embedding_service ./embedding_service
+COPY youtube_uploader_lambda ./youtube_uploader_lambda
+COPY media_lambda ./media_lambda
+
+# Build only the embedding service
+RUN cargo build --release --bin embedding_service
+
+# Runtime stage
+FROM debian:latest
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the built binary
+COPY --from=builder /app/target/release/embedding_service /app/embedding_service
+
+# Create non-root user
+RUN useradd --system --uid 10001 --shell /sbin/nologin user
+USER user
+
+ENTRYPOINT ["/app/embedding_service"]

@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension for testing
+  postgres-test:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: test_embeddings
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d test_embeddings"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # LocalStack for AWS services
+  localstack-test:
+    image: localstack/localstack:latest
+    environment:
+      SERVICES: dynamodb,secretsmanager
+      DEBUG: 1
+      DOCKER_HOST: unix:///var/run/docker.sock
+      PERSIST_DATA: 0
+    ports:
+      - "4566"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Mock OpenAI API server
+  mock-openai:
+    image: wiremock/wiremock:latest
+    command: ["--port", "8080", "--global-response-templating"]
+    ports:
+      - "8080"
+    volumes:
+      - ./fixtures/wiremock:/home/wiremock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/__admin/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Embedding service for testing
+  embedding-service-test:
+    image: embedding-test_embedding-service-test:latest
+    build:
+      context: ../../
+      dockerfile: embedding_service/tests/Dockerfile.test
+    environment:
+      DYNAMODB_TABLE: test-table
+      DATABASE_SECRET_ARN: test/database/credentials
+      DATABASE_ENDPOINT: postgres-test
+      DATABASE_PORT: 5432
+      DATABASE_NAME: test_embeddings
+      OPENAI_SECRET_ARN: test/openai/api-key
+      OPENAI_MODEL: text-embedding-3-small
+      OPENAI_BASE_URL: http://mock-openai:8080
+      AWS_ENDPOINT_URL: http://localstack-test:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      - postgres-test
+      - localstack-test
+      - mock-openai
+    profiles:
+      - manual  # Don't start automatically
+
+networks:
+  default:
+    name: embedding_test_network
