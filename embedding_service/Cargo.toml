@@ -29,5 +29,13 @@ openai_dive = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 
+[dev-dependencies]
+testcontainers = "0.24.0"
+testcontainers-modules = { version = "0.12.1", features = [
+  "localstack",
+  "postgres",
+] }
+hyper = { version = "0.14", features = ["full"] }
+
 [lints]
 workspace = true
