@@ -9,27 +9,14 @@
 use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_dynamodb::types::AttributeValue;
 use figment::{Figment, providers::Env};
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
+use openai_dive::v1::api::Client;
+use openai_dive::v1::resources::embedding::{
+    Embedding, EmbeddingInput, EmbeddingOutput, EmbeddingParametersBuilder,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
-use tokio_postgres::{Client, NoTls};
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OpenAIEmbeddingRequest {
-    input: String,
-    model: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OpenAIEmbeddingResponse {
-    data: Vec<OpenAIEmbeddingData>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OpenAIEmbeddingData {
-    embedding: Vec<f32>,
-}
+use tokio_postgres::{Client as PgClient, NoTls};
 
 #[derive(Deserialize, Debug, Clone)]
 struct Config {
@@ -40,6 +27,8 @@ struct Config {
     database_name: String,
     openai_secret_arn: String,
     openai_model: Option<String>,
+    openai_base_url: Option<String>,
+    aws_endpoint_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -83,10 +72,16 @@ async fn main() {
     // Load configuration first
     let region_provider =
         RegionProviderChain::default_provider().or_else("us-east-1");
-    let sdk_config = aws_config::defaults(BehaviorVersion::latest())
-        .region(region_provider)
-        .load()
-        .await;
+    let mut aws_config_builder =
+        aws_config::defaults(BehaviorVersion::latest())
+            .region(region_provider);
+
+    if let Some(endpoint) = &config.aws_endpoint_url {
+        tracing::info!("Using custom AWS endpoint: {}", endpoint);
+        aws_config_builder = aws_config_builder.endpoint_url(endpoint);
+    }
+
+    let sdk_config = aws_config_builder.load().await;
 
     match command.as_str() {
         "scan" => {
@@ -140,10 +135,16 @@ async fn scan_all_data(
 
     let region_provider =
         RegionProviderChain::default_provider().or_else("us-east-1");
-    let sdk_config = aws_config::defaults(BehaviorVersion::latest())
-        .region(region_provider)
-        .load()
-        .await;
+    let mut aws_config_builder =
+        aws_config::defaults(BehaviorVersion::latest())
+            .region(region_provider);
+
+    if let Some(endpoint) = &config.aws_endpoint_url {
+        tracing::info!("Using custom AWS endpoint: {}", endpoint);
+        aws_config_builder = aws_config_builder.endpoint_url(endpoint);
+    }
+
+    let sdk_config = aws_config_builder.load().await;
 
     let dynamodb_client = aws_sdk_dynamodb::Client::new(&sdk_config);
 
@@ -225,10 +226,16 @@ async fn scan_stream_data(
 
     let region_provider =
         RegionProviderChain::default_provider().or_else("us-east-1");
-    let sdk_config = aws_config::defaults(BehaviorVersion::latest())
-        .region(region_provider)
-        .load()
-        .await;
+    let mut aws_config_builder =
+        aws_config::defaults(BehaviorVersion::latest())
+            .region(region_provider);
+
+    if let Some(endpoint) = &config.aws_endpoint_url {
+        tracing::info!("Using custom AWS endpoint: {}", endpoint);
+        aws_config_builder = aws_config_builder.endpoint_url(endpoint);
+    }
+
+    let sdk_config = aws_config_builder.load().await;
 
     let dynamodb_client = aws_sdk_dynamodb::Client::new(&sdk_config);
 
@@ -290,7 +297,7 @@ async fn scan_stream_data(
 async fn connect_to_database(
     config: &Config,
     sdk_config: &aws_config::SdkConfig,
-) -> Result<Client, Box<dyn std::error::Error>> {
+) -> Result<PgClient, Box<dyn std::error::Error>> {
     let secrets_client = aws_sdk_secretsmanager::Client::new(sdk_config);
 
     let secret_response = secrets_client
@@ -322,7 +329,7 @@ async fn connect_to_database(
     // Spawn the connection task
     tokio::spawn(async move {
         if let Err(e) = connection.await {
-            eprintln!("Connection error: {}", e);
+            tracing::error!("Database connection error: {}", e);
         }
     });
 
@@ -330,7 +337,7 @@ async fn connect_to_database(
 }
 
 async fn init_database_schema(
-    client: &Client,
+    client: &PgClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Create pgvector extension if it doesn't exist
     client
@@ -384,7 +391,7 @@ async fn init_database_schema(
 async fn process_video_clip(
     config: &Config,
     video_key: &str,
-    db_client: &Client,
+    db_client: &PgClient,
     sdk_config: &aws_config::SdkConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     tracing::debug!("Processing video clip: {}", video_key);
@@ -514,7 +521,7 @@ async fn process_video_clip(
 async fn get_openai_client(
     config: &Config,
     sdk_config: &aws_config::SdkConfig,
-) -> Result<reqwest::Client, Box<dyn std::error::Error>> {
+) -> Result<Client, Box<dyn std::error::Error>> {
     let secrets_client = aws_sdk_secretsmanager::Client::new(sdk_config);
 
     let secret_response = secrets_client
@@ -527,50 +534,40 @@ async fn get_openai_client(
         .secret_string()
         .ok_or("No secret string found")?;
 
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {}", api_key))?,
-    );
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    let mut client = Client::new(api_key.to_string());
 
-    let client = reqwest::Client::builder()
-        .default_headers(headers)
-        .build()?;
+    if let Some(base_url) = &config.openai_base_url {
+        tracing::info!("Using custom OpenAI base URL: {}", base_url);
+        client.base_url = base_url.clone();
+    }
 
     Ok(client)
 }
 
 async fn generate_embedding(
-    client: &reqwest::Client,
+    client: &Client,
     text: &str,
     config: &Config,
-) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
-    let model = config
+) -> Result<Vec<f64>, Box<dyn std::error::Error>> {
+    let embedding_model: String = config
         .openai_model
-        .as_deref()
-        .unwrap_or("text-embedding-3-small");
+        .clone()
+        .unwrap_or("text-embedding-3-small".to_string());
 
-    let request = OpenAIEmbeddingRequest {
-        input: text.to_string(),
-        model: model.to_string(),
-    };
+    let parameters = EmbeddingParametersBuilder::default()
+        .model(embedding_model)
+        .input(EmbeddingInput::String(text.to_string()))
+        .build()?;
 
-    let response = client
-        .post("https://api.openai.com/v1/embeddings")
-        .json(&request)
-        .send()
-        .await?;
+    let response = client.embeddings().create(parameters).await?;
 
-    if !response.status().is_success() {
-        let error_text = response.text().await?;
-        return Err(format!("OpenAI API error: {}", error_text).into());
-    }
-
-    let embedding_response: OpenAIEmbeddingResponse = response.json().await?;
-
-    if let Some(embedding_data) = embedding_response.data.first() {
-        Ok(embedding_data.embedding.clone())
+    if let Some(Embedding {
+        embedding: EmbeddingOutput::Float(embedding),
+        index: _,
+        object: _,
+    }) = response.data.first()
+    {
+        Ok(embedding.clone())
     } else {
         Err("No embedding data returned".into())
     }
