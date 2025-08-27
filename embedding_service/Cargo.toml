@@ -37,9 +37,5 @@ testcontainers-modules = { version = "0.12.1", features = [
 ] }
 hyper = { version = "0.14", features = ["full"] }
 
-[features]
-# Feature flag for using docker-compose instead of testcontainers
-docker_compose_tests = []
-
 [lints]
 workspace = true

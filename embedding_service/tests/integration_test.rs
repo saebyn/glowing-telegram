@@ -1,17 +1,12 @@
 use aws_sdk_dynamodb::types::AttributeValue;
 use std::collections::HashMap;
 use std::process::Stdio;
+use testcontainers::{ImageExt, runners::AsyncRunner};
+use testcontainers_modules::localstack::LocalStack;
+use testcontainers_modules::postgres::Postgres;
 use tokio::process::Command;
 use tokio::time::{sleep, timeout};
 use tokio_postgres::NoTls;
-
-// Conditional imports based on test mode
-#[cfg(not(feature = "docker_compose_tests"))]
-use testcontainers::{ImageExt, runners::AsyncRunner};
-#[cfg(not(feature = "docker_compose_tests"))]
-use testcontainers_modules::localstack::LocalStack;
-#[cfg(not(feature = "docker_compose_tests"))]
-use testcontainers_modules::postgres::Postgres;
 
 mod test_config;
 use test_config::TestConfig;
@@ -25,92 +20,55 @@ async fn test_embedding_service_with_transcription_data() {
     println!("🚀 Starting embedding_service integration test");
     println!("📋 Test configuration: {:?}", config);
 
-    // Check if using docker-compose mode
-    let use_docker_compose = std::env::var("TEST_USE_DOCKER_COMPOSE")
-        .unwrap_or_default()
-        .to_lowercase() == "true";
+    // Start LocalStack container for AWS services
+    println!("🐳 Starting LocalStack container...");
+    let localstack = timeout(
+        config.localstack_startup_timeout,
+        LocalStack::default()
+            .with_env_var("SERVICES", "dynamodb,secretsmanager")
+            .start(),
+    )
+    .await
+    .expect("LocalStack startup timed out")
+    .expect("Failed to start LocalStack container");
 
-    let (localstack_port, postgres_port, mock_openai_port) = if use_docker_compose {
-        // Use docker-compose services
-        let postgres_port = std::env::var("TEST_POSTGRES_PORT")
-            .expect("TEST_POSTGRES_PORT required in docker-compose mode")
-            .parse::<u16>()
-            .expect("Invalid postgres port");
-        let localstack_port = std::env::var("TEST_LOCALSTACK_PORT")
-            .expect("TEST_LOCALSTACK_PORT required in docker-compose mode")
-            .parse::<u16>()
-            .expect("Invalid localstack port");
-        let mock_openai_port = if config.use_mock_openai {
-            Some(std::env::var("TEST_MOCK_OPENAI_PORT")
-                .expect("TEST_MOCK_OPENAI_PORT required when using mock OpenAI")
-                .parse::<u16>()
-                .expect("Invalid mock OpenAI port"))
-        } else {
-            None
-        };
+    let localstack_port = localstack
+        .get_host_port_ipv4(4566)
+        .await
+        .expect("Failed to get LocalStack port");
 
-        println!("✅ Using docker-compose test infrastructure");
-        (localstack_port, postgres_port, mock_openai_port)
+    println!("✅ LocalStack started on port {}", localstack_port);
+
+    // Start PostgreSQL container with pgvector extension
+    println!("🐳 Starting PostgreSQL container with pgvector...");
+    let postgres = timeout(
+        config.postgres_startup_timeout,
+        Postgres::default()
+            .with_env_var("POSTGRES_DB", &config.test_database)
+            .with_env_var("POSTGRES_USER", &config.test_postgres_user)
+            .with_env_var("POSTGRES_PASSWORD", &config.test_postgres_password)
+            .with_tag("pgvector/pgvector:pg16")
+            .start(),
+    )
+    .await
+    .expect("PostgreSQL startup timed out")
+    .expect("Failed to start PostgreSQL container");
+
+    let postgres_port = postgres
+        .get_host_port_ipv4(5432)
+        .await
+        .expect("Failed to get PostgreSQL port");
+
+    println!("✅ PostgreSQL started on port {}", postgres_port);
+
+    // Start mock OpenAI server if needed
+    let mock_openai_port = if config.use_mock_openai {
+        let port = start_mock_openai_server().await;
+        println!("✅ Started mock OpenAI server on port {}", port);
+        Some(port)
     } else {
-        #[cfg(not(feature = "docker_compose_tests"))]
-        {
-            // Use testcontainers (original approach)
-            println!("🐳 Starting LocalStack container...");
-            let localstack = timeout(
-                config.localstack_startup_timeout,
-                LocalStack::default()
-                    .with_env_var("SERVICES", "dynamodb,secretsmanager")
-                    .start(),
-            )
-            .await
-            .expect("LocalStack startup timed out")
-            .expect("Failed to start LocalStack container");
-
-            let localstack_port = localstack
-                .get_host_port_ipv4(4566)
-                .await
-                .expect("Failed to get LocalStack port");
-
-            println!("✅ LocalStack started on port {}", localstack_port);
-
-            // Start PostgreSQL container with pgvector extension
-            println!("🐳 Starting PostgreSQL container with pgvector...");
-            let postgres = timeout(
-                config.postgres_startup_timeout,
-                Postgres::default()
-                    .with_env_var("POSTGRES_DB", &config.test_database)
-                    .with_env_var("POSTGRES_USER", &config.test_postgres_user)
-                    .with_env_var("POSTGRES_PASSWORD", &config.test_postgres_password)
-                    .with_tag("pgvector/pgvector:pg16")
-                    .start(),
-            )
-            .await
-            .expect("PostgreSQL startup timed out")
-            .expect("Failed to start PostgreSQL container");
-
-            let postgres_port = postgres
-                .get_host_port_ipv4(5432)
-                .await
-                .expect("Failed to get PostgreSQL port");
-
-            println!("✅ PostgreSQL started on port {}", postgres_port);
-
-            // Start mock OpenAI server if needed
-            let mock_openai_port = if config.use_mock_openai {
-                let port = start_mock_openai_server().await;
-                println!("✅ Started mock OpenAI server on port {}", port);
-                Some(port)
-            } else {
-                println!("📡 Using real OpenAI API");
-                None
-            };
-
-            (localstack_port, postgres_port, mock_openai_port)
-        }
-        #[cfg(feature = "docker_compose_tests")]
-        {
-            panic!("Testcontainers mode not available with docker_compose_tests feature");
-        }
+        println!("📡 Using real OpenAI API");
+        None
     };
 
     // Set up AWS clients for LocalStack

@@ -12,24 +12,17 @@ The integration tests verify:
 
 ## Test Infrastructure
 
-The tests support two modes:
+The tests use **testcontainers** to provide isolated test infrastructure:
 
-### 1. Docker Compose Mode (Recommended)
 - **PostgreSQL with pgvector**: Vector database for embeddings  
 - **LocalStack**: Mock AWS services (DynamoDB, SecretsManager)
-- **WireMock**: Mock OpenAI API server with realistic responses
-- **Isolated networking**: All services run in dedicated Docker network
-
-### 2. Testcontainers Mode (Legacy)
-- Uses Rust testcontainers library
-- May have issues with SSL certificates in CI environments
-- Fallback option when Docker Compose is not available
+- **Mock OpenAI server**: Simple HTTP server for OpenAI API simulation
 
 ## Quick Start
 
 ### Prerequisites
 
-1. **Docker & Docker Compose**: Must be installed and running
+1. **Docker**: Must be installed and running
 2. **Rust workspace**: Must be built first:
    ```bash
    cargo build --workspace
@@ -37,19 +30,13 @@ The tests support two modes:
 
 ### Running Tests
 
-#### Option 1: Using Docker Compose (Recommended)
+#### Option 1: Using the test runner script
 ```bash
 cd embedding_service/tests
 ./run_integration_tests.sh
 ```
 
-#### Option 2: Using the workspace test runner
-```bash
-# From workspace root
-./run_integration_tests.sh embedding_service --build
-```
-
-#### Option 3: Direct cargo test (testcontainers mode)
+#### Option 2: Direct cargo test
 ```bash
 cargo test -p embedding_service --test integration_test -- --ignored --nocapture
 ```
@@ -58,19 +45,6 @@ cargo test -p embedding_service --test integration_test -- --ignored --nocapture
 
 ### Environment Variables
 
-#### Test Infrastructure
-- `USE_REAL_OPENAI`: Use real OpenAI API instead of mock (default: false)
-- `BUILD_IMAGE`: Build Docker image before testing (default: true)
-- `CLEANUP`: Cleanup resources after test (default: true)
-- `VERBOSE`: Enable verbose output (default: false)
-- `COMPOSE_PROJECT_NAME`: Docker Compose project name (default: embedding-test)
-
-#### Timeouts
-- `TEST_LOCALSTACK_TIMEOUT`: LocalStack startup timeout (default: 30s)
-- `TEST_POSTGRES_TIMEOUT`: PostgreSQL startup timeout (default: 30s)  
-- `TEST_BUILD_TIMEOUT`: Container build timeout (default: 600s)
-- `TEST_RUN_TIMEOUT`: Container run timeout (default: 300s)
-
 #### Test Resources
 - `TEST_BUCKET`: S3 bucket name (default: "test-input-bucket")
 - `TEST_TABLE`: DynamoDB table name (default: "test-table")
@@ -78,8 +52,15 @@ cargo test -p embedding_service --test integration_test -- --ignored --nocapture
 - `TEST_POSTGRES_USER`: PostgreSQL username (default: "test_user")
 - `TEST_POSTGRES_PASSWORD`: PostgreSQL password (default: "test_password")
 
+#### Timeouts
+- `TEST_LOCALSTACK_TIMEOUT`: LocalStack startup timeout (default: 30s)
+- `TEST_POSTGRES_TIMEOUT`: PostgreSQL startup timeout (default: 30s)  
+- `TEST_BUILD_TIMEOUT`: Container build timeout (default: 600s)
+- `TEST_RUN_TIMEOUT`: Container run timeout (default: 300s)
+
 #### OpenAI Configuration
-- `OPENAI_API_KEY`: Real OpenAI API key (required if USE_REAL_OPENAI=true)
+- `USE_MOCK_OPENAI`: Use mock OpenAI API instead of real (default: true)
+- `OPENAI_API_KEY`: Real OpenAI API key (required if USE_MOCK_OPENAI=false)
 
 ### Example Commands
 
@@ -91,22 +72,12 @@ cd embedding_service/tests
 
 **With real OpenAI API:**
 ```bash
-USE_REAL_OPENAI=true OPENAI_API_KEY=sk-... ./run_integration_tests.sh
+USE_MOCK_OPENAI=false OPENAI_API_KEY=sk-... cargo test -p embedding_service --test integration_test -- --ignored --nocapture
 ```
 
-**Keep infrastructure for debugging:**
+**Keep containers for debugging:**
 ```bash
-CLEANUP=false ./run_integration_tests.sh
-```
-
-**Verbose output:**
-```bash
-VERBOSE=true ./run_integration_tests.sh
-```
-
-**Skip image build (if already built):**
-```bash
-BUILD_IMAGE=false ./run_integration_tests.sh
+TEST_KEEP_CONTAINERS=true cargo test -p embedding_service --test integration_test -- --ignored --nocapture
 ```
 
 ## Test Architecture
@@ -116,7 +87,7 @@ BUILD_IMAGE=false ./run_integration_tests.sh
 1. **Infrastructure Setup**
    - Start PostgreSQL with pgvector extension
    - Start LocalStack for AWS services
-   - Start WireMock for OpenAI API simulation
+   - Start mock OpenAI server (if enabled)
 
 2. **Data Preparation**
    - Create DynamoDB table with test schema
@@ -135,19 +106,10 @@ BUILD_IMAGE=false ./run_integration_tests.sh
 
 ### Mock OpenAI API
 
-The WireMock server provides realistic OpenAI API responses:
+The built-in mock server provides simple OpenAI API responses:
 - **Endpoint**: `/v1/embeddings`
-- **Response**: JSON with 1536-dimensional random vectors
-- **Features**: Proper usage metrics, error simulation
-
-Configuration is in `fixtures/wiremock/mappings/embeddings.json`.
-
-### Test Data
-
-The tests create:
-- **DynamoDB items**: With transcription text, summaries, metadata
-- **PostgreSQL tables**: `embeddings` table with vector columns
-- **Vector indexes**: HNSW indexes for similarity search
+- **Response**: JSON with 1536-dimensional dummy vectors
+- **Features**: Basic usage metrics simulation
 
 ## Troubleshooting
 
@@ -155,7 +117,7 @@ The tests create:
 
 #### Docker Build Failures
 ```
-Failed to build embedding service test image
+Failed to build embedding service image
 ```
 **Solutions:**
 - Check Docker daemon is running
@@ -163,30 +125,12 @@ Failed to build embedding service test image
 - Try: `docker system prune` to free space
 - Increase Docker memory/CPU limits
 
-#### SSL Certificate Errors (testcontainers mode)
-```
-SSL certificate problem: self-signed certificate in certificate chain
-```
-**Solutions:**
-- Use Docker Compose mode instead: `./run_integration_tests.sh`
-- Set `BUILD_IMAGE=false` if image already exists
-- Configure corporate proxy/certificates if needed
-
-#### Port Conflicts
-```
-Port already in use
-```
-**Solutions:**
-- Change `COMPOSE_PROJECT_NAME` to avoid conflicts
-- Run: `docker-compose down` to cleanup orphaned containers
-- Check for other services using ports 4566, 5432, 8080
-
 #### Test Timeouts
 ```
 PostgreSQL startup timed out
 ```
 **Solutions:**
-- Increase timeouts: `TEST_POSTGRES_TIMEOUT=60`
+- Increase timeouts: `TEST_POSTGRES_TIMEOUT=60s`
 - Check system resources (Docker needs adequate RAM)
 - Verify no firewall blocking container communication
 
@@ -197,68 +141,23 @@ cargo: command not found
 **Solutions:**
 - Install Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - Build workspace: `cargo build --workspace`
-- Install Docker Compose: [Official installation guide](https://docs.docker.com/compose/install/)
 
 ### Debugging Tips
 
 #### Keep Infrastructure Running
 ```bash
-CLEANUP=false ./run_integration_tests.sh
+TEST_KEEP_CONTAINERS=true cargo test -p embedding_service --test integration_test -- --ignored --nocapture
 ```
-Then connect to services:
-- **PostgreSQL**: `psql -h localhost -p <port> -U test_user test_embeddings`
-- **LocalStack**: `aws --endpoint-url=http://localhost:<port> dynamodb list-tables`
-- **WireMock**: `curl http://localhost:<port>/__admin/mappings`
-
-#### Check Container Logs
-```bash
-# List running containers
-docker-compose -f docker-compose.test.yml -p embedding-test ps
-
-# View logs
-docker-compose -f docker-compose.test.yml -p embedding-test logs postgres-test
-docker-compose -f docker-compose.test.yml -p embedding-test logs localstack-test
-```
-
-#### Manual Service Testing
-```bash
-# Test OpenAI mock
-curl -X POST http://localhost:<port>/v1/embeddings \
-  -H "Content-Type: application/json" \
-  -d '{"input": "test", "model": "text-embedding-3-small"}'
-
-# Test PostgreSQL
-docker exec -it <postgres-container> psql -U test_user test_embeddings -c "SELECT version();"
-```
-
-### Performance Optimization
-
-#### Faster Builds
-- Use `BUILD_IMAGE=false` after first successful build
-- Pre-pull images: `docker-compose pull`
-- Use Docker BuildKit: `DOCKER_BUILDKIT=1`
-
-#### Resource Limits
-```yaml
-# Add to docker-compose.test.yml services
-mem_limit: 512m
-cpus: '0.5'
-```
+Then connect to services manually for debugging.
 
 ## Files Overview
 
 ```
 tests/
-├── run_integration_tests.sh      # Main test runner script
-├── docker-compose.test.yml       # Docker Compose configuration
-├── Dockerfile.test               # Optimized Dockerfile for testing
+├── run_integration_tests.sh      # Simple test runner script
 ├── integration_test.rs           # Main integration test
 ├── test_config.rs               # Test configuration management
 ├── mod.rs                       # Test module definitions
-├── fixtures/
-│   └── wiremock/
-│       └── mappings/
-│           └── embeddings.json  # OpenAI API mock configuration
 └── README.md                    # This file
 ```
 
@@ -280,19 +179,7 @@ jobs:
       - name: Build workspace
         run: cargo build --workspace
       - name: Run integration tests
-        run: ./embedding_service/tests/run_integration_tests.sh
-        env:
-          CLEANUP: true
-          VERBOSE: true
+        run: cargo test -p embedding_service --test integration_test -- --ignored --nocapture
 ```
 
-### Local Development
-```bash
-# Pre-commit check
-./embedding_service/tests/run_integration_tests.sh
-
-# Development cycle with kept infrastructure
-CLEANUP=false BUILD_IMAGE=false ./embedding_service/tests/run_integration_tests.sh
-```
-
-The integration tests provide comprehensive validation of the embedding service in a realistic environment while being reliable and maintainable.
+The integration tests provide comprehensive validation of the embedding service using testcontainers for reliable and isolated testing.
