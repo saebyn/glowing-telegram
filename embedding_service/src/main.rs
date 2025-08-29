@@ -23,7 +23,7 @@ struct Config {
     dynamodb_table: String,
     database_secret_arn: String,
     database_endpoint: String,
-    database_port: Option<String>,
+    database_port: Option<u16>,
     database_name: String,
     openai_secret_arn: String,
     openai_model: Option<String>,
@@ -313,11 +313,10 @@ async fn connect_to_database(
     let credentials: DatabaseCredentials =
         serde_json::from_str(secret_string)?;
 
-    let port = config.database_port.as_deref().unwrap_or("5432");
     let connection_string = format!(
         "host={} port={} dbname={} user={} password={}",
         config.database_endpoint,
-        port,
+        config.database_port.unwrap_or(5432),
         config.database_name,
         credentials.username,
         credentials.password

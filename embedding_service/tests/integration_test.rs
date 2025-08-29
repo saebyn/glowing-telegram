@@ -47,7 +47,8 @@ async fn test_embedding_service_with_transcription_data() {
             .with_env_var("POSTGRES_DB", &config.test_database)
             .with_env_var("POSTGRES_USER", &config.test_postgres_user)
             .with_env_var("POSTGRES_PASSWORD", &config.test_postgres_password)
-            .with_tag("pgvector/pgvector:pg16")
+            .with_tag("pg16")
+            .with_name("pgvector/pgvector")
             .start(),
     )
     .await
