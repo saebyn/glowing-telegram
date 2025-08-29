@@ -113,6 +113,36 @@ async fn test_embedding_service_with_transcription_data() {
     .await;
     println!("✅ Inserted test data with transcriptions into DynamoDB");
 
+    // Verify LocalStack is accessible before running container
+    println!("🔍 Verifying LocalStack accessibility...");
+    let health_check = tokio::process::Command::new("curl")
+        .args(&[
+            "-s",
+            &format!("http://localhost:{}/health", localstack_port),
+        ])
+        .output()
+        .await;
+
+    match health_check {
+        Ok(output) if output.status.success() => {
+            println!("✅ LocalStack health check passed");
+            println!(
+                "   Response: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+        }
+        Ok(output) => {
+            println!(
+                "⚠️ LocalStack health check failed with status: {:?}",
+                output.status
+            );
+            println!("   Stderr: {}", String::from_utf8_lossy(&output.stderr));
+        }
+        Err(e) => {
+            println!("⚠️ Could not perform LocalStack health check: {}", e);
+        }
+    }
+
     // Test processing a single video clip
     println!("🏃 Running embedding_service container for single video...");
     let run_result = timeout(
@@ -361,8 +391,17 @@ async fn start_mock_openai_server() -> u16 {
     async fn mock_openai_handler(
         req: Request<Body>,
     ) -> Result<Response<Body>, Infallible> {
+        // Debug: log all incoming requests
+        println!(
+            "🔍 Mock OpenAI server received request: {} {}",
+            req.method(),
+            req.uri().path()
+        );
+
         match (req.method(), req.uri().path()) {
-            (&Method::POST, "/v1/embeddings") => {
+            (&Method::POST, "/v1/embeddings")
+            | (&Method::POST, "/embeddings") => {
+                println!("✅ Mock OpenAI server: Handling embeddings request");
                 let mock_response = serde_json::json!({
                     "object": "list",
                     "data": [{
@@ -383,10 +422,17 @@ async fn start_mock_openai_server() -> u16 {
                     .body(Body::from(mock_response.to_string()))
                     .unwrap())
             }
-            _ => Ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from("Not Found"))
-                .unwrap()),
+            _ => {
+                println!(
+                    "❌ Mock OpenAI server: No handler for {} {}",
+                    req.method(),
+                    req.uri().path()
+                );
+                Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::from("Not Found"))
+                    .unwrap())
+            }
         }
     }
 
@@ -462,6 +508,8 @@ async fn run_embedding_service_container(
         "AWS_SECRET_ACCESS_KEY=test",
         "-e",
         "AWS_DEFAULT_REGION=us-east-1",
+        "-e",
+        "RUST_LOG=debug",
     ];
 
     // Add OpenAI base URL if using mock
@@ -473,6 +521,12 @@ async fn run_embedding_service_container(
     docker_args.push(&config.image_name);
     docker_args.push(command);
     docker_args.push(identifier);
+
+    // Debug: print the docker command being executed
+    println!(
+        "🐳 Executing docker command: docker {}",
+        docker_args.join(" ")
+    );
 
     let output = Command::new("docker")
         .args(&docker_args)
@@ -580,7 +634,8 @@ async fn verify_embedding_results(
     for row in embeddings {
         let content_type: String = row.get(0);
         let content: String = row.get(1);
-        let embedding: Vec<f64> = row.get(2);
+        let embedding: pgvector::Vector = row.get(2);
+        let embedding_vec: Vec<f32> = embedding.to_vec();
 
         match content_type.as_str() {
             "transcription" => {
@@ -590,7 +645,7 @@ async fn verify_embedding_results(
                     "Transcription content should match"
                 );
                 assert_eq!(
-                    embedding.len(),
+                    embedding_vec.len(),
                     1536,
                     "Embedding should have 1536 dimensions"
                 );
@@ -604,7 +659,7 @@ async fn verify_embedding_results(
                     "Summary content should match"
                 );
                 assert_eq!(
-                    embedding.len(),
+                    embedding_vec.len(),
                     1536,
                     "Embedding should have 1536 dimensions"
                 );

@@ -13,6 +13,7 @@ use openai_dive::v1::api::Client;
 use openai_dive::v1::resources::embedding::{
     Embedding, EmbeddingInput, EmbeddingOutput, EmbeddingParametersBuilder,
 };
+use pgvector::Vector;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -417,22 +418,39 @@ async fn process_video_clip(
     }
 
     // Get video clip data from DynamoDB
+    tracing::debug!(
+        "Fetching video clip data from DynamoDB for key: {}",
+        video_key
+    );
     let response = dynamodb_client
         .get_item()
         .table_name(&config.dynamodb_table)
         .key("key", AttributeValue::S(video_key.to_string()))
         .send()
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get item from DynamoDB: {:?}", e);
+            e
+        })?;
 
     let item = response.item.ok_or("Video clip not found")?;
+    tracing::debug!("Successfully retrieved video clip data");
 
     // Extract relevant data
+    tracing::debug!("Extracting data from DynamoDB item");
     let stream_id = extract_string_attribute(&item, "stream_id")?;
     let transcription = extract_transcription(&item)?;
     let summary = extract_summary(&item);
+    tracing::debug!("Successfully extracted transcription and summary data");
 
     // Get OpenAI API key and client
-    let openai_client = get_openai_client(config, sdk_config).await?;
+    tracing::debug!("Getting OpenAI client from secrets manager");
+    let openai_client =
+        get_openai_client(config, sdk_config).await.map_err(|e| {
+            tracing::error!("Failed to get OpenAI client: {:?}", e);
+            e
+        })?;
+    tracing::debug!("Successfully obtained OpenAI client");
 
     // Generate embeddings for different content types
     let mut stored_count = 0;
@@ -462,7 +480,7 @@ async fn process_video_clip(
                     &transcription,
                     &"transcription",
                     &embedding,
-                    &serde_json::to_string(&serde_json::json!({}))?,
+                    &serde_json::json!({}),
                 ],
             )
             .await?;
@@ -497,7 +515,7 @@ async fn process_video_clip(
                         &summary_text,
                         &"summary",
                         &embedding,
-                        &serde_json::to_string(&serde_json::json!({}))?,
+                        &serde_json::json!({}),
                     ],
                 )
                 .await?;
@@ -523,15 +541,29 @@ async fn get_openai_client(
 ) -> Result<Client, Box<dyn std::error::Error>> {
     let secrets_client = aws_sdk_secretsmanager::Client::new(sdk_config);
 
+    tracing::debug!(
+        "Attempting to retrieve OpenAI secret: {}",
+        config.openai_secret_arn
+    );
     let secret_response = secrets_client
         .get_secret_value()
         .secret_id(&config.openai_secret_arn)
         .send()
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                "Failed to get secret from AWS Secrets Manager: {:?}",
+                e
+            );
+            e
+        })?;
 
     let api_key = secret_response
         .secret_string()
         .ok_or("No secret string found")?;
+    tracing::debug!(
+        "Successfully retrieved OpenAI API key from secrets manager"
+    );
 
     let mut client = Client::new(api_key.to_string());
 
@@ -547,7 +579,7 @@ async fn generate_embedding(
     client: &Client,
     text: &str,
     config: &Config,
-) -> Result<Vec<f64>, Box<dyn std::error::Error>> {
+) -> Result<Vector, Box<dyn std::error::Error>> {
     let embedding_model: String = config
         .openai_model
         .clone()
@@ -566,7 +598,9 @@ async fn generate_embedding(
         object: _,
     }) = response.data.first()
     {
-        Ok(embedding.clone())
+        let f32_embedding: Vec<f32> =
+            embedding.iter().map(|&x| x as f32).collect();
+        Ok(Vector::from(f32_embedding))
     } else {
         Err("No embedding data returned".into())
     }
