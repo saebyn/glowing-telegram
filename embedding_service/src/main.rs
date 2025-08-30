@@ -591,7 +591,7 @@ async fn generate_embedding(
             config
                 .openai_model
                 .as_ref()
-                .unwrap_or(&EmbeddingsEngine::TextEmbedding3Large)
+                .unwrap_or(&EmbeddingsEngine::TextEmbedding3Small)
                 .to_string(),
         )
         .input(EmbeddingInput::String(text.to_string()))
