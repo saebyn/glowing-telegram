@@ -26,13 +26,37 @@ Configuration utilities for customizing test behavior via environment variables.
 
 ## Running the Tests
 
-### Prerequisites
+### Using the Top-Level Test Runner (Recommended)
+
+The easiest way to run these integration tests is using the top-level test runner script:
+
+```bash
+# From the repository root
+./run_integration_tests.sh audio_transcriber
+
+# With verbose output
+./run_integration_tests.sh audio_transcriber --verbose
+
+# Build Docker image and run tests
+./run_integration_tests.sh audio_transcriber --build
+
+# Run without cleanup for debugging
+./run_integration_tests.sh audio_transcriber --no-cleanup
+```
+
+This script handles all the setup and provides extensive configuration options. See `./run_integration_tests.sh --help` for more options.
+
+### Manual Test Execution
+
+For more control or debugging, you can run the tests manually:
+
+#### Prerequisites
 
 1. **Docker**: Must be available and running
 2. **Rust**: Development environment set up
 3. **Network access**: For downloading container dependencies
 
-### Basic Test Run
+#### Basic Test Run
 
 ```bash
 # Run all integration tests
@@ -40,9 +64,9 @@ cd audio_transcriber
 cargo test --test integration_test
 ```
 
-### Environment Variables
+#### Environment Variables
 
-You can customize test behavior using environment variables:
+You can customize test behavior using environment variables (both with the top-level script and manual execution):
 
 ```bash
 # Set custom timeouts (in seconds)

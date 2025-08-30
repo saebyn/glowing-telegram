@@ -10,6 +10,7 @@ import AudioTranscriberJobConstruct from './batch/audioTranscriberJob';
 import StreamIngestion from './streamIngestion';
 import BatchEnvironmentConstruct from './batch/environment';
 import VideoIngestorConstruct from './batch/videoIngestorJob';
+import EmbeddingServiceConstruct from './batch/embeddingServiceJob';
 import TaskMonitoringConstruct from './taskMonitoring';
 import MediaServeConstruct from './mediaServeConstruct';
 import RenderJobConstruct from './batch/renderJob';
@@ -52,7 +53,7 @@ export default class AppStack extends cdk.Stack {
       domainName,
     });
 
-    const dataStore = new DatastoreConstruct(this, 'Datastore');
+    const dataStore = new DatastoreConstruct(this, 'Datastore', { vpc });
 
     const openaiSecret = new secretsmanager.Secret(this, 'OpenAISecret', {
       description: 'OpenAI API key',
@@ -95,6 +96,15 @@ export default class AppStack extends cdk.Stack {
       imageVersion,
     });
 
+    const embeddingService = new EmbeddingServiceConstruct(this, 'EmbeddingService', {
+      videoMetadataTable: dataStore.videoMetadataTable,
+      vectorDatabase: dataStore.vectorDatabase,
+      vectorDatabaseSecret: dataStore.vectorDatabaseSecret,
+      openaiSecret,
+      jobQueue: batchEnvironment.cpuJobQueue,
+      imageVersion,
+    });
+
     const mediaServe = new MediaServeConstruct(this, 'MediaServe', {
       mediaOutputBucket: dataStore.outputBucket,
       videoMetadataTable: dataStore.videoMetadataTable,
@@ -109,6 +119,7 @@ export default class AppStack extends cdk.Stack {
     const streamIngestion = new StreamIngestion(this, 'StreamIngestion', {
       audioTranscriberJob: audioTranscriber.jobDefinition,
       videoIngesterJob: videoIngester.jobDefinition,
+      embeddingServiceJob: embeddingService.jobDefinition,
       cpuBatchJobQueue: batchEnvironment.cpuJobQueue,
       gpuBatchJobQueue: batchEnvironment.gpuJobQueue,
       videoMetadataTable: dataStore.videoMetadataTable,

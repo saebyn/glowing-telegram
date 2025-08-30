@@ -124,6 +124,49 @@ npm run cdk deploy
 
 **Note:** Production deployments should use the automated GitHub Actions workflow triggered by releases rather than manual CDK deployment.
 
+### Testing
+
+#### Integration Tests
+
+The project includes integration tests for various services. Use the `run_integration_tests.sh` script in the root directory to run tests for any service:
+
+```bash
+# Run integration tests for audio_transcriber
+./run_integration_tests.sh audio_transcriber
+
+# Run tests with verbose output
+./run_integration_tests.sh audio_transcriber --verbose
+
+# Build Docker image and run tests
+./run_integration_tests.sh audio_transcriber --build
+
+# Run tests without cleanup (for debugging)
+./run_integration_tests.sh audio_transcriber --no-cleanup
+
+# Run tests for other services
+./run_integration_tests.sh video_ingestor
+./run_integration_tests.sh embedding_service
+```
+
+The script automatically detects the service type (Rust, Node.js, Python) and runs the appropriate test commands. It also handles Docker image building and provides extensive configuration options.
+
+For more information about available options:
+```bash
+./run_integration_tests.sh --help
+```
+
+#### Unit Tests
+
+For Rust services, run unit tests with:
+```bash
+# Run all tests in workspace
+cargo test --workspace
+
+# Run tests for specific service
+cd <service_directory>
+cargo test
+```
+
 ### Contributing
 
 I should probably write some instructions here, but I haven't yet. If you're interested in contributing, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Twitter](https://twitter.com/saebyn).

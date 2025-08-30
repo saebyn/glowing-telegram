@@ -1,0 +1,43 @@
+[package]
+name = "embedding_service"
+version = "0.1.0"
+edition = "2024"
+description = "Service for generating vector embeddings from stream content and storing in Aurora PostgreSQL with pgvector"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+types = { workspace = true }
+gt_app = { workspace = true }
+gt_secrets = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+aws-sdk-secretsmanager = { workspace = true }
+serde_dynamo = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1"] }
+figment = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+openai_dive = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+pgvector = { version = "0.4", features = ["postgres"] }
+
+[dev-dependencies]
+testcontainers = "0.24.0"
+testcontainers-modules = { version = "0.12.1", features = [
+  "localstack",
+  "postgres",
+] }
+hyper = { version = "0.14", features = ["full"] }
+pgvector = { version = "0.4", features = ["postgres"] }
+
+[lints]
+workspace = true

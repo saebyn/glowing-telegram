@@ -22,6 +22,7 @@ interface StreamIngestionConstructProps {
   taskMonitoring: TaskMonitoringConstruct;
   audioTranscriberJob: batch.IJobDefinition;
   videoIngesterJob: batch.IJobDefinition;
+  embeddingServiceJob: batch.IJobDefinition;
 
   cpuBatchJobQueue: batch.IJobQueue;
   gpuBatchJobQueue: batch.IJobQueue;
@@ -115,6 +116,7 @@ The summary you generate must be not only informational for content review but a
           props.gpuBatchJobQueue.jobQueueArn,
           props.audioTranscriberJob.jobDefinitionArn,
           props.videoIngesterJob.jobDefinitionArn,
+          props.embeddingServiceJob.jobDefinitionArn,
         ],
       }),
     );
@@ -569,6 +571,18 @@ def handler(event, context):
         }),
       )
       .next(summarizeTranscriptionTask)
+      .next(
+        new tasks.BatchSubmitJob(this, 'Generate Embeddings', {
+          comment: 'Generate embeddings for video clip content',
+          jobName: 'generate-embeddings',
+          jobDefinitionArn: props.embeddingServiceJob.jobDefinitionArn,
+          jobQueueArn: props.cpuBatchJobQueue.jobQueueArn,
+          payload: stepfunctions.TaskInput.fromObject({
+            'video_key.$': '$.dynamodb.Item.key.S',
+          }),
+          resultPath: stepfunctions.JsonPath.DISCARD,
+        }),
+      )
       .next(incrementIndex)
       .next(loopOverVideos);
 

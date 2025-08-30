@@ -7,6 +7,7 @@ group "all" {
     "audio_transcriber",
     "chat_processor_lambda",
     "crud_api",
+    "embedding_service",
     "media_lambda",
     "render_job",
     "summarize_transcription",
@@ -24,6 +25,7 @@ group "batch1" {
     "ai_chat_lambda",
     "chat_processor_lambda",
     "crud_api", 
+    "embedding_service",
     "summarize_transcription",
     "twitch_lambda",
     "upload_video",
@@ -68,6 +70,13 @@ target "crud_api" {
   context = "."
   target = "crud_api"
   tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/crud-lambda:latest"]
+}
+
+target "embedding_service" {
+  dockerfile = "Dockerfile"
+  context = "."
+  target = "embedding_service"
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/embedding-service:latest"]
 }
 
 target "media_lambda" {

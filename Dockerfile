@@ -121,6 +121,11 @@ FROM runtime_base AS crud_api
 COPY --from=rust_builder /app/target/release/crud_api /bootstrap
 ENTRYPOINT ["/bootstrap"]
 
+# embedding_service
+FROM runtime AS embedding_service
+COPY --from=rust_builder --chown=${USER}:${USER} /app/target/release/embedding_service /app/embedding_service
+ENTRYPOINT [ "/app/embedding_service" ]
+
 # chat_processor_lambda
 FROM runtime_base AS chat_processor_lambda
 COPY --from=rust_builder /app/target/release/chat_processor_lambda /bootstrap

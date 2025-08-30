@@ -3,10 +3,15 @@ import { Construct } from 'constructs';
 
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as rds from 'aws-cdk-lib/aws-rds';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
 export default class DatastoreConstruct extends Construct {
   public readonly videoArchive: s3.IBucket;
   public readonly outputBucket: s3.IBucket;
+  public readonly vectorDatabase: rds.IDatabaseCluster;
+  public readonly vectorDatabaseSecret: secretsmanager.ISecret;
   public readonly episodesTable: dynamodb.ITable;
   public readonly profilesTable: dynamodb.ITable;
   public readonly streamSeriesTable: dynamodb.ITable;
@@ -16,7 +21,7 @@ export default class DatastoreConstruct extends Construct {
   public readonly projectsTable: dynamodb.ITable;
   public readonly chatMessagesTable: dynamodb.ITable;
 
-  constructor(scope: Construct, id: string) {
+  constructor(scope: Construct, id: string, props: { vpc: ec2.IVpc }) {
     super(scope, id);
 
     this.videoArchive = new s3.Bucket(this, 'VideoArchive', {
@@ -55,6 +60,61 @@ export default class DatastoreConstruct extends Construct {
     this.outputBucket = new s3.Bucket(this, 'OutputBucket', {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
+
+    // Create Aurora Serverless v2 cluster for vector storage
+    const vectorDatabaseSecret = new secretsmanager.Secret(this, 'VectorDatabaseSecret', {
+      description: 'Aurora Serverless v2 cluster credentials for vector storage',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'postgres' }),
+        generateStringKey: 'password',
+        excludeCharacters: '"@/\\',
+      },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    this.vectorDatabaseSecret = vectorDatabaseSecret;
+
+    const subnetGroup = new rds.SubnetGroup(this, 'VectorDatabaseSubnetGroup', {
+      description: 'Subnet group for vector database',
+      vpc: props.vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    const securityGroup = new ec2.SecurityGroup(this, 'VectorDatabaseSecurityGroup', {
+      vpc: props.vpc,
+      description: 'Security group for vector database',
+    });
+
+    // Allow connections from VPC CIDR on PostgreSQL port
+    securityGroup.addIngressRule(
+      ec2.Peer.ipv4(props.vpc.vpcCidrBlock),
+      ec2.Port.tcp(5432),
+      'Allow PostgreSQL connections from VPC'
+    );
+
+    const vectorDatabase = new rds.DatabaseCluster(this, 'VectorDatabase', {
+      engine: rds.DatabaseClusterEngine.auroraPostgres({
+        version: rds.AuroraPostgresEngineVersion.VER_16_1,
+      }),
+      writer: rds.ClusterInstance.serverlessV2('writer', {
+        scaleWithWriter: true,
+      }),
+      serverlessV2MinCapacity: 0.5,
+      serverlessV2MaxCapacity: 4,
+      credentials: rds.Credentials.fromSecret(vectorDatabaseSecret),
+      defaultDatabaseName: 'vectors',
+      vpc: props.vpc,
+      subnetGroup,
+      securityGroups: [securityGroup],
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      deletionProtection: true,
+      storageEncrypted: true,
+    });
+
+    this.vectorDatabase = vectorDatabase;
 
     const episodesTable = new dynamodb.Table(this, 'EpisodesTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
