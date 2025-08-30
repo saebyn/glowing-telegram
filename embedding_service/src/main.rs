@@ -10,8 +10,10 @@ use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_dynamodb::types::AttributeValue;
 use figment::{Figment, providers::Env};
 use openai_dive::v1::api::Client;
+use openai_dive::v1::models::EmbeddingsEngine;
 use openai_dive::v1::resources::embedding::{
-    Embedding, EmbeddingInput, EmbeddingOutput, EmbeddingParametersBuilder,
+    Embedding, EmbeddingEncodingFormat, EmbeddingInput, EmbeddingOutput,
+    EmbeddingParametersBuilder,
 };
 use pgvector::Vector;
 use serde::{Deserialize, Serialize};
@@ -27,7 +29,7 @@ struct Config {
     database_port: Option<u16>,
     database_name: String,
     openai_secret_arn: String,
-    openai_model: Option<String>,
+    openai_model: Option<EmbeddingsEngine>,
     openai_base_url: Option<String>,
     aws_endpoint_url: Option<String>,
 }
@@ -480,7 +482,11 @@ async fn process_video_clip(
                     &transcription,
                     &"transcription",
                     &embedding,
-                    &serde_json::json!({}),
+                    &serde_json::json!({
+                        "source": "dynamodb",
+                        "video_key": video_key,
+                        "stream_id": stream_id,
+                    }),
                 ],
             )
             .await?;
@@ -580,18 +586,19 @@ async fn generate_embedding(
     text: &str,
     config: &Config,
 ) -> Result<Vector, Box<dyn std::error::Error>> {
-    let embedding_model: String = config
-        .openai_model
-        .clone()
-        .unwrap_or("text-embedding-3-small".to_string());
-
     let parameters = EmbeddingParametersBuilder::default()
-        .model(embedding_model)
+        .model(
+            config
+                .openai_model
+                .as_ref()
+                .unwrap_or(&EmbeddingsEngine::TextEmbedding3Large)
+                .to_string(),
+        )
         .input(EmbeddingInput::String(text.to_string()))
+        .encoding_format(EmbeddingEncodingFormat::Float)
         .build()?;
 
     let response = client.embeddings().create(parameters).await?;
-
     if let Some(Embedding {
         embedding: EmbeddingOutput::Float(embedding),
         index: _,
