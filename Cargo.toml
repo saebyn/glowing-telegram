@@ -32,9 +32,9 @@ gt_secrets = { path = "./gt_secrets" }
 gt_axum = { path = "./gt_axum" }
 gt_app = { path = "./gt_app" }
 aws-config = "1.6.3"
-aws-sdk-secretsmanager = { version = "1.85.0" }
-aws-sdk-s3 = { version = "1.103.0" }
-aws-sdk-dynamodb = { version = "1.90.0" }
+aws-sdk-secretsmanager = { version = "1.86.0" }
+aws-sdk-s3 = { version = "1.104.0" }
+aws-sdk-dynamodb = { version = "1.92.0" }
 serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
 aws_lambda_events = "0.16"
 axum-aws-lambda = "0.9.0"
