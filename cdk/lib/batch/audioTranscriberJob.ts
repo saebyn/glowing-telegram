@@ -84,7 +84,7 @@ export default class AudioTranscriberJobConstruct extends Construct {
       'AudioTranscriberJobDefinition',
       {
         container: containerDefinition,
-        timeout: cdk.Duration.minutes(5),
+        timeout: cdk.Duration.minutes(10),
         parameters: {
           item_key: '<item_key>',
           input_key: '<input_key>',
