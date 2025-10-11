@@ -225,4 +225,4 @@ target "my_service" {
 2. Images are pushed to ECR repositories (must exist!)
 3. CDK updates infrastructure with new image versions
 
-If you're interested in contributing beyond adding services, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Twitter](https://twitter.com/saebyn).
+If you're interested in contributing beyond adding services, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Bluesky](https://bsky.app/profile/saebyn.bsky.social).
