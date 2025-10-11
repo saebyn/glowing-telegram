@@ -23,6 +23,12 @@ target "crud_api" {
   ]
 }
 
+target "embedding_service" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/embedding-service:${IMAGE_TAG}"
+  ]
+}
+
 target "media_lambda" {
   tags = [
     "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/media-lambda:${IMAGE_TAG}"

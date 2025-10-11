@@ -84,6 +84,7 @@ All services are built as container images:
 - `ai-chat-lambda`
 - `audio-transcription` 
 - `crud-api`
+- `embedding-service`
 - `media-lambda`
 - `render-job`
 - `summarize-transcription`

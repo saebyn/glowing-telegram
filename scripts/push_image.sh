@@ -25,6 +25,10 @@ case $SERVICE in
     FUNCTION_NAME="AppStack-StreamIngestionSummarizeTranscriptionLamb-DvNQhxeKUk43"
     ECR_REPOSITORY="glowing-telegram/summarize-transcription-lambda"
     ;;
+  embedding_service)
+    FUNCTION_NAME=""
+    ECR_REPOSITORY="glowing-telegram/embedding-service"
+    ;;
   audio_transcriber)
     FUNCTION_NAME=""
     ECR_REPOSITORY="glowing-telegram/audio-transcription"
