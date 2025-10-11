@@ -20,6 +20,8 @@ pub enum AudioTranscriberError {
     ),
     #[error("Failed to create temporary directory: {0}")]
     TempDirError(#[from] std::io::Error),
+    #[error("Failed to find whisper executable: {0}")]
+    WhisperExecutableNotFoundError(String),
     #[error("Failed to read from bytestream: {0}")]
     ByteStreamError(String),
     #[error("Failed to write to stdin: {0}")]
@@ -132,13 +134,23 @@ async fn run_whisper_on_bytestream(
     options: WhisperOptions,
     bytestream: &mut ByteStream,
 ) -> Result<Transcription, AudioTranscriberError> {
+    tracing::debug!(
+        "Running Whisper on bytestream with options: {:?}",
+        options
+    );
     let temp_dir = tempfile::tempdir()?;
+
+    tracing::debug!(
+        "Created temporary directory at: {}",
+        temp_dir.path().display()
+    );
 
     let mut whisper_detection = build_whisper_command(&temp_dir, options)?;
 
     let mut whisper_stdin =
         whisper_detection.stdin.take().expect("failed to get stdin");
 
+    tracing::debug!("Starting to write bytes to stdin");
     let mut byte_count = 0_usize;
     while let Some(bytes) = bytestream.try_next().await.map_err(|err| {
         AudioTranscriberError::ByteStreamError(err.to_string())
@@ -150,7 +162,7 @@ async fn run_whisper_on_bytestream(
         })?;
 
         byte_count += bytes_len;
-        tracing::debug!("Wrote {} bytes to stdin", bytes_len);
+        tracing::trace!("Wrote {} bytes to stdin", bytes_len);
     }
 
     drop(whisper_stdin);
@@ -173,6 +185,8 @@ async fn run_whisper_on_bytestream(
 
     tracing::debug!("Transcription JSON: {}", transcription_json);
 
+    temp_dir.close()?;
+
     Ok(serde_json::from_str::<Transcription>(&transcription_json)?)
 }
 
@@ -189,7 +203,7 @@ fn build_whisper_command(
         WhisperModel::Turbo => "turbo",
     };
 
-    Command::new("whisper")
+    let child = Command::new("whisper")
         .args([
             "--model",
             model_str,
@@ -218,6 +232,25 @@ fn build_whisper_command(
         ])
         .stdin(Stdio::piped())
         .spawn()
+        .map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    AudioTranscriberError::WhisperExecutableNotFoundError(
+                        "whisper executable not found in PATH".to_string(),
+                    ),
+                )
+            } else {
+                err
+            }
+        })?;
+
+    tracing::debug!(
+        "Spawned whisper process with PID: {}",
+        child.id().unwrap_or(0)
+    );
+
+    Ok(child)
 }
 
 /// Converts a list of silence segments into a string of speaking segments for Whisper's `--clip_timestamps` argument.
