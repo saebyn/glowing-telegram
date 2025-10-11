@@ -84,6 +84,7 @@ All services are built as container images:
 - `ai-chat-lambda`
 - `audio-transcription` 
 - `crud-api`
+- `embedding-service`
 - `media-lambda`
 - `render-job`
 - `summarize-transcription`
@@ -169,4 +170,59 @@ cargo test
 
 ### Contributing
 
-I should probably write some instructions here, but I haven't yet. If you're interested in contributing, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Twitter](https://twitter.com/saebyn).
+#### Adding a New Container Service
+
+When adding a new container-based service to the project, you must update all of the following files to ensure proper deployment:
+
+1. **`Dockerfile`** - Add a new build stage for your service
+2. **`docker-bake.hcl`** - Add a target for your service in the appropriate batch group
+3. **`docker-bake.override.hcl`** - Add a target with `${IMAGE_TAG}` variable for release tagging
+4. **`cdk/lib/repoStack.ts`** - Add the repository name to the `names` array in `RepoConstruct`
+5. **`scripts/push_image.sh`** - Add a case statement for individual deployments (if needed)
+6. **`README.md`** - Add the service to the "Available Services" list
+
+**Example: Adding a service called `my-service`**
+
+```typescript
+// cdk/lib/repoStack.ts
+new RepoConstruct(this, 'RepoConstruct', {
+  namespace: 'glowing-telegram',
+  names: [
+    'crud-lambda',
+    // ... other services ...
+    'my-service',  // Add your service here
+  ],
+});
+```
+
+```hcl
+# docker-bake.hcl
+target "my_service" {
+  dockerfile = "Dockerfile"
+  context = "."
+  target = "my_service"
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/my-service:latest"]
+}
+```
+
+```hcl
+# docker-bake.override.hcl
+target "my_service" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/my-service:${IMAGE_TAG}"
+  ]
+}
+```
+
+**Why all these files?**
+- `docker-bake.hcl` - Defines how to build the image
+- `docker-bake.override.hcl` - Enables versioned tagging for releases
+- `cdk/lib/repoStack.ts` - Creates the ECR repository in AWS
+- `scripts/push_image.sh` - Allows manual deployment of individual services
+
+**Deployment Flow:**
+1. Code pushed to GitHub triggers image builds
+2. Images are pushed to ECR repositories (must exist!)
+3. CDK updates infrastructure with new image versions
+
+If you're interested in contributing beyond adding services, please reach out to me on [Twitch](https://twitch.tv/saebyn) or [Bluesky](https://bsky.app/profile/saebyn.bsky.social).
