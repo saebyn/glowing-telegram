@@ -193,7 +193,7 @@ async fn run_whisper_on_bytestream(
 fn build_whisper_command(
     temp_dir: &tempfile::TempDir,
     options: WhisperOptions,
-) -> Result<tokio::process::Child, std::io::Error> {
+) -> Result<tokio::process::Child, AudioTranscriberError> {
     let model_str = match options.model {
         WhisperModel::Tiny => "tiny",
         WhisperModel::Base => "base",
@@ -233,15 +233,17 @@ fn build_whisper_command(
         .stdin(Stdio::piped())
         .spawn()
         .map_err(|err| {
+            tracing::error!("Failed to spawn whisper process: {}", err);
+
             if err.kind() == std::io::ErrorKind::NotFound {
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    AudioTranscriberError::WhisperExecutableNotFoundError(
-                        "whisper executable not found in PATH".to_string(),
-                    ),
+                AudioTranscriberError::WhisperExecutableNotFoundError(
+                    "whisper executable not found in PATH".to_string(),
                 )
             } else {
-                err
+                AudioTranscriberError::WhisperExecutableNotFoundError(format!(
+                    "Failed to spawn whisper process: {}",
+                    err
+                ))
             }
         })?;
 
