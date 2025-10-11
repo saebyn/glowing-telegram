@@ -249,7 +249,10 @@ fn build_whisper_command(
 
     tracing::debug!(
         "Spawned whisper process with PID: {}",
-        child.id().unwrap_or(0)
+        match child.id() {
+            Some(pid) => pid.to_string(),
+            None => "unknown".to_string(),
+        }
     );
 
     Ok(child)
