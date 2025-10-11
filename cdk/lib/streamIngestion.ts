@@ -16,7 +16,7 @@ import type * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import ServiceLambdaConstruct from './util/serviceLambda';
 import type TaskMonitoringConstruct from './taskMonitoring';
 
-const INGESTION_VERSION = 'v1.0.0';
+const INGESTION_VERSION = 'v1.1.0';
 
 interface StreamIngestionConstructProps {
   taskMonitoring: TaskMonitoringConstruct;
