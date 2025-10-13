@@ -36,7 +36,7 @@ testcontainers-modules = { version = "0.12.1", features = [
   "localstack",
   "postgres",
 ] }
-hyper = { version = "0.14", features = ["full"] }
+hyper = { version = "1.6", features = ["full"] }
 pgvector = { version = "0.4", features = ["postgres"] }
 
 [lints]
