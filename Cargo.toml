@@ -32,15 +32,15 @@ gt_secrets = { path = "./gt_secrets" }
 gt_axum = { path = "./gt_axum" }
 gt_app = { path = "./gt_app" }
 aws-config = "1.6.3"
-aws-sdk-secretsmanager = { version = "1.85.0" }
-aws-sdk-s3 = { version = "1.103.0" }
-aws-sdk-dynamodb = { version = "1.90.0" }
+aws-sdk-secretsmanager = { version = "1.86.0" }
+aws-sdk-s3 = { version = "1.107.0" }
+aws-sdk-dynamodb = { version = "1.97.0" }
 serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
-aws_lambda_events = "0.16"
-axum-aws-lambda = "0.9.0"
-lambda_runtime = "0.13"
-axum = "0.7"
-lambda_http = { version = "0.13", features = [
+aws_lambda_events = "0.18"
+axum-aws-lambda = "0.10.0"
+lambda_runtime = "0.14"
+axum = "0.8"
+lambda_http = { version = "0.14", features = [
   "apigw_http",
   "apigw_websockets",
 ] }
@@ -51,15 +51,15 @@ tower-http = { version = "0.6", features = [
   "cors",
 ] }
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.143"
-tokio = { version = "1.47.1", features = ["full"] }
+serde_json = "1.0.145"
+tokio = { version = "1.48.0", features = ["full"] }
 figment = { version = "0.10.19", features = ["env"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
-openai_dive = "0.7.5"
-reqwest = { version = "0.12.23", features = ["json"] }
+openai_dive = "1.3.2"
+reqwest = { version = "0.12.24", features = ["json"] }
 redact = { version = "0.1.11", features = ["serde"] }
-chrono = { version = "0.4.41", features = ["serde"] }
+chrono = { version = "0.4.42", features = ["serde"] }
 uuid = { version = "1.18", features = ["v7", "fast-rng"] }
 
 [profile.release]
