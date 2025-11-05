@@ -1,11 +1,11 @@
-use axum::{async_trait, extract::FromRequestParts, http::StatusCode};
+use axum::extract::FromRequestParts;
+use axum::http::StatusCode;
 use lambda_http::RequestExt;
 
 /// Extracts Cognito User ID from the request.
 #[derive(Debug, Clone)]
 pub struct CognitoUserId(pub String);
 
-#[async_trait]
 impl<S> FromRequestParts<S> for CognitoUserId
 where
     S: Send + Sync,

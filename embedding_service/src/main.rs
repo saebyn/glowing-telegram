@@ -10,7 +10,7 @@ use aws_config::{BehaviorVersion, meta::region::RegionProviderChain};
 use aws_sdk_dynamodb::types::AttributeValue;
 use figment::{Figment, providers::Env};
 use openai_dive::v1::api::Client;
-use openai_dive::v1::models::EmbeddingsEngine;
+use openai_dive::v1::models::EmbeddingModel;
 use openai_dive::v1::resources::embedding::{
     Embedding, EmbeddingEncodingFormat, EmbeddingInput, EmbeddingOutput,
     EmbeddingParametersBuilder,
@@ -29,7 +29,7 @@ struct Config {
     database_port: Option<u16>,
     database_name: String,
     openai_secret_arn: String,
-    openai_model: Option<EmbeddingsEngine>,
+    openai_model: Option<EmbeddingModel>,
     openai_base_url: Option<String>,
     aws_endpoint_url: Option<String>,
 }
@@ -591,7 +591,7 @@ async fn generate_embedding(
             config
                 .openai_model
                 .as_ref()
-                .unwrap_or(&EmbeddingsEngine::TextEmbedding3Small)
+                .unwrap_or(&EmbeddingModel::TextEmbedding3Small)
                 .to_string(),
         )
         .input(EmbeddingInput::String(text.to_string()))

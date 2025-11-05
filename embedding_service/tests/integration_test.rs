@@ -382,15 +382,20 @@ async fn setup_test_dynamodb_data(
 
 async fn start_mock_openai_server() -> u16 {
     // Simple mock server that returns dummy embeddings
-    use hyper::service::{make_service_fn, service_fn};
-    use hyper::{Body, Method, Request, Response, Server, StatusCode};
+    use http_body_util::Full;
+    use hyper::body::Bytes;
+    use hyper::server::conn::http1;
+    use hyper::service::service_fn;
+    use hyper::{Method, Request, Response, StatusCode};
+    use hyper_util::rt::TokioIo;
     use std::convert::Infallible;
     use std::net::SocketAddr;
+    use tokio::net::TcpListener;
     use tokio::task;
 
     async fn mock_openai_handler(
-        req: Request<Body>,
-    ) -> Result<Response<Body>, Infallible> {
+        req: Request<hyper::body::Incoming>,
+    ) -> Result<Response<Full<Bytes>>, Infallible> {
         // Debug: log all incoming requests
         println!(
             "🔍 Mock OpenAI server received request: {} {}",
@@ -419,7 +424,7 @@ async fn start_mock_openai_server() -> u16 {
                 Ok(Response::builder()
                     .status(StatusCode::OK)
                     .header("content-type", "application/json")
-                    .body(Body::from(mock_response.to_string()))
+                    .body(Full::new(Bytes::from(mock_response.to_string())))
                     .unwrap())
             }
             _ => {
@@ -430,23 +435,36 @@ async fn start_mock_openai_server() -> u16 {
                 );
                 Ok(Response::builder()
                     .status(StatusCode::NOT_FOUND)
-                    .body(Body::from("Not Found"))
+                    .body(Full::new(Bytes::from("Not Found")))
                     .unwrap())
             }
         }
     }
 
-    let make_svc = make_service_fn(|_conn| async {
-        Ok::<_, Infallible>(service_fn(mock_openai_handler))
-    });
-
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-    let server = Server::bind(&addr).serve(make_svc);
-    let port = server.local_addr().port();
+    let listener = TcpListener::bind(addr).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
 
     task::spawn(async move {
-        if let Err(e) = server.await {
-            eprintln!("Mock OpenAI server error: {}", e);
+        loop {
+            let (stream, _) = match listener.accept().await {
+                Ok(conn) => conn,
+                Err(e) => {
+                    eprintln!("Failed to accept connection: {}", e);
+                    continue;
+                }
+            };
+
+            let io = TokioIo::new(stream);
+
+            tokio::spawn(async move {
+                if let Err(e) = http1::Builder::new()
+                    .serve_connection(io, service_fn(mock_openai_handler))
+                    .await
+                {
+                    eprintln!("Error serving connection: {}", e);
+                }
+            });
         }
     });
 
