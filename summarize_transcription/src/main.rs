@@ -11,7 +11,7 @@ use openai_dive::v1::{
     api::Client,
     resources::chat::{
         ChatCompletionParametersBuilder, ChatCompletionResponseFormat,
-        ChatMessage, ChatMessageContent,
+        ChatMessage, ChatMessageContent, JsonSchemaBuilder,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -153,16 +153,50 @@ async fn handler(
     // Call the openai api with the transcription result and summarization_context
     let openai_client = Client::new(openai_secret);
 
+    // Parse the JSON schema from the embedded file
+    let schema_json: serde_json::Value = serde_json::from_str(RESPONSE_JSON_SCHEMA).or(Err(
+        ErrorResponse(
+            "InvalidResponseSchema",
+            "Invalid response schema from OpenAI",
+        ),
+    ))?;
+
+    // Build the JsonSchema object
+    let mut json_schema_builder = JsonSchemaBuilder::default();
+    
+    json_schema_builder.name(
+        schema_json
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or(ErrorResponse(
+                "InvalidResponseSchema",
+                "Missing name in response schema",
+            ))?
+            .to_string(),
+    );
+
+    if let Some(description) = schema_json.get("description").and_then(|v| v.as_str()) {
+        json_schema_builder.description(description.to_string());
+    }
+
+    if let Some(schema) = schema_json.get("schema").cloned() {
+        json_schema_builder.schema(schema);
+    }
+
+    if let Some(strict) = schema_json.get("strict").and_then(|v| v.as_bool()) {
+        json_schema_builder.strict(strict);
+    }
+
+    let json_schema = json_schema_builder.build().or(Err(ErrorResponse(
+        "InvalidResponseSchema",
+        "Failed to build JsonSchema",
+    )))?;
+
     let parameters = ChatCompletionParametersBuilder::default()
         .model(config.openai_model.clone())
-        .response_format(ChatCompletionResponseFormat::JsonSchema(
-            serde_json::from_str(RESPONSE_JSON_SCHEMA).or(Err(
-                ErrorResponse(
-                    "InvalidResponseSchema",
-                    "Invalid response schema from OpenAI",
-                ),
-            ))?,
-        ))
+        .response_format(ChatCompletionResponseFormat::JsonSchema {
+            json_schema,
+        })
         .messages(vec![
             ChatMessage::System {
                 name: None,
