@@ -11,7 +11,7 @@ use openai_dive::v1::{
     api::Client,
     resources::chat::{
         ChatCompletionParametersBuilder, ChatCompletionResponseFormat,
-        ChatMessage, ChatMessageContent, JsonSchemaBuilder,
+        ChatMessage, ChatMessageContent, JsonSchema,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -154,42 +154,10 @@ async fn handler(
     let openai_client = Client::new(openai_secret);
 
     // Parse the JSON schema from the embedded file
-    let schema_json: serde_json::Value = serde_json::from_str(RESPONSE_JSON_SCHEMA).or(Err(
-        ErrorResponse(
-            "InvalidResponseSchema",
-            "Invalid response schema from OpenAI",
-        ),
-    ))?;
-
-    // Build the JsonSchema object
-    let mut json_schema_builder = JsonSchemaBuilder::default();
-    
-    json_schema_builder.name(
-        schema_json
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or(ErrorResponse(
-                "InvalidResponseSchema",
-                "Missing name in response schema",
-            ))?
-            .to_string(),
-    );
-
-    if let Some(description) = schema_json.get("description").and_then(|v| v.as_str()) {
-        json_schema_builder.description(description.to_string());
-    }
-
-    if let Some(schema) = schema_json.get("schema").cloned() {
-        json_schema_builder.schema(schema);
-    }
-
-    if let Some(strict) = schema_json.get("strict").and_then(|v| v.as_bool()) {
-        json_schema_builder.strict(strict);
-    }
-
-    let json_schema = json_schema_builder.build().or(Err(ErrorResponse(
+    let json_schema: JsonSchema = serde_json::from_str(RESPONSE_JSON_SCHEMA)
+        .or(Err(ErrorResponse(
         "InvalidResponseSchema",
-        "Failed to build JsonSchema",
+        "Invalid response schema from OpenAI",
     )))?;
 
     let parameters = ChatCompletionParametersBuilder::default()
