@@ -432,11 +432,7 @@ def handler(event, context):
         ),
         getItemFromDynamoDB,
       )
-      .otherwise(
-        invalidatePlaylistCache.next(
-          new stepfunctions.Succeed(this, 'Success'),
-        ),
-      );
+      .otherwise(new stepfunctions.Succeed(this, 'Success'));
 
     const summarizeTranscriptionTask = new tasks.LambdaInvoke(
       this,
@@ -561,6 +557,7 @@ def handler(event, context):
       .next(parseVideoKeys)
       .next(updateStreamRecord)
       .next(ingestAllVideos)
+      .next(invalidatePlaylistCache)
       .next(loopOverVideos.afterwards());
 
     getItemFromDynamoDB
