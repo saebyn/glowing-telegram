@@ -11,7 +11,7 @@ use openai_dive::v1::{
     api::Client,
     resources::chat::{
         ChatCompletionParametersBuilder, ChatCompletionResponseFormat,
-        ChatMessage, ChatMessageContent,
+        ChatMessage, ChatMessageContent, JsonSchema,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -153,16 +153,18 @@ async fn handler(
     // Call the openai api with the transcription result and summarization_context
     let openai_client = Client::new(openai_secret);
 
+    // Parse the JSON schema from the embedded file
+    let json_schema: JsonSchema = serde_json::from_str(RESPONSE_JSON_SCHEMA)
+        .or(Err(ErrorResponse(
+        "InvalidResponseSchema",
+        "Invalid response schema from OpenAI",
+    )))?;
+
     let parameters = ChatCompletionParametersBuilder::default()
         .model(config.openai_model.clone())
-        .response_format(ChatCompletionResponseFormat::JsonSchema(
-            serde_json::from_str(RESPONSE_JSON_SCHEMA).or(Err(
-                ErrorResponse(
-                    "InvalidResponseSchema",
-                    "Invalid response schema from OpenAI",
-                ),
-            ))?,
-        ))
+        .response_format(ChatCompletionResponseFormat::JsonSchema {
+            json_schema,
+        })
         .messages(vec![
             ChatMessage::System {
                 name: None,

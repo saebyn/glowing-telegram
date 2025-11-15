@@ -18,7 +18,7 @@ tracing = { workspace = true }
 tempfile = "3"
 chrono = { workspace = true }
 iso8601 = { version = "0.6.3", features = ["serde", "chrono"] }
-regex = "1.11.2"
+regex = "1.12.2"
 types = { workspace = true }
 
 [dev-dependencies]
