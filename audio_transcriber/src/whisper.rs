@@ -5,8 +5,9 @@ use types::Silence;
 
 use aws_sdk_s3::primitives::ByteStream;
 use std::process::Stdio;
+use std::time::Duration;
 use thiserror::Error;
-use tokio::{io::AsyncWriteExt, process::Command};
+use tokio::{io::AsyncWriteExt, process::Command, time::timeout};
 use types::Transcription;
 
 #[derive(Error, Debug)]
@@ -32,6 +33,8 @@ pub enum AudioTranscriberError {
     TranscriptionFileError(String),
     #[error("Failed to parse transcription JSON: {0}")]
     JsonParseError(#[from] serde_json::Error),
+    #[error("Whisper process timed out after {0} seconds")]
+    WhisperTimeout(u64),
 }
 
 /// Represents the Whisper model to be used for transcription.
@@ -138,6 +141,16 @@ async fn run_whisper_on_bytestream(
         "Running Whisper on bytestream with options: {:?}",
         options
     );
+
+    // Minimum audio size threshold (in bytes)
+    // WAV header is typically 44 bytes, so anything significantly smaller is likely empty/corrupt
+    // We use 1KB as a reasonable threshold to avoid processing noise/empty files
+    const MIN_AUDIO_SIZE_BYTES: usize = 1024;
+
+    // Timeout for Whisper process (in seconds)
+    // This prevents indefinite hangs on problematic audio files
+    const WHISPER_TIMEOUT_SECS: u64 = 600; // 10 minutes
+
     let temp_dir = tempfile::tempdir()?;
 
     tracing::debug!(
@@ -168,7 +181,67 @@ async fn run_whisper_on_bytestream(
     drop(whisper_stdin);
     tracing::info!("Wrote a total of {} bytes to stdin", byte_count);
 
-    let whisper_status = whisper_detection.wait().await?;
+    // Check if audio file is too small to process
+    if byte_count < MIN_AUDIO_SIZE_BYTES {
+        tracing::warn!(
+            "Audio file is too small ({} bytes < {} bytes minimum). Returning empty transcription.",
+            byte_count,
+            MIN_AUDIO_SIZE_BYTES
+        );
+
+        // Kill the whisper process since we're not going to use its output
+        if let Some(pid) = whisper_detection.id() {
+            tracing::debug!("Killing whisper process with PID: {}", pid);
+            let _ = whisper_detection.kill().await;
+        }
+
+        temp_dir.close()?;
+
+        // Return an empty transcription
+        return Ok(Transcription {
+            text: "".to_string(),
+            segments: vec![],
+            language: "".to_string(),
+        });
+    }
+
+    // Wait for Whisper process with timeout
+    tracing::debug!(
+        "Waiting for Whisper process to complete (timeout: {}s)",
+        WHISPER_TIMEOUT_SECS
+    );
+    let whisper_status = match timeout(
+        Duration::from_secs(WHISPER_TIMEOUT_SECS),
+        whisper_detection.wait(),
+    )
+    .await
+    {
+        Ok(Ok(status)) => status,
+        Ok(Err(e)) => {
+            tracing::error!("Whisper process failed: {}", e);
+            return Err(AudioTranscriberError::TempDirError(e));
+        }
+        Err(_) => {
+            tracing::error!(
+                "Whisper process timed out after {} seconds",
+                WHISPER_TIMEOUT_SECS
+            );
+
+            // Attempt to kill the process
+            if let Some(pid) = whisper_detection.id() {
+                tracing::warn!(
+                    "Killing timed-out whisper process with PID: {}",
+                    pid
+                );
+                let _ = whisper_detection.kill().await;
+            }
+
+            temp_dir.close()?;
+            return Err(AudioTranscriberError::WhisperTimeout(
+                WHISPER_TIMEOUT_SECS,
+            ));
+        }
+    };
 
     if !whisper_status.success() {
         return Err(AudioTranscriberError::WhisperProcessError(
@@ -401,5 +474,44 @@ mod tests {
             convert_silence_to_clip_timestamps(&silence_at_end, Some(100.0)),
             "0,90"
         );
+    }
+
+    #[tokio::test]
+    async fn test_small_audio_file_returns_empty_transcription() {
+        // Create a small bytestream (less than MIN_AUDIO_SIZE_BYTES)
+        let small_data = vec![0u8; 512]; // 512 bytes, less than 1KB threshold
+        let mut bytestream = ByteStream::from(small_data);
+
+        let options = WhisperOptions {
+            model: WhisperModel::Tiny,
+            model_dir: "/tmp/model".to_string(),
+            initial_prompt: "test".to_string(),
+            language: "en".to_string(),
+            clip_timestamps: "0".to_string(),
+            verbose: false,
+            device: Device::CPU,
+        };
+
+        let result = run_whisper_on_bytestream(options, &mut bytestream).await;
+
+        // Should succeed and return empty transcription
+        match &result {
+            Ok(transcription) => {
+                assert_eq!(transcription.text, "");
+                assert_eq!(transcription.segments.len(), 0);
+                assert_eq!(transcription.language, "");
+            }
+            Err(e) => {
+                // The test might fail if whisper executable is not found, which is expected
+                // in test environments. This is acceptable for unit testing.
+                match e {
+                    AudioTranscriberError::WhisperExecutableNotFoundError(_) => {
+                        // Expected in test environment without whisper installed
+                        eprintln!("Skipping test: whisper executable not found (expected in test environment)");
+                    }
+                    _ => panic!("Unexpected error: {:?}", e),
+                }
+            }
+        }
     }
 }
