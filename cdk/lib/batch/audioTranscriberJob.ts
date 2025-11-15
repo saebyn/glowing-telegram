@@ -84,7 +84,7 @@ export default class AudioTranscriberJobConstruct extends Construct {
       'AudioTranscriberJobDefinition',
       {
         container: containerDefinition,
-        timeout: cdk.Duration.minutes(5),
+        timeout: cdk.Duration.minutes(15), // Increased from 5 to 15 minutes to allow for 10-minute Whisper timeout + overhead
         parameters: {
           item_key: '<item_key>',
           input_key: '<input_key>',
