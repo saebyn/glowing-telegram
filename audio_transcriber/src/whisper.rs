@@ -276,8 +276,10 @@ fn build_whisper_command(
         WhisperModel::Turbo => "turbo",
     };
 
-    let child = Command::new("whisper")
+    let child = Command::new("python3")
         .args([
+            "/app/whisper_hf.py",
+            "-",
             "--model",
             model_str,
             "--initial_prompt",
@@ -301,7 +303,6 @@ fn build_whisper_command(
             &options.clip_timestamps,
             "--verbose",
             if options.verbose { "True" } else { "False" },
-            "-",
         ])
         .stdin(Stdio::piped())
         .spawn()
@@ -310,7 +311,7 @@ fn build_whisper_command(
 
             if err.kind() == std::io::ErrorKind::NotFound {
                 AudioTranscriberError::WhisperExecutableNotFoundError(
-                    "whisper executable not found in PATH".to_string(),
+                    "python3 or whisper_hf.py script not found".to_string(),
                 )
             } else {
                 AudioTranscriberError::WhisperExecutableNotFoundError(format!(

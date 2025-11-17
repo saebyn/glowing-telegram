@@ -101,14 +101,17 @@ ENTRYPOINT ["/bootstrap"]
 # audio_transcriber
 FROM runtime AS audio_transcriber
 
-RUN pip3 install --break-system-packages openai-whisper
+RUN pip3 install --break-system-packages transformers torch torchaudio accelerate
 
 RUN mkdir /model
 RUN chown ${USER}:${USER} /model
 
 USER ${USER}:${USER}
 
+ENV HF_HOME=/model
+
 COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/download_model.py /app/download_model.py
+COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/whisper_hf.py /app/whisper_hf.py
 
 RUN python3 /app/download_model.py
 
