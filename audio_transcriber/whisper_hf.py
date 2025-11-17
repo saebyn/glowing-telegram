@@ -57,8 +57,14 @@ def transcribe_audio(
         print(f"Loading model: {model_id}", file=sys.stderr)
     
     # Determine device
-    torch_dtype = torch.float16 if device == "cuda" else torch.float32
-    device_str = "cuda:0" if device == "cuda" and torch.cuda.is_available() else "cpu"
+    if device == "cuda" and torch.cuda.is_available():
+        device_str = "cuda:0"
+        torch_dtype = torch.float16
+    else:
+        device_str = "cpu"
+        torch_dtype = torch.float32
+        if device == "cuda" and not torch.cuda.is_available():
+            print("Warning: CUDA requested but not available, falling back to CPU", file=sys.stderr)
     
     if verbose:
         print(f"Using device: {device_str}", file=sys.stderr)
@@ -104,8 +110,9 @@ def transcribe_audio(
         # whisper uses 2-letter codes, transformers uses full language names for task
         generate_kwargs["language"] = language
     
-    if initial_prompt:
-        generate_kwargs["prompt_ids"] = processor.get_prompt_ids(initial_prompt, return_tensors="pt")
+    # Note: initial_prompt is not directly supported in the same way as openai-whisper
+    # The transformers pipeline handles conditioning differently
+    # We can pass it as a prefix to guide the model if needed in the future
     
     if verbose:
         print(f"Processing audio file: {audio_path}", file=sys.stderr)
