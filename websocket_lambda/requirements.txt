@@ -1,0 +1,3 @@
+pyjwt[crypto]
+cryptography
+boto3
