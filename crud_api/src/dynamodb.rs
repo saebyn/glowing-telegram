@@ -30,6 +30,7 @@ pub struct DynamoDbTableConfig<'a> {
     pub partition_key: &'a str,
     pub q_key: &'a str,
     pub indexes: Vec<&'a str>,
+    pub user_scoped: bool,
 }
 
 const DEFAULT_PAGE_LIMIT: i32 = 10;
@@ -563,6 +564,7 @@ mod tests {
             partition_key: "id",
             q_key: "name",
             indexes: vec![],
+            user_scoped: false,
         };
         let mut filters = serde_json::Map::new();
         filters.insert(
@@ -586,6 +588,7 @@ mod tests {
             partition_key: "id",
             q_key: "name",
             indexes: vec![],
+            user_scoped: false,
         };
         let mut filters = serde_json::Map::new();
         filters.insert(

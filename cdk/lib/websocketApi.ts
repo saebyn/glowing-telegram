@@ -15,6 +15,7 @@ import { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 interface WebSocketAPIConstructProps {
   userPool: cognito.IUserPool;
   tasksTable: dynamodb.ITable;
+  streamWidgetsTable: dynamodb.ITable;
   userPoolClient: cognito.IUserPoolClient;
   domainName: string;
 }

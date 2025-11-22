@@ -154,6 +154,7 @@ export default class AppStack extends cdk.Stack {
     new WebSocketAPIConstruct(this, 'WebSocketAPI', {
       userPool: userManagement.userPool,
       tasksTable: dataStore.tasksTable,
+      streamWidgetsTable: dataStore.streamWidgetsTable,
       userPoolClient: userManagement.userPoolClient,
       domainName,
     });
@@ -185,6 +186,7 @@ export default class AppStack extends cdk.Stack {
       tasksTable: dataStore.tasksTable,
       projectsTable: dataStore.projectsTable,
       chatMessagesTable: dataStore.chatMessagesTable,
+      streamWidgetsTable: dataStore.streamWidgetsTable,
       chatQueue: twitchChatProcessing.chatQueue,
 
       youtubeUploaderAPILambda: youtubeUploader.apiLambda,
