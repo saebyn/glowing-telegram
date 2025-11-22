@@ -217,6 +217,7 @@ export default class DatastoreConstruct extends Construct {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'title', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
     // Add GSI for user_id
