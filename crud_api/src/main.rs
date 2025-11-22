@@ -547,11 +547,19 @@ async fn update_record_handler(
         }
     }
 
+    // For user_scoped resources, remove user_id from payload to prevent privilege escalation
+    let mut sanitized_payload = payload.clone();
+    if table_config.user_scoped {
+        if let Some(obj) = sanitized_payload.as_object_mut() {
+            obj.remove("user_id");
+        }
+    }
+
     match dynamodb::update(
         &state.dynamodb,
         &table_config,
         &record_id,
-        &payload,
+        &sanitized_payload,
     )
     .await
     {

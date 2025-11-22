@@ -12,6 +12,12 @@ def deserialize_dynamodb_value(value):
         return deserialize_dynamodb_item(value['M'])
     elif 'L' in value:
         return [deserialize_dynamodb_value(item) for item in value['L']]
+    elif 'SS' in value:
+        return set(value['SS'])
+    elif 'NS' in value:
+        return set(float(n) if '.' in n else int(n) for n in value['NS'])
+    elif 'BS' in value:
+        return set(value['BS'])
     elif 'NULL' in value:
         return None
     else:
