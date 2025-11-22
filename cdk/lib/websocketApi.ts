@@ -14,6 +14,7 @@ import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 interface WebSocketAPIConstructProps {
   userPool: cognito.IUserPool;
   tasksTable: dynamodb.ITable;
+  streamWidgetsTable: dynamodb.ITable;
   userPoolClient: cognito.IUserPoolClient;
   domainName: string;
 }
