@@ -352,9 +352,19 @@ def handle_subscribe(connection_id, connection, message):
             logger.error(f"Error fetching widget: {str(e)}")
             return {'statusCode': 500, 'body': 'Internal error'}
     
-    # TODO: Store subscription in DynamoDB for production
-    # For now, we rely on broadcasting to all user connections
-    # A proper implementation would store: connection_id -> set of widget_ids subscribed
+    # Add widget_id to the connection's subscribed_widgets set
+    try:
+        connections_table.update_item(
+            Key={'connectionId': connection_id},
+            UpdateExpression='ADD subscribed_widgets :widget_id',
+            ExpressionAttributeValues={
+                ':widget_id': {widget_id}
+            }
+        )
+        logger.info(f"Connection {connection_id} subscribed to widget {widget_id}")
+    except Exception as e:
+        logger.error(f"Error updating subscription: {str(e)}")
+        return {'statusCode': 500, 'body': 'Failed to subscribe'}
     
     # Fetch and send initial state
     try:
@@ -383,8 +393,19 @@ def handle_unsubscribe(connection_id, message):
     if not widget_id:
         return {'statusCode': 400, 'body': 'Missing widgetId'}
     
-    # TODO: Remove subscription from DynamoDB
-    # For now, no action needed as we broadcast to all user connections
+    # Remove widget_id from the connection's subscribed_widgets set
+    try:
+        connections_table.update_item(
+            Key={'connectionId': connection_id},
+            UpdateExpression='DELETE subscribed_widgets :widget_id',
+            ExpressionAttributeValues={
+                ':widget_id': {widget_id}
+            }
+        )
+        logger.info(f"Connection {connection_id} unsubscribed from widget {widget_id}")
+    except Exception as e:
+        logger.error(f"Error removing subscription: {str(e)}")
+        return {'statusCode': 500, 'body': 'Failed to unsubscribe'}
     
     return {'statusCode': 200, 'body': 'Unsubscribed'}
 
@@ -765,19 +786,18 @@ def handle_widget_change(widget, old_widget, event_name):
     if event_name == 'MODIFY' and old_widget:
         state_changed = widget.get('state') != old_widget.get('state')
     
-    # Find all active connections (we don't have subscription tracking here, so broadcast to all user connections)
-    # In a production system, you'd want a subscription table
+    # Find connections subscribed to this widget
     user_id = widget.get('user_id')
     if not user_id:
         logger.warning(f"No user_id found for widget: {widget_id}")
         return
     
     try:
-        # Find all connections for this user
-        connections = find_connections_for_user(user_id)
+        # Find all connections for this user that are subscribed to this widget
+        connections = find_connections_for_widget(user_id, widget_id)
         
         if not connections:
-            logger.info(f"No active connections found for user {user_id}")
+            logger.info(f"No active connections subscribed to widget {widget_id}")
             return
         
         # Broadcast config update if config changed
@@ -802,7 +822,8 @@ def handle_widget_change(widget, old_widget, event_name):
     except Exception as e:
         logger.error(f"Error processing widget change: {str(e)}")
 
-def find_connections_for_user(user_id):
+def find_connections_for_widget(user_id, widget_id):
+    """Find all connections for a user that are subscribed to a specific widget"""
     try:
         response = connections_table.query(
             IndexName='user_id-index',
@@ -812,10 +833,17 @@ def find_connections_for_user(user_id):
             }
         )
         
-        return [item.get('connectionId') for item in response.get('Items', [])]
+        # Filter connections that have widget_id in their subscribed_widgets set
+        subscribed_connections = []
+        for item in response.get('Items', []):
+            subscribed_widgets = item.get('subscribed_widgets', set())
+            if widget_id in subscribed_widgets:
+                subscribed_connections.append(item.get('connectionId'))
+        
+        return subscribed_connections
     
     except Exception as e:
-        logger.error(f"Error querying connections for user: {str(e)}")
+        logger.error(f"Error querying connections for widget: {str(e)}")
         return []
 
 def broadcast_to_connections(connections, message):
