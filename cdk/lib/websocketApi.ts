@@ -171,7 +171,7 @@ export default class WebSocketAPIConstruct extends Construct {
     // Grant permissions to the Lambda functions
     this.connectionsTable.grantReadWriteData(connectHandler);
     this.connectionsTable.grantReadWriteData(disconnectHandler);
-    this.connectionsTable.grantReadData(messageHandler);
+    this.connectionsTable.grantReadWriteData(messageHandler); // Write needed for subscription updates
     props.streamWidgetsTable.grantReadWriteData(messageHandler);
     this.connectionsTable.grantReadData(taskChangeHandler);
     props.streamWidgetsTable.grantReadData(authorizerLambda);
@@ -273,7 +273,7 @@ export default class WebSocketAPIConstruct extends Construct {
     const widgetChangeHandler = widgetChangeService.lambda;
 
     // Grant permissions to widget change handler
-    this.connectionsTable.grantReadData(widgetChangeHandler);
+    this.connectionsTable.grantReadWriteData(widgetChangeHandler); // Write needed to delete stale connections
     widgetChangeHandler.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [

@@ -250,7 +250,8 @@ export default class DatastoreConstruct extends Construct {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
-    // Add GSI for active
+    // Add GSI for active (stored as STRING: "true" or "false")
+    // DynamoDB requires boolean values to be stored as strings for GSI partition keys
     streamWidgetsTable.addGlobalSecondaryIndex({
       indexName: 'active-index',
       partitionKey: {

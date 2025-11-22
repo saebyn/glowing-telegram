@@ -45,13 +45,19 @@ def handle_widget_change(widget, old_widget, event_name):
     widget_id = widget.get('id')
     
     # Check if config changed (for WIDGET_CONFIG_UPDATE)
+    # For INSERT events, always send initial config
     config_changed = False
-    if event_name == 'MODIFY' and old_widget:
+    if event_name == 'INSERT':
+        config_changed = True
+    elif event_name == 'MODIFY' and old_widget:
         config_changed = widget.get('config') != old_widget.get('config')
     
     # Check if state changed (for WIDGET_STATE_UPDATE)
+    # For INSERT events, always send initial state
     state_changed = False
-    if event_name == 'MODIFY' and old_widget:
+    if event_name == 'INSERT':
+        state_changed = True
+    elif event_name == 'MODIFY' and old_widget:
         state_changed = widget.get('state') != old_widget.get('state')
     
     # Find connections subscribed to this widget
@@ -91,22 +97,48 @@ def handle_widget_change(widget, old_widget, event_name):
         logger.error(f"Error processing widget change: {str(e)}")
 
 def find_connections_for_widget(user_id, widget_id):
-    """Find all connections for a user that are subscribed to a specific widget"""
+    """Find all connections for a user that are subscribed to a specific widget
+    
+    This includes both:
+    - Connections with FullAccess (user_id based) that subscribed to the widget
+    - Connections with WidgetAccess (widget token) for this specific widget
+    """
     try:
-        response = connections_table.query(
-            IndexName='user_id-index',
-            KeyConditionExpression='user_id = :userId',
+        subscribed_connections = []
+        
+        # Find user connections that have subscribed to this widget
+        if user_id:
+            response = connections_table.query(
+                IndexName='user_id-index',
+                KeyConditionExpression='user_id = :userId',
+                ExpressionAttributeValues={
+                    ':userId': user_id
+                }
+            )
+            
+            # Filter connections that have widget_id in their subscribed_widgets set
+            for item in response.get('Items', []):
+                # Check if the item has subscribed_widgets and if widget_id is in the set
+                if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
+                    subscribed_connections.append(item.get('connectionId'))
+        
+        # Also find WidgetAccess connections for this specific widget
+        # These connections have widgetId set and should receive updates
+        # We need to scan for connections where widgetId matches and widget is in subscribed_widgets
+        # This is a fallback for widget token authenticated connections
+        scan_response = connections_table.scan(
+            FilterExpression='widgetId = :widgetId AND attribute_exists(subscribed_widgets)',
             ExpressionAttributeValues={
-                ':userId': user_id
+                ':widgetId': widget_id
             }
         )
         
-        # Filter connections that have widget_id in their subscribed_widgets set
-        subscribed_connections = []
-        for item in response.get('Items', []):
-            subscribed_widgets = item.get('subscribed_widgets', set())
-            if widget_id in subscribed_widgets:
-                subscribed_connections.append(item.get('connectionId'))
+        for item in scan_response.get('Items', []):
+            connection_id = item.get('connectionId')
+            if connection_id not in subscribed_connections:
+                # Check if widget_id is in subscribed_widgets
+                if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
+                    subscribed_connections.append(connection_id)
         
         return subscribed_connections
     
