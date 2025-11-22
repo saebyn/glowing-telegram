@@ -109,6 +109,7 @@ export default class WebSocketAPIConstruct extends Construct {
         environment: {
           USER_POOL_ID: props.userPool.userPoolId,
           USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
+          STREAM_WIDGETS_TABLE: props.streamWidgetsTable.tableName,
         },
         logGroup: authorizerLogGroup,
         loggingFormat: lambda.LoggingFormat.JSON,
@@ -147,27 +148,34 @@ def handler(event, context):
         logger.error("No connectionId found in event")
         return {'statusCode': 400, 'body': 'No connectionId provided'}
     
-    # Extract user information from the authorizer context
+    # Extract auth information from the authorizer context
     authorizer = event.get('requestContext', {}).get('authorizer', {})
-    user_id = authorizer.get('userId')
+    user_id = authorizer.get('userId', '')
+    auth_type = authorizer.get('authType', 'FullAccess')
+    widget_id = authorizer.get('widgetId', '')
     
-    if not user_id:
-        logger.error("No userId found in authorizer context")
+    if not user_id and not widget_id:
+        logger.error("No userId or widgetId found in authorizer context")
         return {'statusCode': 401, 'body': 'Unauthorized'}
     
     try:
         ttl = int(time.time()) + (24 * 60 * 60)  # 24 hours in seconds
         
-        connections_table.put_item(
-            Item={
-                'connectionId': connection_id,
-                'user_id': user_id,
-                'ttl': ttl,
-                'connected_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-            }
-        )
+        item = {
+            'connectionId': connection_id,
+            'ttl': ttl,
+            'connected_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'authType': auth_type
+        }
         
-        logger.info(f"Connection {connection_id} for user {user_id} stored successfully")
+        if user_id:
+            item['user_id'] = user_id
+        if widget_id:
+            item['widgetId'] = widget_id
+        
+        connections_table.put_item(Item=item)
+        
+        logger.info(f"Connection {connection_id} stored successfully (authType: {auth_type})")
         return {'statusCode': 200, 'body': 'Connected'}
     
     except Exception as e:
@@ -238,11 +246,228 @@ def handler(event, context):
       loggingFormat: lambda.LoggingFormat.JSON,
     });
 
-    // Create explicit log group for task change handler
-    const taskChangeLogGroup = new logs.LogGroup(this, 'TaskChangeLogGroup', {
-      logGroupName: `${LOG_GROUP_PREFIX}/lambda/websocket-task-change`,
-      retention: LOG_RETENTION,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    // Create Lambda for handling WebSocket messages (Python)
+    const messageHandler = new lambda.Function(this, 'MessageHandler', {
+      runtime: lambda.Runtime.PYTHON_3_11,
+      code: lambda.Code.fromInline(`
+import json
+import os
+import boto3
+import logging
+from botocore.exceptions import ClientError
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Initialize clients
+dynamodb = boto3.resource('dynamodb')
+connections_table = dynamodb.Table(os.environ['CONNECTIONS_TABLE'])
+widgets_table = dynamodb.Table(os.environ['STREAM_WIDGETS_TABLE'])
+
+# Initialize API Gateway Management API client
+endpoint = os.environ.get('WEBSOCKET_ENDPOINT', '')
+if endpoint.startswith('wss://'):
+    endpoint = endpoint.replace('wss://', 'https://')
+api_client = boto3.client('apigatewaymanagementapi', endpoint_url=endpoint) if endpoint else None
+
+# Track subscriptions in memory (in production, use DynamoDB or ElastiCache)
+# Format: {widgetId: set(connectionId)}
+subscriptions = {}
+
+def handler(event, context):
+    logger.info(f"Message event: {json.dumps(event)}")
+    
+    connection_id = event.get('requestContext', {}).get('connectionId')
+    if not connection_id:
+        logger.error("No connectionId found")
+        return {'statusCode': 400, 'body': 'Bad Request'}
+    
+    # Get connection info
+    try:
+        conn_response = connections_table.get_item(Key={'connectionId': connection_id})
+        connection = conn_response.get('Item')
+        if not connection:
+            logger.error(f"Connection {connection_id} not found")
+            return {'statusCode': 404, 'body': 'Connection not found'}
+    except Exception as e:
+        logger.error(f"Error fetching connection: {str(e)}")
+        return {'statusCode': 500, 'body': 'Internal error'}
+    
+    # Parse message
+    body = event.get('body', '{}')
+    try:
+        message = json.loads(body)
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON in message body")
+        return {'statusCode': 400, 'body': 'Invalid JSON'}
+    
+    message_type = message.get('type')
+    
+    if message_type == 'WIDGET_SUBSCRIBE':
+        return handle_subscribe(connection_id, connection, message)
+    elif message_type == 'WIDGET_UNSUBSCRIBE':
+        return handle_unsubscribe(connection_id, message)
+    elif message_type == 'WIDGET_ACTION':
+        return handle_action(connection_id, connection, message)
+    else:
+        logger.warning(f"Unknown message type: {message_type}")
+        return {'statusCode': 400, 'body': 'Unknown message type'}
+
+def handle_subscribe(connection_id, connection, message):
+    widget_id = message.get('widgetId')
+    if not widget_id:
+        return {'statusCode': 400, 'body': 'Missing widgetId'}
+    
+    # Validate access
+    auth_type = connection.get('authType', 'FullAccess')
+    
+    if auth_type == 'WidgetAccess':
+        # Widget token can only access its own widget
+        if connection.get('widgetId') != widget_id:
+            logger.warning(f"Widget access denied: {connection.get('widgetId')} != {widget_id}")
+            return {'statusCode': 403, 'body': 'Forbidden'}
+    elif auth_type == 'FullAccess':
+        # User JWT can access any widget they own
+        try:
+            widget_response = widgets_table.get_item(Key={'id': widget_id, 'title': message.get('title', '')})
+            widget = widget_response.get('Item')
+            if not widget:
+                # Try querying without title
+                query_response = widgets_table.query(
+                    KeyConditionExpression='id = :id',
+                    ExpressionAttributeValues={':id': widget_id},
+                    Limit=1
+                )
+                items = query_response.get('Items', [])
+                widget = items[0] if items else None
+            
+            if not widget:
+                return {'statusCode': 404, 'body': 'Widget not found'}
+            
+            if widget.get('user_id') != connection.get('user_id'):
+                logger.warning(f"User {connection.get('user_id')} does not own widget {widget_id}")
+                return {'statusCode': 403, 'body': 'Forbidden'}
+        except Exception as e:
+            logger.error(f"Error fetching widget: {str(e)}")
+            return {'statusCode': 500, 'body': 'Internal error'}
+    
+    # Add to subscriptions (in-memory for now)
+    if widget_id not in subscriptions:
+        subscriptions[widget_id] = set()
+    subscriptions[widget_id].add(connection_id)
+    
+    # Fetch and send initial state
+    try:
+        widget_response = widgets_table.query(
+            KeyConditionExpression='id = :id',
+            ExpressionAttributeValues={':id': widget_id},
+            Limit=1
+        )
+        items = widget_response.get('Items', [])
+        if items:
+            widget = items[0]
+            send_message(connection_id, {
+                'type': 'WIDGET_INITIAL_STATE',
+                'widgetId': widget_id,
+                'widget': widget
+            })
+        else:
+            logger.warning(f"Widget {widget_id} not found for initial state")
+    except Exception as e:
+        logger.error(f"Error sending initial state: {str(e)}")
+    
+    return {'statusCode': 200, 'body': 'Subscribed'}
+
+def handle_unsubscribe(connection_id, message):
+    widget_id = message.get('widgetId')
+    if not widget_id:
+        return {'statusCode': 400, 'body': 'Missing widgetId'}
+    
+    if widget_id in subscriptions:
+        subscriptions[widget_id].discard(connection_id)
+    
+    return {'statusCode': 200, 'body': 'Unsubscribed'}
+
+def handle_action(connection_id, connection, message):
+    # Widget access is read-only
+    auth_type = connection.get('authType', 'FullAccess')
+    if auth_type == 'WidgetAccess':
+        return {'statusCode': 403, 'body': 'Read-only access'}
+    
+    widget_id = message.get('widgetId')
+    action = message.get('action')
+    payload = message.get('payload', {})
+    
+    if not widget_id or not action:
+        return {'statusCode': 400, 'body': 'Missing widgetId or action'}
+    
+    # Verify ownership
+    try:
+        widget_response = widgets_table.query(
+            KeyConditionExpression='id = :id',
+            ExpressionAttributeValues={':id': widget_id},
+            Limit=1
+        )
+        items = widget_response.get('Items', [])
+        if not items:
+            return {'statusCode': 404, 'body': 'Widget not found'}
+        
+        widget = items[0]
+        if widget.get('user_id') != connection.get('user_id'):
+            return {'statusCode': 403, 'body': 'Forbidden'}
+        
+        # TODO: Execute action based on widget type and action name
+        # For now, just send success response
+        
+        send_message(connection_id, {
+            'type': 'WIDGET_ACTION_RESPONSE',
+            'widgetId': widget_id,
+            'action': action,
+            'success': True
+        })
+        
+        return {'statusCode': 200, 'body': 'Action executed'}
+    except Exception as e:
+        logger.error(f"Error executing action: {str(e)}")
+        send_message(connection_id, {
+            'type': 'WIDGET_ACTION_RESPONSE',
+            'widgetId': widget_id,
+            'action': action,
+            'success': False,
+            'error': str(e)
+        })
+        return {'statusCode': 500, 'body': 'Internal error'}
+
+def send_message(connection_id, message):
+    if not api_client:
+        logger.error("API Gateway Management API client not initialized")
+        return
+    
+    try:
+        api_client.post_to_connection(
+            ConnectionId=connection_id,
+            Data=json.dumps(message)
+        )
+    except ClientError as e:
+        if e.response.get('Error', {}).get('Code') == 'GoneException':
+            logger.info(f"Connection {connection_id} is gone")
+            # Clean up stale connection
+            try:
+                connections_table.delete_item(Key={'connectionId': connection_id})
+            except Exception as cleanup_error:
+                logger.error(f"Error cleaning up connection: {str(cleanup_error)}")
+        else:
+            logger.error(f"Error sending message: {str(e)}")
+      `),
+      handler: 'index.handler',
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        CONNECTIONS_TABLE: this.connectionsTable.tableName,
+        STREAM_WIDGETS_TABLE: props.streamWidgetsTable.tableName,
+        WEBSOCKET_ENDPOINT: this.webSocketStage.url,
+      },
+      logRetention: logs.RetentionDays.ONE_WEEK,
+      loggingFormat: lambda.LoggingFormat.JSON,
     });
 
     // Create Lambda for handling task changes and publishing to WebSocket (Python)
@@ -388,14 +613,30 @@ def deserialize_dynamodb_item(item):
         CONNECTIONS_TABLE: this.connectionsTable.tableName,
         WEBSOCKET_ENDPOINT: this.webSocketStage.url,
       },
-      logGroup: taskChangeLogGroup,
       loggingFormat: lambda.LoggingFormat.JSON,
     });
 
     // Grant permissions to the Lambda functions
     this.connectionsTable.grantReadWriteData(connectHandler);
     this.connectionsTable.grantReadWriteData(disconnectHandler);
+    this.connectionsTable.grantReadData(messageHandler);
+    props.streamWidgetsTable.grantReadWriteData(messageHandler);
     this.connectionsTable.grantReadData(taskChangeHandler);
+    props.streamWidgetsTable.grantReadData(authorizerLambda);
+
+    messageHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'execute-api:PostToConnection',
+          'execute-api:ManageConnections',
+          'execute-api:Invoke',
+        ],
+        resources: [
+          `arn:aws:execute-api:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:${this.webSocketApi.apiId}/*`,
+        ],
+        effect: iam.Effect.ALLOW,
+      }),
+    );
 
     taskChangeHandler.addToRolePolicy(
       new iam.PolicyStatement({
@@ -440,6 +681,14 @@ def deserialize_dynamodb_item(item):
       integration: new WebSocketLambdaIntegration(
         'DisconnectIntegration',
         disconnectHandler,
+      ),
+    });
+
+    // Add default route for widget messages
+    this.webSocketApi.addRoute('$default', {
+      integration: new WebSocketLambdaIntegration(
+        'MessageIntegration',
+        messageHandler,
       ),
     });
 
