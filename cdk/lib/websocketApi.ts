@@ -266,13 +266,17 @@ widgets_table = dynamodb.Table(os.environ['STREAM_WIDGETS_TABLE'])
 
 # Initialize API Gateway Management API client
 endpoint = os.environ.get('WEBSOCKET_ENDPOINT', '')
-if endpoint.startswith('wss://'):
+if not endpoint:
+    logger.warning("WEBSOCKET_ENDPOINT environment variable not set")
+elif endpoint.startswith('wss://'):
     endpoint = endpoint.replace('wss://', 'https://')
+
 api_client = boto3.client('apigatewaymanagementapi', endpoint_url=endpoint) if endpoint else None
 
-# Track subscriptions in memory (in production, use DynamoDB or ElastiCache)
-# Format: {widgetId: set(connectionId)}
-subscriptions = {}
+# Note: Subscriptions should be tracked in DynamoDB for production
+# In-memory tracking shown here for MVP demonstration only
+# Each Lambda invocation has isolated memory, so subscriptions won't persist
+# across invocations or be shared between concurrent executions
 
 def handler(event, context):
     logger.info(f"Message event: {json.dumps(event)}")
@@ -329,17 +333,14 @@ def handle_subscribe(connection_id, connection, message):
     elif auth_type == 'FullAccess':
         # User JWT can access any widget they own
         try:
-            widget_response = widgets_table.get_item(Key={'id': widget_id, 'title': message.get('title', '')})
-            widget = widget_response.get('Item')
-            if not widget:
-                # Try querying without title
-                query_response = widgets_table.query(
-                    KeyConditionExpression='id = :id',
-                    ExpressionAttributeValues={':id': widget_id},
-                    Limit=1
-                )
-                items = query_response.get('Items', [])
-                widget = items[0] if items else None
+            # Query by partition key only (id), since we don't have the sort key (title)
+            query_response = widgets_table.query(
+                KeyConditionExpression='id = :id',
+                ExpressionAttributeValues={':id': widget_id},
+                Limit=1
+            )
+            items = query_response.get('Items', [])
+            widget = items[0] if items else None
             
             if not widget:
                 return {'statusCode': 404, 'body': 'Widget not found'}
@@ -351,10 +352,9 @@ def handle_subscribe(connection_id, connection, message):
             logger.error(f"Error fetching widget: {str(e)}")
             return {'statusCode': 500, 'body': 'Internal error'}
     
-    # Add to subscriptions (in-memory for now)
-    if widget_id not in subscriptions:
-        subscriptions[widget_id] = set()
-    subscriptions[widget_id].add(connection_id)
+    # TODO: Store subscription in DynamoDB for production
+    # For now, we rely on broadcasting to all user connections
+    # A proper implementation would store: connection_id -> set of widget_ids subscribed
     
     # Fetch and send initial state
     try:
@@ -383,8 +383,8 @@ def handle_unsubscribe(connection_id, message):
     if not widget_id:
         return {'statusCode': 400, 'body': 'Missing widgetId'}
     
-    if widget_id in subscriptions:
-        subscriptions[widget_id].discard(connection_id)
+    # TODO: Remove subscription from DynamoDB
+    # For now, no action needed as we broadcast to all user connections
     
     return {'statusCode': 200, 'body': 'Unsubscribed'}
 
@@ -586,6 +586,23 @@ def remove_connection(connection_id):
     except Exception as e:
         logger.error(f"Error removing stale connection {connection_id}: {str(e)}")
 
+def deserialize_dynamodb_value(value):
+    """Deserialize a single DynamoDB attribute value"""
+    if 'S' in value:
+        return value['S']
+    elif 'N' in value:
+        return float(value['N']) if '.' in value['N'] else int(value['N'])
+    elif 'BOOL' in value:
+        return value['BOOL']
+    elif 'M' in value:
+        return deserialize_dynamodb_item(value['M'])
+    elif 'L' in value:
+        return [deserialize_dynamodb_value(item) for item in value['L']]
+    elif 'NULL' in value:
+        return None
+    else:
+        return value
+
 def deserialize_dynamodb_item(item):
     if not item:
         return None
@@ -593,17 +610,7 @@ def deserialize_dynamodb_item(item):
     # Convert DynamoDB types to Python types
     result = {}
     for key, value in item.items():
-        if 'S' in value:
-            result[key] = value['S']
-        elif 'N' in value:
-            result[key] = float(value['N']) if '.' in value['N'] else int(value['N'])
-        elif 'BOOL' in value:
-            result[key] = value['BOOL']
-        elif 'M' in value:
-            result[key] = deserialize_dynamodb_item(value['M'])
-        elif 'L' in value:
-            result[key] = [deserialize_dynamodb_item({'M': item}) if 'M' in item else None for item in value['L']]
-        # Add other types as needed
+        result[key] = deserialize_dynamodb_value(value)
     
     return result
       `),
@@ -837,6 +844,23 @@ def remove_connection(connection_id):
     except Exception as e:
         logger.error(f"Error removing stale connection {connection_id}: {str(e)}")
 
+def deserialize_dynamodb_value(value):
+    """Deserialize a single DynamoDB attribute value"""
+    if 'S' in value:
+        return value['S']
+    elif 'N' in value:
+        return float(value['N']) if '.' in value['N'] else int(value['N'])
+    elif 'BOOL' in value:
+        return value['BOOL']
+    elif 'M' in value:
+        return deserialize_dynamodb_item(value['M'])
+    elif 'L' in value:
+        return [deserialize_dynamodb_value(item) for item in value['L']]
+    elif 'NULL' in value:
+        return None
+    else:
+        return value
+
 def deserialize_dynamodb_item(item):
     if not item:
         return None
@@ -844,17 +868,7 @@ def deserialize_dynamodb_item(item):
     # Convert DynamoDB types to Python types
     result = {}
     for key, value in item.items():
-        if 'S' in value:
-            result[key] = value['S']
-        elif 'N' in value:
-            result[key] = float(value['N']) if '.' in value['N'] else int(value['N'])
-        elif 'BOOL' in value:
-            result[key] = value['BOOL']
-        elif 'M' in value:
-            result[key] = deserialize_dynamodb_item(value['M'])
-        elif 'L' in value:
-            result[key] = [deserialize_dynamodb_item({'M': item}) if 'M' in item else None for item in value['L']]
-        # Add other types as needed
+        result[key] = deserialize_dynamodb_value(value)
     
     return result
       `),
