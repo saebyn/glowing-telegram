@@ -20,6 +20,7 @@ export default class DatastoreConstruct extends Construct {
   public readonly tasksTable: dynamodb.ITable;
   public readonly projectsTable: dynamodb.ITable;
   public readonly chatMessagesTable: dynamodb.ITable;
+  public readonly streamWidgetsTable: dynamodb.ITable;
 
   constructor(scope: Construct, id: string, props: { vpc: ec2.IVpc }) {
     super(scope, id);
@@ -209,5 +210,55 @@ export default class DatastoreConstruct extends Construct {
     });
 
     this.chatMessagesTable = chatMessagesTable;
+
+    // Create stream_widgets table
+    const streamWidgetsTable = new dynamodb.Table(this, 'StreamWidgetsTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'title', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    // Add GSI for user_id
+    streamWidgetsTable.addGlobalSecondaryIndex({
+      indexName: 'user_id-index',
+      partitionKey: {
+        name: 'user_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Add GSI for access_token (for WebSocket authentication)
+    streamWidgetsTable.addGlobalSecondaryIndex({
+      indexName: 'access_token-index',
+      partitionKey: {
+        name: 'access_token',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Add GSI for type
+    streamWidgetsTable.addGlobalSecondaryIndex({
+      indexName: 'type-index',
+      partitionKey: {
+        name: 'type',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Add GSI for active
+    streamWidgetsTable.addGlobalSecondaryIndex({
+      indexName: 'active-index',
+      partitionKey: {
+        name: 'active',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    this.streamWidgetsTable = streamWidgetsTable;
   }
 }

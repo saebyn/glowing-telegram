@@ -20,6 +20,7 @@ use axum::{
     routing::get,
 };
 use dynamodb::DynamoDbTableConfig;
+use gt_axum::cognito::OptionalCognitoUserId;
 use lambda_http::tower;
 use serde::Deserialize;
 use serde_json::json;
@@ -41,6 +42,7 @@ struct Config {
     tasks_table: String,
     projects_table: String,
     chat_messages_table: String,
+    stream_widgets_table: String,
 }
 
 #[derive(Debug, Clone)]
@@ -160,48 +162,63 @@ fn get_table_config<'a>(
             partition_key: "id",
             q_key: "title",
             indexes: vec![],
+            user_scoped: false,
         },
         "episodes" => DynamoDbTableConfig {
             table: &state.config.episodes_table,
             partition_key: "id",
             q_key: "title",
             indexes: vec![],
+            user_scoped: false,
         },
         "series" => DynamoDbTableConfig {
             table: &state.config.series_table,
             partition_key: "id",
             q_key: "title",
             indexes: vec![],
+            user_scoped: false,
         },
         "video_clips" => DynamoDbTableConfig {
             table: &state.config.video_metadata_table,
             partition_key: "key",
             q_key: "key",
             indexes: vec!["stream_id"],
+            user_scoped: false,
         },
         "profiles" => DynamoDbTableConfig {
             table: &state.config.profiles_table,
             partition_key: "id",
             q_key: "id",
             indexes: vec![],
+            user_scoped: false,
         },
         "tasks" => DynamoDbTableConfig {
             table: &state.config.tasks_table,
             partition_key: "id",
             q_key: "title",
             indexes: vec![],
+            user_scoped: false,
         },
         "projects" => DynamoDbTableConfig {
             table: &state.config.projects_table,
             partition_key: "id",
             q_key: "title",
             indexes: vec![],
+            user_scoped: false,
         },
         "chat_messages" => DynamoDbTableConfig {
             table: &state.config.chat_messages_table,
             partition_key: "user_id",
             q_key: "timestamp",
             indexes: vec!["channel_id"],
+            user_scoped: false,
+        },
+        "stream_widgets" => DynamoDbTableConfig {
+            table: &state.config.stream_widgets_table,
+            partition_key: "id",
+            q_key: "title",
+            indexes: vec!["type", "active"],
+            user_scoped: true,
         },
         _ => panic!("unsupported resource: {resource}"),
     }
@@ -224,6 +241,7 @@ fn get_table_config<'a>(
 /// count, or an `Error`.
 #[allow(clippy::option_if_let_else)]
 async fn list_records_handler(
+    OptionalCognitoUserId(user_id): OptionalCognitoUserId,
     Path(RequestPath { resource }): Path<RequestPath>,
     Query(query): Query<HashMap<String, String>>,
     State(state): State<AppContext>,
@@ -233,7 +251,7 @@ async fn list_records_handler(
     tracing::info!("listing records from table: {0}", table_config.table);
 
     // Parse the query parameters
-    let filters = match query.get("filter") {
+    let mut filters = match query.get("filter") {
         Some(filter) => match filter.as_str() {
             "" => serde_json::Map::new(),
             _ => match serde_json::from_str(filter) {
@@ -252,6 +270,21 @@ async fn list_records_handler(
         },
         None => serde_json::Map::new(),
     };
+
+    // If user_scoped, add user_id filter
+    if table_config.user_scoped {
+        if let Some(user) = user_id {
+            filters.insert("user_id".to_string(), json!(user));
+        } else {
+            return (
+                StatusCode::UNAUTHORIZED,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "Unauthorized",
+                })),
+            );
+        }
+    }
 
     // Call the `list` function from the `dynamodb` module
 
@@ -305,6 +338,7 @@ async fn list_records_handler(
 }
 
 async fn get_record_handler(
+    OptionalCognitoUserId(user_id): OptionalCognitoUserId,
     Path(RequestPathWithId {
         resource,
         record_id,
@@ -327,6 +361,30 @@ async fn get_record_handler(
                 )
             },
             |record| {
+                // If user_scoped, verify ownership
+                if table_config.user_scoped {
+                    if let Some(user) = user_id {
+                        if record.get("user_id").and_then(|v| v.as_str())
+                            != Some(&user)
+                        {
+                            return (
+                                StatusCode::FORBIDDEN,
+                                [(header::CONTENT_TYPE, "application/json")],
+                                Json(json!({
+                                    "message": "Forbidden",
+                                })),
+                            );
+                        }
+                    } else {
+                        return (
+                            StatusCode::UNAUTHORIZED,
+                            [(header::CONTENT_TYPE, "application/json")],
+                            Json(json!({
+                                "message": "Unauthorized",
+                            })),
+                        );
+                    }
+                }
                 (
                     StatusCode::OK,
                     [(header::CONTENT_TYPE, "application/json")],
@@ -349,13 +407,14 @@ async fn get_record_handler(
 }
 
 async fn create_record_handler(
+    OptionalCognitoUserId(user_id): OptionalCognitoUserId,
     Path(RequestPath { resource }): Path<RequestPath>,
     State(state): State<AppContext>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
 
-    let payload = match payload {
+    let mut payload = match payload {
         serde_json::Value::Object(map) => {
             vec![serde_json::Value::Object(map)]
         }
@@ -370,6 +429,25 @@ async fn create_record_handler(
             );
         }
     };
+
+    // If user_scoped, inject user_id
+    if table_config.user_scoped {
+        if let Some(user) = user_id {
+            for item in &mut payload {
+                if let serde_json::Value::Object(map) = item {
+                    map.insert("user_id".to_string(), json!(user));
+                }
+            }
+        } else {
+            return (
+                StatusCode::UNAUTHORIZED,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "Unauthorized",
+                })),
+            );
+        }
+    }
 
     match dynamodb::create(
         &state.dynamodb,
@@ -408,6 +486,7 @@ async fn create_record_handler(
 }
 
 async fn update_record_handler(
+    OptionalCognitoUserId(user_id): OptionalCognitoUserId,
     Path(RequestPathWithId {
         resource,
         record_id,
@@ -416,6 +495,57 @@ async fn update_record_handler(
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
+
+    // If user_scoped, verify ownership before updating
+    if table_config.user_scoped {
+        match dynamodb::get(&state.dynamodb, &table_config, record_id.as_str())
+            .await
+        {
+            Ok(result) => {
+                if let Some(record) = result.0 {
+                    if let Some(user) = &user_id {
+                        if record.get("user_id").and_then(|v| v.as_str())
+                            != Some(user)
+                        {
+                            return (
+                                StatusCode::FORBIDDEN,
+                                [(header::CONTENT_TYPE, "application/json")],
+                                Json(json!({
+                                    "message": "Forbidden",
+                                })),
+                            );
+                        }
+                    } else {
+                        return (
+                            StatusCode::UNAUTHORIZED,
+                            [(header::CONTENT_TYPE, "application/json")],
+                            Json(json!({
+                                "message": "Unauthorized",
+                            })),
+                        );
+                    }
+                } else {
+                    return (
+                        StatusCode::NOT_FOUND,
+                        [(header::CONTENT_TYPE, "application/json")],
+                        Json(json!({
+                            "message": "record not found",
+                        })),
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::error!("failed to verify record ownership: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(json!({
+                        "message": "failed to verify record ownership",
+                    })),
+                );
+            }
+        }
+    }
 
     match dynamodb::update(
         &state.dynamodb,
@@ -445,6 +575,7 @@ async fn update_record_handler(
 }
 
 async fn delete_record_handler(
+    OptionalCognitoUserId(user_id): OptionalCognitoUserId,
     Path(RequestPathWithId {
         resource,
         record_id,
@@ -452,6 +583,57 @@ async fn delete_record_handler(
     State(state): State<AppContext>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
+
+    // If user_scoped, verify ownership before deleting
+    if table_config.user_scoped {
+        match dynamodb::get(&state.dynamodb, &table_config, record_id.as_str())
+            .await
+        {
+            Ok(result) => {
+                if let Some(record) = result.0 {
+                    if let Some(user) = &user_id {
+                        if record.get("user_id").and_then(|v| v.as_str())
+                            != Some(user)
+                        {
+                            return (
+                                StatusCode::FORBIDDEN,
+                                [(header::CONTENT_TYPE, "application/json")],
+                                Json(json!({
+                                    "message": "Forbidden",
+                                })),
+                            );
+                        }
+                    } else {
+                        return (
+                            StatusCode::UNAUTHORIZED,
+                            [(header::CONTENT_TYPE, "application/json")],
+                            Json(json!({
+                                "message": "Unauthorized",
+                            })),
+                        );
+                    }
+                } else {
+                    return (
+                        StatusCode::NOT_FOUND,
+                        [(header::CONTENT_TYPE, "application/json")],
+                        Json(json!({
+                            "message": "record not found",
+                        })),
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::error!("failed to verify record ownership: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(json!({
+                        "message": "failed to verify record ownership",
+                    })),
+                );
+            }
+        }
+    }
 
     match dynamodb::delete(&state.dynamodb, &table_config, record_id.as_str())
         .await
@@ -476,6 +658,7 @@ async fn delete_record_handler(
 }
 
 async fn get_many_records_handler(
+    OptionalCognitoUserId(user_id): OptionalCognitoUserId,
     Path(RequestPath { resource }): Path<RequestPath>,
     State(state): State<AppContext>,
     Query(query_params): Query<ManyQuery>,
@@ -488,11 +671,30 @@ async fn get_many_records_handler(
         .map(String::as_str)
         .collect::<Vec<_>>();
     match dynamodb::get_many(&state.dynamodb, &table_config, &ids).await {
-        Ok(items) => (
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, "application/json")],
-            Json(json!({ "items": items })),
-        ),
+        Ok(mut items) => {
+            // If user_scoped, filter items by user_id
+            if table_config.user_scoped {
+                if let Some(user) = user_id {
+                    items.retain(|item| {
+                        item.get("user_id").and_then(|v| v.as_str())
+                            == Some(&user)
+                    });
+                } else {
+                    return (
+                        StatusCode::UNAUTHORIZED,
+                        [(header::CONTENT_TYPE, "application/json")],
+                        Json(json!({
+                            "message": "Unauthorized",
+                        })),
+                    );
+                }
+            }
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({ "items": items })),
+            )
+        }
         Err(e) => {
             tracing::error!("failed to batch get records: {e}");
 
@@ -506,6 +708,7 @@ async fn get_many_records_handler(
 }
 
 async fn get_many_related_records_handler(
+    OptionalCognitoUserId(user_id): OptionalCognitoUserId,
     Path(RequestPathWithRelatedField {
         resource,
         related_field,
@@ -514,6 +717,19 @@ async fn get_many_related_records_handler(
     State(state): State<AppContext>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
+
+    // If user_scoped, reject for now (not commonly used)
+    if table_config.user_scoped {
+        if user_id.is_none() {
+            return (
+                StatusCode::UNAUTHORIZED,
+                [(header::CONTENT_TYPE, "application/json")],
+                Json(json!({
+                    "message": "Unauthorized",
+                })),
+            );
+        }
+    }
 
     // validate the related field against the table configuration
     if !table_config.indexes.contains(&related_field.as_str()) {

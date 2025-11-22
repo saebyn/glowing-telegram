@@ -29,6 +29,7 @@ uuid = { workspace = true }
 openai_dive = { workspace = true }
 types = { workspace = true }
 gt_app = { path = "../gt_app" }
+gt_axum = { workspace = true }
 
 [lints]
 workspace = true
