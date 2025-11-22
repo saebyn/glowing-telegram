@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 pyjwt = "*"
 cryptography = "*"
+boto3 = "*"
 
 [dev-packages]
 
