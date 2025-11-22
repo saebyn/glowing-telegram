@@ -154,34 +154,56 @@ fn get_table_config<'a>(
     state: &'a AppContext,
     resource: &'a str,
 ) -> DynamoDbTableConfig<'a> {
-    DynamoDbTableConfig {
-        table: match resource {
-            "streams" => &state.config.streams_table,
-            "episodes" => &state.config.episodes_table,
-            "series" => &state.config.series_table,
-            "video_clips" => &state.config.video_metadata_table,
-            "profiles" => &state.config.profiles_table,
-            "tasks" => &state.config.tasks_table,
-            "projects" => &state.config.projects_table,
-            "chat_messages" => &state.config.chat_messages_table,
-            _ => panic!("unsupported resource: {resource}"),
+    match resource {
+        "streams" => DynamoDbTableConfig {
+            table: &state.config.streams_table,
+            partition_key: "id",
+            q_key: "title",
+            indexes: vec![],
         },
-        partition_key: match resource {
-            "video_clips" => "key",
-            "chat_messages" => "user_id",
-            _ => "id",
+        "episodes" => DynamoDbTableConfig {
+            table: &state.config.episodes_table,
+            partition_key: "id",
+            q_key: "title",
+            indexes: vec![],
         },
-        q_key: match resource {
-            "video_clips" => "key",
-            "profiles" => "id",
-            "chat_messages" => "timestamp",
-            _ => "title",
+        "series" => DynamoDbTableConfig {
+            table: &state.config.series_table,
+            partition_key: "id",
+            q_key: "title",
+            indexes: vec![],
         },
-        indexes: match resource {
-            "video_clips" => vec!["stream_id"],
-            "chat_messages" => vec!["channel_id"],
-            _ => vec![],
+        "video_clips" => DynamoDbTableConfig {
+            table: &state.config.video_metadata_table,
+            partition_key: "key",
+            q_key: "key",
+            indexes: vec!["stream_id"],
         },
+        "profiles" => DynamoDbTableConfig {
+            table: &state.config.profiles_table,
+            partition_key: "id",
+            q_key: "id",
+            indexes: vec![],
+        },
+        "tasks" => DynamoDbTableConfig {
+            table: &state.config.tasks_table,
+            partition_key: "id",
+            q_key: "title",
+            indexes: vec![],
+        },
+        "projects" => DynamoDbTableConfig {
+            table: &state.config.projects_table,
+            partition_key: "id",
+            q_key: "title",
+            indexes: vec![],
+        },
+        "chat_messages" => DynamoDbTableConfig {
+            table: &state.config.chat_messages_table,
+            partition_key: "user_id",
+            q_key: "timestamp",
+            indexes: vec!["channel_id"],
+        },
+        _ => panic!("unsupported resource: {resource}"),
     }
 }
 
