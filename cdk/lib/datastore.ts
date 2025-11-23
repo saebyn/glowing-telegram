@@ -215,12 +215,11 @@ export default class DatastoreConstruct extends Construct {
     const streamWidgetsTable = new dynamodb.Table(this, 'StreamWidgetsTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'title', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
-    // Add GSI for user_id
+    // Add GSI for user_id (primary query pattern: get all widgets for a user)
     streamWidgetsTable.addGlobalSecondaryIndex({
       indexName: 'user_id-index',
       partitionKey: {
@@ -235,27 +234,6 @@ export default class DatastoreConstruct extends Construct {
       indexName: 'access_token-index',
       partitionKey: {
         name: 'access_token',
-        type: dynamodb.AttributeType.STRING,
-      },
-      projectionType: dynamodb.ProjectionType.ALL,
-    });
-
-    // Add GSI for type
-    streamWidgetsTable.addGlobalSecondaryIndex({
-      indexName: 'type-index',
-      partitionKey: {
-        name: 'type',
-        type: dynamodb.AttributeType.STRING,
-      },
-      projectionType: dynamodb.ProjectionType.ALL,
-    });
-
-    // Add GSI for active (stored as STRING: "true" or "false")
-    // DynamoDB requires boolean values to be stored as strings for GSI partition keys
-    streamWidgetsTable.addGlobalSecondaryIndex({
-      indexName: 'active-index',
-      partitionKey: {
-        name: 'active',
         type: dynamodb.AttributeType.STRING,
       },
       projectionType: dynamodb.ProjectionType.ALL,
