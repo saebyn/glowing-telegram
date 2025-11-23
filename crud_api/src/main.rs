@@ -217,7 +217,7 @@ fn get_table_config<'a>(
             table: &state.config.stream_widgets_table,
             partition_key: "id",
             q_key: "title",
-            indexes: vec!["type", "active"],
+            indexes: vec![],
             user_scoped: true,
         },
         _ => panic!("unsupported resource: {resource}"),
