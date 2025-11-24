@@ -160,7 +160,6 @@ def handle_action(connection_id, connection, message):
     
     widget_id = message.get('widgetId')
     action = message.get('action')
-    payload = message.get('payload', {})
     
     if not widget_id or not action:
         return {'statusCode': 400, 'body': 'Missing widgetId or action'}
