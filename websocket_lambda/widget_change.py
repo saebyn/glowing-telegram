@@ -124,16 +124,16 @@ def find_connections_for_widget(user_id, widget_id):
         
         # Also find WidgetAccess connections for this specific widget
         # These connections have widgetId set and should receive updates
-        # We need to scan for connections where widgetId matches and widget is in subscribed_widgets
-        # This is a fallback for widget token authenticated connections
-        scan_response = connections_table.scan(
-            FilterExpression='widgetId = :widgetId AND attribute_exists(subscribed_widgets)',
+        # Use GSI query for efficient lookup of widget token authenticated connections
+        query_response = connections_table.query(
+            IndexName='widgetId-index',
+            KeyConditionExpression='widgetId = :widgetId',
             ExpressionAttributeValues={
                 ':widgetId': widget_id
             }
         )
         
-        for item in scan_response.get('Items', []):
+        for item in query_response.get('Items', []):
             connection_id = item.get('connectionId')
             if connection_id not in subscribed_connections:
                 # Check if widget_id is in subscribed_widgets

@@ -46,6 +46,13 @@ export default class WebSocketAPIConstruct extends Construct {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    // Add widgetId index to look up connections by widget (for WidgetAccess connections)
+    this.connectionsTable.addGlobalSecondaryIndex({
+      indexName: 'widgetId-index',
+      partitionKey: { name: 'widgetId', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     // Create the WebSocket API
     this.webSocketApi = new apigwv2.WebSocketApi(this, 'TasksWebSocketApi', {
       apiName: 'TasksWebSocketApi',
