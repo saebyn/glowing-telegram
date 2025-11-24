@@ -6,7 +6,6 @@ name = "pypi"
 [packages]
 pyjwt = {extras = ["crypto"], version = "*"}
 cryptography = "*"
-boto3 = "*"
 
 [dev-packages]
 
