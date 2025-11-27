@@ -114,20 +114,20 @@ async fn main() {
     // Create Axum app
     let app = Router::new()
         .route(
-            "/records/:resource",
+            "/records/{resource}",
             get(list_records_handler).post(create_record_handler),
         )
         .route(
-            "/records/:resource/:record_id",
+            "/records/{resource}/{record_id}",
             get(get_record_handler)
                 .put(update_record_handler)
                 .delete(delete_record_handler),
         )
         .route(
-            "/records/:resource/:related_field/:id",
+            "/records/{resource}/{related_field}/{id}",
             get(get_many_related_records_handler),
         )
-        .route("/records/:resource/many", get(get_many_records_handler))
+        .route("/records/{resource}/many", get(get_many_records_handler))
         .fallback(|| async {
             (
                 StatusCode::NOT_FOUND,
