@@ -121,6 +121,18 @@ def find_connections_for_widget(user_id, widget_id):
                 # Check if the item has subscribed_widgets and if widget_id is in the set
                 if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
                     subscribed_connections.append(item.get('connectionId'))
+            
+            # Handle pagination for user_id-index query
+            while 'LastEvaluatedKey' in response:
+                response = connections_table.query(
+                    IndexName='user_id-index',
+                    KeyConditionExpression='user_id = :userId',
+                    ExpressionAttributeValues={':userId': user_id},
+                    ExclusiveStartKey=response['LastEvaluatedKey']
+                )
+                for item in response.get('Items', []):
+                    if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
+                        subscribed_connections.append(item.get('connectionId'))
         
         # Also find WidgetAccess connections for this specific widget
         # These connections have widgetId set and should receive updates
@@ -139,6 +151,20 @@ def find_connections_for_widget(user_id, widget_id):
                 # Check if widget_id is in subscribed_widgets
                 if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
                     subscribed_connections.append(connection_id)
+        
+        # Handle pagination for widgetId-index query
+        while 'LastEvaluatedKey' in query_response:
+            query_response = connections_table.query(
+                IndexName='widgetId-index',
+                KeyConditionExpression='widgetId = :widgetId',
+                ExpressionAttributeValues={':widgetId': widget_id},
+                ExclusiveStartKey=query_response['LastEvaluatedKey']
+            )
+            for item in query_response.get('Items', []):
+                connection_id = item.get('connectionId')
+                if connection_id not in subscribed_connections:
+                    if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
+                        subscribed_connections.append(connection_id)
         
         return subscribed_connections
     
