@@ -76,14 +76,9 @@ def handle_subscribe(connection_id, connection, message):
     elif auth_type == 'FullAccess':
         # User JWT can access any widget they own
         try:
-            # Query by partition key only (id), since we don't have the sort key (title)
-            query_response = widgets_table.query(
-                KeyConditionExpression='id = :id',
-                ExpressionAttributeValues={':id': widget_id},
-                Limit=1
-            )
-            items = query_response.get('Items', [])
-            widget = items[0] if items else None
+            # Use get_item for direct lookup by partition key
+            response = widgets_table.get_item(Key={'id': widget_id})
+            widget = response.get('Item')
             
             if not widget:
                 return {'statusCode': 404, 'body': 'Widget not found'}
@@ -111,14 +106,9 @@ def handle_subscribe(connection_id, connection, message):
     
     # Fetch and send initial state
     try:
-        widget_response = widgets_table.query(
-            KeyConditionExpression='id = :id',
-            ExpressionAttributeValues={':id': widget_id},
-            Limit=1
-        )
-        items = widget_response.get('Items', [])
-        if items:
-            widget = items[0]
+        response = widgets_table.get_item(Key={'id': widget_id})
+        widget = response.get('Item')
+        if widget:
             send_message(connection_id, {
                 'type': 'WIDGET_INITIAL_STATE',
                 'widgetId': widget_id,
@@ -166,16 +156,11 @@ def handle_action(connection_id, connection, message):
     
     # Verify ownership
     try:
-        widget_response = widgets_table.query(
-            KeyConditionExpression='id = :id',
-            ExpressionAttributeValues={':id': widget_id},
-            Limit=1
-        )
-        items = widget_response.get('Items', [])
-        if not items:
+        response = widgets_table.get_item(Key={'id': widget_id})
+        widget = response.get('Item')
+        if not widget:
             return {'statusCode': 404, 'body': 'Widget not found'}
         
-        widget = items[0]
         if widget.get('user_id') != connection.get('user_id'):
             return {'statusCode': 403, 'body': 'Forbidden'}
         
