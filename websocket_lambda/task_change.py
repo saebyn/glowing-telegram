@@ -93,7 +93,19 @@ def find_connections_for_user(user_id):
             }
         )
         
-        return [item.get('connectionId') for item in response.get('Items', [])]
+        connections = [item.get('connectionId') for item in response.get('Items', [])]
+        
+        # Handle pagination
+        while 'LastEvaluatedKey' in response:
+            response = connections_table.query(
+                IndexName='user_id-index',
+                KeyConditionExpression='user_id = :userId',
+                ExpressionAttributeValues={':userId': user_id},
+                ExclusiveStartKey=response['LastEvaluatedKey']
+            )
+            connections.extend([item.get('connectionId') for item in response.get('Items', [])])
+        
+        return connections
     
     except Exception as e:
         logger.error(f"Error querying connections for user: {str(e)}")
