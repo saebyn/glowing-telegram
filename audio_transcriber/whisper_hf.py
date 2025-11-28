@@ -110,9 +110,17 @@ def transcribe_audio(
         # whisper uses 2-letter codes, transformers uses full language names for task
         generate_kwargs["language"] = language
     
-    # Note: initial_prompt is not directly supported in the same way as openai-whisper
-    # The transformers pipeline handles conditioning differently
-    # We can pass it as a prefix to guide the model if needed in the future
+    # Handle initial_prompt by converting to prompt_ids
+    # This conditions the model to generate text consistent with the prompt style
+    if initial_prompt:
+        try:
+            prompt_ids = processor.get_prompt_ids(initial_prompt, return_tensors="pt")
+            generate_kwargs["prompt_ids"] = prompt_ids
+            if verbose:
+                print(f"Using initial prompt: {initial_prompt}", file=sys.stderr)
+        except Exception as e:
+            if verbose:
+                print(f"Warning: Could not set initial prompt: {e}", file=sys.stderr)
     
     if verbose:
         print(f"Processing audio file: {audio_path}", file=sys.stderr)

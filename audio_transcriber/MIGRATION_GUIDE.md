@@ -90,7 +90,17 @@ The wrapper script maps model names to Hugging Face model IDs:
 
 ### Initial Prompt
 
-The original `openai-whisper` package supported an `initial_prompt` parameter for conditioning the model. The transformers pipeline uses a different conditioning mechanism, so this parameter is currently accepted but not fully utilized in the same way.
+The `initial_prompt` parameter is now supported using the transformers `prompt_ids` feature. This converts the prompt text into token IDs that condition the model's generation, helping it maintain consistent style, terminology, and formatting.
+
+Example usage:
+```bash
+./audio_transcriber key audio.wav "Gaming stream with viewer interactions" "en"
+```
+
+The prompt helps the model understand context like:
+- Technical terminology to expect
+- Speaker style and tone
+- Domain-specific vocabulary
 
 ### Clip Timestamps
 
@@ -208,6 +218,71 @@ To rollback to the original implementation:
 - **Model Size**: whisper-large-v3 is larger than turbo, requiring more disk space and memory
 - **Inference Speed**: May be slightly slower or faster depending on hardware and implementation
 - **GPU Memory**: Large-v3 requires more GPU memory than smaller models
+
+## AWS Batch Deployment Options
+
+For AWS Batch environments, you have several options for model storage instead of baking the ~3GB model into the Docker image:
+
+### Option 1: Runtime Download with EFS Cache (Recommended)
+
+Mount an EFS volume to cache downloaded models across job runs:
+
+```bash
+# Build without baking model into image
+docker buildx bake audio_transcriber --set audio_transcriber.args.DOWNLOAD_MODEL_AT_BUILD=false
+
+# AWS Batch job definition - mount EFS
+{
+  "containerProperties": {
+    "environment": [
+      {"name": "HF_HOME", "value": "/mnt/efs/models"}
+    ],
+    "mountPoints": [
+      {"containerPath": "/mnt/efs", "sourceVolume": "efs-volume"}
+    ],
+    "volumes": [
+      {"name": "efs-volume", "efsVolumeConfiguration": {"fileSystemId": "fs-xxxxx"}}
+    ]
+  }
+}
+```
+
+The model downloads once on first run, then subsequent jobs use the cached version.
+
+### Option 2: S3 Model Storage
+
+Use Hugging Face Hub's S3 support to store models in S3:
+
+```bash
+# Set environment variables in Batch job
+HF_HUB_OFFLINE=0
+HF_HOME=/tmp/models
+AWS_DEFAULT_REGION=us-east-1
+```
+
+You can pre-download models to S3 and use `huggingface_hub` to sync:
+
+```python
+from huggingface_hub import snapshot_download
+snapshot_download("openai/whisper-large-v3", cache_dir="/mnt/efs/models")
+```
+
+### Option 3: Bake Model into Image (Current Default)
+
+For simpler deployments or when cold-start time is critical:
+
+```bash
+# Default build includes model (~5GB image)
+docker buildx bake audio_transcriber
+```
+
+### Comparison
+
+| Approach | Image Size | Cold Start | Model Updates |
+|----------|------------|------------|---------------|
+| EFS Cache | ~2GB | First run slow | Easy |
+| S3 Storage | ~2GB | Medium | Easy |
+| Baked Image | ~5GB | Fast | Rebuild required |
 
 ## Future Improvements
 

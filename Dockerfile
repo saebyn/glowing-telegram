@@ -101,19 +101,28 @@ ENTRYPOINT ["/bootstrap"]
 # audio_transcriber
 FROM runtime AS audio_transcriber
 
-RUN pip3 install --break-system-packages transformers torch torchaudio accelerate
+RUN pip3 install --break-system-packages transformers torch torchaudio accelerate huggingface_hub
 
 RUN mkdir /model
 RUN chown ${USER}:${USER} /model
 
 USER ${USER}:${USER}
 
+# HF_HOME controls where models are cached
+# For AWS Batch with EFS, mount EFS to /model and set HF_HOME=/model
+# For S3 caching, set HF_HUB_CACHE to a local dir and use huggingface_hub's S3 support
 ENV HF_HOME=/model
+
+# Control whether to download model at build time or runtime
+# Set DOWNLOAD_MODEL_AT_BUILD=false to skip baking model into image
+ARG DOWNLOAD_MODEL_AT_BUILD=true
 
 COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/download_model.py /app/download_model.py
 COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/whisper_hf.py /app/whisper_hf.py
 
-RUN python3 /app/download_model.py
+# Conditionally download model at build time
+# If DOWNLOAD_MODEL_AT_BUILD=false, model will be downloaded at runtime
+RUN if [ "$DOWNLOAD_MODEL_AT_BUILD" = "true" ]; then python3 /app/download_model.py; fi
 
 COPY --from=rust_builder --chown=${USER}:${USER} /app/target/release/audio_transcriber /app/audio_transcriber
 
