@@ -46,9 +46,12 @@ export default class WebSocketAPIConstruct extends Construct {
     });
 
     // Add widgetId index to look up connections by widget (for WidgetAccess connections)
+    // WidgetAccess connections are authenticated with a widget token and automatically
+    // receive updates for that widget without explicit subscription
     this.connectionsTable.addGlobalSecondaryIndex({
       indexName: 'widgetId-index',
       partitionKey: { name: 'widgetId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'connectionId', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
