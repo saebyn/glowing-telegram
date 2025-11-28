@@ -135,8 +135,8 @@ def find_connections_for_widget(user_id, widget_id):
                         subscribed_connections.append(item.get('connectionId'))
         
         # Also find WidgetAccess connections for this specific widget
-        # These connections have widgetId set and should receive updates
-        # Use GSI query for efficient lookup of widget token authenticated connections
+        # These connections are authenticated with a widget token and automatically
+        # receive updates for that widget - no explicit subscription required
         query_response = connections_table.query(
             IndexName='widgetId-index',
             KeyConditionExpression='widgetId = :widgetId',
@@ -148,9 +148,8 @@ def find_connections_for_widget(user_id, widget_id):
         for item in query_response.get('Items', []):
             connection_id = item.get('connectionId')
             if connection_id not in subscribed_connections:
-                # Check if widget_id is in subscribed_widgets
-                if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
-                    subscribed_connections.append(connection_id)
+                # WidgetAccess connections are auto-subscribed to their authenticated widget
+                subscribed_connections.append(connection_id)
         
         # Handle pagination for widgetId-index query
         while 'LastEvaluatedKey' in query_response:
@@ -163,8 +162,7 @@ def find_connections_for_widget(user_id, widget_id):
             for item in query_response.get('Items', []):
                 connection_id = item.get('connectionId')
                 if connection_id not in subscribed_connections:
-                    if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
-                        subscribed_connections.append(connection_id)
+                    subscribed_connections.append(connection_id)
         
         return subscribed_connections
     
