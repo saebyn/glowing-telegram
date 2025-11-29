@@ -1,5 +1,44 @@
 """Shared utility functions for WebSocket Lambda handlers"""
 
+
+def paginated_query(table, **kwargs):
+    """Generator that yields items from a DynamoDB query, handling pagination automatically.
+    
+    Usage:
+        for item in paginated_query(table, IndexName='user_id-index', 
+                                    KeyConditionExpression='user_id = :userId',
+                                    ExpressionAttributeValues={':userId': user_id}):
+            # process item
+    """
+    response = table.query(**kwargs)
+    for item in response.get('Items', []):
+        yield item
+    
+    while 'LastEvaluatedKey' in response:
+        kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+        response = table.query(**kwargs)
+        for item in response.get('Items', []):
+            yield item
+
+
+def paginated_scan(table, **kwargs):
+    """Generator that yields items from a DynamoDB scan, handling pagination automatically.
+    
+    Usage:
+        for item in paginated_scan(table, FilterExpression='...'):
+            # process item
+    """
+    response = table.scan(**kwargs)
+    for item in response.get('Items', []):
+        yield item
+    
+    while 'LastEvaluatedKey' in response:
+        kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+        response = table.scan(**kwargs)
+        for item in response.get('Items', []):
+            yield item
+
+
 def deserialize_dynamodb_value(value):
     """Deserialize a single DynamoDB attribute value"""
     if 'S' in value:
