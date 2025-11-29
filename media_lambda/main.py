@@ -15,6 +15,22 @@ M3U8_SEGMENT = """#EXTINF:{duration}\n{path}"""
 
 M3U8_FOOTER = """#EXT-X-ENDLIST\n"""
 
+# Initialize DynamoDB resource
+dynamodb = boto3.resource("dynamodb")
+
+
+def paginated_query(table, **kwargs):
+    """Generator that yields items from a DynamoDB query, handling pagination automatically."""
+    response = table.query(**kwargs)
+    for item in response.get('Items', []):
+        yield item
+    
+    while 'LastEvaluatedKey' in response:
+        kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+        response = table.query(**kwargs)
+        for item in response.get('Items', []):
+            yield item
+
 
 def handler(event, context):
     """ """
@@ -27,41 +43,20 @@ def handler(event, context):
             "body": "Invalid stream ID",
         }
 
-    # Use the DynamoDB client to get the video metadata
-    dynamodb = boto3.client("dynamodb")
+    table = dynamodb.Table(VIDEO_METADATA_TABLE)
 
-    # Query the table using the streamId index
-    start_key = None
-
-    stream_video_records = []
-
-    while True:
-        query_args = {
-            "TableName": VIDEO_METADATA_TABLE,
-            "IndexName": STREAM_ID_INDEX,
-            "KeyConditionExpression": "stream_id = :streamId",
-            "ExpressionAttributeValues": {":streamId": {"S": stream_id}},
-            "ProjectionExpression": "#key, transcode",
-            "ExpressionAttributeNames": {"#key": "key"},
-        }
-
-        if start_key:
-            query_args["ExclusiveStartKey"] = start_key
-
-        response = dynamodb.query(**query_args)
-
-        stream_video_records.extend(
-            [
-                {"key": item["key"]["S"], "transcode": item["transcode"]["L"]}
-                for item in response["Items"]
-                if "transcode" in item
-            ]
+    stream_video_records = [
+        {"key": item["key"], "transcode": item["transcode"]}
+        for item in paginated_query(
+            table,
+            IndexName=STREAM_ID_INDEX,
+            KeyConditionExpression="stream_id = :streamId",
+            ExpressionAttributeValues={":streamId": stream_id},
+            ProjectionExpression="#key, transcode",
+            ExpressionAttributeNames={"#key": "key"},
         )
-
-        if "LastEvaluatedKey" in response:
-            start_key = response["LastEvaluatedKey"]
-        else:
-            break
+        if "transcode" in item
+    ]
 
     print(f"Found {len(stream_video_records)} video records")
 
@@ -72,8 +67,8 @@ def handler(event, context):
     for video_record in sorted_stream_videos:
         lines.append(f"#EXT-X-DISCONTINUITY")
         for segment in video_record["transcode"]:
-            lines.append(f"#EXTINF:{segment['M']['duration']['N']}")
-            path = rewrite_path(segment["M"]["path"]["S"])
+            lines.append(f"#EXTINF:{segment['duration']}")
+            path = rewrite_path(segment["path"])
             lines.append(path)
 
     print(f"Found {len(lines)} segments")
