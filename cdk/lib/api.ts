@@ -13,7 +13,7 @@ import type * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import type * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import ServiceLambdaConstruct from './util/serviceLambda';
+import ServiceLambdaConstruct, { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 import RenderJobSubmissionLambda from './renderJobSubmissionLambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 
@@ -317,6 +317,16 @@ export default class APIConstruct extends Construct {
     // configure routes
 
     // POST /stream - run stream ingestion step function
+    const streamIngestionStartLogGroup = new logs.LogGroup(
+      this,
+      'StreamIngestionStartLogGroup',
+      {
+        logGroupName: `${LOG_GROUP_PREFIX}/lambda/stream-ingestion-start`,
+        retention: LOG_RETENTION,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
+    );
+
     const streamIngestionStartStateMachineLambda = new lambda.Function(
       this,
       'StreamIngestionStartStateMachineLambda',
@@ -324,7 +334,7 @@ export default class APIConstruct extends Construct {
         tracing: lambda.Tracing.ACTIVE,
         description: 'Start stream ingestion state machine',
         timeout: cdk.Duration.seconds(10),
-        logRetention: logs.RetentionDays.ONE_WEEK,
+        logGroup: streamIngestionStartLogGroup,
         loggingFormat: lambda.LoggingFormat.JSON,
         code: lambda.Code.fromInline(`
 import json
