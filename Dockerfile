@@ -172,3 +172,12 @@ ENTRYPOINT ["/bootstrap"]
 FROM public.ecr.aws/lambda/python:3 AS youtube_uploader_lambda
 COPY youtube_uploader_lambda/main.py ${LAMBDA_TASK_ROOT}
 CMD [ "main.handler" ]
+
+# websocket_lambda
+FROM public.ecr.aws/lambda/python:3 AS websocket_lambda
+COPY websocket_lambda/Pipfile ${LAMBDA_TASK_ROOT}
+RUN pip install --no-cache-dir pipenv && \
+    pipenv install --system --deploy
+COPY websocket_lambda/*.py ${LAMBDA_TASK_ROOT}/
+# Default handler can be overridden at runtime
+CMD [ "connect.handler" ]

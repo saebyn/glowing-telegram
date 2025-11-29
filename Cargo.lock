@@ -1083,6 +1083,7 @@ dependencies = [
  "axum-aws-lambda",
  "chrono",
  "gt_app",
+ "gt_axum",
  "lambda_http",
  "lambda_runtime 0.14.4",
  "openai_dive",

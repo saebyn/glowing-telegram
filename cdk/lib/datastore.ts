@@ -20,6 +20,7 @@ export default class DatastoreConstruct extends Construct {
   public readonly tasksTable: dynamodb.ITable;
   public readonly projectsTable: dynamodb.ITable;
   public readonly chatMessagesTable: dynamodb.ITable;
+  public readonly streamWidgetsTable: dynamodb.ITable;
 
   constructor(scope: Construct, id: string, props: { vpc: ec2.IVpc }) {
     super(scope, id);
@@ -209,5 +210,35 @@ export default class DatastoreConstruct extends Construct {
     });
 
     this.chatMessagesTable = chatMessagesTable;
+
+    // Create stream_widgets table
+    const streamWidgetsTable = new dynamodb.Table(this, 'StreamWidgetsTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
+    });
+
+    // Add GSI for user_id (primary query pattern: get all widgets for a user)
+    streamWidgetsTable.addGlobalSecondaryIndex({
+      indexName: 'user_id-index',
+      partitionKey: {
+        name: 'user_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Add GSI for access_token (for WebSocket authentication)
+    streamWidgetsTable.addGlobalSecondaryIndex({
+      indexName: 'access_token-index',
+      partitionKey: {
+        name: 'access_token',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    this.streamWidgetsTable = streamWidgetsTable;
   }
 }
