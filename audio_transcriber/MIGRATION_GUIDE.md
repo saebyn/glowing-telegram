@@ -219,55 +219,191 @@ To rollback to the original implementation:
 - **Inference Speed**: May be slightly slower or faster depending on hardware and implementation
 - **GPU Memory**: Large-v3 requires more GPU memory than smaller models
 
-## AWS Batch Deployment Options
+## AWS Batch Deployment with EFS Model Cache
 
-For AWS Batch environments, you have several options for model storage instead of baking the ~3GB model into the Docker image:
+The CDK infrastructure provisions an EFS file system for caching HuggingFace models, eliminating the need to bake the ~3GB model into the Docker image.
 
-### Option 1: Runtime Download with EFS Cache (Recommended)
+### How EFS Model Caching Works
 
-Mount an EFS volume to cache downloaded models across job runs:
+1. **EFS File System**: A dedicated EFS file system (`ModelCacheFileSystem`) is created in the VPC with:
+   - General Purpose performance mode for balanced latency/throughput
+   - Bursting throughput mode to handle model download spikes
+   - 30-day lifecycle policy to move infrequently accessed files to cheaper storage
+   - RETAIN removal policy to preserve models across stack updates
+
+2. **Access Point**: An EFS access point is configured with:
+   - Path: `/models` - all model files are stored here
+   - POSIX user: UID/GID 10001 (matches container user)
+   - Permissions: 755 (owner read/write/execute, others read/execute)
+
+3. **Volume Mount**: The Batch job mounts EFS at `/mnt/efs/models` with:
+   - Transit encryption enabled for security
+   - Job role authentication for access control
+
+4. **Environment Variable**: `HF_HOME=/mnt/efs/models` tells HuggingFace where to cache models
+
+### First Run Behavior
+
+On the first job execution (or when the model isn't cached):
+
+1. Container starts and checks `HF_HOME` for cached model
+2. Model not found → downloads from HuggingFace Hub (~3GB)
+3. Model saved to EFS at `/mnt/efs/models/models--openai--whisper-large-v3/`
+4. Transcription proceeds normally
+
+**First run takes ~5-10 minutes** depending on network speed. Subsequent runs start immediately.
+
+### Cached Model Structure
+
+```
+/mnt/efs/models/
+├── models--openai--whisper-large-v3/
+│   ├── blobs/           # Model weights (safetensors)
+│   ├── refs/            # Version references
+│   └── snapshots/       # Versioned model files
+└── hub/                 # Additional HuggingFace cache files
+```
+
+### EFS Troubleshooting
+
+#### Job Fails with "Mount Target Not Found"
+
+**Symptoms**: Job fails immediately with EFS mount errors
+
+**Cause**: EFS mount targets not available in the subnet
+
+**Solution**:
+1. Check EFS mount targets exist in the VPC subnets:
+   ```bash
+   aws efs describe-mount-targets --file-system-id fs-xxxxx
+   ```
+2. Verify security group allows NFS (port 2049) from Batch compute instances
+3. Ensure subnets have route to EFS endpoints
+
+#### Job Hangs During Model Download
+
+**Symptoms**: Job runs for extended time without progress
+
+**Cause**: Network connectivity issues to HuggingFace Hub
+
+**Solution**:
+1. Check VPC has internet access (NAT Gateway or public subnet)
+2. Verify no firewall blocking `huggingface.co` and `cdn-lfs.huggingface.co`
+3. Check CloudWatch logs for download progress:
+   ```bash
+   aws logs get-log-events --log-group-name /aws/batch/job --log-stream-name <job-id>
+   ```
+
+#### Permission Denied Errors
+
+**Symptoms**: "Permission denied" when accessing `/mnt/efs/models`
+
+**Cause**: POSIX user mismatch between container and EFS access point
+
+**Solution**:
+1. Verify container runs as UID 10001:
+   ```dockerfile
+   USER 10001:10001
+   ```
+2. Check EFS access point configuration:
+   ```bash
+   aws efs describe-access-points --file-system-id fs-xxxxx
+   ```
+3. Ensure access point has correct `PosixUser` (uid: 10001, gid: 10001)
+
+#### Model Corrupted or Incomplete
+
+**Symptoms**: Model loading fails with checksum or parsing errors
+
+**Cause**: Previous download was interrupted
+
+**Solution**: Reset the model cache (see below)
+
+### Resetting/Redownloading the Model
+
+#### Option 1: Delete Specific Model (Recommended)
+
+Remove only the whisper model, preserving other cached models:
 
 ```bash
-# Build without baking model into image
-docker buildx bake audio_transcriber --set audio_transcriber.args.DOWNLOAD_MODEL_AT_BUILD=false
+# Connect to EFS from an EC2 instance or use AWS DataSync
+# Mount EFS
+sudo mount -t efs fs-xxxxx:/ /mnt/efs
 
-# AWS Batch job definition - mount EFS
+# Remove whisper model cache
+sudo rm -rf /mnt/efs/models/models--openai--whisper-large-v3/
+
+# Unmount
+sudo umount /mnt/efs
+```
+
+Next job will re-download the model.
+
+#### Option 2: Clear All Model Cache
+
+Remove all cached models:
+
+```bash
+sudo mount -t efs fs-xxxxx:/ /mnt/efs
+sudo rm -rf /mnt/efs/models/*
+sudo umount /mnt/efs
+```
+
+#### Option 3: Using AWS CLI with EFS Access Point
+
+If you have an EC2 instance in the same VPC:
+
+```bash
+# Install EFS mount helper
+sudo yum install -y amazon-efs-utils
+
+# Mount using access point
+sudo mount -t efs -o tls,accesspoint=fsap-xxxxx fs-xxxxx:/ /mnt/efs
+
+# Clear cache
+sudo rm -rf /mnt/efs/*
+
+sudo umount /mnt/efs
+```
+
+#### Option 4: Force Re-download via Environment Variable
+
+Set `HF_HUB_OFFLINE=0` and `TRANSFORMERS_CACHE=/tmp/fresh` to bypass EFS cache for a single job (useful for testing):
+
+```json
 {
-  "containerProperties": {
+  "containerOverrides": {
     "environment": [
-      {"name": "HF_HOME", "value": "/mnt/efs/models"}
-    ],
-    "mountPoints": [
-      {"containerPath": "/mnt/efs", "sourceVolume": "efs-volume"}
-    ],
-    "volumes": [
-      {"name": "efs-volume", "efsVolumeConfiguration": {"fileSystemId": "fs-xxxxx"}}
+      {"name": "HF_HUB_OFFLINE", "value": "0"},
+      {"name": "HF_HOME", "value": "/tmp/fresh-download"}
     ]
   }
 }
 ```
 
-The model downloads once on first run, then subsequent jobs use the cached version.
+Note: This downloads to the container's ephemeral storage, not EFS.
 
-### Option 2: S3 Model Storage
+### Monitoring EFS Usage
 
-Use Hugging Face Hub's S3 support to store models in S3:
+#### Check EFS Storage Size
 
 ```bash
-# Set environment variables in Batch job
-HF_HUB_OFFLINE=0
-HF_HOME=/tmp/models
-AWS_DEFAULT_REGION=us-east-1
+aws efs describe-file-systems --file-system-id fs-xxxxx \
+  --query 'FileSystems[0].SizeInBytes'
 ```
 
-You can pre-download models to S3 and use `huggingface_hub` to sync:
+Expected size after model download: ~3-4 GB
 
-```python
-from huggingface_hub import snapshot_download
-snapshot_download("openai/whisper-large-v3", cache_dir="/mnt/efs/models")
-```
+#### CloudWatch Metrics
 
-### Option 3: Bake Model into Image (Current Default)
+Monitor these EFS metrics in CloudWatch:
+- `BurstCreditBalance` - Ensure burst credits don't deplete
+- `ClientConnections` - Active NFS connections from Batch jobs
+- `DataReadIOBytes` / `DataWriteIOBytes` - I/O activity
+
+### Alternative Deployment Options
+
+#### Option 1: Bake Model into Image
 
 For simpler deployments or when cold-start time is critical:
 
@@ -276,13 +412,22 @@ For simpler deployments or when cold-start time is critical:
 docker buildx bake audio_transcriber
 ```
 
+#### Option 2: S3 Model Storage
+
+Use Hugging Face Hub's S3 support:
+
+```python
+from huggingface_hub import snapshot_download
+snapshot_download("openai/whisper-large-v3", cache_dir="/mnt/efs/models")
+```
+
 ### Comparison
 
-| Approach | Image Size | Cold Start | Model Updates |
-|----------|------------|------------|---------------|
-| EFS Cache | ~2GB | First run slow | Easy |
-| S3 Storage | ~2GB | Medium | Easy |
-| Baked Image | ~5GB | Fast | Rebuild required |
+| Approach | Image Size | Cold Start | Model Updates | Infrastructure |
+|----------|------------|------------|---------------|----------------|
+| EFS Cache | ~2GB | First run slow | Automatic | EFS file system |
+| Baked Image | ~5GB | Fast | Rebuild required | None |
+| S3 Storage | ~2GB | Medium | Manual sync | S3 bucket |
 
 ## Future Improvements
 
