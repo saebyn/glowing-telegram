@@ -3,7 +3,7 @@ import os
 import boto3
 import logging
 from botocore.exceptions import ClientError
-from utils import deserialize_dynamodb_item
+from utils import deserialize_dynamodb_item, paginated_query
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -108,61 +108,23 @@ def find_connections_for_widget(user_id, widget_id):
         
         # Find user connections that have subscribed to this widget
         if user_id:
-            response = connections_table.query(
-                IndexName='user_id-index',
-                KeyConditionExpression='user_id = :userId',
-                ExpressionAttributeValues={
-                    ':userId': user_id
-                }
-            )
-            
-            # Filter connections that have widget_id in their subscribed_widgets set
-            for item in response.get('Items', []):
-                # Check if the item has subscribed_widgets and if widget_id is in the set
+            for item in paginated_query(connections_table,
+                                        IndexName='user_id-index',
+                                        KeyConditionExpression='user_id = :userId',
+                                        ExpressionAttributeValues={':userId': user_id}):
                 if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
                     subscribed_connections.append(item.get('connectionId'))
-            
-            # Handle pagination for user_id-index query
-            while 'LastEvaluatedKey' in response:
-                response = connections_table.query(
-                    IndexName='user_id-index',
-                    KeyConditionExpression='user_id = :userId',
-                    ExpressionAttributeValues={':userId': user_id},
-                    ExclusiveStartKey=response['LastEvaluatedKey']
-                )
-                for item in response.get('Items', []):
-                    if 'subscribed_widgets' in item and widget_id in item['subscribed_widgets']:
-                        subscribed_connections.append(item.get('connectionId'))
         
         # Also find WidgetAccess connections for this specific widget
         # These connections are authenticated with a widget token and automatically
         # receive updates for that widget - no explicit subscription required
-        query_response = connections_table.query(
-            IndexName='widgetId-index',
-            KeyConditionExpression='widgetId = :widgetId',
-            ExpressionAttributeValues={
-                ':widgetId': widget_id
-            }
-        )
-        
-        for item in query_response.get('Items', []):
+        for item in paginated_query(connections_table,
+                                    IndexName='widgetId-index',
+                                    KeyConditionExpression='widgetId = :widgetId',
+                                    ExpressionAttributeValues={':widgetId': widget_id}):
             connection_id = item.get('connectionId')
             if connection_id not in subscribed_connections:
-                # WidgetAccess connections are auto-subscribed to their authenticated widget
                 subscribed_connections.append(connection_id)
-        
-        # Handle pagination for widgetId-index query
-        while 'LastEvaluatedKey' in query_response:
-            query_response = connections_table.query(
-                IndexName='widgetId-index',
-                KeyConditionExpression='widgetId = :widgetId',
-                ExpressionAttributeValues={':widgetId': widget_id},
-                ExclusiveStartKey=query_response['LastEvaluatedKey']
-            )
-            for item in query_response.get('Items', []):
-                connection_id = item.get('connectionId')
-                if connection_id not in subscribed_connections:
-                    subscribed_connections.append(connection_id)
         
         return subscribed_connections
     

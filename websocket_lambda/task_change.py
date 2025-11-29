@@ -3,7 +3,7 @@ import os
 import boto3
 import logging
 from botocore.exceptions import ClientError
-from utils import deserialize_dynamodb_item
+from utils import deserialize_dynamodb_item, paginated_query
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -85,26 +85,11 @@ def handle_task_change(task, old_task):
 
 def find_connections_for_user(user_id):
     try:
-        response = connections_table.query(
-            IndexName='user_id-index',
-            KeyConditionExpression='user_id = :userId',
-            ExpressionAttributeValues={
-                ':userId': user_id
-            }
-        )
-        
-        connections = [item.get('connectionId') for item in response.get('Items', [])]
-        
-        # Handle pagination
-        while 'LastEvaluatedKey' in response:
-            response = connections_table.query(
-                IndexName='user_id-index',
-                KeyConditionExpression='user_id = :userId',
-                ExpressionAttributeValues={':userId': user_id},
-                ExclusiveStartKey=response['LastEvaluatedKey']
-            )
-            connections.extend([item.get('connectionId') for item in response.get('Items', [])])
-        
+        connections = [item.get('connectionId') 
+                       for item in paginated_query(connections_table,
+                                                   IndexName='user_id-index',
+                                                   KeyConditionExpression='user_id = :userId',
+                                                   ExpressionAttributeValues={':userId': user_id})]
         return connections
     
     except Exception as e:
