@@ -85,11 +85,12 @@ def handle_task_change(task, old_task):
 
 def find_connections_for_user(user_id):
     try:
-        connections = [item.get('connectionId') 
+        connections = [item['connectionId']
                        for item in paginated_query(connections_table,
                                                    IndexName='user_id-index',
                                                    KeyConditionExpression='user_id = :userId',
-                                                   ExpressionAttributeValues={':userId': user_id})]
+                                                   ExpressionAttributeValues={':userId': user_id})
+                       if 'connectionId' in item]
         return connections
     
     except Exception as e:
