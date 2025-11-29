@@ -728,15 +728,13 @@ async fn get_many_related_records_handler(
 
     // If user_scoped, reject for now (not commonly used)
     if table_config.user_scoped {
-        if user_id.is_none() {
-            return (
-                StatusCode::UNAUTHORIZED,
-                [(header::CONTENT_TYPE, "application/json")],
-                Json(json!({
-                    "message": "Unauthorized",
-                })),
-            );
-        }
+        return (
+            StatusCode::FORBIDDEN,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({
+                "message": "get_many_related_records is not supported for user-scoped resources",
+            })),
+        );
     }
 
     // validate the related field against the table configuration
