@@ -1,10 +1,13 @@
+import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
 import * as events from 'aws-cdk-lib/aws-events';
 import * as event_targets from 'aws-cdk-lib/aws-events-targets';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 
 interface TaskMonitoringConstructProps {
   tasksTable: dynamodb.ITable;
@@ -21,6 +24,12 @@ export default class TaskMonitoringConstruct extends Construct {
     super(scope, id);
 
     const { tasksTable } = props;
+
+    const statusLogGroup = new logs.LogGroup(this, 'StatusLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/lambda/task-status`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     const statusLambda = new lambda.Function(this, 'StatusLambda', {
       runtime: lambda.Runtime.PYTHON_3_11,
@@ -96,6 +105,7 @@ def handler(event, context):
       },
       tracing: lambda.Tracing.ACTIVE,
       loggingFormat: lambda.LoggingFormat.JSON,
+      logGroup: statusLogGroup,
       initialPolicy: [
         new iam.PolicyStatement({
           actions: ['dynamodb:UpdateItem'],
