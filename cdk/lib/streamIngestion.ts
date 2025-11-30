@@ -13,7 +13,7 @@ import * as stepfunctions from 'aws-cdk-lib/aws-stepfunctions';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import type * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
-import ServiceLambdaConstruct from './util/serviceLambda';
+import ServiceLambdaConstruct, { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 import type TaskMonitoringConstruct from './taskMonitoring';
 
 const INGESTION_VERSION = 'v1.1.0';
@@ -92,6 +92,17 @@ The summary you generate must be not only informational for content review but a
     props.videoMetadataTable.grantReadWriteData(summarizeTranscription.lambda);
     props.openaiSecret.grantRead(summarizeTranscription.lambda);
 
+    // Create log group for Step Functions state machine
+    const stepFunctionLogGroup = new logs.LogGroup(
+      this,
+      'StreamIngestionStateMachineLogGroup',
+      {
+        logGroupName: `${LOG_GROUP_PREFIX}/stepfunctions/stream-ingestion`,
+        retention: LOG_RETENTION,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
+    );
+
     this.stepFunction = new stepfunctions.StateMachine(
       this,
       'StreamIngestionStateMachine',
@@ -102,6 +113,11 @@ The summary you generate must be not only informational for content review but a
           summarizeTranscription: summarizeTranscription.lambda,
           ...props,
         }),
+        logs: {
+          destination: stepFunctionLogGroup,
+          level: stepfunctions.LogLevel.ERROR,
+          includeExecutionData: true,
+        },
       },
     );
 
@@ -126,6 +142,16 @@ The summary you generate must be not only informational for content review but a
         actions: ['batch:TerminateJob'],
         resources: ['*'],
       }),
+    );
+
+    const stepfunctionStatusEventLogGroup = new logs.LogGroup(
+      this,
+      'StepFunctionStatusEventLogGroup',
+      {
+        logGroupName: `${LOG_GROUP_PREFIX}/lambda/stepfunction-status-event`,
+        retention: LOG_RETENTION,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
     );
 
     const stepfunctionStatusEventLambda = new lambda.Function(
@@ -159,7 +185,7 @@ def handler(event, context):
         handler: 'index.handler',
         runtime: lambda.Runtime.PYTHON_3_11,
         tracing: lambda.Tracing.ACTIVE,
-        logRetention: logs.RetentionDays.ONE_WEEK,
+        logGroup: stepfunctionStatusEventLogGroup,
         loggingFormat: lambda.LoggingFormat.JSON,
       },
     );

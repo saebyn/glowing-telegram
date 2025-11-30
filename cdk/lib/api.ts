@@ -13,7 +13,7 @@ import type * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import type * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import ServiceLambdaConstruct from './util/serviceLambda';
+import ServiceLambdaConstruct, { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 import RenderJobSubmissionLambda from './renderJobSubmissionLambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 
@@ -62,6 +62,13 @@ export default class APIConstruct extends Construct {
       },
     );
 
+    // Create log group for HTTP API access logging
+    const httpApiLogGroup = new logs.LogGroup(this, 'HttpApiLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/apigateway/http-api`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       defaultAuthorizer: authorizer,
       createDefaultStage: true,
@@ -79,6 +86,25 @@ export default class APIConstruct extends Construct {
         maxAge: cdk.Duration.days(1),
       },
     });
+
+    // Configure access logging for the default stage
+    const defaultStage = httpApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
+    if (defaultStage) {
+      defaultStage.accessLogSettings = {
+        destinationArn: httpApiLogGroup.logGroupArn,
+        format: JSON.stringify({
+          requestId: '$context.requestId',
+          ip: '$context.identity.sourceIp',
+          requestTime: '$context.requestTime',
+          httpMethod: '$context.httpMethod',
+          routeKey: '$context.routeKey',
+          status: '$context.status',
+          protocol: '$context.protocol',
+          responseLength: '$context.responseLength',
+          integrationError: '$context.integrationErrorMessage',
+        }),
+      };
+    }
 
     this.httpApi = httpApi;
 
@@ -317,6 +343,16 @@ export default class APIConstruct extends Construct {
     // configure routes
 
     // POST /stream - run stream ingestion step function
+    const streamIngestionStartLogGroup = new logs.LogGroup(
+      this,
+      'StreamIngestionStartLogGroup',
+      {
+        logGroupName: `${LOG_GROUP_PREFIX}/lambda/stream-ingestion-start`,
+        retention: LOG_RETENTION,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
+    );
+
     const streamIngestionStartStateMachineLambda = new lambda.Function(
       this,
       'StreamIngestionStartStateMachineLambda',
@@ -324,7 +360,7 @@ export default class APIConstruct extends Construct {
         tracing: lambda.Tracing.ACTIVE,
         description: 'Start stream ingestion state machine',
         timeout: cdk.Duration.seconds(10),
-        logRetention: logs.RetentionDays.ONE_WEEK,
+        logGroup: streamIngestionStartLogGroup,
         loggingFormat: lambda.LoggingFormat.JSON,
         code: lambda.Code.fromInline(`
 import json

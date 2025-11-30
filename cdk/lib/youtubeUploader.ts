@@ -11,13 +11,14 @@ import {
   type IJobQueue,
 } from 'aws-cdk-lib/aws-batch';
 import type { IEventBus } from 'aws-cdk-lib/aws-events';
-import { EcrImage } from 'aws-cdk-lib/aws-ecs';
+import { EcrImage, LogDrivers } from 'aws-cdk-lib/aws-ecs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import type TaskMonitoringConstruct from './taskMonitoring';
-import ServiceLambdaConstruct from './util/serviceLambda';
+import ServiceLambdaConstruct, { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 
 // Constants for upload status, should match the `UploadStatus` type in .../types/src/types.ts
 const UPLOAD_READY_TO_UPLOAD = 'ready_to_upload';
@@ -99,6 +100,13 @@ export default class YoutubeUploader extends Construct {
       'glowing-telegram/upload-video',
     );
 
+    // Create log group for YouTube uploader batch job
+    const uploadVideoLogGroup = new logs.LogGroup(this, 'UploadVideoLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/batch/upload-video`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const containerDefinition = new EcsFargateContainerDefinition(
       this,
       'UploadVideoContainer',
@@ -119,6 +127,10 @@ export default class YoutubeUploader extends Construct {
         },
         executionRole,
         jobRole,
+        logging: LogDrivers.awsLogs({
+          streamPrefix: 'upload-video',
+          logGroup: uploadVideoLogGroup,
+        }),
       },
     );
 
@@ -332,6 +344,17 @@ export default class YoutubeUploader extends Construct {
       }).itemProcessor(episodeProcessor),
     );
 
+    // Create log group for YouTube Uploader Step Functions state machine
+    const stepFunctionLogGroup = new logs.LogGroup(
+      this,
+      'YoutubeUploaderStateMachineLogGroup',
+      {
+        logGroupName: `${LOG_GROUP_PREFIX}/stepfunctions/youtube-uploader`,
+        retention: LOG_RETENTION,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
+    );
+
     const stepFunction = new sfn.StateMachine(
       this,
       'YoutubeUploaderStateMachine',
@@ -340,6 +363,11 @@ export default class YoutubeUploader extends Construct {
           stepFunctionDefinition,
         ),
         timeout: cdk.Duration.hours(1),
+        logs: {
+          destination: stepFunctionLogGroup,
+          level: sfn.LogLevel.ERROR,
+          includeExecutionData: true,
+        },
       },
     );
 

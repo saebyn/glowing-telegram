@@ -1,11 +1,69 @@
 import * as cdk from 'aws-cdk-lib';
 import { Template, Match } from 'aws-cdk-lib/assertions';
 import RenderJobSubmissionLambda from '../lib/renderJobSubmissionLambda';
+import ServiceLambdaConstruct, { LOG_GROUP_PREFIX, LOG_RETENTION } from '../lib/util/serviceLambda';
+import TaskMonitoringConstruct from '../lib/taskMonitoring';
 import * as batch from 'aws-cdk-lib/aws-batch';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as logs from 'aws-cdk-lib/aws-logs';
+
+// Test for log group constants
+test('Log group constants are correctly defined', () => {
+  expect(LOG_GROUP_PREFIX).toBe('/glowing-telegram');
+  expect(LOG_RETENTION).toBe(logs.RetentionDays.ONE_WEEK);
+});
+
+// Test for ServiceLambdaConstruct log group configuration
+test('ServiceLambdaConstruct creates log group with correct naming convention', () => {
+  const app = new cdk.App();
+  const stack = new cdk.Stack(app, 'TestServiceLambdaStack');
+
+  const serviceLambda = new ServiceLambdaConstruct(stack, 'TestServiceLambda', {
+    name: 'test-service',
+    lambdaOptions: {
+      description: 'Test service lambda',
+      timeout: cdk.Duration.seconds(30),
+    },
+  });
+
+  // Verify the log group was created
+  expect(serviceLambda.logGroup).toBeDefined();
+
+  const template = Template.fromStack(stack);
+
+  // Verify that a log group is created with the correct naming pattern
+  template.hasResourceProperties('AWS::Logs::LogGroup', {
+    LogGroupName: '/glowing-telegram/lambda/test-service',
+    RetentionInDays: 7,
+  });
+});
+
+// Test for TaskMonitoringConstruct log group configuration
+test('TaskMonitoringConstruct creates log group with correct naming convention', () => {
+  const app = new cdk.App();
+  const stack = new cdk.Stack(app, 'TestTaskMonitoringStack');
+
+  const tasksTable = new dynamodb.Table(stack, 'TasksTable', {
+    partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+    billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  });
+
+  new TaskMonitoringConstruct(stack, 'TestTaskMonitoring', {
+    tasksTable,
+  });
+
+  const template = Template.fromStack(stack);
+
+  // Verify that a log group is created with the correct naming pattern
+  template.hasResourceProperties('AWS::Logs::LogGroup', {
+    LogGroupName: '/glowing-telegram/lambda/task-status',
+    RetentionInDays: 7,
+  });
+});
 
 // Test for render job submission lambda and storage increase
 test('Render Job Storage Increased and Lambda Contains Splitting Logic', () => {

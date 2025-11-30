@@ -7,9 +7,11 @@ import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
+import { LOG_GROUP_PREFIX, LOG_RETENTION } from '../util/serviceLambda';
 
 interface VideoIngestorConstructProps {
   videoArchiveBucket: s3.IBucket;
@@ -58,6 +60,13 @@ export default class VideoIngestorConstruct extends Construct {
       'glowing-telegram/video-ingestor',
     );
 
+    // Create log group for video ingestor batch job
+    const logGroup = new logs.LogGroup(this, 'LogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/batch/video-ingestor`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const containerDefinition = new batch.EcsFargateContainerDefinition(
       this,
       'JobContainerDefinition',
@@ -80,6 +89,10 @@ export default class VideoIngestorConstruct extends Construct {
           NOISE_TOLERANCE: '0.004',
           SILENCE_DURATION: '30',
         },
+        logging: ecs.LogDrivers.awsLogs({
+          streamPrefix: 'video-ingestor',
+          logGroup,
+        }),
       },
     );
 
