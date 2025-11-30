@@ -8,6 +8,8 @@ import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import { LOG_GROUP_PREFIX, LOG_RETENTION } from '../util/serviceLambda';
 
 interface EmbeddingServiceConstructProps {
   videoMetadataTable: dynamodb.ITable;
@@ -56,6 +58,13 @@ export default class EmbeddingServiceConstruct extends Construct {
       'glowing-telegram/embedding-service',
     );
 
+    // Create log group for embedding service batch job
+    const logGroup = new logs.LogGroup(this, 'LogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/batch/embedding-service`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const containerDefinition = new batch.EcsFargateContainerDefinition(
       this,
       'JobContainerDefinition',
@@ -76,6 +85,10 @@ export default class EmbeddingServiceConstruct extends Construct {
           OPENAI_SECRET_ARN: props.openaiSecret.secretArn,
           OPENAI_MODEL: 'text-embedding-3-small',
         },
+        logging: ecs.LogDrivers.awsLogs({
+          streamPrefix: 'embedding-service',
+          logGroup,
+        }),
       },
     );
 

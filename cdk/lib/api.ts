@@ -62,6 +62,13 @@ export default class APIConstruct extends Construct {
       },
     );
 
+    // Create log group for HTTP API access logging
+    const httpApiLogGroup = new logs.LogGroup(this, 'HttpApiLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/apigateway/http-api`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       defaultAuthorizer: authorizer,
       createDefaultStage: true,
@@ -79,6 +86,25 @@ export default class APIConstruct extends Construct {
         maxAge: cdk.Duration.days(1),
       },
     });
+
+    // Configure access logging for the default stage
+    const defaultStage = httpApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
+    if (defaultStage) {
+      defaultStage.accessLogSettings = {
+        destinationArn: httpApiLogGroup.logGroupArn,
+        format: JSON.stringify({
+          requestId: '$context.requestId',
+          ip: '$context.identity.sourceIp',
+          requestTime: '$context.requestTime',
+          httpMethod: '$context.httpMethod',
+          routeKey: '$context.routeKey',
+          status: '$context.status',
+          protocol: '$context.protocol',
+          responseLength: '$context.responseLength',
+          integrationError: '$context.integrationErrorMessage',
+        }),
+      };
+    }
 
     this.httpApi = httpApi;
 

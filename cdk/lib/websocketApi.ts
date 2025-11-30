@@ -51,6 +51,13 @@ export default class WebSocketAPIConstruct extends Construct {
       description: 'WebSocket API for task updates',
     });
 
+    // Create log group for WebSocket API access logging
+    const webSocketApiLogGroup = new logs.LogGroup(this, 'WebSocketApiLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/apigateway/websocket-api`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     // Create a production stage for the WebSocket API
     this.webSocketStage = new apigwv2.WebSocketStage(
       this,
@@ -61,6 +68,24 @@ export default class WebSocketAPIConstruct extends Construct {
         autoDeploy: true,
       },
     );
+
+    // Configure access logging for the WebSocket stage
+    const webSocketStage = this.webSocketStage.node.defaultChild as apigwv2.CfnStage;
+    if (webSocketStage) {
+      webSocketStage.accessLogSettings = {
+        destinationArn: webSocketApiLogGroup.logGroupArn,
+        format: JSON.stringify({
+          requestId: '$context.requestId',
+          ip: '$context.identity.sourceIp',
+          requestTime: '$context.requestTime',
+          eventType: '$context.eventType',
+          routeKey: '$context.routeKey',
+          status: '$context.status',
+          connectionId: '$context.connectionId',
+          integrationError: '$context.integrationErrorMessage',
+        }),
+      };
+    }
 
     // Create explicit log group for authorizer lambda
     const authorizerLogGroup = new logs.LogGroup(this, 'AuthorizerLogGroup', {

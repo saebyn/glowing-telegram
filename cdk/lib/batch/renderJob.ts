@@ -7,8 +7,10 @@ import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as events from 'aws-cdk-lib/aws-events';
 import type TaskMonitoringConstruct from '../taskMonitoring';
+import { LOG_GROUP_PREFIX, LOG_RETENTION } from '../util/serviceLambda';
 
 interface RenderJobConstructProps {
   inputBucket: s3.IBucket;
@@ -51,6 +53,13 @@ export default class RenderJobConstruct extends Construct {
       'glowing-telegram/render-job',
     );
 
+    // Create log group for render batch job
+    const logGroup = new logs.LogGroup(this, 'LogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/batch/render-job`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const containerDefinition = new batch.EcsFargateContainerDefinition(
       this,
       'RenderJobContainerDefinition',
@@ -68,6 +77,10 @@ export default class RenderJobConstruct extends Construct {
           DYNAMODB_TABLE: props.episodeTable.tableName,
         },
         ephemeralStorageSize: cdk.Size.gibibytes(100),
+        logging: ecs.LogDrivers.awsLogs({
+          streamPrefix: 'render-job',
+          logGroup,
+        }),
       },
     );
 
