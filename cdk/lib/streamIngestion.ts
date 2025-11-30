@@ -92,6 +92,17 @@ The summary you generate must be not only informational for content review but a
     props.videoMetadataTable.grantReadWriteData(summarizeTranscription.lambda);
     props.openaiSecret.grantRead(summarizeTranscription.lambda);
 
+    // Create log group for Step Functions state machine
+    const stepFunctionLogGroup = new logs.LogGroup(
+      this,
+      'StreamIngestionStateMachineLogGroup',
+      {
+        logGroupName: `${LOG_GROUP_PREFIX}/stepfunctions/stream-ingestion`,
+        retention: LOG_RETENTION,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
+    );
+
     this.stepFunction = new stepfunctions.StateMachine(
       this,
       'StreamIngestionStateMachine',
@@ -102,6 +113,11 @@ The summary you generate must be not only informational for content review but a
           summarizeTranscription: summarizeTranscription.lambda,
           ...props,
         }),
+        logs: {
+          destination: stepFunctionLogGroup,
+          level: stepfunctions.LogLevel.ERROR,
+          includeExecutionData: true,
+        },
       },
     );
 
