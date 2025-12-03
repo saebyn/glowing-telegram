@@ -784,12 +784,15 @@ async fn get_many_related_records_handler(
         None => true,
     };
 
+    // Set a reasonable upper bound for perPage to prevent abuse
+    const MAX_PER_PAGE: u32 = 100;
     let query_options = dynamodb::QueryOptions {
         page: dynamodb::PageOptions {
             cursor,
             limit: query
                 .get("perPage")
                 .and_then(|s| s.parse().ok())
+                .filter(|&n| n > 0 && n <= MAX_PER_PAGE)
                 .unwrap_or(10),
         },
         scan_index_forward,
