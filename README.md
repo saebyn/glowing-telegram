@@ -407,7 +407,7 @@ The `embedding_service` generates vector embeddings for semantic search capabili
 
 **Infrastructure:**
 - Aurora Serverless v2 PostgreSQL with pgvector extension
-- Minimum capacity: 0.5 ACU, Maximum: 1 ACU
+- Minimum capacity: 0.5 ACU, Maximum: 4 ACU
 - Automatic scaling based on load
 - VPC-isolated database cluster
 
