@@ -537,7 +537,7 @@ new RepoConstruct(this, 'RepoConstruct', {
     'ai-chat-lambda',
     'audio-transcription',
     'chat-processor-lambda',
-    'crud-api',
+    'crud-lambda',
     'embedding-service',
     'media-lambda',
     'render-job',
