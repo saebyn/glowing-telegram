@@ -88,7 +88,7 @@ The platform is divided into specialized repositories:
 - User-scoped CRUD API with automatic user_id injection
 
 **Scalability Improvements:**
-- Aurora Serverless v2 auto-scales from 0.5 to 1 ACU
+- Aurora Serverless v2 auto-scales from 0.5 to 4 ACU
 - AWS Batch with spot instances for cost-effective GPU compute
 - SQS-based chat processing decouples ingestion from storage
 - WebSocket connection pooling for real-time features
