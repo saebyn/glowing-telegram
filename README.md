@@ -541,7 +541,7 @@ new RepoConstruct(this, 'RepoConstruct', {
     'embedding-service',
     'media-lambda',
     'render-job',
-    'summarize-transcription',
+    'summarize-transcription-lambda',
     'twitch-lambda',
     'upload-video',
     'video-ingestor',
