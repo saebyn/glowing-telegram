@@ -88,3 +88,33 @@ pub async fn validate_token(
 
     Ok(body)
 }
+
+/// Obtain an app access token using the client credentials flow.
+/// This is required for creating `EventSub` webhook subscriptions.
+pub async fn get_app_access_token(
+    credentials: &crate::structs::TwitchCredentials,
+) -> Result<String, AppAccessTokenError> {
+    use oauth2::TokenResponse;
+
+    let client = get_oauth_client(credentials)?;
+
+    let token_response = client
+        .exchange_client_credentials()
+        .request_async(oauth2::reqwest::async_http_client)
+        .await
+        .map_err(|e| AppAccessTokenError::TokenRequest(format!("{e:?}")))?;
+
+    Ok(token_response.access_token().secret().clone())
+}
+
+#[derive(Debug)]
+pub enum AppAccessTokenError {
+    UrlParse(oauth2::url::ParseError),
+    TokenRequest(String),
+}
+
+impl From<oauth2::url::ParseError> for AppAccessTokenError {
+    fn from(err: oauth2::url::ParseError) -> Self {
+        Self::UrlParse(err)
+    }
+}
