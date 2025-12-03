@@ -366,7 +366,7 @@ pub async fn subscribe_chat_handler(
         match twitch::get_app_access_token(&state.twitch_credentials).await {
             Ok(token) => token,
             Err(e) => {
-                tracing::error!("Failed to obtain app access token: {:?}", e);
+                tracing::error!("Failed to obtain app access token: {}", e);
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(json!(SubscribeChatResponse {

@@ -113,6 +113,26 @@ pub enum AppAccessTokenError {
     TokenRequest(String),
 }
 
+impl std::fmt::Display for AppAccessTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UrlParse(err) => write!(f, "URL parse error: {err}"),
+            Self::TokenRequest(msg) => {
+                write!(f, "Token request error: {msg}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for AppAccessTokenError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::UrlParse(err) => Some(err),
+            Self::TokenRequest(_) => None,
+        }
+    }
+}
+
 impl From<oauth2::url::ParseError> for AppAccessTokenError {
     fn from(err: oauth2::url::ParseError) -> Self {
         Self::UrlParse(err)
