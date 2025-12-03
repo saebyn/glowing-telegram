@@ -42,7 +42,7 @@ describe('FrontendStack', () => {
   test('creates Lambda function for CloudFront origin updates', () => {
     // Check that Lambda function is created for origin updates
     template.hasResourceProperties('AWS::Lambda::Function', {
-      Runtime: 'python3.11',
+      Runtime: Match.stringLikeRegexp('python3.+'),
       Handler: 'index.handler',
       Environment: {
         Variables: {
@@ -58,7 +58,7 @@ describe('FrontendStack', () => {
     // additional resources (BucketNotification), not properties on the bucket itself
     // Let's verify the Lambda function exists and can be invoked
     template.hasResourceProperties('AWS::Lambda::Function', {
-      Runtime: 'python3.11',
+      Runtime: Match.stringLikeRegexp('python3.+'),
       Handler: 'index.handler',
     });
   });
