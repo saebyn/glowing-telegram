@@ -101,7 +101,7 @@ ENTRYPOINT ["/bootstrap"]
 # audio_transcriber
 FROM runtime AS audio_transcriber
 
-RUN pip3 install --break-system-packages transformers torch torchaudio accelerate huggingface_hub
+RUN pip3 install pipenv
 
 RUN mkdir /model
 RUN chown ${USER}:${USER} /model
@@ -119,6 +119,11 @@ ARG DOWNLOAD_MODEL_AT_BUILD=true
 
 COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/download_model.py /app/download_model.py
 COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/whisper_hf.py /app/whisper_hf.py
+COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/Pipfile /app/Pipfile
+COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/Pipfile.lock /app/Pipfile.lock
+
+WORKDIR /app
+RUN pipenv install --deploy --system
 
 # Conditionally download model at build time
 # If DOWNLOAD_MODEL_AT_BUILD=false, model will be downloaded at runtime
