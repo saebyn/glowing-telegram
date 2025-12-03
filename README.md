@@ -547,6 +547,7 @@ new RepoConstruct(this, 'RepoConstruct', {
     'video-ingestor',
     'websocket-lambda',
     'youtube-lambda',
+    'youtube-uploader-lambda',
     'my-service',  // Add your service here
   ],
 });
