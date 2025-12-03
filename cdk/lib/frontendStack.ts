@@ -83,7 +83,7 @@ export default class FrontendStack extends cdk.Stack {
       this,
       'OriginUpdaterFunction',
       {
-        runtime: lambda.Runtime.PYTHON_3_11,
+        runtime: lambda.Runtime.PYTHON_3_13,
         handler: 'index.handler',
         timeout: cdk.Duration.minutes(5),
         logGroup: originUpdaterLogGroup,
@@ -92,6 +92,7 @@ export default class FrontendStack extends cdk.Stack {
         code: lambda.Code.fromInline(`
 import json
 import time
+import os
 import boto3
 import logging
 from urllib.parse import unquote_plus
@@ -105,7 +106,6 @@ cloudfront = boto3.client('cloudfront')
 s3 = boto3.client('s3')
 
 # Configuration constants
-DISTRIBUTION_ID = '${this.distribution.distributionId}'
 DISTRIBUTION_ID = os.environ.get('DISTRIBUTION_ID')
 FALLBACK_VERSION = os.environ.get('FALLBACK_VERSION')
 

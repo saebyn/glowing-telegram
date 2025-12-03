@@ -32,7 +32,7 @@ export default class TaskMonitoringConstruct extends Construct {
     });
 
     const statusLambda = new lambda.Function(this, 'StatusLambda', {
-      runtime: lambda.Runtime.PYTHON_3_11,
+      runtime: lambda.Runtime.PYTHON_3_13,
       code: lambda.Code.fromInline(`
 import json
 import os

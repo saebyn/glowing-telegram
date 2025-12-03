@@ -424,7 +424,7 @@ def handler(event, context):
     }
 `),
         handler: 'index.handler',
-        runtime: lambda.Runtime.PYTHON_3_11,
+        runtime: lambda.Runtime.PYTHON_3_13,
         environment: {
           STATE_MACHINE_ARN: props.streamIngestionFunction.stateMachineArn,
         },

@@ -183,7 +183,7 @@ def handler(event, context):
   )
 `),
         handler: 'index.handler',
-        runtime: lambda.Runtime.PYTHON_3_11,
+        runtime: lambda.Runtime.PYTHON_3_13,
         tracing: lambda.Tracing.ACTIVE,
         logGroup: stepfunctionStatusEventLogGroup,
         loggingFormat: lambda.LoggingFormat.JSON,
