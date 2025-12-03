@@ -597,7 +597,7 @@ esac
 
 **Important Notes:**
 - All Lambda functions must use containerized deployments
-- Python lambdas should use the Python 3.12 runtime base
+- Python lambdas should use the Python 3 runtime base
 - Rust services compile in Docker with cargo-lambda
 - GPU services (transcription) use g4dn instances in AWS Batch
 
