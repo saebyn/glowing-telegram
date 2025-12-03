@@ -360,6 +360,24 @@ pub async fn subscribe_chat_handler(
         }
     };
 
+    // Obtain an app access token for creating the webhook subscription
+    // Twitch requires app access tokens (not user access tokens) for webhook subscriptions
+    let app_access_token =
+        match twitch::get_app_access_token(&state.twitch_credentials).await {
+            Ok(token) => token,
+            Err(e) => {
+                tracing::error!("Failed to obtain app access token: {:?}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!(SubscribeChatResponse {
+                        subscription_id: None,
+                        status: "app_token_error".to_string(),
+                    })),
+                )
+                    .into_response();
+            }
+        };
+
     // Create EventSub subscription request
     let subscription_request = EventSubSubscriptionRequest {
         event_type: "channel.chat.message".to_string(),
@@ -390,11 +408,11 @@ pub async fn subscribe_chat_handler(
         },
     };
 
-    // Make the subscription request to Twitch
+    // Make the subscription request to Twitch using the app access token
     let client = reqwest::Client::new();
     let response = match client
         .post("https://api.twitch.tv/helix/eventsub/subscriptions")
-        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Authorization", format!("Bearer {}", app_access_token))
         .header("Client-Id", &state.twitch_credentials.id)
         .header("Content-Type", "application/json")
         .json(&subscription_request)
