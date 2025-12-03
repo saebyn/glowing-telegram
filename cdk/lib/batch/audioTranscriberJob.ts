@@ -8,6 +8,8 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import type * as efs from 'aws-cdk-lib/aws-efs';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import { LOG_GROUP_PREFIX, LOG_RETENTION } from '../util/serviceLambda';
 
 interface AudioTranscriberJobConstructProps {
   outputBucket: s3.IBucket;
@@ -65,6 +67,12 @@ export default class AudioTranscriberJobConstruct extends Construct {
       enableTransitEncryption: true,
       useJobRole: true,
     });
+    // Create log group for audio transcriber batch job
+    const logGroup = new logs.LogGroup(this, 'LogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/batch/audio-transcriber`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     const containerDefinition = new batch.EcsEc2ContainerDefinition(
       this,
@@ -96,6 +104,11 @@ export default class AudioTranscriberJobConstruct extends Construct {
         executionRole,
 
         jobRole,
+
+        logging: ecs.LogDrivers.awsLogs({
+          streamPrefix: 'audio-transcriber',
+          logGroup,
+        }),
       },
     );
 

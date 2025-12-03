@@ -10,6 +10,7 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import { WebSocketLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { WebSocketLambdaAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 
 interface WebSocketAPIConstructProps {
   userPool: cognito.IUserPool;
@@ -50,6 +51,13 @@ export default class WebSocketAPIConstruct extends Construct {
       description: 'WebSocket API for task updates',
     });
 
+    // Create log group for WebSocket API access logging
+    const webSocketApiLogGroup = new logs.LogGroup(this, 'WebSocketApiLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/apigateway/websocket-api`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     // Create a production stage for the WebSocket API
     this.webSocketStage = new apigwv2.WebSocketStage(
       this,
@@ -60,6 +68,31 @@ export default class WebSocketAPIConstruct extends Construct {
         autoDeploy: true,
       },
     );
+
+    // Configure access logging for the WebSocket stage
+    const webSocketStage = this.webSocketStage.node.defaultChild as apigwv2.CfnStage;
+    if (webSocketStage) {
+      webSocketStage.accessLogSettings = {
+        destinationArn: webSocketApiLogGroup.logGroupArn,
+        format: JSON.stringify({
+          requestId: '$context.requestId',
+          ip: '$context.identity.sourceIp',
+          requestTime: '$context.requestTime',
+          eventType: '$context.eventType',
+          routeKey: '$context.routeKey',
+          status: '$context.status',
+          connectionId: '$context.connectionId',
+          integrationError: '$context.integrationErrorMessage',
+        }),
+      };
+    }
+
+    // Create explicit log group for authorizer lambda
+    const authorizerLogGroup = new logs.LogGroup(this, 'AuthorizerLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/lambda/websocket-authorizer`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     // Create the authorizer Lambda for WebSocket API (Python)
     const authorizerLambda = new lambdaPython.PythonFunction(
@@ -76,10 +109,17 @@ export default class WebSocketAPIConstruct extends Construct {
           USER_POOL_ID: props.userPool.userPoolId,
           USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
         },
-        logRetention: logs.RetentionDays.ONE_WEEK,
+        logGroup: authorizerLogGroup,
         loggingFormat: lambda.LoggingFormat.JSON,
       },
     );
+
+    // Create explicit log group for connect handler
+    const connectLogGroup = new logs.LogGroup(this, 'ConnectLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/lambda/websocket-connect`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     // Create Lambda for handling WebSocket connect events (Python)
     const connectHandler = new lambda.Function(this, 'ConnectHandler', {
@@ -138,8 +178,15 @@ def handler(event, context):
       environment: {
         CONNECTIONS_TABLE: this.connectionsTable.tableName,
       },
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: connectLogGroup,
       loggingFormat: lambda.LoggingFormat.JSON,
+    });
+
+    // Create explicit log group for disconnect handler
+    const disconnectLogGroup = new logs.LogGroup(this, 'DisconnectLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/lambda/websocket-disconnect`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     // Create Lambda for handling WebSocket disconnect events (Python)
@@ -186,8 +233,15 @@ def handler(event, context):
       environment: {
         CONNECTIONS_TABLE: this.connectionsTable.tableName,
       },
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: disconnectLogGroup,
       loggingFormat: lambda.LoggingFormat.JSON,
+    });
+
+    // Create explicit log group for task change handler
+    const taskChangeLogGroup = new logs.LogGroup(this, 'TaskChangeLogGroup', {
+      logGroupName: `${LOG_GROUP_PREFIX}/lambda/websocket-task-change`,
+      retention: LOG_RETENTION,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     // Create Lambda for handling task changes and publishing to WebSocket (Python)
@@ -333,7 +387,7 @@ def deserialize_dynamodb_item(item):
         CONNECTIONS_TABLE: this.connectionsTable.tableName,
         WEBSOCKET_ENDPOINT: this.webSocketStage.url,
       },
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: taskChangeLogGroup,
       loggingFormat: lambda.LoggingFormat.JSON,
     });
 

@@ -5,9 +5,11 @@ import * as s3deployment from 'aws-cdk-lib/aws-s3-deployment';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import * as path from 'node:path';
+import { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 
 interface FrontendStackProps extends cdk.StackProps {
   // Frontend version used as fallback if config file is not available
@@ -65,6 +67,17 @@ export default class FrontendStack extends cdk.Stack {
 
     this.domainName = this.distribution.distributionDomainName;
 
+    // Create explicit log group for origin updater function
+    const originUpdaterLogGroup = new logs.LogGroup(
+      this,
+      'OriginUpdaterLogGroup',
+      {
+        logGroupName: `${LOG_GROUP_PREFIX}/lambda/frontend-origin-updater`,
+        retention: LOG_RETENTION,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
+    );
+
     // Create Lambda function to handle CloudFront origin updates
     const originUpdaterFunction = new lambda.Function(
       this,
@@ -73,6 +86,9 @@ export default class FrontendStack extends cdk.Stack {
         runtime: lambda.Runtime.PYTHON_3_11,
         handler: 'index.handler',
         timeout: cdk.Duration.minutes(5),
+        logGroup: originUpdaterLogGroup,
+        tracing: lambda.Tracing.ACTIVE,
+        loggingFormat: lambda.LoggingFormat.JSON,
         code: lambda.Code.fromInline(`
 import json
 import time
