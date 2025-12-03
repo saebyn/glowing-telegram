@@ -87,6 +87,8 @@ export default class FrontendStack extends cdk.Stack {
         handler: 'index.handler',
         timeout: cdk.Duration.minutes(5),
         logGroup: originUpdaterLogGroup,
+        tracing: lambda.Tracing.ACTIVE,
+        loggingFormat: lambda.LoggingFormat.JSON,
         code: lambda.Code.fromInline(`
 import json
 import time
