@@ -37,7 +37,7 @@ test('ServiceLambdaConstruct creates log group with correct naming convention', 
 
   // Verify that a log group is created with the correct naming pattern
   template.hasResourceProperties('AWS::Logs::LogGroup', {
-    LogGroupName: '/glowing-telegram/lambda/test-service',
+    LogGroupName: '/glowing-telegram/lambda/test-service-TestServiceLambda',
     RetentionInDays: 7,
   });
 });
