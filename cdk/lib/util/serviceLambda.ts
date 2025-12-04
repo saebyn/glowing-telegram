@@ -15,6 +15,7 @@ interface ServiceLambdaConstructProps {
   name: string;
   tagOrDigest?: string;
   imageVersion?: string;
+  logGroupName?: string;
 }
 
 export default class ServiceLambdaConstruct extends Construct {
@@ -36,8 +37,10 @@ export default class ServiceLambdaConstruct extends Construct {
     );
 
     // Create explicit log group with consistent naming
+    // If logGroupName is provided, use it; otherwise use name-id for uniqueness
+    const logGroupName = props.logGroupName || `${props.name}-${id}`;
     this.logGroup = new logs.LogGroup(this, 'LogGroup', {
-      logGroupName: `${LOG_GROUP_PREFIX}/lambda/${props.name}`,
+      logGroupName: `${LOG_GROUP_PREFIX}/lambda/${logGroupName}`,
       retention: LOG_RETENTION,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
