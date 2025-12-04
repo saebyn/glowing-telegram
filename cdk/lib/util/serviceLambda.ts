@@ -15,6 +15,10 @@ interface ServiceLambdaConstructProps {
   name: string;
   tagOrDigest?: string;
   imageVersion?: string;
+  /**
+   * Optional custom log group name. If not provided, defaults to the name parameter.
+   * Use this to avoid conflicts when multiple lambdas share the same name.
+   */
   logGroupName?: string;
 }
 
