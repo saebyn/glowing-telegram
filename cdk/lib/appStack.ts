@@ -83,6 +83,8 @@ export default class AppStack extends cdk.Stack {
       {
         outputBucket: dataStore.outputBucket,
         videoMetadataTable: dataStore.videoMetadataTable,
+        modelCacheFileSystem: batchEnvironment.modelCacheFileSystem,
+        modelCacheAccessPoint: batchEnvironment.modelCacheAccessPoint,
         imageVersion,
       },
     );

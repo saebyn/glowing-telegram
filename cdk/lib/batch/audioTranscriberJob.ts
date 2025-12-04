@@ -7,12 +7,15 @@ import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
+import type * as efs from 'aws-cdk-lib/aws-efs';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { LOG_GROUP_PREFIX, LOG_RETENTION } from '../util/serviceLambda';
 
 interface AudioTranscriberJobConstructProps {
   outputBucket: s3.IBucket;
   videoMetadataTable: dynamodb.ITable;
+  modelCacheFileSystem: efs.FileSystem;
+  modelCacheAccessPoint: efs.AccessPoint;
   imageVersion?: string;
 }
 
@@ -45,12 +48,25 @@ export default class AudioTranscriberJobConstruct extends Construct {
     props.videoMetadataTable.grantReadWriteData(jobRole);
     props.outputBucket.grantRead(jobRole);
 
+    // Grant EFS access to the job role
+    props.modelCacheFileSystem.grantReadWrite(jobRole);
+
     const repo = ecr.Repository.fromRepositoryName(
       this,
       'AudioTranscriberJobRepository',
       'glowing-telegram/audio-transcription',
     );
 
+    // Define EFS volume for model caching
+    const modelCacheVolume = batch.EcsVolume.efs({
+      name: 'model-cache',
+      containerPath: '/mnt/efs/models',
+      fileSystem: props.modelCacheFileSystem,
+      accessPointId: props.modelCacheAccessPoint.accessPointId,
+      rootDirectory: '/',
+      enableTransitEncryption: true,
+      useJobRole: true,
+    });
     // Create log group for audio transcriber batch job
     const logGroup = new logs.LogGroup(this, 'LogGroup', {
       logGroupName: `${LOG_GROUP_PREFIX}/batch/audio-transcriber`,
@@ -73,7 +89,10 @@ export default class AudioTranscriberJobConstruct extends Construct {
           DYNAMODB_TABLE: props.videoMetadataTable.tableName,
           NVIDIA_DRIVER_CAPABILITIES: 'all',
           RUST_LOG: 'info',
+          HF_HOME: '/mnt/efs/models',  // HuggingFace model cache directory on EFS
         },
+
+        volumes: [modelCacheVolume],
 
         command: [
           'Ref::item_key',

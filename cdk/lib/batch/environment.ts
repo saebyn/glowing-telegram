@@ -1,8 +1,9 @@
-import type * as cdk from 'aws-cdk-lib';
+import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
 import * as batch from 'aws-cdk-lib/aws-batch';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as efs from 'aws-cdk-lib/aws-efs';
 
 interface BatchEnvironmentConstructProps {
   vpc: ec2.IVpc;
@@ -14,6 +15,8 @@ interface BatchEnvironmentConstructProps {
 export default class BatchEnvironmentConstruct extends Construct {
   cpuJobQueue: batch.IJobQueue;
   gpuJobQueue: cdk.aws_batch.JobQueue;
+  modelCacheFileSystem: efs.FileSystem;
+  modelCacheAccessPoint: efs.AccessPoint;
 
   constructor(
     scope: Construct,
@@ -27,6 +30,43 @@ export default class BatchEnvironmentConstruct extends Construct {
     const sg = new ec2.SecurityGroup(this, 'SecurityGroup', {
       vpc,
       allowAllOutbound: true,
+    });
+
+    // Create EFS for model caching (used by audio transcriber for HuggingFace models)
+    const modelCacheSecurityGroup = new ec2.SecurityGroup(this, 'ModelCacheSecurityGroup', {
+      vpc,
+      allowAllOutbound: true,
+      description: 'Security group for model cache EFS',
+    });
+
+    // Allow NFS traffic from batch compute security group
+    modelCacheSecurityGroup.addIngressRule(
+      sg,
+      ec2.Port.tcp(2049),
+      'Allow NFS from Batch compute instances',
+    );
+
+    this.modelCacheFileSystem = new efs.FileSystem(this, 'ModelCacheFileSystem', {
+      vpc,
+      securityGroup: modelCacheSecurityGroup,
+      performanceMode: efs.PerformanceMode.GENERAL_PURPOSE,
+      throughputMode: efs.ThroughputMode.BURSTING,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      lifecyclePolicy: efs.LifecyclePolicy.AFTER_30_DAYS,
+    });
+
+    // Create access point for the model cache
+    this.modelCacheAccessPoint = this.modelCacheFileSystem.addAccessPoint('ModelCacheAccessPoint', {
+      path: '/models',
+      createAcl: {
+        ownerUid: '10001',  // Match the USER UID in Dockerfile
+        ownerGid: '10001',
+        permissions: '755',
+      },
+      posixUser: {
+        uid: '10001',
+        gid: '10001',
+      },
     });
 
     const fargateComputeEnvironment = new batch.FargateComputeEnvironment(
