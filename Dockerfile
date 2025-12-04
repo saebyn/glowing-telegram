@@ -123,7 +123,7 @@ COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/Pipfile 
 COPY --from=rust_builder --chown=${USER}:${USER} /app/audio_transcriber/Pipfile.lock /app/Pipfile.lock
 
 WORKDIR /app
-RUN pipenv install --deploy --system
+RUN pipenv install --deploy
 
 # Conditionally download model at build time
 # If DOWNLOAD_MODEL_AT_BUILD=false, model will be downloaded at runtime
