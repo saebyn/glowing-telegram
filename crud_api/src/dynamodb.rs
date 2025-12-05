@@ -162,49 +162,187 @@ pub async fn list(
     Ok(payload)
 }
 
+#[derive(Debug)]
+pub struct QueryOptions {
+    pub page: PageOptions,
+    pub scan_index_forward: bool,
+    pub filters: serde_json::Map<String, serde_json::Value>,
+}
+
+impl Default for QueryOptions {
+    fn default() -> Self {
+        Self {
+            page: PageOptions {
+                limit: DEFAULT_PAGE_LIMIT,
+                cursor: None,
+            },
+            scan_index_forward: true,
+            filters: serde_json::Map::new(),
+        }
+    }
+}
+
 #[tracing::instrument(skip(client))]
 pub async fn query(
     client: &Client,
     table_config: &DynamoDbTableConfig<'_>,
     indexed_field: &str,
     value: serde_json::Value,
+    options: QueryOptions,
 ) -> Result<ListResult, Error> {
-    let query = client
-        .query()
-        .table_name(table_config.table)
-        .index_name(format!("{indexed_field}-index"))
-        .expression_attribute_names("#k", indexed_field)
-        .expression_attribute_values(
-            ":v",
-            convert_json_to_attribute_value(value),
-        )
-        .key_condition_expression("#k = :v");
-
-    let query_output = match query.send().await {
-        Ok(query_output) => query_output,
-        Err(err) => {
-            tracing::error!(
-                "Failed to query table {} on index {}: {:?}",
-                table_config.table,
-                indexed_field,
-                err
+    let mut items = Vec::new();
+    let mut last_key = options.page.cursor.map(|c| {
+        let cursor_parts: Vec<&str> = c.split('|').collect();
+        if cursor_parts.len() >= 2 {
+            let mut key_map = HashMap::new();
+            key_map.insert(
+                table_config.partition_key.to_string(),
+                AttributeValue::S(cursor_parts[0].to_string()),
             );
-
-            return Err(Box::new(err));
+            key_map.insert(
+                table_config.q_key.to_string(),
+                AttributeValue::S(cursor_parts[1].to_string()),
+            );
+            if cursor_parts.len() == 3 {
+                key_map.insert(
+                    indexed_field.to_string(),
+                    AttributeValue::S(cursor_parts[2].to_string()),
+                );
+            }
+            key_map
+        } else {
+            HashMap::from([(
+                table_config.partition_key.to_string(),
+                AttributeValue::S(c),
+            )])
         }
+    });
+
+    let limit = if options.page.limit > 0 {
+        options.page.limit
+    } else {
+        DEFAULT_PAGE_LIMIT
     };
 
-    let items = query_output
-        .items
-        .unwrap_or_default()
-        .iter()
-        .map(|item| convert_hm_to_json(item.clone()))
-        .collect::<Vec<serde_json::Value>>();
+    // Build filter expressions for additional filters beyond the indexed field
+    let (
+        filter_expression,
+        expression_attribute_names,
+        expression_attribute_values,
+    ) = build_filter_expressions(table_config, &options.filters);
 
-    Ok(ListResult {
-        cursor: None,
-        items,
-    })
+    loop {
+        tracing::info!(
+            "Querying table: {0} on index: {1}, with limit: {2}, cursor: {3:?}",
+            table_config.table,
+            indexed_field,
+            limit,
+            last_key
+        );
+
+        let mut query_builder = client
+            .query()
+            .table_name(table_config.table)
+            .index_name(format!("{indexed_field}-timestamp-index"))
+            .expression_attribute_names("#k", indexed_field)
+            .expression_attribute_values(
+                ":v",
+                convert_json_to_attribute_value(value.clone()),
+            )
+            .key_condition_expression("#k = :v")
+            .scan_index_forward(options.scan_index_forward);
+
+        // Apply filter expression if present
+        if let Some(filter_expr) = filter_expression.clone() {
+            tracing::info!("Applying filter expression: {0}", filter_expr);
+
+            // Merge attribute names and values
+            let mut merged_names = expression_attribute_names.clone();
+            merged_names.insert("#k".to_string(), indexed_field.to_string());
+
+            query_builder = query_builder
+                .filter_expression(filter_expr)
+                .set_expression_attribute_names(Some(merged_names));
+
+            let mut merged_values = expression_attribute_values.clone();
+            merged_values.insert(
+                ":v".to_string(),
+                convert_json_to_attribute_value(value.clone()),
+            );
+
+            if !merged_values.is_empty() {
+                query_builder = query_builder
+                    .set_expression_attribute_values(Some(merged_values));
+            }
+        }
+
+        // Apply cursor pagination
+        if let Some(key) = last_key.clone() {
+            query_builder = query_builder.set_exclusive_start_key(Some(key));
+        }
+
+        let remaining = limit - i32::try_from(items.len())?;
+        if remaining <= 0 {
+            tracing::info!("Reached the limit of {0} items", limit);
+            break;
+        }
+        query_builder = query_builder.limit(remaining);
+
+        let query_output = match query_builder.send().await {
+            Ok(query_output) => query_output,
+            Err(err) => {
+                tracing::error!(
+                    "Failed to query table {} on index {}: {:?}",
+                    table_config.table,
+                    indexed_field,
+                    err
+                );
+
+                return Err(Box::new(err));
+            }
+        };
+
+        let new_items = query_output
+            .items
+            .unwrap_or_default()
+            .iter()
+            .map(|item| convert_hm_to_json(item.clone()))
+            .collect::<Vec<serde_json::Value>>();
+        items.extend(new_items);
+
+        if let Some(k) = query_output.last_evaluated_key {
+            last_key = Some(k);
+        } else {
+            // No more items to query
+            tracing::info!("No more items to query");
+            last_key = None;
+            break;
+        }
+    }
+
+    tracing::info!("Returning {0} items", items.len());
+
+    // Build cursor from last_key
+    let cursor = last_key.map(|k| {
+        let pk = k
+            .get(table_config.partition_key)
+            .and_then(|v| v.as_s().ok())
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let sk = k
+            .get(table_config.q_key)
+            .and_then(|v| v.as_s().ok())
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let idx = k
+            .get(indexed_field)
+            .and_then(|v| v.as_s().ok())
+            .map(|s| format!("|{s}"))
+            .unwrap_or_default();
+        format!("{pk}|{sk}{idx}")
+    });
+
+    Ok(ListResult { items, cursor })
 }
 
 pub struct GetRecordResult(pub Option<serde_json::Value>);
