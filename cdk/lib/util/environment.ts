@@ -27,7 +27,10 @@ export function loadEnvironmentConfig(environmentName?: string): {
   name: string;
   config: EnvironmentConfig;
 } {
-  const configPath = path.join(__dirname, '../../config/environments.json');
+  // Allow config path to be overridden via environment variable for testing
+  const configPath = process.env.CDK_ENVIRONMENTS_CONFIG 
+    ? path.resolve(process.env.CDK_ENVIRONMENTS_CONFIG)
+    : path.join(__dirname, '../../config/environments.json');
   
   let environmentsConfig: EnvironmentsConfig;
   
@@ -75,6 +78,17 @@ export function getResourceName(baseName: string, environmentName: string): stri
     return baseName;
   }
   return `${environmentName}-${baseName}`;
+}
+
+/**
+ * Get IAM role name with environment suffix
+ * Returns undefined for production (let CDK generate name for backward compatibility)
+ */
+export function getRoleName(baseName: string, environmentName: string): string | undefined {
+  if (environmentName === 'production') {
+    return undefined; // Use CDK-generated name for production
+  }
+  return `${baseName}-${environmentName}`;
 }
 
 /**

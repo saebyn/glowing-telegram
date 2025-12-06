@@ -43,11 +43,18 @@ jobs:
       - name: Generate image tag from branch and timestamp
         id: image_tag
         run: |
-          BRANCH_NAME=$(echo "${{ inputs.branch }}" | sed 's/[^a-zA-Z0-9-]/-/g')
+          # Sanitize branch name and validate it's not empty
+          BRANCH_NAME=$(echo "${{ inputs.branch }}" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/^-*//' | sed 's/-*$//')
+          if [ -z "$BRANCH_NAME" ]; then
+            echo "Error: Branch name sanitization resulted in empty string"
+            echo "Original branch: ${{ inputs.branch }}"
+            exit 1
+          fi
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           IMAGE_TAG="${{ inputs.environment }}-${BRANCH_NAME}-${TIMESTAMP}"
           echo "tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "Generated image tag: ${IMAGE_TAG}"
+          echo "Sanitized branch name: ${BRANCH_NAME}"
       
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
