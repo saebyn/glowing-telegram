@@ -174,11 +174,17 @@ After initial deployment, you may need to manually configure:
 
 #### a. Secrets Manager
 
-Create or populate secrets for the environment:
+Create or populate secrets for the environment. Secrets are automatically created by CDK with names based on the stack:
 
-- **OpenAI API Key**: Secret named `<StackPrefix>-OpenAISecret-*`
-- **YouTube App Credentials**: Secret named `<StackPrefix>-YoutubeAppSecret-*`
-- **Twitch EventSub Secret**: Configure in Twitch Developer Console and update Lambda environment variables
+- **OpenAI API Key**: Created as `AppStack-OpenAISecret-*` (production) or `AppStack-{env}-OpenAISecret-*` (non-production)
+  - Manually populate the secret value in AWS Secrets Manager Console
+  - Example: Set the secret value to your OpenAI API key
+- **YouTube App Credentials**: Created as `AppStack-YoutubeAppSecret-*` (production) or `AppStack-{env}-YoutubeAppSecret-*` (non-production)
+  - Manually populate with YouTube OAuth client credentials from Google Cloud Console
+  - Format: JSON with `client_id`, `client_secret`, and `redirect_uris`
+- **Twitch EventSub Secret**: Configure in Twitch Developer Console
+  - Update the `EVENTSUB_SECRET` environment variable in twitch_lambda
+  - Must match the secret configured in Twitch EventSub webhook subscription
 
 #### b. Cognito User Pool
 
