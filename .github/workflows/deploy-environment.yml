@@ -149,10 +149,23 @@ jobs:
           cd cdk
           npm run build
       
+      - name: Determine stack names based on environment
+        id: stack_names
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            echo "frontend=FrontendStack" >> $GITHUB_OUTPUT
+            echo "repo=RepoStack" >> $GITHUB_OUTPUT
+            echo "app=AppStack" >> $GITHUB_OUTPUT
+          else
+            echo "frontend=FrontendStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "repo=RepoStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "app=AppStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Deploy infrastructure dependencies (FrontendStack, RepoStack)
         run: |
           cd cdk
-          npm run cdk -- deploy FrontendStack-${{ inputs.environment }} RepoStack-${{ inputs.environment }} --require-approval never
+          npm run cdk -- deploy ${{ steps.stack_names.outputs.frontend }} ${{ steps.stack_names.outputs.repo }} --require-approval never
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           IMAGE_VERSION: ${{ steps.final_image_tag.outputs.tag }}
@@ -162,7 +175,7 @@ jobs:
       - name: Deploy application stack (AppStack)
         run: |
           cd cdk
-          npm run cdk -- deploy AppStack-${{ inputs.environment }} --require-approval never
+          npm run cdk -- deploy ${{ steps.stack_names.outputs.app }} --require-approval never
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           IMAGE_VERSION: ${{ steps.final_image_tag.outputs.tag }}
@@ -177,6 +190,6 @@ jobs:
           echo "- **Image Tag**: ${{ steps.final_image_tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Deployed Stacks" >> $GITHUB_STEP_SUMMARY
-          echo "- FrontendStack-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- RepoStack-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- AppStack-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ steps.stack_names.outputs.frontend }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ steps.stack_names.outputs.repo }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ steps.stack_names.outputs.app }}" >> $GITHUB_STEP_SUMMARY

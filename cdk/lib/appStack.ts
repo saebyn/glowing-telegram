@@ -208,34 +208,63 @@ export default class AppStack extends cdk.Stack {
     });
 
     // Export stack outputs for frontend configuration
-    new cdk.CfnOutput(this, 'ApiUrl', {
-      value: api.httpApi.url || 'N/A',
-      description: 'HTTP API Gateway URL',
-      exportName: `${environmentName}-ApiUrl`,
-    });
+    // Only export for production to avoid CloudFormation export name conflicts
+    if (environmentName === 'production') {
+      new cdk.CfnOutput(this, 'ApiUrl', {
+        value: api.httpApi.url || 'N/A',
+        description: 'HTTP API Gateway URL',
+        exportName: 'GlowingTelegram-ApiUrl',
+      });
 
-    new cdk.CfnOutput(this, 'WebSocketApiUrl', {
-      value: websocketApi.webSocketApi.apiEndpoint || 'N/A',
-      description: 'WebSocket API Gateway URL',
-      exportName: `${environmentName}-WebSocketApiUrl`,
-    });
+      new cdk.CfnOutput(this, 'WebSocketApiUrl', {
+        value: websocketApi.webSocketApi.apiEndpoint || 'N/A',
+        description: 'WebSocket API Gateway URL',
+        exportName: 'GlowingTelegram-WebSocketApiUrl',
+      });
 
-    new cdk.CfnOutput(this, 'UserPoolId', {
-      value: userManagement.userPool.userPoolId,
-      description: 'Cognito User Pool ID',
-      exportName: `${environmentName}-UserPoolId`,
-    });
+      new cdk.CfnOutput(this, 'UserPoolId', {
+        value: userManagement.userPool.userPoolId,
+        description: 'Cognito User Pool ID',
+        exportName: 'GlowingTelegram-UserPoolId',
+      });
 
-    new cdk.CfnOutput(this, 'UserPoolClientId', {
-      value: userManagement.userPoolClient.userPoolClientId,
-      description: 'Cognito User Pool Client ID',
-      exportName: `${environmentName}-UserPoolClientId`,
-    });
+      new cdk.CfnOutput(this, 'UserPoolClientId', {
+        value: userManagement.userPoolClient.userPoolClientId,
+        description: 'Cognito User Pool Client ID',
+        exportName: 'GlowingTelegram-UserPoolClientId',
+      });
 
-    new cdk.CfnOutput(this, 'Region', {
-      value: this.region,
-      description: 'AWS Region',
-      exportName: `${environmentName}-Region`,
-    });
+      new cdk.CfnOutput(this, 'Region', {
+        value: this.region,
+        description: 'AWS Region',
+        exportName: 'GlowingTelegram-Region',
+      });
+    } else {
+      // Output without export name for non-production environments
+      new cdk.CfnOutput(this, 'ApiUrl', {
+        value: api.httpApi.url || 'N/A',
+        description: `HTTP API Gateway URL - ${environmentName}`,
+      });
+
+      new cdk.CfnOutput(this, 'WebSocketApiUrl', {
+        value: websocketApi.webSocketApi.apiEndpoint || 'N/A',
+        description: `WebSocket API Gateway URL - ${environmentName}`,
+      });
+
+      new cdk.CfnOutput(this, 'UserPoolId', {
+        value: userManagement.userPool.userPoolId,
+        description: `Cognito User Pool ID - ${environmentName}`,
+      });
+
+      new cdk.CfnOutput(this, 'UserPoolClientId', {
+        value: userManagement.userPoolClient.userPoolClientId,
+        description: `Cognito User Pool Client ID - ${environmentName}`,
+      });
+
+      new cdk.CfnOutput(this, 'Region', {
+        value: this.region,
+        description: `AWS Region - ${environmentName}`,
+      });
+    }
   }
 }
