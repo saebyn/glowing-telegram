@@ -45,21 +45,26 @@ ENVIRONMENT=dev IMAGE_VERSION=latest npm run cdk deploy --all
 
 This creates `frontend-config/` directory with configuration values.
 
-### 3. Configure GitHub Environment in Frontend Repo
+### 3. GitHub Environments (Automated!)
 
-In `glowing-telegram-frontend` repository:
+GitHub environments are **automatically created and configured** when you deploy the CDK stacks!
 
-1. Go to **Settings** → **Environments** → **New environment**
-2. Name it `dev`
-3. Add secrets from export script output:
-   - `AWS_ROLE_ARN`
-   - `FRONTEND_BUCKET`
-4. Add variables from export script output:
-   - `API_URL`
-   - `WEBSOCKET_URL`
-   - `USER_POOL_ID`
-   - `USER_POOL_CLIENT_ID`
-   - `CLOUDFRONT_DOMAIN`
+**Prerequisites**:
+1. Create a GitHub Personal Access Token with `repo` scope
+2. Store in Secrets Manager:
+```bash
+aws secretsmanager create-secret \
+  --name glowing-telegram/github-token \
+  --secret-string '{"token":"ghp_your_token_here"}'
+```
+
+The CDK will automatically:
+- Create environments in both repos (glowing-telegram and glowing-telegram-frontend)
+- Set all required variables (API_URL, AWS_REGION, BUCKET_NAME, etc.)
+- Update variables on each deployment to stay in sync
+
+**Manual Setup (Optional)**:
+If you prefer manual setup or want to skip automation, set `SKIP_GITHUB_ENV=true` and follow the [GitHub Environment Setup Guide](github-environment-setup.md).
 
 ### 4. Deploy Frontend to Dev
 
