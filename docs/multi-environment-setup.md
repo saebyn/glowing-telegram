@@ -302,14 +302,19 @@ All images are stored in the same ECR repositories, differentiated by tags.
 
 ### Removing an Environment
 
-To remove a complete environment:
+To remove a complete environment, destroy stacks in the correct dependency order (application stack first, then infrastructure stacks):
 
 ```bash
 cd cdk
 
-# Destroy all stacks in reverse order
+# Destroy stacks in correct dependency order
+# AppStack first (depends on RepoStack and FrontendStack)
 ENVIRONMENT=dev npm run cdk destroy AppStack-dev
+
+# RepoStack next (depends on FrontendStack)
 ENVIRONMENT=dev npm run cdk destroy RepoStack-dev
+
+# FrontendStack last (no dependencies)
 ENVIRONMENT=dev npm run cdk destroy FrontendStack-dev
 ```
 
