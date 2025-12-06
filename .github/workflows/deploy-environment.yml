@@ -1,0 +1,182 @@
+name: Deploy to Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+        default: 'dev'
+      branch:
+        description: 'Branch to deploy from'
+        required: true
+        type: string
+        default: 'main'
+      image_tag:
+        description: 'Docker image tag to use (leave empty to build from branch)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: 159222827421.dkr.ecr.us-west-2.amazonaws.com
+
+jobs:
+  # Phase 1: Build Docker images from specified branch (if image_tag not provided)
+  build-images:
+    if: ${{ inputs.image_tag == '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+      - name: Checkout specified branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.branch }}
+      
+      - name: Generate image tag from branch and timestamp
+        id: image_tag
+        run: |
+          BRANCH_NAME=$(echo "${{ inputs.branch }}" | sed 's/[^a-zA-Z0-9-]/-/g')
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          IMAGE_TAG="${{ inputs.environment }}-${BRANCH_NAME}-${TIMESTAMP}"
+          echo "tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "Generated image tag: ${IMAGE_TAG}"
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::159222827421:role/GlowingTelegram-DockerGithubActionRole
+          aws-region: us-west-2
+      
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: Free up space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          echo "Available storage:"
+          sudo df -h
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build and push Docker images (Batch 1)
+        uses: docker/bake-action@v5
+        with:
+          files: |
+            ./docker-bake.hcl
+            ./docker-bake.override.hcl
+          targets: batch1
+          push: true
+          provenance: false
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+        env:
+          IMAGE_TAG: ${{ steps.image_tag.outputs.tag }}
+      
+      - name: Build and push Docker images (Batch 2)
+        uses: docker/bake-action@v5
+        with:
+          files: |
+            ./docker-bake.hcl
+            ./docker-bake.override.hcl
+          targets: batch2
+          push: true
+          provenance: false
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+        env:
+          IMAGE_TAG: ${{ steps.image_tag.outputs.tag }}
+    
+    outputs:
+      image_tag: ${{ steps.image_tag.outputs.tag }}
+
+  # Phase 2: Deploy infrastructure and application
+  deploy:
+    needs: build-images
+    if: always() && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+      - name: Checkout specified branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.branch }}
+      
+      - name: Determine image tag to use
+        id: final_image_tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+            echo "Using provided image tag: ${{ inputs.image_tag }}"
+          else
+            echo "tag=${{ needs.build-images.outputs.image_tag }}" >> $GITHUB_OUTPUT
+            echo "Using built image tag: ${{ needs.build-images.outputs.image_tag }}"
+          fi
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::159222827421:role/GlowingTelegram-DockerGithubActionRole
+          aws-region: us-west-2
+      
+      - name: Setup Node.js for CDK
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: cdk/package-lock.json
+      
+      - name: Install CDK dependencies
+        run: |
+          cd cdk
+          npm ci
+      
+      - name: Build CDK
+        run: |
+          cd cdk
+          npm run build
+      
+      - name: Deploy infrastructure dependencies (FrontendStack, RepoStack)
+        run: |
+          cd cdk
+          npm run cdk -- deploy FrontendStack-${{ inputs.environment }} RepoStack-${{ inputs.environment }} --require-approval never
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          IMAGE_VERSION: ${{ steps.final_image_tag.outputs.tag }}
+          AWS_DEFAULT_REGION: us-west-2
+          AWS_REGION: us-west-2
+      
+      - name: Deploy application stack (AppStack)
+        run: |
+          cd cdk
+          npm run cdk -- deploy AppStack-${{ inputs.environment }} --require-approval never
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          IMAGE_VERSION: ${{ steps.final_image_tag.outputs.tag }}
+          AWS_DEFAULT_REGION: us-west-2
+          AWS_REGION: us-west-2
+      
+      - name: Display deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ inputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag**: ${{ steps.final_image_tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployed Stacks" >> $GITHUB_STEP_SUMMARY
+          echo "- FrontendStack-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- RepoStack-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- AppStack-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
