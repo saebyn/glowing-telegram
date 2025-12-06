@@ -85,7 +85,6 @@ export default class WebSocketAPIConstruct extends Construct {
             USER_POOL_ID: props.userPool.userPoolId,
             USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
             STREAM_WIDGETS_TABLE: props.streamWidgetsTable.tableName,
-            AWS_LAMBDA_EXEC_WRAPPER: '/opt/bootstrap',
             HANDLER: 'authorizer.handler',
           },
         },
@@ -105,7 +104,6 @@ export default class WebSocketAPIConstruct extends Construct {
           timeout: cdk.Duration.seconds(30),
           environment: {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
-            AWS_LAMBDA_EXEC_WRAPPER: '/opt/bootstrap',
             HANDLER: 'connect.handler',
           },
         },
@@ -125,7 +123,6 @@ export default class WebSocketAPIConstruct extends Construct {
           timeout: cdk.Duration.seconds(30),
           environment: {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
-            AWS_LAMBDA_EXEC_WRAPPER: '/opt/bootstrap',
             HANDLER: 'disconnect.handler',
           },
         },
@@ -147,7 +144,6 @@ export default class WebSocketAPIConstruct extends Construct {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
             STREAM_WIDGETS_TABLE: props.streamWidgetsTable.tableName,
             WEBSOCKET_ENDPOINT: this.webSocketStage.url,
-            AWS_LAMBDA_EXEC_WRAPPER: '/opt/bootstrap',
             HANDLER: 'message.handler',
           },
         },
@@ -168,7 +164,6 @@ export default class WebSocketAPIConstruct extends Construct {
           environment: {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
             WEBSOCKET_ENDPOINT: this.webSocketStage.url,
-            AWS_LAMBDA_EXEC_WRAPPER: '/opt/bootstrap',
             HANDLER: 'task_change.handler',
           },
         },
@@ -272,7 +267,6 @@ export default class WebSocketAPIConstruct extends Construct {
           environment: {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
             WEBSOCKET_ENDPOINT: this.webSocketStage.url,
-            AWS_LAMBDA_EXEC_WRAPPER: '/opt/bootstrap',
             HANDLER: 'widget_change.handler',
           },
         },
