@@ -105,7 +105,7 @@ export default class AudioTranscriberJobConstruct extends Construct {
           initial_prompt: '<initial_prompt>',
           language: '<language>',
         },
-        retryAttempts: 1,
+        retryAttempts: 2, // Retry once on spot instance termination
       },
     );
   }

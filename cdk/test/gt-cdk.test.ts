@@ -211,3 +211,46 @@ test('GPU Compute Environment Has Launch Template with Larger Disk', () => {
     },
   });
 });
+
+// Test for Audio Transcriber Job with Retry Configuration
+test('Audio Transcriber Job Has Retry Attempts for Spot Instance Failures', () => {
+  const app = new cdk.App();
+  const stack = new cdk.Stack(app, 'TestAudioTranscriberStack');
+
+  // Create mock dependencies
+  const outputBucket = {
+    bucketName: 'test-output-bucket',
+    bucketArn: 'arn:aws:s3:::test-output-bucket',
+    grantRead: jest.fn(),
+  } as unknown as cdk.aws_s3.IBucket;
+
+  const videoMetadataTable = {
+    tableName: 'test-table',
+    tableArn: 'arn:aws:dynamodb:us-west-2:123456789012:table/test-table',
+    grantReadWriteData: jest.fn(),
+  } as unknown as dynamodb.ITable;
+
+  // Import AudioTranscriberJobConstruct
+  const AudioTranscriberJobConstruct = require('../lib/batch/audioTranscriberJob').default;
+
+  const audioTranscriberJob = new AudioTranscriberJobConstruct(
+    stack,
+    'TestAudioTranscriberJob',
+    {
+      outputBucket,
+      videoMetadataTable,
+      imageVersion: 'test-version',
+    },
+  );
+
+  // Verify the job was created
+  expect(audioTranscriberJob.jobDefinition).toBeDefined();
+
+  // Verify that the job definition has retry attempts set to 2
+  const template = Template.fromStack(stack);
+  template.hasResourceProperties('AWS::Batch::JobDefinition', {
+    RetryStrategy: {
+      Attempts: 2,
+    },
+  });
+});
