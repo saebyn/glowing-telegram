@@ -6,3 +6,6 @@ node_modules
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+
+# Frontend configuration exports (from export-stack-outputs.sh)
+../frontend-config/
