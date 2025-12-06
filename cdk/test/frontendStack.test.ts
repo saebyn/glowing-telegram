@@ -11,6 +11,7 @@ describe('FrontendStack', () => {
     app = new cdk.App();
     stack = new FrontendStack(app, 'TestFrontendStack', {
       frontendVersion: '1.2.3',
+      environmentName: 'production',
       env: { region: 'us-east-1' },
     });
     template = Template.fromStack(stack);

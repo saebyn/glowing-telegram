@@ -6,6 +6,7 @@ import RepoConstruct from './util/repoConstruct';
 
 interface RepoStackProps extends cdk.StackProps {
   frontendAssetBucket: s3.IBucket;
+  environmentName: string;
 }
 
 export default class RepoStack extends cdk.Stack {
@@ -14,7 +15,7 @@ export default class RepoStack extends cdk.Stack {
   public readonly dockerGithubRole: iam.IRole;
 
   constructor(scope: Construct, id: string, props: RepoStackProps) {
-    const { frontendAssetBucket, ...restProps } = props;
+    const { frontendAssetBucket, environmentName, ...restProps } = props;
     super(scope, id, restProps);
 
     new RepoConstruct(this, 'RepoConstruct', {
@@ -54,7 +55,13 @@ export default class RepoStack extends cdk.Stack {
       },
     });
 
+    // Use environment-specific role name for non-production environments
+    const githubRoleName = environmentName === 'production'
+      ? undefined // Use CDK-generated name for production (existing role)
+      : `GlowingTelegram-GithubActionRole-${environmentName}`;
+
     this.githubRole = new iam.Role(this, 'GithubActionRole', {
+      roleName: githubRoleName,
       assumedBy: principal,
       inlinePolicies: {
         GithubActionPolicy: new iam.PolicyDocument({
@@ -104,6 +111,19 @@ export default class RepoStack extends cdk.Stack {
           ],
         }),
       },
+    });
+
+    // Export stack outputs for GitHub configuration
+    new cdk.CfnOutput(this, 'GithubActionRoleArn', {
+      value: this.githubRole.roleArn,
+      description: 'IAM Role ARN for GitHub Actions (frontend deployment)',
+      exportName: `${environmentName}-GithubActionRoleArn`,
+    });
+
+    new cdk.CfnOutput(this, 'DockerGithubActionRoleArn', {
+      value: this.dockerGithubRole.roleArn,
+      description: 'IAM Role ARN for GitHub Actions (Docker builds and CDK deployment)',
+      exportName: `${environmentName}-DockerGithubActionRoleArn`,
     });
   }
 }
