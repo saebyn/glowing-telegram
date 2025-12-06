@@ -3,15 +3,6 @@ name: Deploy to Environment
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Target environment to deploy to'
-        required: true
-        type: choice
-        options:
-          - dev
-          - staging
-          - production
-        default: 'dev'
       branch:
         description: 'Branch to deploy from'
         required: true
@@ -21,6 +12,10 @@ on:
         description: 'Docker image tag to use (leave empty to build from branch)'
         required: false
         type: string
+      environment:
+        description: 'Target environment to deploy to'
+        required: true
+        type: environment
 
 env:
   REGISTRY: 159222827421.dkr.ecr.us-west-2.amazonaws.com
@@ -30,6 +25,7 @@ jobs:
   build-images:
     if: ${{ inputs.image_tag == '' }}
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write
@@ -112,6 +108,7 @@ jobs:
     needs: build-images
     if: always() && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write
