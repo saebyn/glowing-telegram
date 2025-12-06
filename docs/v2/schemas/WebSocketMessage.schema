@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "Base structure for WebSocket messages",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "WIDGET_SUBSCRIBE",
+        "WIDGET_UNSUBSCRIBE",
+        "WIDGET_ACTION",
+        "WIDGET_CONFIG_UPDATE",
+        "WIDGET_STATE_UPDATE",
+        "WIDGET_ACTION_RESPONSE",
+        "TASK_UPDATE"
+      ],
+      "description": "Type of WebSocket message"
+    }
+  },
+  "required": ["type"],
+  "oneOf": [
+    {
+      "properties": {
+        "type": {
+          "const": "WIDGET_SUBSCRIBE"
+        },
+        "widgetId": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "widgetId"]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "WIDGET_UNSUBSCRIBE"
+        },
+        "widgetId": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "widgetId"]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "WIDGET_ACTION"
+        },
+        "widgetId": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["type", "widgetId", "action"]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "WIDGET_CONFIG_UPDATE"
+        },
+        "widgetId": {
+          "type": "string"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["type", "widgetId", "config"]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "WIDGET_STATE_UPDATE"
+        },
+        "widgetId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["type", "widgetId", "state"]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "WIDGET_ACTION_RESPONSE"
+        },
+        "widgetId": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "widgetId", "action", "success"]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "TASK_UPDATE"
+        },
+        "task": {
+          "$ref": "./Task.schema"
+        }
+      },
+      "required": ["type", "task"]
+    }
+  ],
+  "$comment": "WebSocket message structure for bidirectional communication"
+}

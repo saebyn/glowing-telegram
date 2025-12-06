@@ -20,7 +20,7 @@
       "enum": ["ingestion", "upload", "rendering"]
     },
     "record_id": { "type": "string" },
-    "user_id": { "type": "string" },
+    "user_id": { "type": "string" }
   },
   "required": ["id", "status", "created_at", "task_type", "user_id"],
   "additionalProperties": false,
