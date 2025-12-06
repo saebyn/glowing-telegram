@@ -2,6 +2,7 @@ import {
   loadEnvironmentConfig, 
   getStackName, 
   getResourceName,
+  getRoleName,
   getAvailableEnvironments 
 } from '../lib/util/environment';
 
@@ -71,6 +72,15 @@ describe('Environment Configuration', () => {
   test('getResourceName returns prefixed name for non-production', () => {
     expect(getResourceName('my-bucket', 'dev')).toBe('dev-my-bucket');
     expect(getResourceName('my-role', 'staging')).toBe('staging-my-role');
+  });
+
+  test('getRoleName returns undefined for production', () => {
+    expect(getRoleName('MyRole', 'production')).toBeUndefined();
+  });
+
+  test('getRoleName returns suffixed name for non-production', () => {
+    expect(getRoleName('MyRole', 'dev')).toBe('MyRole-dev');
+    expect(getRoleName('MyRole', 'staging')).toBe('MyRole-staging');
   });
 
   test('getAvailableEnvironments returns all environments', () => {
