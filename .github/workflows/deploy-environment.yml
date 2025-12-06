@@ -21,8 +21,71 @@ env:
   REGISTRY: 159222827421.dkr.ecr.us-west-2.amazonaws.com
 
 jobs:
-  # Phase 1: Build Docker images from specified branch (if image_tag not provided)
+  # Phase 1: Deploy infrastructure dependencies
+  # - FrontendStack: Creates S3 bucket needed by RepoStack
+  # - RepoStack: Creates ECR repositories needed for Docker images
+  # This MUST happen before building Docker images
+  deploy-repo-dependencies:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+      - name: Checkout specified branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.branch }}
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::159222827421:role/GlowingTelegram-DockerGithubActionRole
+          aws-region: us-west-2
+      
+      - name: Setup Node.js for CDK
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: cdk/package-lock.json
+      
+      - name: Install CDK dependencies
+        run: |
+          cd cdk
+          npm ci
+      
+      - name: Build CDK
+        run: |
+          cd cdk
+          npm run build
+      
+      - name: Determine stack names based on environment
+        id: stack_names
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            echo "frontend=FrontendStack" >> $GITHUB_OUTPUT
+            echo "repo=RepoStack" >> $GITHUB_OUTPUT
+          else
+            echo "frontend=FrontendStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "repo=RepoStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Deploy FrontendStack and RepoStack
+        run: |
+          cd cdk
+          npm run cdk -- deploy ${{ steps.stack_names.outputs.frontend }} ${{ steps.stack_names.outputs.repo }} --require-approval never
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          AWS_DEFAULT_REGION: us-west-2
+          AWS_REGION: us-west-2
+
+  # Phase 2: Build and push Docker images
+  # - Requires ECR repositories to exist (created in Phase 1)
+  # - Only runs if no image_tag is provided
   build-images:
+    needs: deploy-repo-dependencies
     if: ${{ inputs.image_tag == '' }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
@@ -103,10 +166,11 @@ jobs:
     outputs:
       image_tag: ${{ steps.image_tag.outputs.tag }}
 
-  # Phase 2: Deploy infrastructure and application
-  deploy:
-    needs: build-images
-    if: always() && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
+  # Phase 3: Deploy application stack
+  # - Requires Docker images to be available in ECR (created in Phase 2 or provided via input)
+  deploy-app-stack:
+    needs: [deploy-repo-dependencies, build-images]
+    if: always() && needs.deploy-repo-dependencies.result == 'success' && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     permissions:
@@ -153,30 +217,16 @@ jobs:
           cd cdk
           npm run build
       
-      - name: Determine stack names based on environment
+      - name: Determine AppStack name based on environment
         id: stack_names
         run: |
           if [ "${{ inputs.environment }}" = "production" ]; then
-            echo "frontend=FrontendStack" >> $GITHUB_OUTPUT
-            echo "repo=RepoStack" >> $GITHUB_OUTPUT
             echo "app=AppStack" >> $GITHUB_OUTPUT
           else
-            echo "frontend=FrontendStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
-            echo "repo=RepoStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
             echo "app=AppStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
           fi
       
-      - name: Deploy infrastructure dependencies (FrontendStack, RepoStack)
-        run: |
-          cd cdk
-          npm run cdk -- deploy ${{ steps.stack_names.outputs.frontend }} ${{ steps.stack_names.outputs.repo }} --require-approval never
-        env:
-          ENVIRONMENT: ${{ inputs.environment }}
-          IMAGE_VERSION: ${{ steps.final_image_tag.outputs.tag }}
-          AWS_DEFAULT_REGION: us-west-2
-          AWS_REGION: us-west-2
-      
-      - name: Deploy application stack (AppStack)
+      - name: Deploy AppStack
         run: |
           cd cdk
           npm run cdk -- deploy ${{ steps.stack_names.outputs.app }} --require-approval never
@@ -193,7 +243,7 @@ jobs:
           echo "- **Branch**: ${{ inputs.branch }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Image Tag**: ${{ steps.final_image_tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Deployed Stacks" >> $GITHUB_STEP_SUMMARY
-          echo "- ${{ steps.stack_names.outputs.frontend }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ${{ steps.stack_names.outputs.repo }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ${{ steps.stack_names.outputs.app }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Order" >> $GITHUB_STEP_SUMMARY
+          echo "1. ✅ FrontendStack and RepoStack (Phase 1)" >> $GITHUB_STEP_SUMMARY
+          echo "2. ✅ Docker images built/pushed (Phase 2)" >> $GITHUB_STEP_SUMMARY
+          echo "3. ✅ AppStack deployed (Phase 3)" >> $GITHUB_STEP_SUMMARY
