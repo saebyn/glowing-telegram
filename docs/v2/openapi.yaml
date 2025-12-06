@@ -3,24 +3,57 @@ openapi: 3.1.1
 info:
   title: Glowing Telegram API
   version: "2.0"
+  description: API documentation for Glowing Telegram"
+security:
+  - cognitoAuth: []
+servers:
+  - url: https://api.streamosaic.app/
+    description: Future Production Environment
+  - url: https://rs17z6t4n0.execute-api.us-west-2.amazonaws.com/
+    description: Current Production Environment
+  - url: http://localhost:8000/
+    description: Local development server
 components:
+  securitySchemes:
+    cognitoAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Use a valid JWT token obtained from AWS Cognito for authentication.
   schemas:
     Series:
-      $ref: "./schemas/Series.schema"
+      allOf:
+        - $ref: "./schemas/Series.schema"
     Stream:
-      $ref: "./schemas/Stream.schema"
+      allOf:
+        - $ref: "./schemas/Stream.schema"
     Episode:
-      $ref: "./schemas/Episode.schema"
+      allOf:
+        - $ref: "./schemas/Episode.schema"
     Project:
-      $ref: "./schemas/Project.schema"
+      allOf:
+        - $ref: "./schemas/Project.schema"
     Profile:
-      $ref: "./schemas/Profile.schema"
+      allOf:
+        - $ref: "./schemas/Profile.schema"
     StreamIngestionRequest:
-      $ref: "./schemas/StreamIngestionRequest.schema"
+      allOf:
+        - $ref: "./schemas/StreamIngestionRequest.schema"
     VideoClip:
-      $ref: "./schemas/VideoClip.schema"
+      allOf:
+        - $ref: "./schemas/VideoClip.schema"
+    StreamWidget:
+      allOf:
+        - $ref: "./schemas/StreamWidget.schema"
+    Task:
+      allOf:
+        - $ref: "./schemas/Task.schema"
+    TwitchChatMessage:
+      allOf:
+        - $ref: "./schemas/TwitchChatMessage.schema"
     IdOnly:
-      $ref: "./schemas/IdOnly.schema"
+      allOf:
+        - $ref: "./schemas/IdOnly.schema"
     Record:
       type: object
       oneOf:
@@ -30,29 +63,60 @@ components:
         - $ref: "#/components/schemas/Project"
         - $ref: "#/components/schemas/Profile"
         - $ref: "#/components/schemas/VideoClip"
+        - $ref: "#/components/schemas/StreamWidget"
+        - $ref: "#/components/schemas/Task"
+        - $ref: "#/components/schemas/TwitchChatMessage"
     TwitchAuthRequest:
-      $ref: "./schemas/TwitchAuthRequest.schema"
+      allOf:
+        - $ref: "./schemas/TwitchAuthRequest.schema"
     AuthorizationUrlResponse:
-      $ref: "./schemas/AuthorizationUrlResponse.schema"
+      allOf:
+        - $ref: "./schemas/AuthorizationUrlResponse.schema"
     TwitchCallbackRequest:
-      $ref: "./schemas/TwitchCallbackRequest.schema"
+      allOf:
+        - $ref: "./schemas/TwitchCallbackRequest.schema"
     TwitchCallbackResponse:
-      $ref: "./schemas/TwitchCallbackResponse.schema"
+      allOf:
+        - $ref: "./schemas/TwitchCallbackResponse.schema"
     AccessTokenResponse:
-      $ref: "./schemas/AccessTokenResponse.schema"
+      allOf:
+        - $ref: "./schemas/AccessTokenResponse.schema"
     SimpleChatMessage:
-      $ref: "./schemas/SimpleChatMessage.schema"
+      allOf:
+        - $ref: "./schemas/SimpleChatMessage.schema"
     SubscribeChatRequest:
-      $ref: "./schemas/SubscribeChatRequest.schema"
+      allOf:
+        - $ref: "./schemas/SubscribeChatRequest.schema"
     SubscribeChatResponse:
-      $ref: "./schemas/SubscribeChatResponse.schema"
+      allOf:
+        - $ref: "./schemas/SubscribeChatResponse.schema"
     EventSubSubscription:
-      $ref: "./schemas/EventSubSubscription.schema"
+      allOf:
+        - $ref: "./schemas/EventSubSubscription.schema"
     ChatSubscriptionStatusResponse:
-      $ref: "./schemas/ChatSubscriptionStatusResponse.schema"
+      allOf:
+        - $ref: "./schemas/ChatSubscriptionStatusResponse.schema"
     RenderRequest:
-      $ref: "./schemas/RenderRequest.schema"
-
+      allOf:
+        - $ref: "./schemas/RenderRequest.schema"
+    YouTubeAuthRequest:
+      allOf:
+        - $ref: "./schemas/YouTubeAuthRequest.schema"
+    YouTubeCallbackRequest:
+      allOf:
+        - $ref: "./schemas/YouTubeCallbackRequest.schema"
+    YouTubeCallbackResponse:
+      allOf:
+        - $ref: "./schemas/YouTubeCallbackResponse.schema"
+    YouTubeUploadRequest:
+      allOf:
+        - $ref: "./schemas/YouTubeUploadRequest.schema"
+    YouTubeUploadResponse:
+      allOf:
+        - $ref: "./schemas/YouTubeUploadResponse.schema"
+    WebSocketMessage:
+      allOf:
+        - $ref: "./schemas/WebSocketMessage.schema"
   responses:
     Error:
       description: Error response
@@ -111,11 +175,7 @@ paths:
           in: query
           schema:
             type: string
-            format: json
-            content:
-              application/json:
-                schema:
-                  type: object
+            description: JSON-encoded filter object as a string (e.g., '{"field":"value"}')
         - name: cursor
           in: query
           schema:
@@ -159,7 +219,7 @@ paths:
             schema:
               oneOf:
                 - $ref: "#/components/schemas/Record"
-                - $ref: "#/components/schemad/StreamIngestionRequest"
+                - $ref: "#/components/schemas/StreamIngestionRequest"
       responses:
         "201":
           description: Record created
@@ -378,6 +438,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AccessTokenResponse"
+  /auth/youtube/url:
+    post:
+      summary: Obtain YouTube authorization URL
+      tags:
+        - youtube
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YouTubeAuthRequest"
+      responses:
+        "200":
+          description: Authorization URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorizationUrlResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+  /auth/youtube/callback:
+    post:
+      summary: Handle YouTube OAuth callback
+      tags:
+        - youtube
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YouTubeCallbackRequest"
+      responses:
+        "200":
+          description: Callback handled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YouTubeCallbackResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+  /auth/youtube/token:
+    get:
+      summary: Obtain YouTube access token
+      tags:
+        - youtube
+        - auth
+      responses:
+        "200":
+          description: Access token response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+        "401":
+          description: Unauthorized - no valid token available
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
   /eventsub/chat/subscribe:
     post:
       summary: Subscribe to Twitch chat events
@@ -520,3 +644,62 @@ paths:
           $ref: "#/components/responses/Error"
         "500":
           $ref: "#/components/responses/Error"
+  /upload/youtube:
+    post:
+      summary: Upload episodes to YouTube
+      tags:
+        - youtube
+        - upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YouTubeUploadRequest"
+      responses:
+        "200":
+          description: Upload request processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YouTubeUploadResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          description: Unauthorized - YouTube authentication required
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+  /ws:
+    get:
+      summary: WebSocket connection endpoint
+      tags:
+        - websocket
+      description: |
+        WebSocket API for real-time updates on tasks and stream widgets.
+        
+        **Connection URL**: `wss://<websocket-endpoint>/prod`
+        
+        **Authentication**:
+        - Full Access: JWT token via `Sec-WebSocket-Protocol` header with value `jwt-<token>`
+        - Widget Access: Widget token via `Sec-WebSocket-Protocol` header with value `widget-<token>`
+        
+        **Client → Server Messages**:
+        - `WIDGET_SUBSCRIBE`: Subscribe to widget updates
+        - `WIDGET_UNSUBSCRIBE`: Unsubscribe from widget updates
+        - `WIDGET_ACTION`: Perform action on a widget
+        
+        **Server → Client Messages**:
+        - `TASK_UPDATE`: Task status changed
+        - `WIDGET_CONFIG_UPDATE`: Widget configuration changed
+        - `WIDGET_STATE_UPDATE`: Widget state changed
+        - `WIDGET_ACTION_RESPONSE`: Response to widget action
+        
+        All messages follow the `WebSocketMessage` schema.
+      responses:
+        "101":
+          description: Switching Protocols - WebSocket connection established
+        "401":
+          description: Unauthorized - invalid or missing authentication
+        "403":
+          description: Forbidden - insufficient permissions
