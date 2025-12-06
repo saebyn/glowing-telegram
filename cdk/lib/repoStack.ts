@@ -3,6 +3,7 @@ import type { Construct } from 'constructs';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import RepoConstruct from './util/repoConstruct';
+import { getRoleName } from './util/environment';
 
 interface RepoStackProps extends cdk.StackProps {
   frontendAssetBucket: s3.IBucket;
@@ -58,12 +59,8 @@ export default class RepoStack extends cdk.Stack {
     });
 
     // Use environment-specific role name for non-production environments
-    const githubRoleName = environmentName === 'production'
-      ? undefined // Use CDK-generated name for production (existing role)
-      : `GlowingTelegram-GithubActionRole-${environmentName}`;
-
     this.githubRole = new iam.Role(this, 'GithubActionRole', {
-      roleName: githubRoleName,
+      roleName: getRoleName('GlowingTelegram-GithubActionRole', environmentName),
       assumedBy: principal,
       inlinePolicies: {
         GithubActionPolicy: new iam.PolicyDocument({
