@@ -2,8 +2,29 @@
 openapi: 3.1.1
 info:
   title: Glowing Telegram API
+  summary: API documentation for Glowing Telegram
   version: "2.0"
-  description: API documentation for Glowing Telegram"
+  description: |
+    This is the OpenAPI specification for the Glowing Telegram API, which provides endpoints for managing streaming content, integrating with Twitch and YouTube, rendering videos, and more.
+
+    ## Authentication
+
+    The API uses JWT tokens issued by AWS Cognito for authentication. Include the token in the `Authorization` header as follows:
+
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+
+    ## Base URL
+
+    The base URL for the API is:
+
+    ```
+    https://rs17z6t4n0.execute-api.us-west-2.amazonaws.com/
+    ```
+  contact:
+    name: GitHub Repository
+    url: https://github.com/saebyn/glowing-telegram
 security:
   - cognitoAuth: []
 servers:
@@ -13,6 +34,25 @@ servers:
     description: Current Production Environment
   - url: http://localhost:8000/
     description: Local development server
+tags:
+  - name: authentication
+    description: OAuth and token management endpoints
+  - name: records
+    description: CRUD operations for all resource types
+  - name: ai
+    description: AI-powered features
+  - name: twitch
+    description: Twitch integration endpoints
+  - name: youtube
+    description: YouTube integration endpoints
+  - name: eventsub
+    description: Twitch EventSub webhooks
+  - name: render
+    description: Video rendering operations
+  - name: upload
+    description: Video upload operations
+  - name: websocket
+    description: WebSocket API for real-time updates
 components:
   securitySchemes:
     cognitoAuth:
@@ -132,7 +172,7 @@ paths:
     post:
       summary: Chat with AI
       tags:
-        - chat
+        - ai
       requestBody:
         required: true
         content:
@@ -164,7 +204,7 @@ paths:
     get:
       summary: List records
       tags:
-        - list
+        - records
       parameters:
         - name: resource
           in: path
@@ -205,7 +245,7 @@ paths:
     post:
       summary: Create a record
       tags:
-        - create
+        - records
       parameters:
         - name: resource
           in: path
@@ -237,7 +277,7 @@ paths:
     get:
       summary: Get a record
       tags:
-        - get
+        - records
       parameters:
         - name: resource
           in: path
@@ -267,7 +307,7 @@ paths:
     put:
       summary: Update a record
       tags:
-        - update
+        - records
       parameters:
         - name: resource
           in: path
@@ -299,7 +339,7 @@ paths:
     delete:
       summary: Delete a record
       tags:
-        - delete
+        - records
       parameters:
         - name: resource
           in: path
@@ -322,7 +362,7 @@ paths:
     get:
       summary: Get related records
       tags:
-        - get
+        - records
       parameters:
         - name: resource
           in: path
@@ -361,7 +401,7 @@ paths:
     get:
       summary: Get many records
       tags:
-        - get
+        - records
       parameters:
         - name: resource
           in: path
@@ -394,6 +434,9 @@ paths:
   /auth/twitch/url:
     post:
       summary: Obtain Twitch authorization URL
+      tags:
+        - authentication
+        - twitch
       requestBody:
         required: true
         content:
@@ -410,6 +453,9 @@ paths:
   /auth/twitch/callback:
     get:
       summary: Handle Twitch callback
+      tags:
+        - authentication
+        - twitch
       parameters:
         - name: code
           in: query
@@ -431,6 +477,9 @@ paths:
   /auth/twitch/token:
     get:
       summary: Obtain Twitch access token
+      tags:
+        - authentication
+        - twitch
       responses:
         "200":
           description: Access token response
@@ -442,8 +491,8 @@ paths:
     post:
       summary: Obtain YouTube authorization URL
       tags:
+        - authentication
         - youtube
-        - auth
       requestBody:
         required: true
         content:
@@ -465,8 +514,8 @@ paths:
     post:
       summary: Handle YouTube OAuth callback
       tags:
+        - authentication
         - youtube
-        - auth
       requestBody:
         required: true
         content:
@@ -488,8 +537,8 @@ paths:
     get:
       summary: Obtain YouTube access token
       tags:
+        - authentication
         - youtube
-        - auth
       responses:
         "200":
           description: Access token response
@@ -506,8 +555,8 @@ paths:
     post:
       summary: Subscribe to Twitch chat events
       tags:
-        - twitch
         - eventsub
+        - twitch
       requestBody:
         required: true
         content:
@@ -535,8 +584,8 @@ paths:
     get:
       summary: Check EventSub chat subscription status
       tags:
-        - twitch
         - eventsub
+        - twitch
       responses:
         "200":
           description: Chat subscription status
@@ -556,8 +605,8 @@ paths:
     post:
       summary: Handle Twitch EventSub webhooks
       tags:
-        - twitch
         - eventsub
+        - twitch
       requestBody:
         required: true
         content:
@@ -648,8 +697,8 @@ paths:
     post:
       summary: Upload episodes to YouTube
       tags:
-        - youtube
         - upload
+        - youtube
       requestBody:
         required: true
         content:
