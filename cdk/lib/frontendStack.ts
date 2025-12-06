@@ -14,6 +14,8 @@ import { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 interface FrontendStackProps extends cdk.StackProps {
   // Frontend version used as fallback if config file is not available
   frontendVersion: string;
+  // Environment name (dev, staging, production)
+  environmentName: string;
 }
 
 export default class FrontendStack extends cdk.Stack {
@@ -22,11 +24,17 @@ export default class FrontendStack extends cdk.Stack {
   public readonly distribution: cloudfront.Distribution;
 
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
-    const { frontendVersion, ...restProps } = props;
+    const { frontendVersion, environmentName, ...restProps } = props;
 
     super(scope, id, restProps);
 
+    // Use environment-specific bucket name for non-production environments
+    const bucketName = environmentName === 'production' 
+      ? undefined // Let CDK generate the name for production (existing bucket)
+      : `glowing-telegram-frontend-${environmentName}`;
+
     this.assetBucket = new s3.Bucket(this, 'FrontendAssetBucket', {
+      bucketName,
       versioned: false,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       publicReadAccess: false,
@@ -271,6 +279,25 @@ def get_version_from_s3(bucket_name, config_key):
       sources: [s3deployment.Source.asset(path.join(__dirname, '../config'))],
       destinationBucket: this.assetBucket,
       destinationKeyPrefix: 'config/',
+    });
+
+    // Export stack outputs for frontend configuration
+    new cdk.CfnOutput(this, 'CloudFrontDistributionDomainName', {
+      value: this.distribution.distributionDomainName,
+      description: 'CloudFront Distribution Domain Name',
+      exportName: `${environmentName}-CloudFrontDomain`,
+    });
+
+    new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
+      value: this.distribution.distributionId,
+      description: 'CloudFront Distribution ID',
+      exportName: `${environmentName}-CloudFrontDistributionId`,
+    });
+
+    new cdk.CfnOutput(this, 'FrontendBucketName', {
+      value: this.assetBucket.bucketName,
+      description: 'Frontend Asset S3 Bucket Name',
+      exportName: `${environmentName}-FrontendBucket`,
     });
   }
 }

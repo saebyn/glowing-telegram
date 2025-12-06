@@ -13,6 +13,11 @@ on:
         required: false
         default: 'all'
         type: string
+      environment:
+        description: 'Environment to deploy to (dev, staging, production)'
+        required: false
+        default: 'production'
+        type: string
   workflow_call:
     inputs:
       image_version:
@@ -24,6 +29,11 @@ on:
         description: 'Specific stacks to deploy (space separated), or "all" for all stacks'
         required: false
         default: 'all'
+        type: string
+      environment:
+        description: 'Environment to deploy to (dev, staging, production)'
+        required: false
+        default: 'production'
         type: string
 
 jobs:
@@ -65,10 +75,10 @@ jobs:
         run: |
           cd cdk
           if [ "${{ inputs.stacks }}" = "all" ] || [ -z "${{ inputs.stacks }}" ]; then
-            echo "Deploying all stacks"
+            echo "Deploying all stacks for environment: ${{ inputs.environment }}"
             npm run cdk -- deploy --all --require-approval never
           else
-            echo "Deploying specific stacks: ${{ inputs.stacks }}"
+            echo "Deploying specific stacks for environment ${{ inputs.environment }}: ${{ inputs.stacks }}"
             # Validate that stacks parameter is not empty/whitespace only
             STACKS_TRIMMED=$(echo "${{ inputs.stacks }}" | xargs)
             if [ -z "$STACKS_TRIMMED" ]; then
@@ -79,5 +89,6 @@ jobs:
           fi
         env:
           IMAGE_VERSION: ${{ inputs.image_version }}
+          ENVIRONMENT: ${{ inputs.environment }}
           AWS_DEFAULT_REGION: us-west-2
           AWS_REGION: us-west-2

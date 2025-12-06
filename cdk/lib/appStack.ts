@@ -23,6 +23,7 @@ import { EventBus } from 'aws-cdk-lib/aws-events';
 interface AppStackProps extends cdk.StackProps {
   domainName: string;
   tagOrDigest?: string;
+  environmentName: string;
 }
 
 const YOUTUBE_USER_SECRET_BASE_PATH = 'gt/youtube/user';
@@ -30,7 +31,7 @@ const TWITCH_USER_SECRET_BASE_PATH = 'gt/twitch/user';
 
 export default class AppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AppStackProps) {
-    const { domainName, tagOrDigest, ...restProps } = props;
+    const { domainName, tagOrDigest, environmentName, ...restProps } = props;
 
     super(scope, id, restProps);
 
@@ -153,7 +154,7 @@ export default class AppStack extends cdk.Stack {
       tagOrDigest,
     });
 
-    new WebSocketAPIConstruct(this, 'WebSocketAPI', {
+    const websocketApi = new WebSocketAPIConstruct(this, 'WebSocketAPI', {
       userPool: userManagement.userPool,
       tasksTable: dataStore.tasksTable,
       streamWidgetsTable: dataStore.streamWidgetsTable,
@@ -173,7 +174,7 @@ export default class AppStack extends cdk.Stack {
       tagOrDigest,
     });
 
-    new APIConstruct(this, 'API', {
+    const api = new APIConstruct(this, 'API', {
       streamIngestionFunction: streamIngestion.stepFunction,
       renderJob: {
         jobQueue: batchEnvironment.cpuJobQueue,
@@ -204,6 +205,37 @@ export default class AppStack extends cdk.Stack {
 
       domainName,
       tagOrDigest,
+    });
+
+    // Export stack outputs for frontend configuration
+    new cdk.CfnOutput(this, 'ApiUrl', {
+      value: api.httpApi.url || 'N/A',
+      description: 'HTTP API Gateway URL',
+      exportName: `${environmentName}-ApiUrl`,
+    });
+
+    new cdk.CfnOutput(this, 'WebSocketApiUrl', {
+      value: websocketApi.webSocketApi.apiEndpoint || 'N/A',
+      description: 'WebSocket API Gateway URL',
+      exportName: `${environmentName}-WebSocketApiUrl`,
+    });
+
+    new cdk.CfnOutput(this, 'UserPoolId', {
+      value: userManagement.userPool.userPoolId,
+      description: 'Cognito User Pool ID',
+      exportName: `${environmentName}-UserPoolId`,
+    });
+
+    new cdk.CfnOutput(this, 'UserPoolClientId', {
+      value: userManagement.userPoolClient.userPoolClientId,
+      description: 'Cognito User Pool Client ID',
+      exportName: `${environmentName}-UserPoolClientId`,
+    });
+
+    new cdk.CfnOutput(this, 'Region', {
+      value: this.region,
+      description: 'AWS Region',
+      exportName: `${environmentName}-Region`,
     });
   }
 }
