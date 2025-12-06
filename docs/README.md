@@ -16,6 +16,11 @@ This directory contains documentation for the glowing-telegram project.
   - GitHub Actions setup
   - Third-party service integration
   - Troubleshooting and best practices
+- **[GitHub Environment Automation](github-environment-automation.md)**: Automated GitHub environment management (NEW!)
+  - Automatic creation/update of GitHub environments
+  - Automated variable synchronization
+  - GitHub API integration via CDK custom resource
+  - Supports both backend and frontend repositories
 
 ## Configuration Files
 
