@@ -18,6 +18,8 @@ interface GitHubEnvironmentStackProps extends cdk.StackProps {
   githubRoleArn: string;
   // Optional Twitch client ID - can be set via secret or parameter
   twitchClientId?: string;
+  // GitHub organization/owner name
+  githubOwner?: string;
 }
 
 export default class GitHubEnvironmentStack extends cdk.Stack {
@@ -36,10 +38,14 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
       frontendBucketName,
       githubRoleArn,
       twitchClientId,
+      githubOwner,
       ...restProps
     } = props;
 
     super(scope, id, restProps);
+
+    // Get GitHub owner from props or environment variable, default to 'saebyn'
+    const owner = githubOwner || process.env.GITHUB_OWNER || 'saebyn';
 
     // Get or create GitHub token secret
     // The secret must contain a GitHub Personal Access Token with repo scope
@@ -49,22 +55,8 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
       'glowing-telegram/github-token'
     );
 
-    // Get or create optional Twitch client ID secret
-    let twitchClientIdValue = twitchClientId || '';
-    if (!twitchClientIdValue) {
-      try {
-        const twitchSecret = secretsmanager.Secret.fromSecretNameV2(
-          this,
-          'TwitchSecret',
-          'glowing-telegram/twitch-client-id'
-        );
-        // Note: We can't directly read the secret value here, so we'll pass the secret ARN
-        // and let the custom resource handle it, or we use a default placeholder
-        twitchClientIdValue = 'TWITCH_CLIENT_ID_NOT_SET';
-      } catch {
-        twitchClientIdValue = 'TWITCH_CLIENT_ID_NOT_SET';
-      }
-    }
+    // Use provided Twitch client ID or placeholder
+    const twitchClientIdValue = twitchClientId || 'TWITCH_CLIENT_ID_NOT_SET';
 
     // Prepare variables for frontend repository
     const frontendVariables: Record<string, string> = {
@@ -84,7 +76,7 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
 
     // Create/update GitHub environment for frontend repository
     new GitHubEnvironmentManager(this, 'FrontendEnvironment', {
-      owner: 'saebyn',
+      owner: owner,
       repo: 'glowing-telegram-frontend',
       environmentName: environmentName,
       variables: frontendVariables,
@@ -100,7 +92,7 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
 
     // Create/update GitHub environment for backend repository
     new GitHubEnvironmentManager(this, 'BackendEnvironment', {
-      owner: 'saebyn',
+      owner: owner,
       repo: 'glowing-telegram',
       environmentName: environmentName,
       variables: backendVariables,
@@ -114,12 +106,12 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'FrontendRepoEnvironment', {
-      value: `https://github.com/saebyn/glowing-telegram-frontend/settings/environments`,
+      value: `https://github.com/${owner}/glowing-telegram-frontend/settings/environments`,
       description: 'Frontend repository environments URL',
     });
 
     new cdk.CfnOutput(this, 'BackendRepoEnvironment', {
-      value: `https://github.com/saebyn/glowing-telegram/settings/environments`,
+      value: `https://github.com/${owner}/glowing-telegram/settings/environments`,
       description: 'Backend repository environments URL',
     });
   }
