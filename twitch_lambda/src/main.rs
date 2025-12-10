@@ -82,12 +82,23 @@ async fn initialize_api(state: AppContext) {
         .layer(compression_layer)
         .with_state(state);
 
-    // Provide the app to the lambda runtime
-    let app = tower::ServiceBuilder::new()
-        .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
-        .service(app);
+    #[cfg(debug_assertions)]
+    {
+        let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 3030));
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        axum::serve(listener, app).await.unwrap();
+    }
 
-    lambda_http::run(app).await.unwrap();
+    // If we compile in release mode, use the Lambda Runtime
+    #[cfg(not(debug_assertions))]
+    {
+        // Provide the app to the lambda runtime
+        let app = tower::ServiceBuilder::new()
+            .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
+            .service(app);
+
+        lambda_http::run(app).await.unwrap();
+    }
 }
 
 async fn do_user_token_check(state: AppContext) {

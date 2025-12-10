@@ -173,7 +173,7 @@ export default class APIConstruct extends Construct {
           IS_GLOBAL_REFRESH_SERVICE: 'false',
           CHAT_QUEUE_URL: props.chatQueue.queueUrl,
           EVENTSUB_SECRET_ARN: eventSubSecret.secretArn,
-          EVENTSUB_WEBHOOK_URL: `${httpApi.url}/eventsub/webhook`,
+          EVENTSUB_WEBHOOK_URL: `${httpApi.url}eventsub/webhook`,
         },
       },
       name: 'twitch-lambda',
@@ -468,6 +468,17 @@ def handler(event, context):
       ),
       path: '/auth/twitch/{proxy+}',
       methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.GET],
+    });
+
+    // POST /eventsub/webhook - run twitch lambda for EventSub webhook verification and notifications
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'TwitchEventSubWebhookIntegration',
+        twitchService.lambda,
+      ),
+      authorizer: undefined, // disable authorization for EventSub webhook
+      path: '/eventsub/webhook',
+      methods: [apigwv2.HttpMethod.POST],
     });
 
     // POST /eventsub/* - run twitch lambda for EventSub endpoints

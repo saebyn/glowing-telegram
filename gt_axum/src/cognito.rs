@@ -17,6 +17,16 @@ where
         _state: &S,
     ) -> Result<Self, Self::Rejection> {
         tracing::info!("Extracting Cognito user ID");
+
+        // In debug mode, allow a fixed user ID for testing purposes
+        #[cfg(debug_assertions)]
+        {
+            return Ok(Self(
+                "b8d11300-d0d1-70aa-2665-6d2a9535ffcc".to_string(),
+            ));
+        }
+
+        #[cfg(not(debug_assertions))]
         parts
             .request_context_ref()
             .and_then(|ctx| ctx.authorizer())

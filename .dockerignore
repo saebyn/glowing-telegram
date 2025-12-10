@@ -1,5 +1,12 @@
 # Ignore Rust build artifacts
-target
+**/target
+
+# Ignore python virtual environments
+**/venv
+**/.venv
+
+# No need for docs
+docs
 
 # Ignore .env files
 .env
