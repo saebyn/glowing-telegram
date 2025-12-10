@@ -21,6 +21,7 @@ tracing-subscriber = { workspace = true }
 axum = { workspace = true }
 axum-aws-lambda = { workspace = true }
 aws_lambda_events = { workspace = true }
+tokio = { workspace = true }
 
 [lints]
 workspace = true

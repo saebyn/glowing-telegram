@@ -15,7 +15,6 @@ use axum::{
     response::IntoResponse,
     routing::post,
 };
-use lambda_http::tower;
 use openai_dive::v1::error::APIError;
 use openai_dive::v1::resources::chat::{
     ChatCompletionParameters, ChatCompletionResponse,
@@ -96,12 +95,7 @@ async fn main() {
         .layer(compression_layer)
         .with_state(app_context);
 
-    // Provide the app to the lambda runtime
-    let app = tower::ServiceBuilder::new()
-        .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
-        .service(app);
-
-    lambda_http::run(app).await.unwrap();
+    gt_axum::run_app(app).await.unwrap();
 }
 
 #[instrument(skip(state))]
