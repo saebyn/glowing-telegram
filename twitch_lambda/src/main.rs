@@ -83,25 +83,7 @@ async fn initialize_api(state: AppContext) {
         .layer(compression_layer)
         .with_state(state);
 
-    #[cfg(debug_assertions)]
-    {
-        let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 3030));
-        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-        axum::serve(listener, app)
-            .await
-            .expect("Failed to start Axum server on 127.0.0.1:3030. Is the port already in use?");
-    }
-
-    // If we compile in release mode, use the Lambda Runtime
-    #[cfg(not(debug_assertions))]
-    {
-        // Provide the app to the lambda runtime
-        let app = tower::ServiceBuilder::new()
-            .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
-            .service(app);
-
-        lambda_http::run(app).await.unwrap();
-    }
+    gt_axum::run_app(app).await.unwrap();
 }
 
 async fn do_user_token_check(state: AppContext) {

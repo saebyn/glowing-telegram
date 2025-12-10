@@ -4,7 +4,6 @@ use axum::{
     http::{Request, StatusCode, header},
     routing::{get, post},
 };
-use lambda_http::tower;
 
 use serde_json::json;
 use structs::AppContext;
@@ -62,10 +61,5 @@ async fn initialize_api(state: AppContext) {
         .layer(compression_layer)
         .with_state(state);
 
-    // Provide the app to the lambda runtime
-    let app = tower::ServiceBuilder::new()
-        .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
-        .service(app);
-
-    lambda_http::run(app).await.unwrap();
+    gt_axum::run_app(app).await.unwrap();
 }
