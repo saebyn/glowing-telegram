@@ -27,6 +27,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 types = { workspace = true }
 gt_app = { path = "../gt_app" }
+gt_axum = { path = "../gt_axum" }
 
 [lints]
 workspace = true

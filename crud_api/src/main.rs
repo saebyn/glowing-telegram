@@ -21,7 +21,6 @@ use axum::{
 };
 use dynamodb::DynamoDbTableConfig;
 use gt_axum::cognito::OptionalCognitoUserId;
-use lambda_http::tower;
 use serde::Deserialize;
 use serde_json::json;
 use std::{collections::HashMap, sync::Arc};
@@ -145,12 +144,7 @@ async fn main() {
         .layer(compression_layer)
         .with_state(app_context);
 
-    // Provide the app to the lambda runtime
-    let app = tower::ServiceBuilder::new()
-        .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
-        .service(app);
-
-    lambda_http::run(app).await.unwrap();
+    gt_axum::run_app(app).await.unwrap();
 }
 
 fn get_table_config<'a>(
