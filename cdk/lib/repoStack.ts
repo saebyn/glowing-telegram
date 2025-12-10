@@ -113,31 +113,14 @@ export default class RepoStack extends cdk.Stack {
     });
 
     // Export stack outputs for GitHub configuration
-    // Only export for production to avoid CloudFormation export name conflicts
-    // Non-production environments can use CloudFormation describe-stacks API
-    if (environmentName === 'production') {
-      new cdk.CfnOutput(this, 'GithubActionRoleArn', {
-        value: this.githubRole.roleArn,
-        description: 'IAM Role ARN for GitHub Actions (frontend deployment)',
-        exportName: 'GlowingTelegram-GithubActionRoleArn',
-      });
+    new cdk.CfnOutput(this, 'GithubActionRoleArn', {
+      value: this.githubRole.roleArn,
+      description: `IAM Role ARN for GitHub Actions (frontend deployment) - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'DockerGithubActionRoleArn', {
-        value: this.dockerGithubRole.roleArn,
-        description: 'IAM Role ARN for GitHub Actions (Docker builds and CDK deployment)',
-        exportName: 'GlowingTelegram-DockerGithubActionRoleArn',
-      });
-    } else {
-      // Output without export name for non-production environments
-      new cdk.CfnOutput(this, 'GithubActionRoleArn', {
-        value: this.githubRole.roleArn,
-        description: `IAM Role ARN for GitHub Actions (frontend deployment) - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'DockerGithubActionRoleArn', {
-        value: this.dockerGithubRole.roleArn,
-        description: `IAM Role ARN for GitHub Actions (Docker builds and CDK deployment) - ${environmentName}`,
-      });
-    }
+    new cdk.CfnOutput(this, 'DockerGithubActionRoleArn', {
+      value: this.dockerGithubRole.roleArn,
+      description: `IAM Role ARN for GitHub Actions (Docker builds and CDK deployment) - ${environmentName}`,
+    });
   }
 }
