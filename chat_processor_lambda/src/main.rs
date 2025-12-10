@@ -63,13 +63,6 @@ struct EventSubSubscription {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt()
-        .json()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .with_current_span(false)
-        .with_span_list(false)
-        .init();
-
     let context = gt_app::create_app_context::<AppContext, Config>().await?;
 
     lambda_runtime::run(service_fn(|event| {
