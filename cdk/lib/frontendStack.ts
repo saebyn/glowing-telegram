@@ -282,41 +282,19 @@ def get_version_from_s3(bucket_name, config_key):
     });
 
     // Export stack outputs for frontend configuration
-    // Only export for production to avoid CloudFormation export name conflicts
-    if (environmentName === 'production') {
-      new cdk.CfnOutput(this, 'CloudFrontDistributionDomainName', {
-        value: this.distribution.distributionDomainName,
-        description: 'CloudFront Distribution Domain Name',
-        exportName: 'GlowingTelegram-CloudFrontDomain',
-      });
+    new cdk.CfnOutput(this, 'CloudFrontDistributionDomainName', {
+      value: this.distribution.distributionDomainName,
+      description: `CloudFront Distribution Domain Name - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
-        value: this.distribution.distributionId,
-        description: 'CloudFront Distribution ID',
-        exportName: 'GlowingTelegram-CloudFrontDistributionId',
-      });
+    new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
+      value: this.distribution.distributionId,
+      description: `CloudFront Distribution ID - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'FrontendBucketName', {
-        value: this.assetBucket.bucketName,
-        description: 'Frontend Asset S3 Bucket Name',
-        exportName: 'GlowingTelegram-FrontendBucket',
-      });
-    } else {
-      // Output without export name for non-production environments
-      new cdk.CfnOutput(this, 'CloudFrontDistributionDomainName', {
-        value: this.distribution.distributionDomainName,
-        description: `CloudFront Distribution Domain Name - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
-        value: this.distribution.distributionId,
-        description: `CloudFront Distribution ID - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'FrontendBucketName', {
-        value: this.assetBucket.bucketName,
-        description: `Frontend Asset S3 Bucket Name - ${environmentName}`,
-      });
-    }
+    new cdk.CfnOutput(this, 'FrontendBucketName', {
+      value: this.assetBucket.bucketName,
+      description: `Frontend Asset S3 Bucket Name - ${environmentName}`,
+    });
   }
 }

@@ -227,107 +227,49 @@ export default class AppStack extends cdk.Stack {
     this.logoutUri = `https://${domainName}/`;
 
     // Export stack outputs for frontend configuration
-    // Only export for production to avoid CloudFormation export name conflicts
-    if (environmentName === 'production') {
-      new cdk.CfnOutput(this, 'ApiUrl', {
-        value: api.httpApi.url || 'N/A',
-        description: 'HTTP API Gateway URL',
-        exportName: 'GlowingTelegram-ApiUrl',
-      });
+    new cdk.CfnOutput(this, 'ApiUrl', {
+      value: api.httpApi.url || 'N/A',
+      description: `HTTP API Gateway URL - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'WebSocketApiUrl', {
-        value: websocketApi.webSocketApi.apiEndpoint || 'N/A',
-        description: 'WebSocket API Gateway URL',
-        exportName: 'GlowingTelegram-WebSocketApiUrl',
-      });
+    new cdk.CfnOutput(this, 'WebSocketApiUrl', {
+      value: websocketApi.webSocketApi.apiEndpoint || 'N/A',
+      description: `WebSocket API Gateway URL - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'UserPoolId', {
-        value: userManagement.userPool.userPoolId,
-        description: 'Cognito User Pool ID',
-        exportName: 'GlowingTelegram-UserPoolId',
-      });
+    new cdk.CfnOutput(this, 'UserPoolId', {
+      value: userManagement.userPool.userPoolId,
+      description: `Cognito User Pool ID - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'UserPoolClientId', {
-        value: userManagement.userPoolClient.userPoolClientId,
-        description: 'Cognito User Pool Client ID',
-        exportName: 'GlowingTelegram-UserPoolClientId',
-      });
+    new cdk.CfnOutput(this, 'UserPoolClientId', {
+      value: userManagement.userPoolClient.userPoolClientId,
+      description: `Cognito User Pool Client ID - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'CognitoDomain', {
-        value: userManagement.userPoolDomain.domainName,
-        description: 'Cognito User Pool Domain',
-        exportName: 'GlowingTelegram-CognitoDomain',
-      });
+    new cdk.CfnOutput(this, 'CognitoDomain', {
+      value: userManagement.userPoolDomain.domainName,
+      description: `Cognito User Pool Domain - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'Region', {
-        value: this.region,
-        description: 'AWS Region',
-        exportName: 'GlowingTelegram-Region',
-      });
+    new cdk.CfnOutput(this, 'Region', {
+      value: this.region,
+      description: `AWS Region - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'ContentUrl', {
-        value: `https://${domainName}`,
-        description: 'Content URL (CloudFront distribution)',
-        exportName: 'GlowingTelegram-ContentUrl',
-      });
+    new cdk.CfnOutput(this, 'ContentUrl', {
+      value: `https://${domainName}`,
+      description: `Content URL (CloudFront distribution) - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'RedirectUri', {
-        value: `https://${domainName}/auth-callback`,
-        description: 'OAuth Redirect URI',
-        exportName: 'GlowingTelegram-RedirectUri',
-      });
+    new cdk.CfnOutput(this, 'RedirectUri', {
+      value: `https://${domainName}/auth-callback`,
+      description: `OAuth Redirect URI - ${environmentName}`,
+    });
 
-      new cdk.CfnOutput(this, 'LogoutUri', {
-        value: `https://${domainName}/`,
-        description: 'OAuth Logout URI',
-        exportName: 'GlowingTelegram-LogoutUri',
-      });
-    } else {
-      // Output without export name for non-production environments
-      new cdk.CfnOutput(this, 'ApiUrl', {
-        value: api.httpApi.url || 'N/A',
-        description: `HTTP API Gateway URL - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'WebSocketApiUrl', {
-        value: websocketApi.webSocketApi.apiEndpoint || 'N/A',
-        description: `WebSocket API Gateway URL - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'UserPoolId', {
-        value: userManagement.userPool.userPoolId,
-        description: `Cognito User Pool ID - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'UserPoolClientId', {
-        value: userManagement.userPoolClient.userPoolClientId,
-        description: `Cognito User Pool Client ID - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'CognitoDomain', {
-        value: userManagement.userPoolDomain.domainName,
-        description: `Cognito User Pool Domain - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'Region', {
-        value: this.region,
-        description: `AWS Region - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'ContentUrl', {
-        value: `https://${domainName}`,
-        description: `Content URL (CloudFront distribution) - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'RedirectUri', {
-        value: `https://${domainName}/auth-callback`,
-        description: `OAuth Redirect URI - ${environmentName}`,
-      });
-
-      new cdk.CfnOutput(this, 'LogoutUri', {
-        value: `https://${domainName}/`,
-        description: `OAuth Logout URI - ${environmentName}`,
-      });
-    }
+    new cdk.CfnOutput(this, 'LogoutUri', {
+      value: `https://${domainName}/`,
+      description: `OAuth Logout URI - ${environmentName}`,
+    });
   }
 }
