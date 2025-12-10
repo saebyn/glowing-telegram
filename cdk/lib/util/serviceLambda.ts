@@ -60,6 +60,11 @@ export default class ServiceLambdaConstruct extends Construct {
       tracing: lambda.Tracing.ACTIVE,
       loggingFormat: lambda.LoggingFormat.JSON,
       logGroup: this.logGroup,
+
+      environment: {
+        ...props.lambdaOptions.environment,
+        RUST_LOG: 'info',
+      },
     });
   }
 }

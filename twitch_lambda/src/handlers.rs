@@ -413,7 +413,7 @@ pub async fn subscribe_chat_handler(
     let response = match client
         .post("https://api.twitch.tv/helix/eventsub/subscriptions")
         .header("Authorization", format!("Bearer {}", app_access_token))
-        .header("Client-Id", &state.twitch_credentials.id)
+        .header("Client-ID", &state.twitch_credentials.id)
         .header("Content-Type", "application/json")
         .json(&subscription_request)
         .send()
