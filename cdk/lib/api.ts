@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpNoneAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2';
 import type * as cognito from 'aws-cdk-lib/aws-cognito';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
@@ -476,7 +477,7 @@ def handler(event, context):
         'TwitchEventSubWebhookIntegration',
         twitchService.lambda,
       ),
-      authorizer: undefined, // disable authorization for EventSub webhook
+      authorizer: new HttpNoneAuthorizer(), // explicitly disable authorization for EventSub webhook
       path: '/eventsub/webhook',
       methods: [apigwv2.HttpMethod.POST],
     });
