@@ -505,9 +505,13 @@ mod tests {
                 // The test might fail if whisper executable is not found, which is expected
                 // in test environments. This is acceptable for unit testing.
                 match e {
-                    AudioTranscriberError::WhisperExecutableNotFoundError(_) => {
+                    AudioTranscriberError::WhisperExecutableNotFoundError(
+                        _,
+                    ) => {
                         // Expected in test environment without whisper installed
-                        eprintln!("Skipping test: whisper executable not found (expected in test environment)");
+                        eprintln!(
+                            "Skipping test: whisper executable not found (expected in test environment)"
+                        );
                     }
                     _ => panic!("Unexpected error: {:?}", e),
                 }

@@ -634,7 +634,7 @@ pub async fn chat_subscription_status_handler(
 ) -> impl IntoResponse {
     tracing::info!("Chat subscription status handler called");
 
-    // Get the user's access token
+    // Get the user's access token to validate and get broadcaster_id
     let secret_id =
         state.config.user_secret_path.secret_path(&cognito_user_id);
 
@@ -687,11 +687,29 @@ pub async fn chat_subscription_status_handler(
         }
     };
 
-    // Get EventSub subscriptions from Twitch
+    // Obtain an app access token for querying EventSub subscriptions
+    // EventSub subscriptions must be queried with the same token type used to create them
+    let app_access_token =
+        match twitch::get_app_access_token(&state.twitch_credentials).await {
+            Ok(token) => token,
+            Err(e) => {
+                tracing::error!("Failed to obtain app access token: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!(ChatSubscriptionStatusResponse {
+                        has_active_subscription: false,
+                        subscriptions: vec![],
+                    })),
+                )
+                    .into_response();
+            }
+        };
+
+    // Get EventSub subscriptions from Twitch using the app access token
     let client = reqwest::Client::new();
     let response = match client
         .get("https://api.twitch.tv/helix/eventsub/subscriptions")
-        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Authorization", format!("Bearer {}", app_access_token))
         .header("Client-Id", &state.twitch_credentials.id)
         .query(&[("type", "channel.chat.message")])
         .send()
