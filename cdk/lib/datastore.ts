@@ -121,6 +121,9 @@ export default class DatastoreConstruct extends Construct {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     episodesTable.addGlobalSecondaryIndex({
@@ -142,24 +145,36 @@ export default class DatastoreConstruct extends Construct {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     this.streamSeriesTable = new dynamodb.Table(this, 'StreamSeriesTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     this.streamsTable = new dynamodb.Table(this, 'StreamsTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     const videoMetadataTable = new dynamodb.Table(this, 'VideoMetadataTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'key', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     videoMetadataTable.addGlobalSecondaryIndex({
@@ -179,12 +194,16 @@ export default class DatastoreConstruct extends Construct {
       timeToLiveAttribute: 'ttl',
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
+      // no backups for ephemeral tasks table
     });
 
     this.projectsTable = new dynamodb.Table(this, 'ProjectsTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     const chatMessagesTable = new dynamodb.Table(this, 'ChatMessagesTable', {
@@ -193,6 +212,9 @@ export default class DatastoreConstruct extends Construct {
       sortKey: { name: 'timestamp', type: dynamodb.AttributeType.STRING },
       timeToLiveAttribute: 'ttl',
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     // Add GSI for querying by channel_id
@@ -217,6 +239,9 @@ export default class DatastoreConstruct extends Construct {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     // Add GSI for user_id (primary query pattern: get all widgets for a user)
