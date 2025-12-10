@@ -95,7 +95,7 @@ async fn main() {
         .layer(compression_layer)
         .with_state(app_context);
 
-    gt_axum::run_app(app).await.unwrap();
+    gt_axum::run_lambda_app(app).await.unwrap();
 }
 
 #[instrument(skip(state))]

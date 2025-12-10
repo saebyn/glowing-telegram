@@ -83,7 +83,7 @@ async fn initialize_api(state: AppContext) {
         .layer(compression_layer)
         .with_state(state);
 
-    gt_axum::run_app(app).await.unwrap();
+    gt_axum::run_lambda_app(app).await.unwrap();
 }
 
 async fn do_user_token_check(state: AppContext) {
