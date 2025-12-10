@@ -11,7 +11,8 @@
 //     let model: AccessTokenResponse = serde_json::from_str(&json).unwrap();
 // }
 
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccessTokenResponse {
@@ -660,7 +661,40 @@ pub struct StreamIngestionRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SubscribeChatRequest {}
+pub struct StreamWidget {
+    /// Authentication token for WebSocket access to this widget
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+
+    /// Widget configuration settings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<HashMap<String, Option<serde_json::Value>>>,
+
+    /// ISO 8601 timestamp when the widget was created
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+
+    /// Unique identifier for the stream widget
+    pub id: String,
+
+    /// Current widget state data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<HashMap<String, Option<serde_json::Value>>>,
+
+    /// Display title for the widget
+    pub title: String,
+
+    /// ISO 8601 timestamp when the widget was last updated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+
+    /// The ID of the user who owns this widget
+    pub user_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubscribeChatRequest {
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubscribeChatResponse {
@@ -670,57 +704,6 @@ pub struct SubscribeChatResponse {
     /// The ID of the created EventSub subscription, if successful
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subscription_id: Option<String>,
-}
-
-/// A task represents a unit of work in the system, with a unique identifier, status,
-/// timestamps for creation and updates, type of task, and an associated record ID.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Task {
-    pub created_at: String,
-
-    pub id: String,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub record_id: Option<String>,
-
-    pub status: Status,
-
-    pub task_type: TaskType,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
-
-    pub user_id: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum Status {
-    Aborted,
-
-    Completed,
-
-    Failed,
-
-    Pending,
-
-    #[serde(rename = "PENDING_REDRIVE")]
-    PendingRedrive,
-
-    Running,
-
-    #[serde(rename = "TIMED_OUT")]
-    TimedOut,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TaskType {
-    Ingestion,
-
-    Rendering,
-
-    Upload,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -937,6 +920,119 @@ pub struct TranscriptSegment {
     pub tokens: Vec<f64>,
 }
 
+/// Base structure for WebSocket messages
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSocketMessage {
+    /// Type of WebSocket message
+    #[serde(rename = "type")]
+    pub web_socket_message_type: WebSocketMessageType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub widget_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<HashMap<String, Option<serde_json::Value>>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<HashMap<String, Option<serde_json::Value>>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<HashMap<String, Option<serde_json::Value>>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<HashMap<String, Option<serde_json::Value>>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub success: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task: Option<Task>,
+}
+
+/// A task represents a unit of work in the system, with a unique identifier, status,
+/// timestamps for creation and updates, type of task, and an associated record ID.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Task {
+    pub created_at: String,
+
+    pub id: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub record_id: Option<String>,
+
+    pub status: Status,
+
+    pub task_type: TaskType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+
+    pub user_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Status {
+    Aborted,
+
+    Completed,
+
+    Failed,
+
+    Pending,
+
+    #[serde(rename = "PENDING_REDRIVE")]
+    PendingRedrive,
+
+    Running,
+
+    #[serde(rename = "TIMED_OUT")]
+    TimedOut,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskType {
+    Ingestion,
+
+    Rendering,
+
+    Upload,
+}
+
+/// Type of WebSocket message
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum WebSocketMessageType {
+    #[serde(rename = "TASK_UPDATE")]
+    TaskUpdate,
+
+    #[serde(rename = "WIDGET_ACTION")]
+    WidgetAction,
+
+    #[serde(rename = "WIDGET_ACTION_RESPONSE")]
+    WidgetActionResponse,
+
+    #[serde(rename = "WIDGET_CONFIG_UPDATE")]
+    WidgetConfigUpdate,
+
+    #[serde(rename = "WIDGET_STATE_UPDATE")]
+    WidgetStateUpdate,
+
+    #[serde(rename = "WIDGET_SUBSCRIBE")]
+    WidgetSubscribe,
+
+    #[serde(rename = "WIDGET_UNSUBSCRIBE")]
+    WidgetUnsubscribe,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct YouTubeAuthRequest {
     pub redirect_uri: String,
@@ -975,4 +1071,33 @@ pub struct YouTubeSessionSecret {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub valid_until: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct YouTubeUploadRequest {
+    /// Array of episode IDs to upload to YouTube
+    pub episode_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct YouTubeUploadResponse {
+    /// Status message
+    pub message: String,
+
+    /// Number of episodes queued for upload
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queued_count: Option<i64>,
+
+    /// Episodes that failed validation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validation_errors: Option<Vec<ValidationError>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ValidationError {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub episode_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
