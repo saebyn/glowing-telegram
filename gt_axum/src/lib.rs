@@ -19,7 +19,7 @@ use axum::Router;
 /// # Panics
 ///
 /// Panics if the Lambda runtime fails to start (release mode only).
-pub async fn run_app(app: Router) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_lambda_app(app: Router) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(debug_assertions)]
     {
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 3030));
