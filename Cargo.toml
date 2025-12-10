@@ -37,7 +37,7 @@ aws-sdk-s3 = { version = "1.116.0" }
 aws-sdk-dynamodb = { version = "1.100.0" }
 serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
 aws_lambda_events = "1.0"
-axum-aws-lambda = "0.10.0"
+axum-aws-lambda = "0.11.0"
 lambda_runtime = "1.0"
 axum = "0.8"
 lambda_http = { version = "1.0", features = [

@@ -23,12 +23,12 @@ version = "0.1.0"
 dependencies = [
  "aws-config",
  "aws-sdk-secretsmanager",
- "aws_lambda_events 1.0.1",
+ "aws_lambda_events",
  "axum",
  "axum-aws-lambda",
  "gt_app",
- "lambda_http 1.0.1",
- "lambda_runtime 1.0.1",
+ "lambda_http",
+ "lambda_runtime",
  "openai_dive",
  "serde",
  "serde_json",
@@ -518,7 +518,7 @@ dependencies = [
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.2",
- "tower 0.5.2",
+ "tower",
  "tracing",
 ]
 
@@ -642,22 +642,6 @@ dependencies = [
 
 [[package]]
 name = "aws_lambda_events"
-version = "0.16.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "144ec7565561115498a288850cc6a42b279e09b6c4b88f623eecb9c8ca96c08c"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "http 1.2.0",
- "http-body 1.0.1",
- "http-serde",
- "query_map",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "aws_lambda_events"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac59c9b189a3bd75146633e1c87f35fb727f53b03c7f331af789ff1293a9f350"
@@ -703,7 +687,7 @@ dependencies = [
  "serde_urlencoded",
  "sync_wrapper 1.0.2",
  "tokio",
- "tower 0.5.2",
+ "tower",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -711,9 +695,9 @@ dependencies = [
 
 [[package]]
 name = "axum-aws-lambda"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe098bbf4e923bf7d24051748ea62a8d2d0269a27de311c4d1aa331e8f270951"
+checksum = "2e0a0f9266c44222ba05c100586ff3551f45592047e496a053ff44ac1cea519a"
 dependencies = [
  "axum",
  "bytes",
@@ -721,8 +705,8 @@ dependencies = [
  "http 1.2.0",
  "http-body-util",
  "hyper 1.8.1",
- "lambda_http 0.14.0",
- "tower 0.5.2",
+ "lambda_http",
+ "tower",
  "tower-service",
 ]
 
@@ -948,10 +932,10 @@ version = "0.1.0"
 dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
- "aws_lambda_events 1.0.1",
+ "aws_lambda_events",
  "chrono",
  "gt_app",
- "lambda_runtime 1.0.1",
+ "lambda_runtime",
  "serde",
  "serde_json",
  "tokio",
@@ -1078,14 +1062,14 @@ version = "0.1.0"
 dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
- "aws_lambda_events 1.0.1",
+ "aws_lambda_events",
  "axum",
  "axum-aws-lambda",
  "chrono",
  "gt_app",
  "gt_axum",
- "lambda_http 1.0.1",
- "lambda_runtime 1.0.1",
+ "lambda_http",
+ "lambda_runtime",
  "openai_dive",
  "serde",
  "serde_json",
@@ -1618,11 +1602,11 @@ dependencies = [
 name = "gt_axum"
 version = "0.1.0"
 dependencies = [
- "aws_lambda_events 1.0.1",
+ "aws_lambda_events",
  "axum",
  "axum-aws-lambda",
- "lambda_http 1.0.1",
- "lambda_runtime 1.0.1",
+ "lambda_http",
+ "lambda_runtime",
  "serde",
  "serde_json",
  "tower-http",
@@ -1651,7 +1635,7 @@ name = "gt_secrets"
 version = "0.1.0"
 dependencies = [
  "aws-sdk-secretsmanager",
- "lambda_runtime 1.0.1",
+ "lambda_runtime",
  "serde",
  "serde_json",
  "tracing",
@@ -2229,38 +2213,11 @@ dependencies = [
 
 [[package]]
 name = "lambda_http"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68b470cea1ec37b96e9543870a33c1f4b9e243754fe5892668efa3125ea12784"
-dependencies = [
- "aws_lambda_events 0.16.1",
- "base64 0.22.1",
- "bytes",
- "encoding_rs",
- "futures",
- "futures-util",
- "http 1.2.0",
- "http-body 1.0.1",
- "http-body-util",
- "hyper 1.8.1",
- "lambda_runtime 0.13.0",
- "mime",
- "percent-encoding",
- "pin-project-lite",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "tokio-stream",
- "url",
-]
-
-[[package]]
-name = "lambda_http"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a106755a9079a3ed20b4262e32c9a5efa127c97546cb2ecf69bbf3d17dbf970b"
 dependencies = [
- "aws_lambda_events 1.0.1",
+ "aws_lambda_events",
  "bytes",
  "encoding_rs",
  "futures-util",
@@ -2268,7 +2225,7 @@ dependencies = [
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.8.1",
- "lambda_runtime 1.0.1",
+ "lambda_runtime",
  "mime",
  "percent-encoding",
  "pin-project-lite",
@@ -2277,34 +2234,6 @@ dependencies = [
  "serde_urlencoded",
  "tokio-stream",
  "url",
-]
-
-[[package]]
-name = "lambda_runtime"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed49669d6430292aead991e19bf13153135a884f916e68f32997c951af637ebe"
-dependencies = [
- "async-stream",
- "base64 0.22.1",
- "bytes",
- "futures",
- "http 1.2.0",
- "http-body 1.0.1",
- "http-body-util",
- "http-serde",
- "hyper 1.8.1",
- "hyper-util",
- "lambda_runtime_api_client 0.11.1",
- "pin-project",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "tokio",
- "tokio-stream",
- "tower 0.4.13",
- "tower-layer",
- "tracing",
 ]
 
 [[package]]
@@ -2321,36 +2250,15 @@ dependencies = [
  "http-body-util",
  "http-serde",
  "hyper 1.8.1",
- "lambda_runtime_api_client 1.0.1",
+ "lambda_runtime_api_client",
  "pin-project",
  "serde",
  "serde_json",
  "serde_path_to_error",
  "tokio",
  "tokio-stream",
- "tower 0.5.2",
+ "tower",
  "tracing",
-]
-
-[[package]]
-name = "lambda_runtime_api_client"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c90a10f094475a34a04da2be11686c4dcfe214d93413162db9ffdff3d3af293a"
-dependencies = [
- "bytes",
- "futures-channel",
- "futures-util",
- "http 1.2.0",
- "http-body 1.0.1",
- "http-body-util",
- "hyper 1.8.1",
- "hyper-util",
- "tokio",
- "tower 0.4.13",
- "tower-service",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2367,7 +2275,7 @@ dependencies = [
  "http-body-util",
  "hyper 1.8.1",
  "hyper-util",
- "tower 0.5.2",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3180,7 +3088,7 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-util",
- "tower 0.5.2",
+ "tower",
  "tower-http",
  "tower-service",
  "url",
@@ -3747,7 +3655,7 @@ dependencies = [
  "aws-sdk-dynamodb",
  "aws-sdk-secretsmanager",
  "gt_app",
- "lambda_runtime 1.0.1",
+ "lambda_runtime",
  "openai_dive",
  "serde",
  "serde_dynamo",
@@ -4132,21 +4040,6 @@ dependencies = [
 
 [[package]]
 name = "tower"
-version = "0.4.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
-dependencies = [
- "futures-core",
- "futures-util",
- "pin-project",
- "pin-project-lite",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
-name = "tower"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
@@ -4178,7 +4071,7 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tokio-util",
- "tower 0.5.2",
+ "tower",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -4284,7 +4177,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-secretsmanager",
  "aws-sdk-sqs",
- "aws_lambda_events 1.0.1",
+ "aws_lambda_events",
  "axum",
  "axum-aws-lambda",
  "chrono",
@@ -4293,8 +4186,8 @@ dependencies = [
  "gt_secrets",
  "hex",
  "hmac",
- "lambda_http 1.0.1",
- "lambda_runtime 1.0.1",
+ "lambda_http",
+ "lambda_runtime",
  "oauth2",
  "redact",
  "reqwest 0.12.24",
@@ -4945,15 +4838,15 @@ version = "0.1.0"
 dependencies = [
  "aws-config",
  "aws-sdk-secretsmanager",
- "aws_lambda_events 1.0.1",
+ "aws_lambda_events",
  "axum",
  "axum-aws-lambda",
  "chrono",
  "gt_app",
  "gt_axum",
  "gt_secrets",
- "lambda_http 1.0.1",
- "lambda_runtime 1.0.1",
+ "lambda_http",
+ "lambda_runtime",
  "oauth2",
  "redact",
  "reqwest 0.12.24",
