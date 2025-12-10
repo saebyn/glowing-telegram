@@ -86,7 +86,9 @@ async fn initialize_api(state: AppContext) {
     {
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 3030));
         let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-        axum::serve(listener, app).await.unwrap();
+        axum::serve(listener, app)
+            .await
+            .expect("Failed to start Axum server on 127.0.0.1:3030. Is the port already in use?");
     }
 
     // If we compile in release mode, use the Lambda Runtime
