@@ -15,6 +15,10 @@ use axum::Router;
 /// Returns an error if:
 /// - The local server fails to bind to the port (debug mode)
 /// - The Lambda runtime fails to start (release mode)
+///
+/// # Panics
+///
+/// Panics if the Lambda runtime fails to start (release mode only).
 pub async fn run_app(app: Router) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(debug_assertions)]
     {
@@ -32,7 +36,7 @@ pub async fn run_app(app: Router) -> Result<(), Box<dyn std::error::Error>> {
             .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
             .service(app);
 
-        lambda_http::run(app).await?;
+        lambda_http::run(app).await.unwrap();
     }
 
     Ok(())
