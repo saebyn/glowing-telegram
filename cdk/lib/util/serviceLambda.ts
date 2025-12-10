@@ -62,8 +62,8 @@ export default class ServiceLambdaConstruct extends Construct {
       logGroup: this.logGroup,
 
       environment: {
-        ...props.lambdaOptions.environment,
         RUST_LOG: 'info',
+        ...props.lambdaOptions.environment,
       },
     });
   }
