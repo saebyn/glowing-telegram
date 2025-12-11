@@ -59,7 +59,7 @@ async fn initialize_api(state: AppContext) {
         .route(
             "/eventsub/chat/subscribe",
             post(handlers::subscribe_chat_handler)
-                .delete(handlers::delete_chat_subscription_handler),
+                .delete(handlers::delete_chat_subscriptions_handler),
         )
         .route(
             "/eventsub/chat/status",
