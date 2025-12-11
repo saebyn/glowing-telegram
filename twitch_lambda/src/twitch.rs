@@ -1,5 +1,10 @@
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use serde::Deserialize;
+use sha2::Sha256;
+
+use hmac::{Hmac, Mac};
+use reqwest::header::HeaderMap;
+use types::{EventSubSubscription, TwitchSessionSecret};
 
 // implement the TokenResponse trait for a custom struct that matches Twitch's response.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -136,5 +141,174 @@ impl std::error::Error for AppAccessTokenError {
 impl From<oauth2::url::ParseError> for AppAccessTokenError {
     fn from(err: oauth2::url::ParseError) -> Self {
         Self::UrlParse(err)
+    }
+}
+
+/// Verify Twitch EventSub webhook signature
+pub fn verify_webhook_signature(
+    headers: &HeaderMap,
+    body: &str,
+    secret: &str,
+) -> Result<(), String> {
+    // Get required headers
+    let message_id = headers
+        .get("twitch-eventsub-message-id")
+        .and_then(|h| h.to_str().ok())
+        .ok_or("Missing Twitch-Eventsub-Message-Id header")?;
+
+    let timestamp = headers
+        .get("twitch-eventsub-message-timestamp")
+        .and_then(|h| h.to_str().ok())
+        .ok_or("Missing Twitch-Eventsub-Message-Timestamp header")?;
+
+    let signature = headers
+        .get("twitch-eventsub-message-signature")
+        .and_then(|h| h.to_str().ok())
+        .ok_or("Missing Twitch-Eventsub-Message-Signature header")?;
+
+    // Remove "sha256=" prefix from signature
+    let signature = signature
+        .strip_prefix("sha256=")
+        .ok_or("Invalid signature format")?;
+
+    // Create HMAC message: message_id + timestamp + body
+    let message = format!("{}{}{}", message_id, timestamp, body);
+
+    // Create HMAC-SHA256
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|e| format!("HMAC key error: {}", e))?;
+    mac.update(message.as_bytes());
+
+    // Get expected signature
+    let expected_signature = hex::encode(mac.finalize().into_bytes());
+
+    // Compare signatures
+    if expected_signature.eq_ignore_ascii_case(signature) {
+        Ok(())
+    } else {
+        Err("Signature mismatch".to_string())
+    }
+}
+
+#[derive(Deserialize)]
+struct Pagination {
+    pub cursor: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct EventSubSubscriptionsResponse {
+    pub data: Vec<EventSubSubscription>,
+    pub pagination: Option<Pagination>,
+}
+
+pub async fn get_user_eventsub_subscriptions(
+    access_token: &str,
+    client_id: &str,
+    user_id: &str,
+) -> Result<Vec<EventSubSubscription>, reqwest::Error> {
+    let client = reqwest::Client::new();
+    let mut subscriptions = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    loop {
+        let mut request = client
+            .get("https://api.twitch.tv/helix/eventsub/subscriptions")
+            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Client-Id", client_id)
+            .query(&[("user_id", user_id)]);
+
+        if let Some(ref c) = cursor {
+            request = request.query(&[("after", c)]);
+        }
+
+        let response = request.send().await?.error_for_status()?;
+        let body: EventSubSubscriptionsResponse = response.json().await?;
+
+        subscriptions.extend(body.data);
+
+        if let Some(pagination) = body.pagination {
+            if let Some(next_cursor) = pagination.cursor {
+                cursor = Some(next_cursor);
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    Ok(subscriptions)
+}
+
+pub async fn get_twitch_user(
+    state: &crate::structs::AppContext,
+    cognito_user_id: &str,
+) -> Result<ValidationResponse, ()> {
+    // Get the user's access token to validate and get broadcaster_id
+    let secret_id =
+        state.config.user_secret_path.secret_path(&cognito_user_id);
+
+    let secret = match gt_secrets::get::<TwitchSessionSecret>(
+        &state.secrets_manager,
+        &secret_id,
+    )
+    .await
+    {
+        Ok(secret) => secret,
+        Err(e) => {
+            tracing::error!("failed to get secret: {:?}", e);
+            // TODO
+            return Err(());
+        }
+    };
+
+    let Some(access_token) = secret.access_token else {
+        tracing::warn!("access_token not found in secret");
+        return Err(());
+    };
+
+    // Validate token and get broadcaster_id
+    let validation_response = match validate_token(&access_token).await {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("failed to validate token: {:?}", e);
+            return Err(());
+        }
+    };
+
+    Ok(validation_response)
+}
+
+pub async fn delete_eventsub_subscription(
+    access_token: &str,
+    client_id: &str,
+    subscription_id: &str,
+) -> Result<(), ()> {
+    let client = reqwest::Client::new();
+
+    let response = match client
+        .delete("https://api.twitch.tv/helix/eventsub/subscriptions")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Client-Id", client_id)
+        .query(&[("id", subscription_id)])
+        .send()
+        .await
+    {
+        Err(e) => {
+            tracing::error!("failed to send delete request: {:?}", e);
+            return Err(());
+        }
+        Ok(response) => response,
+    };
+
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        tracing::error!(
+            "failed to delete subscription: {}",
+            response.status()
+        );
+        Err(())
     }
 }

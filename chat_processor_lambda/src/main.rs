@@ -39,8 +39,8 @@ struct TwitchChatEvent {
     chatter_user_login: String,
     message_id: String,
     message: TwitchChatMessage,
-    #[serde(with = "chrono::serde::ts_seconds")]
-    timestamp: DateTime<Utc>,
+    color: Option<String>,
+    message_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -121,7 +121,7 @@ async fn process_message(
 
     item.insert(
         "timestamp".to_string(),
-        AttributeValue::S(event.timestamp.to_rfc3339()),
+        AttributeValue::S(Utc::now().to_rfc3339()),
     );
 
     item.insert(

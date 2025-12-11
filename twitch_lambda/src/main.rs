@@ -4,7 +4,6 @@ use axum::{
     http::{Request, StatusCode, header},
     routing::{get, post},
 };
-use lambda_http::tower;
 
 use lambda_runtime::{LambdaEvent, service_fn};
 use serde_json::{Value, json};
@@ -59,7 +58,8 @@ async fn initialize_api(state: AppContext) {
         )
         .route(
             "/eventsub/chat/subscribe",
-            post(handlers::subscribe_chat_handler),
+            post(handlers::subscribe_chat_handler)
+                .delete(handlers::delete_chat_subscription_handler),
         )
         .route(
             "/eventsub/chat/status",

@@ -4259,6 +4259,7 @@ dependencies = [
  "axum",
  "axum-aws-lambda",
  "chrono",
+ "futures",
  "gt_app",
  "gt_axum",
  "gt_secrets",
