@@ -111,6 +111,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Build Docker images with caching
+      # Note: Using mode=min instead of mode=max to reduce cache export time.
+      # mode=max exports all intermediate layers (~1180s export time)
+      # mode=min only exports final result layers (~60s export time)
+      # This still preserves cargo-chef dependency caching benefits.
       - name: Build and push Docker images (Batch 1)
         if: ${{ inputs.build_batch1 }}
         uses: docker/bake-action@v5
@@ -127,6 +132,7 @@ jobs:
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
 
+      # Using mode=min for cache export (see Batch 1 comment for details)
       - name: Build and push Docker images (Batch 2)
         if: ${{ inputs.build_batch2 }}
         uses: docker/bake-action@v5
