@@ -663,9 +663,9 @@ pub async fn chat_subscription_status_handler(
         .into_response()
 }
 
-/// Delete a specific EventSub chat subscription for the authenticated user
+/// Delete all EventSub chat subscriptions for the authenticated user
 #[instrument(skip(state))]
-pub async fn delete_chat_subscription_handler(
+pub async fn delete_chat_subscriptions_handler(
     State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
 ) -> impl IntoResponse {
@@ -727,7 +727,7 @@ pub async fn delete_chat_subscription_handler(
     };
 
     // Delete each subscription
-    user_subscriptions
+    let delete_results = user_subscriptions
         .iter()
         .map(async |sub: &EventSubSubscription| {
             let delete_result = twitch::delete_eventsub_subscription(
@@ -740,17 +740,31 @@ pub async fn delete_chat_subscription_handler(
             match delete_result {
                 Ok(_) => {
                     tracing::info!("Deleted subscription: {}", sub.id);
+                    return true;
                 }
-                Err(_) => {
+                Err(message) => {
                     tracing::error!(
-                        "Failed to delete subscription {}",
-                        sub.id
+                        "Failed to delete subscription {}: {}",
+                        sub.id,
+                        message
                     );
+                    return false;
                 }
             }
         })
         .collect::<futures::future::JoinAll<_>>()
         .await;
+
+    if delete_results.iter().any(|&result| !result) {
+        tracing::error!("One or more subscriptions failed to delete");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "status": "partial_failure",
+            })),
+        )
+            .into_response();
+    }
 
     (
         StatusCode::OK,

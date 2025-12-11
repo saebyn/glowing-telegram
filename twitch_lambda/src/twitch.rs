@@ -258,7 +258,6 @@ pub async fn get_twitch_user(
         Ok(secret) => secret,
         Err(e) => {
             tracing::error!("failed to get secret: {:?}", e);
-            // TODO
             return Err(());
         }
     };
@@ -284,7 +283,7 @@ pub async fn delete_eventsub_subscription(
     access_token: &str,
     client_id: &str,
     subscription_id: &str,
-) -> Result<(), ()> {
+) -> Result<(), &'static str> {
     let client = reqwest::Client::new();
 
     let response = match client
@@ -297,7 +296,7 @@ pub async fn delete_eventsub_subscription(
     {
         Err(e) => {
             tracing::error!("failed to send delete request: {:?}", e);
-            return Err(());
+            return Err("Request error");
         }
         Ok(response) => response,
     };
@@ -309,7 +308,7 @@ pub async fn delete_eventsub_subscription(
             "failed to delete subscription: {}",
             response.status()
         );
-        Err(())
+        Err("Failed to delete subscription")
     }
 }
 
