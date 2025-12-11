@@ -53,12 +53,15 @@ export default class ServiceLambdaConstruct extends Construct {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    const { handler, ...lambdaOptions } = props.lambdaOptions;
+
     this.lambda = new lambda.Function(this, 'Lambda', {
+      ...lambdaOptions,
       handler: lambda.Handler.FROM_IMAGE,
-      ...props.lambdaOptions,
       runtime: lambda.Runtime.FROM_IMAGE,
       code: lambda.Code.fromEcrImage(this.repository, {
         tagOrDigest: props.tagOrDigest || props.imageVersion || 'latest',
+        cmd: handler ? [handler] : undefined,
       }),
 
       tracing: lambda.Tracing.ACTIVE,
