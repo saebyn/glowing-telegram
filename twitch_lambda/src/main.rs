@@ -5,6 +5,7 @@ use axum::{
     routing::{get, post},
 };
 
+use lambda_http::tower;
 use lambda_runtime::{LambdaEvent, service_fn};
 use serde_json::{Value, json};
 use structs::AppContext;
