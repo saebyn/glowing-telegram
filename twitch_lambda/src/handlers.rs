@@ -761,32 +761,36 @@ pub async fn chat_subscription_status_handler(
         }
     };
 
-    // Filter subscriptions for this user's channel and enabled status
+    // Filter subscriptions for this user's channel (all statuses)
     let user_id = &validation_response.user_id;
-    let active_subscriptions: Vec<EventSubSubscription> =
-        subscription_response
-            .data
-            .into_iter()
-            .filter(|sub| {
-                // Check if this subscription is for the user's channel
-                sub.condition.broadcaster_user_id == Some(user_id.to_string())
-                    && sub.status == "enabled"
-            })
-            .collect();
+    let user_subscriptions: Vec<EventSubSubscription> = subscription_response
+        .data
+        .into_iter()
+        .filter(|sub| {
+            // Check if this subscription is for the user's channel
+            sub.condition.broadcaster_user_id == Some(user_id.to_string())
+        })
+        .collect();
 
-    let has_active = !active_subscriptions.is_empty();
+    // Check if any subscriptions are active (enabled status)
+    let has_active =
+        user_subscriptions.iter().any(|sub| sub.status == "enabled");
 
     tracing::info!(
-        "Found {} active chat subscriptions for user {}",
-        active_subscriptions.len(),
-        user_id
+        "Found {} total chat subscriptions for user {} ({} active)",
+        user_subscriptions.len(),
+        user_id,
+        user_subscriptions
+            .iter()
+            .filter(|sub| sub.status == "enabled")
+            .count()
     );
 
     (
         StatusCode::OK,
         Json(json!(ChatSubscriptionStatusResponse {
             has_active_subscription: has_active,
-            subscriptions: active_subscriptions,
+            subscriptions: user_subscriptions,
         })),
     )
         .into_response()
