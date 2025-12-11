@@ -10,8 +10,12 @@ export const LOG_RETENTION = logs.RetentionDays.ONE_WEEK;
 /** Log group prefix for all glowing-telegram services */
 export const LOG_GROUP_PREFIX = '/glowing-telegram';
 
+type LambdaOptions = Omit<lambda.FunctionProps, 'code' | 'runtime' | 'handler'> & {
+  handler?: string;
+};
+
 interface ServiceLambdaConstructProps {
-  lambdaOptions: Omit<lambda.FunctionProps, 'code' | 'runtime' | 'handler'>;
+  lambdaOptions: LambdaOptions;
   name: string;
   tagOrDigest?: string;
   imageVersion?: string;
@@ -50,8 +54,8 @@ export default class ServiceLambdaConstruct extends Construct {
     });
 
     this.lambda = new lambda.Function(this, 'Lambda', {
-      ...props.lambdaOptions,
       handler: lambda.Handler.FROM_IMAGE,
+      ...props.lambdaOptions,
       runtime: lambda.Runtime.FROM_IMAGE,
       code: lambda.Code.fromEcrImage(this.repository, {
         tagOrDigest: props.tagOrDigest || props.imageVersion || 'latest',
