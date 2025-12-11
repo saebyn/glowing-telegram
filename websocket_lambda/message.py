@@ -2,10 +2,19 @@ import json
 import os
 import boto3
 import logging
+from decimal import Decimal
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+# Helper to convert DynamoDB Decimal types to JSON-serializable types
+def decimal_default(obj):
+    if isinstance(obj, Decimal):
+        return int(obj) if obj % 1 == 0 else float(obj)
+    raise TypeError
+
 
 # Initialize clients
 dynamodb = boto3.resource("dynamodb")
@@ -209,7 +218,8 @@ def send_message(connection_id: str, message: dict):
 
     try:
         api_client.post_to_connection(
-            ConnectionId=connection_id, Data=json.dumps(message)
+            ConnectionId=connection_id,
+            Data=json.dumps(message, default=decimal_default),
         )
     except ClientError as e:
         if e.response.get("Error", {}).get("Code") == "GoneException":
