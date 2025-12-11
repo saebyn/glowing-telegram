@@ -180,11 +180,11 @@ pub fn verify_webhook_signature(
         .map_err(|e| format!("HMAC key error: {}", e))?;
     mac.update(message.as_bytes());
 
-    // Get expected signature
-    let expected_signature = hex::encode(mac.finalize().into_bytes());
+    let signature_bytes = hex::decode(signature)
+        .map_err(|e| format!("Hex decode error: {}", e))?;
 
     // Compare signatures
-    if expected_signature.eq_ignore_ascii_case(signature) {
+    if mac.verify_slice(&signature_bytes).is_ok() {
         Ok(())
     } else {
         Err("Signature mismatch".to_string())
