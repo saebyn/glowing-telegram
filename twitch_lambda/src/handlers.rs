@@ -663,9 +663,9 @@ pub async fn chat_subscription_status_handler(
         .into_response()
 }
 
-/// Delete a specific EventSub chat subscription for the authenticated user
+/// Delete all EventSub chat subscriptions for the authenticated user
 #[instrument(skip(state))]
-pub async fn delete_chat_subscription_handler(
+pub async fn delete_chat_subscriptions_handler(
     State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
 ) -> impl IntoResponse {
