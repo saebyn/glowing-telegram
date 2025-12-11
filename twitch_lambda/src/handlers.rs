@@ -742,10 +742,11 @@ pub async fn delete_chat_subscriptions_handler(
                     tracing::info!("Deleted subscription: {}", sub.id);
                     return true;
                 }
-                Err(_) => {
+                Err(message) => {
                     tracing::error!(
-                        "Failed to delete subscription {}",
-                        sub.id
+                        "Failed to delete subscription {}: {}",
+                        sub.id,
+                        message
                     );
                     return false;
                 }
