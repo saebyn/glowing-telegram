@@ -1,4 +1,23 @@
 """Shared utility functions for WebSocket Lambda handlers"""
+from decimal import Decimal
+
+
+def decimal_default(obj):
+    """Helper to convert DynamoDB types to JSON-serializable types.
+    
+    This function is used as the `default` parameter for json.dumps() to handle
+    types that aren't natively JSON serializable:
+    - Decimal: Converted to int or float depending on whether it has decimal places
+    - set: Converted to list
+    
+    Usage:
+        json.dumps(data, default=decimal_default)
+    """
+    if isinstance(obj, Decimal):
+        return int(obj) if obj % 1 == 0 else float(obj)
+    if isinstance(obj, set):
+        return list(obj)
+    raise TypeError
 
 
 def paginated_query(table, **kwargs):
