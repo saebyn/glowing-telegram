@@ -2,11 +2,21 @@ import json
 import os
 import boto3
 import logging
+from decimal import Decimal
 from botocore.exceptions import ClientError
 from utils import deserialize_dynamodb_item, paginated_query
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+# Helper to convert DynamoDB types to JSON-serializable types
+def decimal_default(obj):
+    if isinstance(obj, Decimal):
+        return int(obj) if obj % 1 == 0 else float(obj)
+    if isinstance(obj, set):
+        return list(obj)
+    raise TypeError
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource("dynamodb")
@@ -93,7 +103,8 @@ def handle_widget_change(widget, old_widget, event_name):
                     "type": "WIDGET_CONFIG_UPDATE",
                     "widgetId": widget_id,
                     "config": widget.get("config", {}),
-                }
+                },
+                default=decimal_default,
             )
             broadcast_to_connections(connections, config_message)
 
@@ -105,7 +116,8 @@ def handle_widget_change(widget, old_widget, event_name):
                     "widgetId": widget_id,
                     "state": widget.get("state", {}),
                     "timestamp": widget.get("updated_at", ""),
-                }
+                },
+                default=decimal_default,
             )
             broadcast_to_connections(connections, state_message)
 

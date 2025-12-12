@@ -9,10 +9,12 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-# Helper to convert DynamoDB Decimal types to JSON-serializable types
+# Helper to convert DynamoDB types to JSON-serializable types
 def decimal_default(obj):
     if isinstance(obj, Decimal):
         return int(obj) if obj % 1 == 0 else float(obj)
+    if isinstance(obj, set):
+        return list(obj)
     raise TypeError
 
 
