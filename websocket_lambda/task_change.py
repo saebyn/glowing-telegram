@@ -2,11 +2,21 @@ import json
 import os
 import boto3
 import logging
+from decimal import Decimal
 from botocore.exceptions import ClientError
 from utils import deserialize_dynamodb_item, paginated_query
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+# Helper to convert DynamoDB types to JSON-serializable types
+def decimal_default(obj):
+    if isinstance(obj, Decimal):
+        return int(obj) if obj % 1 == 0 else float(obj)
+    if isinstance(obj, set):
+        return list(obj)
+    raise TypeError
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
@@ -58,11 +68,14 @@ def handle_task_change(task, old_task):
             return
         
         # Prepare the payload to send to clients
-        payload = json.dumps({
-            'type': 'TASK_UPDATE',
-            'task': task,
-            'old_status': old_task.get('status') if old_task else None,
-        })
+        payload = json.dumps(
+            {
+                "type": "TASK_UPDATE",
+                "task": task,
+                "old_status": old_task.get("status") if old_task else None,
+            },
+            default=decimal_default,
+        )
         
         # Send the update to all connections for this user
         for connection_id in connections:
