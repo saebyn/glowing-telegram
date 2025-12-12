@@ -2,7 +2,6 @@ import json
 import os
 import boto3
 import logging
-from decimal import Decimal
 from botocore.exceptions import ClientError
 from utils import decimal_default
 
