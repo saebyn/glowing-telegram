@@ -2,7 +2,6 @@ import json
 import os
 import boto3
 import logging
-from decimal import Decimal
 from botocore.exceptions import ClientError
 from utils import deserialize_dynamodb_item, paginated_query, decimal_default
 
