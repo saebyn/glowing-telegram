@@ -17,6 +17,7 @@ import RenderJobConstruct from './batch/renderJob';
 import YoutubeUploader from './youtubeUploader';
 import WebSocketAPIConstruct from './websocketApi';
 import TwitchChatProcessingConstruct from './twitchChatProcessing';
+import WidgetUpdaterConstruct from './widgetUpdater';
 import { EventBus } from 'aws-cdk-lib/aws-events';
 
 interface AppStackProps extends cdk.StackProps {
@@ -157,6 +158,11 @@ export default class AppStack extends cdk.Stack {
       streamWidgetsTable: dataStore.streamWidgetsTable,
       userPoolClient: userManagement.userPoolClient,
       domainName,
+    });
+
+    // Widget updater for scheduled background updates (e.g., countdown timers)
+    new WidgetUpdaterConstruct(this, 'WidgetUpdater', {
+      streamWidgetsTable: dataStore.streamWidgetsTable,
     });
 
     const twitchChatProcessing = new TwitchChatProcessingConstruct(this, 'TwitchChatProcessing', {

@@ -1,0 +1,25 @@
+[package]
+name = "widget_updater_lambda"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bootstrap"
+path = "src/main.rs"
+
+[dependencies]
+aws-config = { version = "1.5.11", features = ["behavior-version-latest"] }
+aws-sdk-dynamodb = "1.56.0"
+chrono = { version = "0.4", features = ["serde"] }
+gt_app = { path = "../gt_app" }
+lambda_runtime = "0.13.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["macros"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+types = { path = "../types" }
+
+[profile.release]
+lto = true
+codegen-units = 1

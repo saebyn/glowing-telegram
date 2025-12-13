@@ -462,6 +462,54 @@ export interface StreamIngestionRequest {
     streamId:       string;
 }
 
+export interface StreamWidget {
+    /**
+     * Authentication token for WebSocket access to this widget
+     */
+    access_token?: string;
+    /**
+     * Whether widget is currently active and should receive scheduled updates
+     */
+    active?: boolean;
+    /**
+     * Widget configuration settings
+     */
+    config?: { [key: string]: any };
+    /**
+     * ISO 8601 timestamp when the widget was created
+     */
+    created_at?: string;
+    /**
+     * Unique identifier for the stream widget
+     */
+    id: string;
+    /**
+     * Current widget state data
+     */
+    state?: { [key: string]: any };
+    /**
+     * Display title for the widget
+     */
+    title: string;
+    /**
+     * Widget type determines update behavior and available actions
+     */
+    type: StreamWidgetType;
+    /**
+     * ISO 8601 timestamp when the widget was last updated
+     */
+    updated_at?: string;
+    /**
+     * The ID of the user who owns this widget
+     */
+    user_id: string;
+}
+
+/**
+ * Widget type determines update behavior and available actions
+ */
+export type StreamWidgetType = "countdown" | "text_overlay" | "poll" | "name_queue" | "bot_integration";
+
 export interface SubscribeChatRequest {
 }
 
@@ -475,24 +523,6 @@ export interface SubscribeChatResponse {
      */
     subscription_id?: null | string;
 }
-
-/**
- * A task represents a unit of work in the system, with a unique identifier, status,
- * timestamps for creation and updates, type of task, and an associated record ID.
- */
-export interface Task {
-    created_at:  string;
-    id:          string;
-    record_id?:  string;
-    status:      Status;
-    task_type:   TaskType;
-    updated_at?: string;
-    user_id:     string;
-}
-
-export type Status = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "TIMED_OUT" | "ABORTED" | "PENDING_REDRIVE";
-
-export type TaskType = "ingestion" | "upload" | "rendering";
 
 export interface TwitchAuthRequest {
     redirect_uri: string;
@@ -631,6 +661,49 @@ export interface TranscriptSegment {
     tokens:            number[];
 }
 
+/**
+ * Base structure for WebSocket messages
+ */
+export interface WebSocketMessage {
+    /**
+     * Type of WebSocket message
+     */
+    type:      WebSocketMessageType;
+    widgetId?: string;
+    action?:   string;
+    payload?:  { [key: string]: any };
+    config?:   { [key: string]: any };
+    state?:    { [key: string]: any };
+    error?:    string;
+    result?:   { [key: string]: any };
+    success?:  boolean;
+    task?:     Task;
+    [property: string]: unknown;
+}
+
+/**
+ * A task represents a unit of work in the system, with a unique identifier, status,
+ * timestamps for creation and updates, type of task, and an associated record ID.
+ */
+export interface Task {
+    created_at:  string;
+    id:          string;
+    record_id?:  string;
+    status:      Status;
+    task_type:   TaskType;
+    updated_at?: string;
+    user_id:     string;
+}
+
+export type Status = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "TIMED_OUT" | "ABORTED" | "PENDING_REDRIVE";
+
+export type TaskType = "ingestion" | "upload" | "rendering";
+
+/**
+ * Type of WebSocket message
+ */
+export type WebSocketMessageType = "WIDGET_SUBSCRIBE" | "WIDGET_UNSUBSCRIBE" | "WIDGET_ACTION" | "WIDGET_CONFIG_UPDATE" | "WIDGET_STATE_UPDATE" | "WIDGET_ACTION_RESPONSE" | "TASK_UPDATE";
+
 export interface YouTubeAuthRequest {
     redirect_uri: string;
     scopes:       string[];
@@ -656,4 +729,32 @@ export interface YouTubeSessionSecret {
     refresh_token?: string;
     scopes:         string[];
     valid_until?:   number;
+}
+
+export interface YouTubeUploadRequest {
+    /**
+     * Array of episode IDs to upload to YouTube
+     */
+    episode_ids: string[];
+}
+
+export interface YouTubeUploadResponse {
+    /**
+     * Status message
+     */
+    message: string;
+    /**
+     * Number of episodes queued for upload
+     */
+    queued_count?: number;
+    /**
+     * Episodes that failed validation
+     */
+    validation_errors?: ValidationError[];
+}
+
+export interface ValidationError {
+    episode_id?: string;
+    error?:      string;
+    [property: string]: unknown;
 }

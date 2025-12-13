@@ -14,6 +14,15 @@
       "type": "string",
       "description": "Display title for the widget"
     },
+    "type": {
+      "type": "string",
+      "enum": ["countdown", "text_overlay", "poll", "name_queue", "bot_integration"],
+      "description": "Widget type determines update behavior and available actions"
+    },
+    "active": {
+      "type": "boolean",
+      "description": "Whether widget is currently active and should receive scheduled updates"
+    },
     "config": {
       "type": "object",
       "description": "Widget configuration settings",
@@ -39,7 +48,7 @@
       "description": "ISO 8601 timestamp when the widget was last updated"
     }
   },
-  "required": ["id", "user_id", "title"],
+  "required": ["id", "user_id", "title", "type"],
   "additionalProperties": false,
   "$comment": "Represents a stream widget that can be embedded in streaming overlays and controlled via WebSocket"
 }
