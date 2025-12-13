@@ -175,8 +175,28 @@ def handle_action(connection_id: str, connection: dict, message: dict):
         if widget.get("user_id") != connection.get("user_id"):
             return {"statusCode": 403, "body": "Forbidden"}
 
-        # TODO: Execute action based on widget type and action name
-        # For now, just send success response
+        # Route to type-specific action handler
+        widget_type = widget.get("type", "unknown")
+        payload = message.get("payload", {})
+
+        if widget_type == "countdown":
+            result = handle_countdown_action(widget, action, payload)
+        else:
+            result = {"success": False, "error": f"Unknown widget type: {widget_type}"}
+
+        if result["success"]:
+            # Update widget state in DynamoDB
+            from datetime import datetime
+
+            widgets_table.update_item(
+                Key={"id": widget_id},
+                UpdateExpression="SET #state = :state, updated_at = :now",
+                ExpressionAttributeNames={"#state": "state"},
+                ExpressionAttributeValues={
+                    ":state": result["new_state"],
+                    ":now": datetime.utcnow().isoformat(),
+                },
+            )
 
         send_message(
             connection_id,
@@ -184,11 +204,16 @@ def handle_action(connection_id: str, connection: dict, message: dict):
                 "type": "WIDGET_ACTION_RESPONSE",
                 "widgetId": widget_id,
                 "action": action,
-                "success": True,
+                "success": result["success"],
+                "result": result.get("data"),
+                "error": result.get("error"),
             },
         )
 
-        return {"statusCode": 200, "body": "Action executed"}
+        return {
+            "statusCode": 200 if result["success"] else 400,
+            "body": "Action executed",
+        }
     except Exception as e:
         logger.error(f"Error executing action: {str(e)}")
         send_message(
@@ -202,6 +227,71 @@ def handle_action(connection_id: str, connection: dict, message: dict):
             },
         )
         return {"statusCode": 500, "body": "Internal error"}
+
+
+def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
+    """Handle countdown widget-specific actions"""
+    from datetime import datetime
+
+    state = widget.get("state", {})
+    config = widget.get("config", {})
+
+    if action == "start":
+        # Start countdown with initial duration from config
+        duration = config.get("duration", 300)  # Default 5 minutes
+        return {
+            "success": True,
+            "new_state": {
+                **state,
+                "enabled": True,
+                "last_tick_timestamp": datetime.utcnow().isoformat(),
+                "duration_left": duration,
+            },
+        }
+
+    elif action == "pause":
+        # Pause countdown (keeps current duration_left)
+        return {"success": True, "new_state": {**state, "enabled": False}}
+
+    elif action == "resume":
+        # Resume countdown from current duration_left
+        return {
+            "success": True,
+            "new_state": {
+                **state,
+                "enabled": True,
+                "last_tick_timestamp": datetime.utcnow().isoformat(),
+            },
+        }
+
+    elif action == "reset":
+        # Reset countdown to initial duration and stop
+        duration = config.get("duration", 300)
+        return {
+            "success": True,
+            "new_state": {
+                "enabled": False,
+                "duration_left": duration,
+                "last_tick_timestamp": None,
+            },
+        }
+
+    elif action == "set_duration":
+        # Update the duration (while countdown is stopped)
+        new_duration = payload.get("duration")
+        if not isinstance(new_duration, int) or new_duration < 0:
+            return {"success": False, "error": "Invalid duration value"}
+
+        return {
+            "success": True,
+            "new_state": {
+                **state,
+                "duration_left": new_duration,
+            },
+        }
+
+    else:
+        return {"success": False, "error": f"Unknown action: {action}"}
 
 
 def send_message(connection_id: str, message: dict):
