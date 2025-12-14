@@ -264,6 +264,20 @@ export default class DatastoreConstruct extends Construct {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    // Add GSI for querying active widgets by type (for scheduled updates)
+    streamWidgetsTable.addGlobalSecondaryIndex({
+      indexName: 'type-active-index',
+      partitionKey: {
+        name: 'type',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'active',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     this.streamWidgetsTable = streamWidgetsTable;
   }
 }

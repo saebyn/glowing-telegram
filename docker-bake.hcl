@@ -15,6 +15,7 @@ group "all" {
     "upload_video",
     "video_ingestor",
     "websocket_lambda",
+    "widget_updater_lambda",
     "youtube_lambda",
     "youtube_uploader_lambda",
   ]
@@ -31,6 +32,7 @@ group "batch1" {
     "twitch_lambda",
     "upload_video",
     "websocket_lambda",
+    "widget_updater_lambda",
     "youtube_lambda",
     "youtube_uploader_lambda",
   ]
@@ -135,6 +137,13 @@ target "websocket_lambda" {
   context = "."
   target = "websocket_lambda"
   tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/websocket-lambda:latest"]
+}
+
+target "widget_updater_lambda" {
+  dockerfile = "Dockerfile"
+  context = "."
+  target = "widget_updater_lambda"
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/widget-updater-lambda:latest"]
 }
 
 target "youtube_uploader_lambda" {
