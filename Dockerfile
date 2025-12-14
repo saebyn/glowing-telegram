@@ -181,7 +181,6 @@ RUN pip install --no-cache-dir pipenv && \
 COPY websocket_lambda/*.py ${LAMBDA_TASK_ROOT}/
 # Default handler can be overridden at runtime
 CMD [ "connect.handler" ]
-CMD [ "connect.handler" ]
 
 # widget_updater_lambda
 FROM rust_builder AS widget_updater_lambda_builder
