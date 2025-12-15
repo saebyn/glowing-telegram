@@ -33,10 +33,10 @@ types = { path = "./types" }
 gt_secrets = { path = "./gt_secrets" }
 gt_axum = { path = "./gt_axum" }
 gt_app = { path = "./gt_app" }
-aws-config = "1.8.10"
-aws-sdk-secretsmanager = { version = "1.95.0" }
-aws-sdk-s3 = { version = "1.116.0" }
-aws-sdk-dynamodb = { version = "1.100.0" }
+aws-config = "1.8.12"
+aws-sdk-secretsmanager = { version = "1.97.0" }
+aws-sdk-s3 = { version = "1.117.0" }
+aws-sdk-dynamodb = { version = "1.101.0" }
 serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
 aws_lambda_events = "1.0"
 axum-aws-lambda = "0.11.0"
@@ -55,8 +55,8 @@ tokio = { version = "1.48.0", features = ["full"] }
 figment = { version = "0.10.19", features = ["env"] }
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
-openai_dive = "1.3.3"
-reqwest = { version = "0.12.24", features = ["json"] }
+openai_dive = "1.4.0"
+reqwest = { version = "0.12.26", features = ["json"] }
 redact = { version = "0.1.11", features = ["serde"] }
 chrono = { version = "0.4.42", features = ["serde"] }
 uuid = { version = "1.19", features = ["v7", "fast-rng"] }
