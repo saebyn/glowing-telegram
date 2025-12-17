@@ -22,7 +22,7 @@ import { EventBus } from 'aws-cdk-lib/aws-events';
 
 interface AppStackProps extends cdk.StackProps {
   domainName: string;
-  imageVersion?: string;
+  tagOrDigest?: string;
 }
 
 const YOUTUBE_USER_SECRET_BASE_PATH = 'gt/youtube/user';
@@ -30,7 +30,7 @@ const TWITCH_USER_SECRET_BASE_PATH = 'gt/twitch/user';
 
 export default class AppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AppStackProps) {
-    const { domainName, imageVersion, ...restProps } = props;
+    const { domainName, tagOrDigest, ...restProps } = props;
 
     super(scope, id, restProps);
 
@@ -84,7 +84,7 @@ export default class AppStack extends cdk.Stack {
       {
         outputBucket: dataStore.outputBucket,
         videoMetadataTable: dataStore.videoMetadataTable,
-        imageVersion,
+        tagOrDigest,
       },
     );
 
@@ -94,7 +94,7 @@ export default class AppStack extends cdk.Stack {
       videoMetadataTable: dataStore.videoMetadataTable,
       videoArchiveBucket: dataStore.videoArchive,
       enableAutomaticIngestion: true,
-      imageVersion,
+      tagOrDigest,
     });
 
     const embeddingService = new EmbeddingServiceConstruct(this, 'EmbeddingService', {
@@ -103,14 +103,14 @@ export default class AppStack extends cdk.Stack {
       vectorDatabaseSecret: dataStore.vectorDatabaseSecret,
       openaiSecret,
       jobQueue: batchEnvironment.cpuJobQueue,
-      imageVersion,
+      tagOrDigest,
     });
 
     const mediaServe = new MediaServeConstruct(this, 'MediaServe', {
       mediaOutputBucket: dataStore.outputBucket,
       videoMetadataTable: dataStore.videoMetadataTable,
       domainName,
-      imageVersion,
+      tagOrDigest,
     });
 
     const taskMonitoring = new TaskMonitoringConstruct(this, 'TaskMonitoring', {
@@ -129,7 +129,7 @@ export default class AppStack extends cdk.Stack {
       openaiSecret,
       mediaDistribution: mediaServe.distribution,
       taskMonitoring,
-      imageVersion,
+      tagOrDigest,
     });
 
     const renderJob = new RenderJobConstruct(this, 'RenderJob', {
@@ -138,7 +138,7 @@ export default class AppStack extends cdk.Stack {
       episodeTable: dataStore.episodesTable,
       jobQueue: batchEnvironment.cpuJobQueue,
       taskMonitoring,
-      imageVersion,
+      tagOrDigest,
     });
 
     const youtubeUploader = new YoutubeUploader(this, 'YoutubeUploader', {
@@ -149,7 +149,7 @@ export default class AppStack extends cdk.Stack {
       youtubeAppSecret,
       youtubeUserSecretBasePath: YOUTUBE_USER_SECRET_BASE_PATH,
       taskMonitoring,
-      imageVersion,
+      tagOrDigest,
     });
 
     new WebSocketAPIConstruct(this, 'WebSocketAPI', {
@@ -163,11 +163,12 @@ export default class AppStack extends cdk.Stack {
     // Widget updater for scheduled background updates (e.g., countdown timers)
     new WidgetUpdaterConstruct(this, 'WidgetUpdater', {
       streamWidgetsTable: dataStore.streamWidgetsTable,
+      tagOrDigest,
     });
 
     const twitchChatProcessing = new TwitchChatProcessingConstruct(this, 'TwitchChatProcessing', {
       chatMessagesTable: dataStore.chatMessagesTable,
-      imageVersion,
+      tagOrDigest,
     });
 
     new APIConstruct(this, 'API', {
@@ -198,7 +199,7 @@ export default class AppStack extends cdk.Stack {
       youtubeUploaderAPILambda: youtubeUploader.apiLambda,
 
       domainName,
-      imageVersion,
+      tagOrDigest,
     });
   }
 }

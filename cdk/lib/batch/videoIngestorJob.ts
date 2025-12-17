@@ -21,7 +21,7 @@ interface VideoIngestorConstructProps {
   jobQueue: batch.IJobQueue;
 
   enableAutomaticIngestion: boolean;
-  imageVersion?: string;
+  tagOrDigest?: string;
 }
 
 /**
@@ -77,7 +77,7 @@ export default class VideoIngestorConstruct extends Construct {
         jobRole,
         executionRole,
         command: ['Ref::key'],
-        image: ecs.ContainerImage.fromEcrRepository(repo, props.imageVersion || 'latest'),
+        image: ecs.ContainerImage.fromEcrRepository(repo, props.tagOrDigest || 'latest'),
         environment: {
           INPUT_BUCKET: props.videoArchiveBucket.bucketName,
           OUTPUT_BUCKET: props.outputBucket.bucketName,

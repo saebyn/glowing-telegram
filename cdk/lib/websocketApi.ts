@@ -11,7 +11,7 @@ import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import ServiceLambdaConstruct from './util/serviceLambda';
 
 interface WebSocketAPIConstructProps {
-  imageVersion?: string;
+  tagOrDigest?: string;
   userPool: cognito.IUserPool;
   tasksTable: dynamodb.ITable;
   streamWidgetsTable: dynamodb.ITable;
@@ -77,7 +77,7 @@ export default class WebSocketAPIConstruct extends Construct {
       'AuthorizerLambda',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Authorizer Lambda',
           timeout: cdk.Duration.seconds(10),
@@ -98,7 +98,7 @@ export default class WebSocketAPIConstruct extends Construct {
       'ConnectHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Connect Handler',
           timeout: cdk.Duration.seconds(30),
@@ -117,7 +117,7 @@ export default class WebSocketAPIConstruct extends Construct {
       'DisconnectHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Disconnect Handler',
           timeout: cdk.Duration.seconds(30),
@@ -136,7 +136,7 @@ export default class WebSocketAPIConstruct extends Construct {
       'MessageHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Message Handler',
           timeout: cdk.Duration.seconds(30),
@@ -157,7 +157,7 @@ export default class WebSocketAPIConstruct extends Construct {
       'TaskChangeHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Task Change Handler',
           timeout: cdk.Duration.seconds(30),
@@ -260,7 +260,7 @@ export default class WebSocketAPIConstruct extends Construct {
       'WidgetChangeHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Widget Change Handler',
           timeout: cdk.Duration.seconds(30),
