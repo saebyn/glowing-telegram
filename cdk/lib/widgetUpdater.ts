@@ -18,7 +18,7 @@ export default class WidgetUpdaterConstruct extends Construct {
     super(scope, id);
 
     const service = new ServiceLambdaConstruct(this, 'WidgetUpdaterService', {
-      name: 'widget-updater',
+      name: 'widget-updater-lambda',
       tagOrDigest: props.tagOrDigest,
       lambdaOptions: {
         timeout: cdk.Duration.seconds(1),
