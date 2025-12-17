@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "bootstrap"
+name = "widget_updater_lambda"
 path = "src/main.rs"
 
 [dependencies]
