@@ -2,6 +2,8 @@ import json
 import os
 import boto3
 import logging
+from datetime import datetime, timezone
+
 from botocore.exceptions import ClientError
 from utils import decimal_default
 
@@ -186,15 +188,13 @@ def handle_action(connection_id: str, connection: dict, message: dict):
 
         if result["success"]:
             # Update widget state in DynamoDB
-            from datetime import datetime
-
             widgets_table.update_item(
                 Key={"id": widget_id},
                 UpdateExpression="SET #state = :state, updated_at = :now",
                 ExpressionAttributeNames={"#state": "state"},
                 ExpressionAttributeValues={
                     ":state": result["new_state"],
-                    ":now": datetime.utcnow().isoformat(),
+                    ":now": datetime.now(timezone.utc).isoformat(),
                 },
             )
 
@@ -231,8 +231,6 @@ def handle_action(connection_id: str, connection: dict, message: dict):
 
 def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
     """Handle countdown widget-specific actions"""
-    from datetime import datetime
-
     state = widget.get("state", {})
     config = widget.get("config", {})
 
@@ -244,7 +242,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
             "new_state": {
                 **state,
                 "enabled": True,
-                "last_tick_timestamp": datetime.utcnow().isoformat(),
+                "last_tick_timestamp": datetime.now(timezone.utc).isoformat(),
                 "duration_left": duration,
             },
         }
@@ -260,13 +258,14 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
             "new_state": {
                 **state,
                 "enabled": True,
-                "last_tick_timestamp": datetime.utcnow().isoformat(),
+                "last_tick_timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
 
     elif action == "reset":
         # Reset countdown to initial duration and stop
         duration = config.get("duration", 300)
+        # Intentially not using **state to clear any ongoing countdown info
         return {
             "success": True,
             "new_state": {
