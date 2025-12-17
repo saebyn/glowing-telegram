@@ -158,7 +158,7 @@ This repository contains these directories:
 - **episodes** - Generated episodes with transcriptions and summaries
 - **projects** - Project groupings for content organization
 - **chat_messages** - Twitch chat messages with TTL (30 days)
-- **stream_widgets** - Widget configurations and state (with GSIs for user_id, access_token, type, active)
+- **stream_widgets** - Widget configurations and state (with GSIs for user_id, access_token, and type)
 
 ### Aurora PostgreSQL
 - **embeddings** - Vector embeddings with pgvector extension for semantic search
