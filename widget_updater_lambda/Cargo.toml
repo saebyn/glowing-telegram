@@ -3,10 +3,6 @@ name = "widget_updater_lambda"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "widget_updater_lambda"
-path = "src/main.rs"
-
 [dependencies]
 aws-config = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
