@@ -97,18 +97,18 @@ async fn query_active_widgets_by_type(
             .dynamodb
             .query()
             .table_name(&context.config.stream_widgets_table)
-            .index_name("type-active-index")
-            .key_condition_expression(
-                "#type = :widget_type AND active = :active",
-            )
+            .index_name("type-index")
+            .key_condition_expression("#type = :widget_type")
+            .filter_expression("#active = :active")
             .expression_attribute_names("#type", "type")
+            .expression_attribute_names("#active", "active")
             .expression_attribute_values(
                 ":widget_type",
                 AttributeValue::S(widget_type.to_string()),
             )
             .expression_attribute_values(
                 ":active",
-                AttributeValue::N("1".to_string()),
+                AttributeValue::Bool(true),
             );
 
         if let Some(start_key) = exclusive_start_key {
@@ -166,11 +166,7 @@ fn deserialize_widget(
         }
     };
 
-    let active = item
-        .get("active")
-        .and_then(|v| v.as_n().ok())
-        .and_then(|n| n.parse::<u8>().ok())
-        .map(|n| n == 1);
+    let active = item.get("active").and_then(|v| v.as_bool().ok()).copied();
 
     let config = item.get("config").and_then(|v| deserialize_map(v).ok());
 
