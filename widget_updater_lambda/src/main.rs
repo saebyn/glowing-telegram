@@ -326,12 +326,6 @@ fn get_updater_for_type(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_target(false)
-        .without_time()
-        .init();
-
     let context = gt_app::create_app_context::<AppContext, Config>().await?;
 
     run(service_fn(|event| async {
