@@ -18,7 +18,7 @@ interface EmbeddingServiceConstructProps {
   openaiSecret: secretsmanager.ISecret;
 
   jobQueue: batch.IJobQueue;
-  imageVersion?: string;
+  tagOrDigest?: string;
 }
 
 /**
@@ -75,7 +75,7 @@ export default class EmbeddingServiceConstruct extends Construct {
         jobRole,
         executionRole,
         command: ['process', 'Ref::video_key'],
-        image: ecs.ContainerImage.fromEcrRepository(repo, props.imageVersion || 'latest'),
+        image: ecs.ContainerImage.fromEcrRepository(repo, props.tagOrDigest || 'latest'),
         environment: {
           DYNAMODB_TABLE: props.videoMetadataTable.tableName,
           DATABASE_SECRET_ARN: props.vectorDatabaseSecret.secretArn,

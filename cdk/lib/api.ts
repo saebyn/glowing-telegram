@@ -41,7 +41,7 @@ interface APIConstructProps {
   youtubeUploaderAPILambda: lambda.IFunction;
 
   domainName: string;
-  imageVersion?: string;
+  tagOrDigest?: string;
 
   renderJob: {
     jobQueue: batch.IJobQueue;
@@ -120,7 +120,7 @@ export default class APIConstruct extends Construct {
         },
       },
       name: 'youtube-lambda',
-      imageVersion: props.imageVersion,
+      tagOrDigest: props.tagOrDigest,
     });
 
     props.youtubeAppSecret.grantRead(youtubeService.lambda);
@@ -178,7 +178,7 @@ export default class APIConstruct extends Construct {
         },
       },
       name: 'twitch-lambda',
-      imageVersion: props.imageVersion,
+      tagOrDigest: props.tagOrDigest,
     });
 
     twitchAppSecret.grantRead(twitchService.lambda);
@@ -214,7 +214,7 @@ export default class APIConstruct extends Construct {
       'TokenRefreshLambda',
       {
         name: 'twitch-lambda',
-        imageVersion: props.imageVersion,
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'Twitch Token Refresh Lambda for Glowing-Telegram',
           timeout: cdk.Duration.minutes(5),
@@ -279,7 +279,7 @@ export default class APIConstruct extends Construct {
         },
       },
       name: 'crud-lambda',
-      imageVersion: props.imageVersion,
+      tagOrDigest: props.tagOrDigest,
     });
 
     crudService.lambda.addToRolePolicy(
@@ -330,7 +330,7 @@ export default class APIConstruct extends Construct {
         },
       },
       name: 'ai-chat-lambda',
-      imageVersion: props.imageVersion,
+      tagOrDigest: props.tagOrDigest,
     });
 
     props.openaiSecret.grantRead(aiChatService.lambda);

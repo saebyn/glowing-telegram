@@ -13,7 +13,7 @@ interface MediaServeConstructProps {
   mediaOutputBucket: s3.IBucket;
   videoMetadataTable: dynamodb.ITable;
   domainName: string;
-  imageVersion?: string;
+  tagOrDigest?: string;
 }
 
 export default class MediaServeConstruct extends Construct {
@@ -83,7 +83,7 @@ export default class MediaServeConstruct extends Construct {
           },
         },
         name: 'media-lambda',
-        imageVersion: props.imageVersion,
+        tagOrDigest: props.tagOrDigest,
       },
     );
 
