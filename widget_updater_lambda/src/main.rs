@@ -1,7 +1,4 @@
-use aws_sdk_dynamodb::{
-    Client as DynamoDbClient,
-    types::{AttributeValue, WriteRequest},
-};
+use aws_sdk_dynamodb::{Client as DynamoDbClient, types::AttributeValue};
 use chrono::Utc;
 use gt_app::ContextProvider;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
@@ -9,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use tracing::{info, warn};
+use types::{StreamWidget, StreamWidgetType};
 
 mod updaters;
 use updaters::{WidgetUpdate, WidgetUpdater, countdown::CountdownUpdater};
@@ -42,16 +40,6 @@ impl ContextProvider<Config> for AppContext {
             dynamodb: DynamoDbClient::new(&aws_config),
         }
     }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct StreamWidget {
-    id: String,
-    #[serde(rename = "type")]
-    widget_type: String,
-    active: Option<bool>,
-    config: Option<HashMap<String, JsonValue>>,
-    state: Option<HashMap<String, JsonValue>>,
 }
 
 async fn function_handler(
@@ -157,11 +145,26 @@ fn deserialize_widget(
         .ok_or("Missing id")?
         .clone();
 
-    let widget_type = item
+    let stream_widget_type_string = item
         .get("type")
         .and_then(|v| v.as_s().ok())
         .ok_or("Missing type")?
         .clone();
+
+    let stream_widget_type = match stream_widget_type_string.as_str() {
+        "countdown" => StreamWidgetType::Countdown,
+        "bot_integration" => StreamWidgetType::BotIntegration,
+        "name_queue" => StreamWidgetType::NameQueue,
+        "poll" => StreamWidgetType::Poll,
+        "text_overlay" => StreamWidgetType::TextOverlay,
+        _ => {
+            return Err(format!(
+                "Unknown widget type: {}",
+                stream_widget_type_string
+            )
+            .into());
+        }
+    };
 
     let active = item
         .get("active")
@@ -175,21 +178,30 @@ fn deserialize_widget(
 
     Ok(StreamWidget {
         id,
-        widget_type,
+        stream_widget_type,
         active,
         config,
         state,
+        // unused fields, so don't bother deserializing
+        access_token: None,
+        created_at: None,
+        updated_at: None,
+        title: "".to_string(),
+        user_id: "".to_string(),
     })
 }
 
 fn deserialize_map(
     attr: &AttributeValue,
-) -> Result<HashMap<String, JsonValue>, Error> {
+) -> Result<HashMap<String, Option<JsonValue>>, Error> {
     match attr {
         AttributeValue::M(map) => {
             let mut result = HashMap::new();
             for (key, value) in map {
-                result.insert(key.clone(), attribute_value_to_json(value)?);
+                result.insert(
+                    key.clone(),
+                    Some(attribute_value_to_json(value)?),
+                );
             }
             Ok(result)
         }
@@ -238,55 +250,41 @@ async fn batch_write_widget_states(
     let now = Utc::now().to_rfc3339();
     let mut success_count = 0;
 
-    // Process updates in batches of 25 (DynamoDB limit)
-    for chunk in updates.chunks(25) {
-        let mut write_requests = Vec::new();
-
-        for update in chunk {
-            let mut item = HashMap::new();
-            item.insert(
-                "id".to_string(),
-                AttributeValue::S(update.id.clone()),
-            );
-            item.insert(
-                "state".to_string(),
-                json_to_attribute_value(&serde_json::to_value(&update.state)?),
-            );
-            item.insert(
-                "updated_at".to_string(),
-                AttributeValue::S(now.clone()),
-            );
-
-            write_requests.push(
-                WriteRequest::builder()
-                    .put_request(
-                        aws_sdk_dynamodb::types::PutRequest::builder()
-                            .set_item(Some(item))
-                            .build()
-                            .map_err(|e| {
-                                format!("Failed to build put request: {}", e)
-                            })?,
-                    )
-                    .build(),
-            );
-        }
-
-        match context
+    // Process updates via UpdateItem operations, as we are updating existing items
+    for update in updates {
+        let response = context
             .dynamodb
-            .batch_write_item()
-            .request_items(
-                &context.config.stream_widgets_table,
-                write_requests,
+            .update_item()
+            .table_name(&context.config.stream_widgets_table)
+            .key("id", AttributeValue::S(update.id.clone()))
+            .update_expression(
+                "SET #state = :new_state, #updated_at = :updated_at",
+            )
+            .expression_attribute_names("#state", "state")
+            .expression_attribute_names("#updated_at", "updated_at")
+            .expression_attribute_values(
+                ":new_state",
+                AttributeValue::M(
+                    update
+                        .state
+                        .iter()
+                        .map(|(k, v)| (k.clone(), json_to_attribute_value(v)))
+                        .collect(),
+                ),
+            )
+            .expression_attribute_values(
+                ":updated_at",
+                AttributeValue::S(now.clone()),
             )
             .send()
-            .await
-        {
+            .await;
+
+        match response {
             Ok(_) => {
-                success_count += chunk.len();
+                success_count += 1;
             }
             Err(e) => {
-                warn!("Failed to write batch: {}", e);
-                // Continue processing remaining batches even if one fails
+                warn!("Failed to update widget {}: {}", update.id, e);
             }
         }
     }
