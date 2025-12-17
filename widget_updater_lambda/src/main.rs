@@ -292,7 +292,12 @@ async fn batch_write_widget_states(
     Ok(success_count)
 }
 
-fn json_to_attribute_value(value: &JsonValue) -> AttributeValue {
+fn json_to_attribute_value(value: &Option<JsonValue>) -> AttributeValue {
+    let value = match value {
+        Some(v) => v,
+        None => return AttributeValue::Null(true),
+    };
+
     match value {
         JsonValue::String(s) => AttributeValue::S(s.clone()),
         JsonValue::Number(n) => AttributeValue::N(n.to_string()),
@@ -300,13 +305,18 @@ fn json_to_attribute_value(value: &JsonValue) -> AttributeValue {
         JsonValue::Object(map) => {
             let mut attr_map = HashMap::new();
             for (key, val) in map {
-                attr_map.insert(key.clone(), json_to_attribute_value(val));
+                attr_map.insert(
+                    key.clone(),
+                    json_to_attribute_value(&Some(val.clone())),
+                );
             }
             AttributeValue::M(attr_map)
         }
         JsonValue::Array(arr) => {
-            let attr_list: Vec<AttributeValue> =
-                arr.iter().map(json_to_attribute_value).collect();
+            let attr_list: Vec<AttributeValue> = arr
+                .iter()
+                .map(|v| json_to_attribute_value(&Some(v.clone())))
+                .collect();
             AttributeValue::L(attr_list)
         }
         JsonValue::Null => AttributeValue::Null(true),

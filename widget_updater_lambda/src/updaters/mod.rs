@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct WidgetUpdate {
     pub id: String,
-    pub state: HashMap<String, JsonValue>,
+    pub state: HashMap<String, Option<JsonValue>>,
 }
 
 /// Trait for widget type-specific update logic

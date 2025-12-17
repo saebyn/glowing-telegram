@@ -31,6 +31,8 @@ impl WidgetUpdater for CountdownUpdater {
                 // Check if countdown is enabled
                 let enabled = state
                     .get("enabled")
+                    .unwrap_or(&Some(json!(false)))
+                    .clone()
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
 
@@ -41,6 +43,8 @@ impl WidgetUpdater for CountdownUpdater {
                 // Get last tick timestamp
                 let last_tick = state
                     .get("last_tick_timestamp")
+                    .unwrap_or(&Some(json!(null)))
+                    .as_ref()
                     .and_then(|v| v.as_str())
                     .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
                     .map(|dt| dt.with_timezone(&Utc));
@@ -66,6 +70,8 @@ impl WidgetUpdater for CountdownUpdater {
                 // Get current duration left
                 let duration_left = state
                     .get("duration_left")
+                    .unwrap_or(&Some(json!(0)))
+                    .clone()
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0);
 
@@ -74,8 +80,8 @@ impl WidgetUpdater for CountdownUpdater {
 
                 // Build updated state
                 let mut new_state = state.clone();
-                new_state.insert("duration_left".to_string(), json!(new_duration_left));
-                new_state.insert("last_tick_timestamp".to_string(), json!(now.to_rfc3339()));
+                new_state.insert("duration_left".to_string(), Some(json!(new_duration_left)));
+                new_state.insert("last_tick_timestamp".to_string(), Some(json!(now.to_rfc3339())));
 
                 // Note: We keep enabled=true even at 0, so frontend can show "finished" state
                 // User can explicitly disable via action if they want to hide the widget
@@ -103,19 +109,25 @@ mod tests {
         last_tick: DateTime<Utc>,
     ) -> crate::StreamWidget {
         let mut state = HashMap::new();
-        state.insert("enabled".to_string(), json!(enabled));
-        state.insert("duration_left".to_string(), json!(duration_left));
+        state.insert("enabled".to_string(), Some(json!(enabled)));
+        state.insert("duration_left".to_string(), Some(json!(duration_left)));
         state.insert(
             "last_tick_timestamp".to_string(),
-            json!(last_tick.to_rfc3339()),
+            Some(json!(last_tick.to_rfc3339())),
         );
 
         crate::StreamWidget {
             id: id.to_string(),
-            widget_type: "countdown".to_string(),
+            stream_widget_type: types::StreamWidgetType::Countdown,
             active: Some(true),
             config: None,
             state: Some(state),
+
+            access_token: None,
+            user_id: "".to_string(),
+            created_at: None,
+            updated_at: None,
+            title: "".to_string(),
         }
     }
 
@@ -133,6 +145,8 @@ mod tests {
         let duration = updates[0]
             .state
             .get("duration_left")
+            .unwrap()
+            .clone()
             .unwrap()
             .as_i64()
             .unwrap();
@@ -152,13 +166,21 @@ mod tests {
             .state
             .get("duration_left")
             .unwrap()
+            .clone()
+            .unwrap()
             .as_i64()
             .unwrap();
         assert_eq!(duration, 0);
 
         // Stays enabled even at 0
-        let enabled =
-            updates[0].state.get("enabled").unwrap().as_bool().unwrap();
+        let enabled = updates[0]
+            .state
+            .get("enabled")
+            .unwrap()
+            .clone()
+            .unwrap()
+            .as_bool()
+            .unwrap();
         assert!(enabled);
     }
 
