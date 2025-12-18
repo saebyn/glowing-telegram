@@ -16,15 +16,16 @@ use axum::Router;
 /// - The local server fails to bind to the port (debug mode)
 /// - The Lambda runtime fails to start (release mode)
 ///
-/// # Panics
-///
-/// Panics if the Lambda runtime fails to start (release mode only).
-pub async fn run_lambda_app(app: Router) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_lambda_app(
+    app: Router,
+) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(debug_assertions)]
     {
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 3030));
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        tracing::info!("Starting local development server on http://127.0.0.1:3030");
+        tracing::info!(
+            "Starting local development server on http://127.0.0.1:3030"
+        );
         axum::serve(listener, app).await?;
     }
 
@@ -36,7 +37,7 @@ pub async fn run_lambda_app(app: Router) -> Result<(), Box<dyn std::error::Error
             .layer(axum_aws_lambda::LambdaLayer::default().trim_stage())
             .service(app);
 
-        lambda_http::run(app).await.unwrap();
+        lambda_http::run(app).await?;
     }
 
     Ok(())
