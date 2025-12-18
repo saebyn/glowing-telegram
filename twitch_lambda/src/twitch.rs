@@ -311,3 +311,268 @@ pub async fn delete_eventsub_subscription(
         Err("Failed to delete subscription")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reqwest::header::HeaderMap;
+
+    /// Helper function to create a valid HMAC-SHA256 signature
+    fn create_valid_signature(
+        message_id: &str,
+        timestamp: &str,
+        body: &str,
+        secret: &str,
+    ) -> String {
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+
+        let message = format!("{}{}{}", message_id, timestamp, body);
+        type HmacSha256 = Hmac<Sha256>;
+        let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+            .expect("HMAC key error");
+        mac.update(message.as_bytes());
+        let result = mac.finalize();
+        hex::encode(result.into_bytes())
+    }
+
+    #[test]
+    fn test_verify_webhook_signature_success() {
+        let mut headers = HeaderMap::new();
+        let message_id = "test-message-id-123";
+        let timestamp = "2024-01-01T00:00:00Z";
+        let body = r#"{"test":"data"}"#;
+        let secret = "test-secret-key";
+
+        let signature =
+            create_valid_signature(message_id, timestamp, body, secret);
+
+        headers
+            .insert("twitch-eventsub-message-id", message_id.parse().unwrap());
+        headers.insert(
+            "twitch-eventsub-message-timestamp",
+            timestamp.parse().unwrap(),
+        );
+        headers.insert(
+            "twitch-eventsub-message-signature",
+            format!("sha256={}", signature).parse().unwrap(),
+        );
+
+        let result = verify_webhook_signature(&headers, body, secret);
+        assert!(result.is_ok(), "Expected successful verification");
+    }
+
+    #[test]
+    fn test_verify_webhook_signature_missing_message_id() {
+        let mut headers = HeaderMap::new();
+        let timestamp = "2024-01-01T00:00:00Z";
+        let body = r#"{"test":"data"}"#;
+        let secret = "test-secret-key";
+
+        headers.insert(
+            "twitch-eventsub-message-timestamp",
+            timestamp.parse().unwrap(),
+        );
+        headers.insert(
+            "twitch-eventsub-message-signature",
+            "sha256=abc123".parse().unwrap(),
+        );
+
+        let result = verify_webhook_signature(&headers, body, secret);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Missing Twitch-Eventsub-Message-Id header"
+        );
+    }
+
+    #[test]
+    fn test_verify_webhook_signature_missing_timestamp() {
+        let mut headers = HeaderMap::new();
+        let message_id = "test-message-id-123";
+        let body = r#"{"test":"data"}"#;
+        let secret = "test-secret-key";
+
+        headers
+            .insert("twitch-eventsub-message-id", message_id.parse().unwrap());
+        headers.insert(
+            "twitch-eventsub-message-signature",
+            "sha256=abc123".parse().unwrap(),
+        );
+
+        let result = verify_webhook_signature(&headers, body, secret);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Missing Twitch-Eventsub-Message-Timestamp header"
+        );
+    }
+
+    #[test]
+    fn test_verify_webhook_signature_missing_signature() {
+        let mut headers = HeaderMap::new();
+        let message_id = "test-message-id-123";
+        let timestamp = "2024-01-01T00:00:00Z";
+        let body = r#"{"test":"data"}"#;
+        let secret = "test-secret-key";
+
+        headers
+            .insert("twitch-eventsub-message-id", message_id.parse().unwrap());
+        headers.insert(
+            "twitch-eventsub-message-timestamp",
+            timestamp.parse().unwrap(),
+        );
+
+        let result = verify_webhook_signature(&headers, body, secret);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Missing Twitch-Eventsub-Message-Signature header"
+        );
+    }
+
+    #[test]
+    fn test_verify_webhook_signature_invalid_format() {
+        let mut headers = HeaderMap::new();
+        let message_id = "test-message-id-123";
+        let timestamp = "2024-01-01T00:00:00Z";
+        let body = r#"{"test":"data"}"#;
+        let secret = "test-secret-key";
+
+        headers
+            .insert("twitch-eventsub-message-id", message_id.parse().unwrap());
+        headers.insert(
+            "twitch-eventsub-message-timestamp",
+            timestamp.parse().unwrap(),
+        );
+        // Missing "sha256=" prefix
+        headers.insert(
+            "twitch-eventsub-message-signature",
+            "abc123def456".parse().unwrap(),
+        );
+
+        let result = verify_webhook_signature(&headers, body, secret);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Invalid signature format");
+    }
+
+    #[test]
+    fn test_verify_webhook_signature_invalid_hex() {
+        let mut headers = HeaderMap::new();
+        let message_id = "test-message-id-123";
+        let timestamp = "2024-01-01T00:00:00Z";
+        let body = r#"{"test":"data"}"#;
+        let secret = "test-secret-key";
+
+        headers
+            .insert("twitch-eventsub-message-id", message_id.parse().unwrap());
+        headers.insert(
+            "twitch-eventsub-message-timestamp",
+            timestamp.parse().unwrap(),
+        );
+        // Invalid hex characters
+        headers.insert(
+            "twitch-eventsub-message-signature",
+            "sha256=zzzzzz".parse().unwrap(),
+        );
+
+        let result = verify_webhook_signature(&headers, body, secret);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().starts_with("Hex decode error:"));
+    }
+
+    #[test]
+    fn test_verify_webhook_signature_wrong_secret() {
+        let mut headers = HeaderMap::new();
+        let message_id = "test-message-id-123";
+        let timestamp = "2024-01-01T00:00:00Z";
+        let body = r#"{"test":"data"}"#;
+        let correct_secret = "correct-secret-key";
+        let wrong_secret = "wrong-secret-key";
+
+        let signature = create_valid_signature(
+            message_id,
+            timestamp,
+            body,
+            correct_secret,
+        );
+
+        headers
+            .insert("twitch-eventsub-message-id", message_id.parse().unwrap());
+        headers.insert(
+            "twitch-eventsub-message-timestamp",
+            timestamp.parse().unwrap(),
+        );
+        headers.insert(
+            "twitch-eventsub-message-signature",
+            format!("sha256={}", signature).parse().unwrap(),
+        );
+
+        // Verify with wrong secret
+        let result = verify_webhook_signature(&headers, body, wrong_secret);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Signature mismatch");
+    }
+
+    #[test]
+    fn test_verify_webhook_signature_tampered_body() {
+        let mut headers = HeaderMap::new();
+        let message_id = "test-message-id-123";
+        let timestamp = "2024-01-01T00:00:00Z";
+        let original_body = r#"{"test":"data"}"#;
+        let tampered_body = r#"{"test":"tampered"}"#;
+        let secret = "test-secret-key";
+
+        let signature = create_valid_signature(
+            message_id,
+            timestamp,
+            original_body,
+            secret,
+        );
+
+        headers
+            .insert("twitch-eventsub-message-id", message_id.parse().unwrap());
+        headers.insert(
+            "twitch-eventsub-message-timestamp",
+            timestamp.parse().unwrap(),
+        );
+        headers.insert(
+            "twitch-eventsub-message-signature",
+            format!("sha256={}", signature).parse().unwrap(),
+        );
+
+        // Verify with tampered body
+        let result = verify_webhook_signature(&headers, tampered_body, secret);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Signature mismatch");
+    }
+
+    #[test]
+    fn test_verify_webhook_signature_empty_body() {
+        let mut headers = HeaderMap::new();
+        let message_id = "test-message-id-123";
+        let timestamp = "2024-01-01T00:00:00Z";
+        let body = "";
+        let secret = "test-secret-key";
+
+        let signature =
+            create_valid_signature(message_id, timestamp, body, secret);
+
+        headers
+            .insert("twitch-eventsub-message-id", message_id.parse().unwrap());
+        headers.insert(
+            "twitch-eventsub-message-timestamp",
+            timestamp.parse().unwrap(),
+        );
+        headers.insert(
+            "twitch-eventsub-message-signature",
+            format!("sha256={}", signature).parse().unwrap(),
+        );
+
+        let result = verify_webhook_signature(&headers, body, secret);
+        assert!(
+            result.is_ok(),
+            "Empty body should be valid if signature matches"
+        );
+    }
+}
