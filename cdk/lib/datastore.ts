@@ -266,9 +266,9 @@ export default class DatastoreConstruct extends Construct {
 
     // Add GSI for querying widgets by type (for scheduled updates)
     // Note: active is a boolean and cannot be used as a sort key, so we filter in the query
-    // Using type-v2-index temporarily to avoid conflict during GSI migration
+    // but we keep the name "type-active-index" just to avoid issues with deploying the change.
     streamWidgetsTable.addGlobalSecondaryIndex({
-      indexName: 'type-v2-index',
+      indexName: 'type-active-index',
       partitionKey: {
         name: 'type',
         type: dynamodb.AttributeType.STRING,
