@@ -30,6 +30,7 @@ use tower_http::{
 };
 
 mod dynamodb;
+mod utils;
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(clippy::struct_field_names)]
@@ -160,6 +161,7 @@ fn get_table_config<'a>(
         "streams" => DynamoDbTableConfig {
             table: &state.config.streams_table,
             partition_key: "id",
+            sort_key: None,
             q_key: "title",
             indexes: vec![],
             user_scoped: false,
@@ -167,6 +169,7 @@ fn get_table_config<'a>(
         "episodes" => DynamoDbTableConfig {
             table: &state.config.episodes_table,
             partition_key: "id",
+            sort_key: None,
             q_key: "title",
             indexes: vec![],
             user_scoped: false,
@@ -174,6 +177,7 @@ fn get_table_config<'a>(
         "series" => DynamoDbTableConfig {
             table: &state.config.series_table,
             partition_key: "id",
+            sort_key: None,
             q_key: "title",
             indexes: vec![],
             user_scoped: false,
@@ -181,6 +185,7 @@ fn get_table_config<'a>(
         "video_clips" => DynamoDbTableConfig {
             table: &state.config.video_metadata_table,
             partition_key: "key",
+            sort_key: None,
             q_key: "key",
             indexes: vec!["stream_id"],
             user_scoped: false,
@@ -188,6 +193,7 @@ fn get_table_config<'a>(
         "profiles" => DynamoDbTableConfig {
             table: &state.config.profiles_table,
             partition_key: "id",
+            sort_key: None,
             q_key: "id",
             indexes: vec![],
             user_scoped: false,
@@ -195,6 +201,7 @@ fn get_table_config<'a>(
         "tasks" => DynamoDbTableConfig {
             table: &state.config.tasks_table,
             partition_key: "id",
+            sort_key: None,
             q_key: "title",
             indexes: vec![],
             user_scoped: false,
@@ -202,6 +209,7 @@ fn get_table_config<'a>(
         "projects" => DynamoDbTableConfig {
             table: &state.config.projects_table,
             partition_key: "id",
+            sort_key: None,
             q_key: "title",
             indexes: vec![],
             user_scoped: false,
@@ -209,6 +217,7 @@ fn get_table_config<'a>(
         "chat_messages" => DynamoDbTableConfig {
             table: &state.config.chat_messages_table,
             partition_key: "user_id",
+            sort_key: Some("timestamp"),
             q_key: "timestamp",
             indexes: vec!["channel_id"],
             user_scoped: false,
@@ -216,6 +225,7 @@ fn get_table_config<'a>(
         "stream_widgets" => DynamoDbTableConfig {
             table: &state.config.stream_widgets_table,
             partition_key: "id",
+            sort_key: None,
             q_key: "title",
             indexes: vec![],
             user_scoped: true,

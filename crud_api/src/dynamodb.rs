@@ -28,6 +28,7 @@ pub struct PageOptions {
 pub struct DynamoDbTableConfig<'a> {
     pub table: &'a str,
     pub partition_key: &'a str,
+    pub sort_key: Option<&'a str>,
     pub q_key: &'a str,
     pub indexes: Vec<&'a str>,
     pub user_scoped: bool,
@@ -43,12 +44,8 @@ pub async fn list(
     page: PageOptions,
 ) -> Result<ListResult, Error> {
     let mut items = Vec::new();
-    let mut last_key = page.cursor.map(|c| {
-        HashMap::from([(
-            table_config.partition_key.to_string(),
-            AttributeValue::S(c),
-        )])
-    });
+    let mut last_key =
+        page.cursor.map(|c| crate::utils::deserialize_cursor(&c));
     let limit = if page.limit > 0 {
         page.limit
     } else {
@@ -129,34 +126,22 @@ pub async fn list(
     }
 
     // if the partition key is not "id", add the partition key to the items as "id"
-    let items = if table_config.partition_key == "id" {
-        items
-    } else {
-        items
-            .iter()
-            .map(|item| {
-                let mut new_item = item.clone();
-                new_item["id"] = item
-                    .get(table_config.partition_key)
-                    .unwrap_or(&serde_json::Value::Null)
-                    .clone();
-                new_item
-            })
-            .collect::<Vec<serde_json::Value>>()
-    };
+    let items = items
+        .iter()
+        .map(|item| {
+            let mut new_item = item.clone();
+            new_item["id"] =
+                crate::utils::extract_id_from_item(table_config, &new_item);
+            new_item
+        })
+        .collect::<Vec<serde_json::Value>>();
 
     tracing::info!("Returning {0} items", items.len());
 
     // Create the response payload
     let payload = ListResult {
         items,
-        cursor: last_key.map(|k| {
-            k.get(table_config.partition_key)
-                .unwrap()
-                .as_s()
-                .unwrap()
-                .to_string()
-        }),
+        cursor: last_key.map(|k| crate::utils::serialize_cursor(&k)),
     };
 
     Ok(payload)
@@ -562,6 +547,7 @@ mod tests {
         let table_config = DynamoDbTableConfig {
             table: "users",
             partition_key: "id",
+            sort_key: None,
             q_key: "name",
             indexes: vec![],
             user_scoped: false,
@@ -586,6 +572,7 @@ mod tests {
         let table_config = DynamoDbTableConfig {
             table: "users",
             partition_key: "id",
+            sort_key: None,
             q_key: "name",
             indexes: vec![],
             user_scoped: false,
