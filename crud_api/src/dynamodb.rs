@@ -125,7 +125,7 @@ pub async fn list(
         }
     }
 
-    // if the partition key is not "id", add the partition key to the items as "id"
+    // derive the "id" field for all items from the table's key (partition key, and sort key if present)
     let items = items
         .iter()
         .map(|item| {
