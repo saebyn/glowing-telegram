@@ -1,7 +1,7 @@
 use aws_lambda_events::event::sqs::{SqsEvent, SqsMessage};
 use aws_sdk_dynamodb::Client as DynamoDbClient;
 use aws_sdk_dynamodb::types::AttributeValue;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use lambda_runtime::{Error, LambdaEvent, service_fn};
 use serde::Deserialize;
 use std::collections::HashMap;
