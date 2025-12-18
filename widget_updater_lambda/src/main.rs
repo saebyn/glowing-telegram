@@ -97,7 +97,7 @@ async fn query_active_widgets_by_type(
             .dynamodb
             .query()
             .table_name(&context.config.stream_widgets_table)
-            .index_name("type-index")
+            .index_name("type-v2-index")
             .key_condition_expression("#type = :widget_type")
             .filter_expression("#active = :active")
             .expression_attribute_names("#type", "type")
