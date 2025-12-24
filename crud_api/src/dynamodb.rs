@@ -1,6 +1,7 @@
 use aws_sdk_dynamodb::Client;
 use aws_sdk_dynamodb::types::{
-    AttributeValue, KeysAndAttributes, PutRequest, ReturnValue, WriteRequest,
+    AttributeValue, DeleteRequest, KeysAndAttributes, PutRequest, ReturnValue,
+    WriteRequest,
 };
 use lambda_runtime::Error;
 use serde::Deserialize;
@@ -434,6 +435,74 @@ pub async fn delete(
         .await?;
 
     Ok(())
+}
+
+#[tracing::instrument(skip(client))]
+pub async fn delete_many(
+    client: &Client,
+    table_config: &DynamoDbTableConfig<'_>,
+    ids: &[&str],
+) -> Result<Vec<String>, Error> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut successfully_deleted = HashSet::new();
+
+    // DynamoDB batch_write_item can handle up to 25 items at a time
+    for chunk in ids.chunks(25) {
+        let delete_requests = chunk
+            .iter()
+            .map(|id| {
+                successfully_deleted.insert((*id).to_string());
+                let mut key = HashMap::new();
+                key.insert(
+                    table_config.partition_key.to_string(),
+                    AttributeValue::S((*id).to_string()),
+                );
+
+                let delete_request =
+                    DeleteRequest::builder().set_key(Some(key)).build();
+
+                delete_request.map_or_else(
+                    |_| Err(Error::from("Failed to create DeleteRequest")),
+                    |delete_request| {
+                        let write_request = WriteRequest::builder()
+                            .set_delete_request(Some(delete_request))
+                            .build();
+
+                        Ok(write_request)
+                    },
+                )
+            })
+            .collect::<Result<Vec<WriteRequest>, Error>>()?;
+
+        let result = client
+            .batch_write_item()
+            .set_request_items(Some(std::collections::HashMap::from([(
+                table_config.table.to_string(),
+                delete_requests,
+            )])))
+            .send()
+            .await?;
+
+        // If there are unprocessed items, remove them from the successfully deleted set
+        if let Some(unprocessed_items) = result.unprocessed_items() {
+            for items in unprocessed_items.values() {
+                for item in items {
+                    if let Some(delete_request) = &item.delete_request {
+                        if let Some(AttributeValue::S(id)) =
+                            delete_request.key.get(table_config.partition_key)
+                        {
+                            successfully_deleted.remove(id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(successfully_deleted.into_iter().collect())
 }
 
 fn get_operator(op_name: &str) -> &'static str {
