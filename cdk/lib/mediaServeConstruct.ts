@@ -28,7 +28,7 @@ export default class MediaServeConstruct extends Construct {
     const mediaOrigin = origins.S3BucketOrigin.withOriginAccessControl(
       mediaOutputBucket,
       {
-        originPath: '/transcode',
+        originPath: '/',
       },
     );
 
