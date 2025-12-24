@@ -18,7 +18,7 @@ use axum::Router;
 ///
 pub async fn run_lambda_app(
     app: Router,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     #[cfg(debug_assertions)]
     {
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 3030));
