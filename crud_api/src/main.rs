@@ -730,14 +730,14 @@ async fn delete_many_records_handler(
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
 
+    let ids = query_params
+        .id
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+
     // If user_scoped, verify ownership of all items before deleting
     if table_config.user_scoped {
-        let ids = query_params
-            .id
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>();
-
         match dynamodb::get_many(&state.dynamodb, &table_config, &ids).await {
             Ok(items) => {
                 if let Some(user) = &user_id {
@@ -777,12 +777,6 @@ async fn delete_many_records_handler(
             }
         }
     }
-
-    let ids = query_params
-        .id
-        .iter()
-        .map(String::as_str)
-        .collect::<Vec<_>>();
 
     match dynamodb::delete_many(&state.dynamodb, &table_config, &ids).await {
         Ok(deleted_ids) => (

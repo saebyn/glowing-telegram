@@ -454,7 +454,6 @@ pub async fn delete_many(
         let delete_requests = chunk
             .iter()
             .map(|id| {
-                successfully_deleted.insert((*id).to_string());
                 let mut key = HashMap::new();
                 key.insert(
                     table_config.partition_key.to_string(),
@@ -485,6 +484,11 @@ pub async fn delete_many(
             )])))
             .send()
             .await?;
+
+        // Mark items as successfully deleted
+        for id in chunk {
+            successfully_deleted.insert((*id).to_string());
+        }
 
         // If there are unprocessed items, remove them from the successfully deleted set
         if let Some(unprocessed_items) = result.unprocessed_items() {
