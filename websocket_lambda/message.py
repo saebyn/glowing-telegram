@@ -248,8 +248,31 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
         }
 
     elif action == "pause":
-        # Pause countdown (keeps current duration_left)
-        return {"success": True, "new_state": {**state, "enabled": False}}
+        # Pause countdown and update duration_left based on elapsed time
+        current_duration = state.get("duration_left", 0)
+        last_tick = state.get("last_tick_timestamp")
+
+        if last_tick and state.get("enabled"):
+            # Calculate elapsed time since last tick
+            last_tick_dt = datetime.fromisoformat(last_tick.replace("Z", "+00:00"))
+            now = datetime.now(timezone.utc)
+            elapsed_seconds = (now - last_tick_dt).total_seconds()
+
+            # Update duration_left by subtracting elapsed time
+            new_duration = max(0, current_duration - elapsed_seconds)
+        else:
+            # Already paused or no timestamp, keep current duration
+            new_duration = current_duration
+
+        return {
+            "success": True,
+            "new_state": {
+                **state,
+                "enabled": False,
+                "duration_left": new_duration,
+                "last_tick_timestamp": None,
+            },
+        }
 
     elif action == "resume":
         # Resume countdown from current duration_left
