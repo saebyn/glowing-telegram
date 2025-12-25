@@ -16,6 +16,7 @@ interface GitHubEnvironmentStackProps extends cdk.StackProps {
   logoutUri: string;
   frontendBucketName: string;
   githubRoleArn: string;
+  siteDomain: string;
   // Optional Twitch client ID - can be set via secret or parameter
   twitchClientId?: string;
   // GitHub organization/owner name
@@ -37,6 +38,7 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
       logoutUri,
       frontendBucketName,
       githubRoleArn,
+      siteDomain,
       twitchClientId,
       githubOwner,
       ...restProps
@@ -70,6 +72,7 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
       CONTENT_URL: contentUrl,
       LOGOUT_URI: logoutUri,
       REDIRECT_URI: redirectUri,
+      SITE_DOMAIN: siteDomain,
       TWITCH_CLIENT_ID: twitchClientIdValue,
       WEBSOCKET_URL: websocketUrl,
     };
