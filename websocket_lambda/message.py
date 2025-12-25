@@ -287,8 +287,9 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
 
     elif action == "reset":
         # Reset countdown to initial duration and stop
+        # If currently running, we still reset to initial duration (no elapsed time matters)
         duration = config.get("duration", 300)
-        # Intentially not using **state to clear any ongoing countdown info
+        # Intentionally not using **state to clear any ongoing countdown info
         return {
             "success": True,
             "new_state": {
@@ -299,18 +300,31 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
         }
 
     elif action == "set_duration":
-        # Update the duration (while countdown is stopped)
+        # Update the duration to the provided value
         new_duration = payload.get("duration")
         if not isinstance(new_duration, int) or new_duration < 0:
             return {"success": False, "error": "Invalid duration value"}
 
-        return {
-            "success": True,
-            "new_state": {
-                **state,
-                "duration_left": new_duration,
-            },
-        }
+        # If countdown is running, update last_tick_timestamp to now
+        # so the new duration starts counting from this moment
+        if state.get("enabled"):
+            return {
+                "success": True,
+                "new_state": {
+                    **state,
+                    "duration_left": new_duration,
+                    "last_tick_timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            }
+        else:
+            # Countdown is paused or stopped, just set the new duration
+            return {
+                "success": True,
+                "new_state": {
+                    **state,
+                    "duration_left": new_duration,
+                },
+            }
 
     else:
         return {"success": False, "error": f"Unknown action: {action}"}
