@@ -158,6 +158,7 @@ export default class AppStack extends cdk.Stack {
       streamWidgetsTable: dataStore.streamWidgetsTable,
       userPoolClient: userManagement.userPoolClient,
       domainName,
+      tagOrDigest,
     });
 
     // Widget updater for scheduled background updates (e.g., countdown timers)
