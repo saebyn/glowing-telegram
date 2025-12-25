@@ -74,6 +74,7 @@ The following variables are set for each environment:
 | CONTENT_URL | CloudFront distribution URL | AppStack output |
 | LOGOUT_URI | OAuth logout redirect URI | AppStack output |
 | REDIRECT_URI | OAuth callback redirect URI | AppStack output |
+| SITE_DOMAIN | CloudFront domain name (e.g., d3qqtvukmpw4yh.cloudfront.net) | FrontendStack output |
 | TWITCH_CLIENT_ID | Twitch application client ID | Environment variable or secret |
 | WEBSOCKET_URL | WebSocket API Gateway endpoint | AppStack output |
 
