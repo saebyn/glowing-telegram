@@ -173,6 +173,7 @@ pub async fn obtain_twitch_access_token_handler(
         let response_body = AccessTokenResponse {
             access_token,
             broadcaster_id: validation_response.user_id,
+            login: validation_response.login,
         };
 
         return (
