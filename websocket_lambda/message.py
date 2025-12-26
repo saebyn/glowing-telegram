@@ -302,7 +302,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
     elif action == "set_duration":
         # Update the duration to the provided value
         new_duration = payload.get("duration")
-        if not isinstance(new_duration, int) or new_duration < 0:
+        if not isinstance(new_duration, (int, float)) or new_duration < 0:
             return {"success": False, "error": "Invalid duration value"}
 
         # If countdown is running, update last_tick_timestamp to now
