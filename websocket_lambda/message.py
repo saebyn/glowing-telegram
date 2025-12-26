@@ -254,7 +254,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
 
         if last_tick and state.get("enabled"):
             # Calculate elapsed time since last tick
-            last_tick_dt = datetime.fromisoformat(last_tick.replace("Z", "+00:00"))
+            last_tick_dt = datetime.fromisoformat(last_tick)
             now = datetime.now(timezone.utc)
             elapsed_seconds = (now - last_tick_dt).total_seconds()
 
