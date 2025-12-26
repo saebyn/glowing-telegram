@@ -76,6 +76,10 @@ pub fn get_oauth_client(
 #[derive(Deserialize, Debug)]
 pub struct ValidationResponse {
     pub user_id: String,
+    pub client_id: String,
+    pub expires_in: u64,
+    pub scopes: Vec<String>,
+    pub login: String,
 }
 
 pub async fn validate_token(

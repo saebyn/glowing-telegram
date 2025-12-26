@@ -19,6 +19,8 @@ pub struct AccessTokenResponse {
     pub access_token: String,
 
     pub broadcaster_id: String,
+
+    pub login: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

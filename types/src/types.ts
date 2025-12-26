@@ -1,6 +1,7 @@
 export interface AccessTokenResponse {
     access_token:   string;
     broadcaster_id: string;
+    login:          string;
 }
 
 export interface AuthorizationURLResponse {
