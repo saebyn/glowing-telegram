@@ -3,6 +3,7 @@ import os
 import boto3
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from botocore.exceptions import ClientError
 from utils import decimal_default
@@ -259,7 +260,8 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
             elapsed_seconds = (now - last_tick_dt).total_seconds()
 
             # Update duration_left by subtracting elapsed time
-            new_duration = max(0, current_duration - elapsed_seconds)
+            # Convert Decimal to float to avoid type mismatch with elapsed_seconds
+            new_duration = max(0, float(current_duration) - elapsed_seconds)
         else:
             # Already paused or no timestamp, keep current duration
             new_duration = current_duration
@@ -302,7 +304,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
     elif action == "set_duration":
         # Update the duration to the provided value
         new_duration = payload.get("duration")
-        if not isinstance(new_duration, (int, float)) or new_duration < 0:
+        if not isinstance(new_duration, (int, float, Decimal)) or new_duration < 0:
             return {"success": False, "error": "Invalid duration value"}
 
         # If countdown is running, update last_tick_timestamp to now
