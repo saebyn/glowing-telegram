@@ -244,7 +244,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
                 **state,
                 "enabled": True,
                 "last_tick_timestamp": datetime.now(timezone.utc).isoformat(),
-                "duration_left": duration,
+                "duration_left": float(duration),
             },
         }
 
@@ -297,7 +297,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
             "success": True,
             "new_state": {
                 "enabled": False,
-                "duration_left": duration,
+                "duration_left": float(duration),
                 "last_tick_timestamp": None,
             },
         }
@@ -305,8 +305,11 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
     elif action == "set_duration":
         # Update the duration to the provided value
         new_duration = payload.get("duration")
-        if not isinstance(new_duration, (int, float, Decimal)) or new_duration < 0:
+        if not isinstance(new_duration, (int, float, Decimal)) or float(new_duration) < 0:
             return {"success": False, "error": "Invalid duration value"}
+        
+        # Convert to float for consistent type handling across all duration values
+        new_duration = float(new_duration)
 
         # If countdown is running, update last_tick_timestamp to now
         # so the new duration starts counting from this moment
