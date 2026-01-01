@@ -264,7 +264,8 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
             new_duration = max(0, float(current_duration) - elapsed_seconds)
         else:
             # Already paused or no timestamp, keep current duration
-            new_duration = current_duration
+            # Convert to float for consistent type handling
+            new_duration = float(current_duration) if current_duration else 0
 
         return {
             "success": True,
