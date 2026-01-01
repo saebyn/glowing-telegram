@@ -306,9 +306,9 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
         # Update the duration to the provided value
         new_duration = payload.get("duration")
         if not isinstance(new_duration, (int, float, Decimal)):
-            return {"success": False, "error": "Invalid duration value"}
+            return {"success": False, "error": "Duration must be a number"}
         if float(new_duration) < 0:
-            return {"success": False, "error": "Invalid duration value"}
+            return {"success": False, "error": "Duration cannot be negative"}
         
         # Convert to float for consistent type handling across all duration values
         new_duration = float(new_duration)
