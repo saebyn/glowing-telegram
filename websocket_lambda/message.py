@@ -265,7 +265,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
         else:
             # Already paused or no timestamp, keep current duration
             # Convert to float for consistent type handling
-            new_duration = float(current_duration) if current_duration else 0
+            new_duration = float(current_duration) if current_duration is not None else 0
 
         return {
             "success": True,
@@ -305,7 +305,9 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
     elif action == "set_duration":
         # Update the duration to the provided value
         new_duration = payload.get("duration")
-        if not isinstance(new_duration, (int, float, Decimal)) or float(new_duration) < 0:
+        if not isinstance(new_duration, (int, float, Decimal)):
+            return {"success": False, "error": "Invalid duration value"}
+        if float(new_duration) < 0:
             return {"success": False, "error": "Invalid duration value"}
         
         # Convert to float for consistent type handling across all duration values
