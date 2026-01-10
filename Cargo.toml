@@ -56,7 +56,7 @@ figment = { version = "0.10.19", features = ["env"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 openai_dive = "1.4.0"
-reqwest = { version = "0.13.1", features = ["json"] }
+reqwest = { version = "0.13.1", features = ["json", "form", "query"] }
 redact = { version = "0.1.11", features = ["serde"] }
 chrono = { version = "0.4.42", features = ["serde"] }
 uuid = { version = "1.19", features = ["v7", "fast-rng"] }
