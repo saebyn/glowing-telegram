@@ -22,7 +22,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tempfile = "3"
 types = { workspace = true }
-thiserror = "2.0.17"
+thiserror = "2.0.18"
 
 [dev-dependencies]
 testcontainers = "0.24.0"
