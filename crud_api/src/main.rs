@@ -726,6 +726,7 @@ async fn get_many_related_records_handler(
         related_field,
         id,
     }): Path<RequestPathWithRelatedField>,
+    Query(query): Query<HashMap<String, String>>,
     State(state): State<AppContext>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
@@ -752,11 +753,62 @@ async fn get_many_related_records_handler(
         );
     }
 
+    // Parse query parameters
+    let filters = match query.get("filter") {
+        Some(filter) => match filter.as_str() {
+            "" => serde_json::Map::new(),
+            _ => match serde_json::from_str(filter) {
+                Ok(filters) => filters,
+                Err(e) => {
+                    tracing::warn!("failed to parse filters: {e}");
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        [(header::CONTENT_TYPE, "application/json")],
+                        Json(json!({
+                            "message": "failed to parse filters",
+                        })),
+                    );
+                }
+            },
+        },
+        None => serde_json::Map::new(),
+    };
+
+    let cursor = match query.get("cursor") {
+        Some(cursor) => match cursor.as_str() {
+            "null" | "" => None,
+            _ => Some(cursor.clone()),
+        },
+        None => None,
+    };
+
+    // Parse sort order: "asc" (default) or "desc"
+    let scan_index_forward = match query.get("sort") {
+        Some(sort) => sort.to_lowercase() != "desc",
+        None => true,
+    };
+
+    // Set a reasonable upper bound for perPage to prevent abuse
+    const MAX_PER_PAGE: u32 = 100;
+    let query_options = dynamodb::QueryOptions {
+        page: dynamodb::PageOptions {
+            cursor,
+            limit: query
+                .get("perPage")
+                .and_then(|s| s.parse().ok())
+                .filter(|&n| n > 0 && n <= MAX_PER_PAGE)
+                .unwrap_or(10),
+        },
+        scan_index_forward,
+        filters,
+    };
+
     match dynamodb::query(
         &state.dynamodb,
         &table_config,
         related_field.as_str(),
         json!(id),
+        query_options,
     )
     .await
     {
