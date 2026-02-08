@@ -60,7 +60,7 @@
       },
       "required": ["GLACIER", "DEEP_ARCHIVE"]
     },
-      "compute_cost_per_hour": {
+    "processing_cost_per_hour": {
       "type": "number",
       "minimum": 0,
       "description": "Cost per hour of video processing (transcoding, transcription, etc.)"
