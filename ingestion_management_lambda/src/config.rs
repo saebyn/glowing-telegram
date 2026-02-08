@@ -12,9 +12,7 @@ pub struct StorageCostConfig {
     pub storage_costs_per_gb_month: HashMap<String, f64>,
     pub retrieval_costs_per_gb: HashMap<String, RetrievalOptions>,
     pub retrieval_times_hours: HashMap<String, RetrievalOptions>,
-    #[serde(alias = "compute_cost_per_hour")]
     pub processing_cost_per_hour: f64,
-    #[serde(alias = "compute_hours_per_video_gb")]
     pub processing_hours_per_video_gb: f64,
 }
 

@@ -140,10 +140,32 @@ async fn handle_get_s3_status(
         return Err(ApiError::StreamNotFound);
     };
 
-    // Get S3 object information
-    let s3_info =
-        get_s3_object_info(&ctx.s3, &ctx.config.video_archive_bucket, &s3_key)
-            .await?;
+    // The prefix is a directory prefix, not a full object key
+    // List objects under the prefix to find actual video files
+    let list_output = ctx
+        .s3
+        .list_objects_v2()
+        .bucket(&ctx.config.video_archive_bucket)
+        .prefix(&s3_key)
+        .max_keys(1)
+        .send()
+        .await
+        .map_err(|e| ApiError::S3Error(e.to_string()))?;
+
+    let effective_s3_key = list_output
+        .contents
+        .unwrap_or_default()
+        .into_iter()
+        .find_map(|obj| obj.key)
+        .unwrap_or(s3_key);
+
+    // Get S3 object information for the resolved object key
+    let s3_info = get_s3_object_info(
+        &ctx.s3,
+        &ctx.config.video_archive_bucket,
+        &effective_s3_key,
+    )
+    .await?;
 
     // Calculate costs and times if the object exists
     let (retrieval_costs, retrieval_times, compute_cost) = if s3_info.exists {
@@ -180,7 +202,7 @@ async fn main() {
     // Create the router
     let app = Router::new()
         .route(
-            "/ingestion/streams/:id/s3-status",
+            "/ingestion/streams/{id}/s3-status",
             get(handle_get_s3_status),
         )
         .layer(TraceLayer::new_for_http())
