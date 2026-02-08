@@ -32,12 +32,16 @@ pub fn aggregate_s3_objects_info(objects: Vec<Object>) -> S3ObjectInfo {
     // Aggregate total size
     let total_size: i64 = objects.iter().filter_map(|obj| obj.size()).sum();
 
-    // Determine the storage class - use the most restrictive one (requiring retrieval)
-    // Priority: DEEP_ARCHIVE > GLACIER > GLACIER_IR > others
+    // Determine the storage class - use the coldest/most restrictive tier
+    // Priority: DEEP_ARCHIVE > GLACIER > GLACIER_IR > others (GLACIER_IR may not require restore)
+    // Note: S3 commonly omits storage_class for STANDARD objects, treat None as STANDARD
     let storage_class = objects
         .iter()
-        .filter_map(|obj| obj.storage_class())
-        .map(|sc| normalize_storage_class(sc.as_str()))
+        .map(|obj| {
+            obj.storage_class()
+                .map(|sc| normalize_storage_class(sc.as_str()))
+                .unwrap_or_else(|| "STANDARD".to_string())
+        })
         .max_by_key(|sc| match sc.as_str() {
             "DEEP_ARCHIVE" => 3,
             "GLACIER" => 2,

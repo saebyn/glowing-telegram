@@ -109,7 +109,10 @@ async fn get_stream_s3_key(
         )
         .send()
         .await
-        .map_err(|e| ApiError::DynamoDbError(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("DynamoDB GetItem error for stream {}: {}", stream_id, e);
+            ApiError::DynamoDbError("Failed to retrieve stream information".to_string())
+        })?;
 
     if let Some(item) = result.item {
         // The prefix field contains the S3 key prefix for this stream
@@ -142,19 +145,48 @@ async fn handle_get_s3_status(
 
     // The prefix is a directory prefix, not a full object key
     // List ALL objects under the prefix to aggregate information
-    let list_output = ctx
-        .s3
-        .list_objects_v2()
-        .bucket(&ctx.config.video_archive_bucket)
-        .prefix(&s3_key)
-        .send()
-        .await
-        .map_err(|e| ApiError::S3Error(e.to_string()))?;
+    // Use pagination to handle prefixes with >1000 objects
+    let mut continuation_token: Option<String> = None;
+    let mut all_objects = Vec::new();
 
-    let objects = list_output.contents.unwrap_or_default();
+    loop {
+        let mut request = ctx
+            .s3
+            .list_objects_v2()
+            .bucket(&ctx.config.video_archive_bucket)
+            .prefix(&s3_key);
+
+        if let Some(ref token) = continuation_token {
+            request = request.continuation_token(token);
+        }
+
+        let list_output = request
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("S3 ListObjectsV2 error for prefix {}: {}", s3_key, e);
+                ApiError::S3Error("Failed to list objects".to_string())
+            })?;
+
+        if let Some(mut contents) = list_output.contents {
+            all_objects.append(&mut contents);
+        }
+
+        let is_truncated = list_output.is_truncated.unwrap_or(false);
+        if !is_truncated {
+            break;
+        }
+
+        continuation_token = list_output.next_continuation_token;
+        if continuation_token.is_none() {
+            // Defensive: if S3 marks the response as truncated but does not provide
+            // a continuation token, break to avoid an infinite loop.
+            break;
+        }
+    }
 
     // Aggregate information about all objects under the prefix
-    let s3_info = aggregate_s3_objects_info(objects);
+    let s3_info = aggregate_s3_objects_info(all_objects);
 
     // Calculate costs and times if objects exist
     let (retrieval_costs, retrieval_times, compute_cost) = if s3_info.exists {
