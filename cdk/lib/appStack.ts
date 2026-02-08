@@ -199,6 +199,8 @@ export default class AppStack extends cdk.Stack {
 
       youtubeUploaderAPILambda: youtubeUploader.apiLambda,
 
+      videoArchiveBucket: dataStore.videoArchive,
+
       domainName,
       tagOrDigest,
     });

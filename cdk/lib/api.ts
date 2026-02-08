@@ -13,6 +13,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import type * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import type * as sqs from 'aws-cdk-lib/aws-sqs';
+import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import ServiceLambdaConstruct, { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 import RenderJobSubmissionLambda from './renderJobSubmissionLambda';
@@ -47,6 +48,8 @@ interface APIConstructProps {
     jobQueue: batch.IJobQueue;
     jobDefinition: batch.IJobDefinition;
   };
+
+  videoArchiveBucket: s3.IBucket;
 }
 
 export default class APIConstruct extends Construct {
@@ -345,6 +348,66 @@ export default class APIConstruct extends Construct {
       },
     );
 
+    // Load the storage cost configuration
+    const storageCostConfigJson = JSON.stringify({
+      storage_costs_per_gb_month: {
+        STANDARD: 0.023,
+        STANDARD_IA: 0.0125,
+        INTELLIGENT_TIERING: 0.023,
+        ONEZONE_IA: 0.01,
+        GLACIER_IR: 0.004,
+        GLACIER: 0.0036,
+        DEEP_ARCHIVE: 0.00099,
+      },
+      retrieval_costs_per_gb: {
+        GLACIER: {
+          bulk: 0.0025,
+          standard: 0.01,
+        },
+        DEEP_ARCHIVE: {
+          bulk: 0.0025,
+          standard: 0.02,
+        },
+      },
+      retrieval_times_hours: {
+        GLACIER: {
+          bulk: 8,
+          standard: 4,
+        },
+        DEEP_ARCHIVE: {
+          bulk: 48,
+          standard: 12,
+        },
+      },
+      compute_cost_per_hour: 0.5,
+      compute_hours_per_video_gb: 0.015,
+    });
+
+    // Configure ingestion management lambda
+    const ingestionManagementService = new ServiceLambdaConstruct(
+      this,
+      'IngestionManagementLambda',
+      {
+        lambdaOptions: {
+          description: 'Ingestion Management Lambda for S3 status and cost estimation',
+          timeout: cdk.Duration.seconds(30),
+          environment: {
+            STREAMS_TABLE: props.streamsTable.tableName,
+            VIDEO_ARCHIVE_BUCKET: props.videoArchiveBucket.bucketName,
+            STORAGE_COST_CONFIG_JSON: storageCostConfigJson,
+          },
+        },
+        name: 'ingestion-management-lambda',
+        tagOrDigest: props.tagOrDigest,
+      },
+    );
+
+    // Grant read permissions to streams table
+    props.streamsTable.grantReadData(ingestionManagementService.lambda);
+
+    // Grant read permissions to video archive bucket
+    props.videoArchiveBucket.grantRead(ingestionManagementService.lambda);
+
     // configure routes
 
     // POST /stream - run stream ingestion step function
@@ -531,6 +594,16 @@ def handler(event, context):
       ),
       path: '/upload/youtube',
       methods: [apigwv2.HttpMethod.POST],
+    });
+
+    // GET /ingestion/streams/:id/s3-status - get S3 storage status and cost estimates
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'IngestionS3StatusIntegration',
+        ingestionManagementService.lambda,
+      ),
+      path: '/ingestion/streams/{id}/s3-status',
+      methods: [apigwv2.HttpMethod.GET],
     });
   }
 }

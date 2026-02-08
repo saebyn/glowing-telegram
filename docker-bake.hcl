@@ -8,6 +8,7 @@ group "all" {
     "chat_processor_lambda",
     "crud_api",
     "embedding_service",
+    "ingestion_management_lambda",
     "media_lambda",
     "render_job",
     "summarize_transcription",
@@ -28,6 +29,7 @@ group "batch1" {
     "chat_processor_lambda",
     "crud_api", 
     "embedding_service",
+    "ingestion_management_lambda",
     "summarize_transcription",
     "twitch_lambda",
     "upload_video",
@@ -81,6 +83,13 @@ target "embedding_service" {
   context = "."
   target = "embedding_service"
   tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/embedding-service:latest"]
+}
+
+target "ingestion_management_lambda" {
+  dockerfile = "Dockerfile"
+  context = "."
+  target = "ingestion_management_lambda"
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/ingestion-management-lambda:latest"]
 }
 
 target "media_lambda" {
