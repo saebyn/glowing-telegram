@@ -94,3 +94,9 @@ target "websocket_lambda" {
     "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/websocket-lambda:${IMAGE_TAG}"
   ]
 }
+
+target "ingestion_management_lambda" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/ingestion-management-lambda:${IMAGE_TAG}"
+  ]
+}
