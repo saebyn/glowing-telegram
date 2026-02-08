@@ -741,6 +741,41 @@ async fn delete_many_records_handler(
         match dynamodb::get_many(&state.dynamodb, &table_config, &ids).await {
             Ok(items) => {
                 if let Some(user) = &user_id {
+                    // Verify all requested IDs exist and belong to the user
+                    if items.len() != ids.len() {
+                        return (
+                            StatusCode::NOT_FOUND,
+                            [(header::CONTENT_TYPE, "application/json")],
+                            Json(json!({
+                                "message": "one or more records not found",
+                            })),
+                        );
+                    }
+
+                    // Create a set of returned item IDs for efficient lookup
+                    let returned_ids: std::collections::HashSet<String> =
+                        items
+                            .iter()
+                            .filter_map(|item| {
+                                item.get(table_config.partition_key)
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string())
+                            })
+                            .collect();
+
+                    // Verify all requested IDs are in the returned set
+                    for id in &ids {
+                        if !returned_ids.contains(*id) {
+                            return (
+                                StatusCode::NOT_FOUND,
+                                [(header::CONTENT_TYPE, "application/json")],
+                                Json(json!({
+                                    "message": "one or more records not found",
+                                })),
+                            );
+                        }
+                    }
+
                     // Check if all items belong to the user
                     for item in &items {
                         if item.get("user_id").and_then(|v| v.as_str())
@@ -750,7 +785,7 @@ async fn delete_many_records_handler(
                                 StatusCode::FORBIDDEN,
                                 [(header::CONTENT_TYPE, "application/json")],
                                 Json(json!({
-                                    "message": "Forbidden: cannot delete items that don't belong to you",
+                                    "message": "Forbidden",
                                 })),
                             );
                         }
@@ -766,12 +801,12 @@ async fn delete_many_records_handler(
                 }
             }
             Err(e) => {
-                tracing::error!("failed to verify item ownership: {e}");
+                tracing::error!("failed to verify record ownership: {e}");
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     [(header::CONTENT_TYPE, "application/json")],
                     Json(json!({
-                        "message": "failed to verify item ownership",
+                        "message": "failed to verify record ownership",
                     })),
                 );
             }
