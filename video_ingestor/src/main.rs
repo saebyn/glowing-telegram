@@ -3,9 +3,7 @@ use aws_config::{
 };
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_s3::{
-    operation::get_object::GetObjectOutput,
-    primitives::ByteStream,
-    types::{GlacierJobParameters, RestoreRequest, Tier},
+    operation::get_object::GetObjectOutput, primitives::ByteStream,
 };
 use figment::{Figment, providers::Env};
 use gt_ffmpeg::{
@@ -16,7 +14,7 @@ use gt_ffmpeg::{
     transcode::HLSEntry,
 };
 use serde::Deserialize;
-use std::{collections::HashMap, env, time::Duration};
+use std::{collections::HashMap, env};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Deserialize, Debug, Clone)]
@@ -36,20 +34,6 @@ struct Config {
     noise_tolerance: f64,
     // Minimum detected noise duration
     silence_duration: f64,
-
-    // Glacier restore configuration
-    #[serde(default = "default_restore_days")]
-    glacier_restore_days: i32,
-    #[serde(default = "default_max_wait_hours")]
-    glacier_max_wait_hours: u64,
-}
-
-fn default_restore_days() -> i32 {
-    1
-}
-
-fn default_max_wait_hours() -> u64 {
-    6
 }
 
 fn load_config() -> Result<Config, figment::Error> {
@@ -83,8 +67,6 @@ async fn main() {
         &aws_config,
         &config.input_bucket,
         &input_key,
-        config.glacier_restore_days,
-        config.glacier_max_wait_hours,
     )
     .await;
 
@@ -225,159 +207,13 @@ async fn save_stdio_to_file(
     Ok(())
 }
 
-/// Check if an S3 object requires restoration from Glacier
-#[tracing::instrument]
-async fn check_and_restore_if_needed(
-    s3_client: &aws_sdk_s3::Client,
-    bucket: &str,
-    key: &str,
-    restore_days: i32,
-    max_wait_hours: u64,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Get object metadata to check storage class and restore status
-    let head_result = s3_client
-        .head_object()
-        .bucket(bucket)
-        .key(key)
-        .send()
-        .await?;
-
-    let storage_class = head_result.storage_class();
-
-    tracing::info!(
-        "Object storage class: {:?}, restore status: {:?}",
-        storage_class,
-        head_result.restore()
-    );
-
-    // Check if object is in Glacier or Deep Archive
-    let needs_restore = storage_class.map_or(false, |class| {
-        matches!(class.as_str(), "GLACIER" | "DEEP_ARCHIVE")
-    });
-
-    if !needs_restore {
-        tracing::info!("Object does not require restore");
-        return Ok(());
-    }
-
-    // Check if restore is already in progress or completed
-    if let Some(restore_status) = head_result.restore() {
-        if restore_status.contains("ongoing-request=\"true\"") {
-            tracing::info!(
-                "Restore already in progress, waiting for completion"
-            );
-            wait_for_restore_completion(
-                s3_client,
-                bucket,
-                key,
-                max_wait_hours,
-            )
-            .await?;
-            return Ok(());
-        } else if restore_status.contains("ongoing-request=\"false\"") {
-            tracing::info!("Object already restored and available");
-            return Ok(());
-        }
-    }
-
-    // Initiate restore request
-    tracing::info!(
-        "Initiating restore request for object in {:?}",
-        storage_class
-    );
-
-    let restore_request = RestoreRequest::builder()
-        .days(restore_days)
-        .glacier_job_parameters(
-            GlacierJobParameters::builder()
-                .tier(Tier::Standard) // Use Standard tier for faster restore (3-5 hours)
-                .build()?,
-        )
-        .build();
-
-    s3_client
-        .restore_object()
-        .bucket(bucket)
-        .key(key)
-        .restore_request(restore_request)
-        .send()
-        .await?;
-
-    tracing::info!("Restore request initiated, waiting for completion");
-
-    // Wait for restore to complete
-    wait_for_restore_completion(s3_client, bucket, key, max_wait_hours)
-        .await?;
-
-    Ok(())
-}
-
-/// Constants for Glacier restore polling
-const POLL_INTERVAL_SECS: u64 = 60;
-
-/// Wait for Glacier restore to complete by polling the object status
-#[tracing::instrument]
-async fn wait_for_restore_completion(
-    s3_client: &aws_sdk_s3::Client,
-    bucket: &str,
-    key: &str,
-    max_wait_hours: u64,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let max_attempts = (max_wait_hours * 3600) / POLL_INTERVAL_SECS;
-    let poll_interval = Duration::from_secs(POLL_INTERVAL_SECS);
-
-    for attempt in 1..=max_attempts {
-        tokio::time::sleep(poll_interval).await;
-
-        let head_result = s3_client
-            .head_object()
-            .bucket(bucket)
-            .key(key)
-            .send()
-            .await?;
-
-        if let Some(restore_status) = head_result.restore() {
-            if restore_status.contains("ongoing-request=\"false\"") {
-                tracing::info!("Restore completed after {} attempts", attempt);
-                return Ok(());
-            }
-            tracing::info!(
-                "Restore still in progress (attempt {}/{}): {}",
-                attempt,
-                max_attempts,
-                restore_status
-            );
-        }
-    }
-
-    Err("Restore did not complete within the maximum wait time".into())
-}
-
 #[tracing::instrument]
 async fn download_s3_object_to_tempfile(
     aws_config: &SdkConfig,
     input_bucket: &str,
     input_key: &str,
-    restore_days: i32,
-    max_wait_hours: u64,
 ) -> String {
     let s3_client = aws_sdk_s3::Client::new(aws_config);
-
-    // Check if object needs to be restored from Glacier and wait if necessary
-    if let Err(e) = check_and_restore_if_needed(
-        &s3_client,
-        input_bucket,
-        input_key,
-        restore_days,
-        max_wait_hours,
-    )
-    .await
-    {
-        tracing::error!("Failed to restore object from Glacier: {e}");
-        panic!(
-            "Unable to proceed with video ingestion: Glacier restore failed for {input_key}. Error: {e}"
-        );
-    }
 
     let temp_file_path = std::env::temp_dir()
         .join("videofile")
