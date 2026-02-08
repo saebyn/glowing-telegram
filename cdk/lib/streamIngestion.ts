@@ -144,6 +144,14 @@ The summary you generate must be not only informational for content review but a
       }),
     );
 
+    // Grant S3 permissions for Glacier restore operations
+    this.stepFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['s3:GetObject', 's3:RestoreObject'],
+        resources: [`${props.videoArchive.bucketArn}/*`],
+      }),
+    );
+
     const stepfunctionStatusEventLogGroup = new logs.LogGroup(
       this,
       'StepFunctionStatusEventLogGroup',
@@ -467,6 +475,107 @@ def handler(event, context):
       resultPath: '$.iterator',
     });
 
+    // Check S3 object storage class
+    const checkObjectStorageClass = new tasks.CallAwsService(
+      this,
+      'Check object storage class',
+      {
+        comment: 'Check if object is in Glacier or Deep Archive',
+        service: 's3',
+        action: 'headObject',
+        parameters: {
+          Bucket: props.videoArchive.bucketName,
+          Key: stepfunctions.JsonPath.stringAt('$.key'),
+        },
+        iamAction: 's3:GetObject',
+        iamResources: [
+          `${props.videoArchive.bucketArn}/*`,
+        ],
+        resultPath: '$.headObject',
+      },
+    );
+
+    // Check if restore is needed based on storage class
+    const checkRestoreNeeded = new stepfunctions.Choice(
+      this,
+      'Check if restore needed',
+    )
+      .when(
+        stepfunctions.Condition.or(
+          stepfunctions.Condition.stringEquals(
+            '$.headObject.StorageClass',
+            'GLACIER',
+          ),
+          stepfunctions.Condition.stringEquals(
+            '$.headObject.StorageClass',
+            'DEEP_ARCHIVE',
+          ),
+        ),
+        new stepfunctions.Choice(this, 'Check restore status')
+          .when(
+            stepfunctions.Condition.and(
+              stepfunctions.Condition.isPresent('$.headObject.Restore'),
+              stepfunctions.Condition.not(
+                stepfunctions.Condition.stringMatches(
+                  '$.headObject.Restore',
+                  '*ongoing-request="true"*',
+                ),
+              ),
+            ),
+            new stepfunctions.Pass(this, 'Object already restored', {
+              comment: 'Object has been restored and is accessible',
+            }),
+          )
+          .when(
+            stepfunctions.Condition.and(
+              stepfunctions.Condition.isPresent('$.headObject.Restore'),
+              stepfunctions.Condition.stringMatches(
+                '$.headObject.Restore',
+                '*ongoing-request="true"*',
+              ),
+            ),
+            new stepfunctions.Wait(this, 'Wait for ongoing restore', {
+              comment: 'Wait 60 seconds before checking restore status',
+              time: stepfunctions.WaitTime.duration(cdk.Duration.seconds(60)),
+            }).next(checkObjectStorageClass),
+          )
+          .otherwise(
+            new tasks.CallAwsService(this, 'Initiate Glacier restore', {
+              comment: 'Initiate restore from Glacier/Deep Archive',
+              service: 's3',
+              action: 'restoreObject',
+              parameters: {
+                Bucket: props.videoArchive.bucketName,
+                Key: stepfunctions.JsonPath.stringAt('$.key'),
+                RestoreRequest: {
+                  Days: 1,
+                  GlacierJobParameters: {
+                    Tier: 'Standard',
+                  },
+                },
+              },
+              iamAction: 's3:RestoreObject',
+              iamResources: [
+                `${props.videoArchive.bucketArn}/*`,
+              ],
+              resultPath: stepfunctions.JsonPath.DISCARD,
+            }).next(
+              new stepfunctions.Wait(this, 'Wait for restore to complete', {
+                comment: 'Wait 60 seconds before checking restore status',
+                time: stepfunctions.WaitTime.duration(
+                  cdk.Duration.seconds(60),
+                ),
+              }).next(checkObjectStorageClass),
+            ),
+          ),
+      )
+      .otherwise(
+        new stepfunctions.Pass(this, 'Object in accessible storage', {
+          comment:
+            'Object is in STANDARD or other immediately accessible storage class',
+        }),
+      );
+
     const ingestAllVideos = new stepfunctions.Map(this, 'Ingest all videos', {
       itemsPath: '$.videoKeys',
       itemSelector: {
@@ -476,22 +585,26 @@ def handler(event, context):
       },
       resultPath: stepfunctions.JsonPath.DISCARD,
     }).itemProcessor(
-      new tasks.DynamoGetItem(this, 'Get video metadata', {
-        table: props.videoMetadataTable,
-        key: {
-          key: tasks.DynamoAttributeValue.fromString(
-            stepfunctions.JsonPath.stringAt('$.key'),
-          ),
-        },
-        projectionExpression: [
-          new tasks.DynamoProjectionExpression().withAttribute('#k'),
-          new tasks.DynamoProjectionExpression().withAttribute(
-            'ingestion_version',
-          ),
-        ],
-        expressionAttributeNames: { '#k': 'key' },
-        resultPath: '$.dynamodb',
-      })
+      checkObjectStorageClass
+        .next(checkRestoreNeeded)
+        .next(
+          new tasks.DynamoGetItem(this, 'Get video metadata', {
+            table: props.videoMetadataTable,
+            key: {
+              key: tasks.DynamoAttributeValue.fromString(
+                stepfunctions.JsonPath.stringAt('$.key'),
+              ),
+            },
+            projectionExpression: [
+              new tasks.DynamoProjectionExpression().withAttribute('#k'),
+              new tasks.DynamoProjectionExpression().withAttribute(
+                'ingestion_version',
+              ),
+            ],
+            expressionAttributeNames: { '#k': 'key' },
+            resultPath: '$.dynamodb',
+          }),
+        )
         .next(
           new stepfunctions.Choice(
             this,
