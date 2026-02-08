@@ -1,6 +1,7 @@
 use aws_sdk_dynamodb::Client;
 use aws_sdk_dynamodb::types::{
-    AttributeValue, KeysAndAttributes, PutRequest, ReturnValue, WriteRequest,
+    AttributeValue, DeleteRequest, KeysAndAttributes, PutRequest, ReturnValue,
+    WriteRequest,
 };
 use lambda_runtime::Error;
 use serde::Deserialize;
@@ -434,6 +435,126 @@ pub async fn delete(
         .await?;
 
     Ok(())
+}
+
+#[tracing::instrument(skip(client))]
+pub async fn delete_many(
+    client: &Client,
+    table_config: &DynamoDbTableConfig<'_>,
+    ids: &[&str],
+) -> Result<Vec<String>, Error> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut successfully_deleted = HashSet::new();
+
+    // DynamoDB batch_write_item can handle up to 25 items at a time
+    for chunk in ids.chunks(25) {
+        let delete_requests = chunk
+            .iter()
+            .map(|id| {
+                let mut key = HashMap::new();
+                key.insert(
+                    table_config.partition_key.to_string(),
+                    AttributeValue::S((*id).to_string()),
+                );
+
+                let delete_request = DeleteRequest::builder()
+                    .set_key(Some(key))
+                    .build()
+                    .map_err(|_| {
+                        Error::from("Failed to create DeleteRequest")
+                    })?;
+
+                let write_request = WriteRequest::builder()
+                    .set_delete_request(Some(delete_request))
+                    .build();
+
+                Ok(write_request)
+            })
+            .collect::<Result<Vec<WriteRequest>, Error>>()?;
+
+        let mut requests_to_process = delete_requests;
+        let mut retry_count = 0;
+        const MAX_RETRIES: u32 = 3;
+
+        // Retry logic with exponential backoff for unprocessed items
+        while !requests_to_process.is_empty() && retry_count <= MAX_RETRIES {
+            if retry_count > 0 {
+                // Exponential backoff: 100ms, 200ms, 400ms
+                let backoff_ms = 100 * 2_u64.pow(retry_count - 1);
+                tokio::time::sleep(tokio::time::Duration::from_millis(
+                    backoff_ms,
+                ))
+                .await;
+                tracing::info!(
+                    "Retrying batch delete (attempt {}/{})",
+                    retry_count,
+                    MAX_RETRIES
+                );
+            }
+
+            let result = client
+                .batch_write_item()
+                .set_request_items(Some(std::collections::HashMap::from([(
+                    table_config.table.to_string(),
+                    requests_to_process.clone(),
+                )])))
+                .send()
+                .await?;
+
+            // Mark items as successfully deleted (those that were processed)
+            for request in &requests_to_process {
+                if let Some(delete_request) = &request.delete_request {
+                    if let Some(AttributeValue::S(id)) =
+                        delete_request.key.get(table_config.partition_key)
+                    {
+                        successfully_deleted.insert(id.clone());
+                    }
+                }
+            }
+
+            // Check for unprocessed items
+            requests_to_process = if let Some(unprocessed_items) =
+                result.unprocessed_items()
+            {
+                if let Some(unprocessed_requests) =
+                    unprocessed_items.get(table_config.table)
+                {
+                    // Remove unprocessed items from successfully deleted set
+                    for request in unprocessed_requests {
+                        if let Some(delete_request) = &request.delete_request {
+                            if let Some(AttributeValue::S(id)) = delete_request
+                                .key
+                                .get(table_config.partition_key)
+                            {
+                                successfully_deleted.remove(id);
+                            }
+                        }
+                    }
+                    unprocessed_requests.clone()
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+
+            retry_count += 1;
+        }
+
+        // Log warning if there are still unprocessed items after all retries
+        if !requests_to_process.is_empty() {
+            tracing::warn!(
+                "Failed to delete {} items after {} retries",
+                requests_to_process.len(),
+                MAX_RETRIES
+            );
+        }
+    }
+
+    Ok(successfully_deleted.into_iter().collect())
 }
 
 fn get_operator(op_name: &str) -> &'static str {
