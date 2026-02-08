@@ -73,8 +73,6 @@ enum ApiError {
     S3Error(String),
     #[error("DynamoDB error: {0}")]
     DynamoDbError(String),
-    #[error("Internal error: {0}")]
-    InternalError(String),
 }
 
 impl IntoResponse for ApiError {
@@ -84,9 +82,6 @@ impl IntoResponse for ApiError {
                 (StatusCode::NOT_FOUND, self.to_string())
             }
             ApiError::S3Error(_) | ApiError::DynamoDbError(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
-            }
-            ApiError::InternalError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
             }
         };
@@ -110,8 +105,14 @@ async fn get_stream_s3_key(
         .send()
         .await
         .map_err(|e| {
-            tracing::error!("DynamoDB GetItem error for stream {}: {}", stream_id, e);
-            ApiError::DynamoDbError("Failed to retrieve stream information".to_string())
+            tracing::error!(
+                "DynamoDB GetItem error for stream {}: {}",
+                stream_id,
+                e
+            );
+            ApiError::DynamoDbError(
+                "Failed to retrieve stream information".to_string(),
+            )
         })?;
 
     if let Some(item) = result.item {
@@ -160,13 +161,14 @@ async fn handle_get_s3_status(
             request = request.continuation_token(token);
         }
 
-        let list_output = request
-            .send()
-            .await
-            .map_err(|e| {
-                tracing::error!("S3 ListObjectsV2 error for prefix {}: {}", s3_key, e);
-                ApiError::S3Error("Failed to list objects".to_string())
-            })?;
+        let list_output = request.send().await.map_err(|e| {
+            tracing::error!(
+                "S3 ListObjectsV2 error for prefix {}: {}",
+                s3_key,
+                e
+            );
+            ApiError::S3Error("Failed to list objects".to_string())
+        })?;
 
         if let Some(mut contents) = list_output.contents {
             all_objects.append(&mut contents);
