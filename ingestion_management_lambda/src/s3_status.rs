@@ -45,11 +45,11 @@ pub async fn get_s3_object_info(
                 retrieval_required,
             })
         }
-        Err(err) => {
-            // Check if it's a 404 (object not found)
-            if err.to_string().contains("NotFound")
-                || err.to_string().contains("404")
-            {
+        Err(sdk_error) => {
+            // Check if it's a NoSuchKey error (object not found)
+            // AWS S3 SDK returns specific error codes for different error types
+            let error_str = sdk_error.to_string();
+            if error_str.contains("NoSuchKey") || error_str.contains("NotFound") {
                 Ok(S3ObjectInfo {
                     exists: false,
                     storage_class: None,
@@ -57,7 +57,7 @@ pub async fn get_s3_object_info(
                     retrieval_required: false,
                 })
             } else {
-                Err(ApiError::S3Error(err.to_string()))
+                Err(ApiError::S3Error(sdk_error.to_string()))
             }
         }
     }
@@ -190,8 +190,8 @@ mod tests {
             storage_costs_per_gb_month: HashMap::new(),
             retrieval_costs_per_gb: HashMap::new(),
             retrieval_times_hours: HashMap::new(),
-            compute_cost_per_hour: 0.50,
-            compute_hours_per_video_gb: 0.015,
+            processing_cost_per_hour: 0.50,
+            processing_hours_per_video_gb: 0.015,
         };
 
         let costs = calculate_costs(&s3_info, &config);
@@ -233,8 +233,8 @@ mod tests {
             storage_costs_per_gb_month: HashMap::new(),
             retrieval_costs_per_gb,
             retrieval_times_hours,
-            compute_cost_per_hour: 0.50,
-            compute_hours_per_video_gb: 0.015,
+            processing_cost_per_hour: 0.50,
+            processing_hours_per_video_gb: 0.015,
         };
 
         let costs = calculate_costs(&s3_info, &config);

@@ -60,22 +60,32 @@
       },
       "required": ["GLACIER", "DEEP_ARCHIVE"]
     },
-    "compute_cost_per_hour": {
+      "compute_cost_per_hour": {
       "type": "number",
       "minimum": 0,
-      "description": "Cost per hour of compute/inference processing"
+      "description": "DEPRECATED: Use processing_cost_per_hour instead"
     },
     "compute_hours_per_video_gb": {
       "type": "number",
       "minimum": 0,
-      "description": "Estimated compute hours needed per GB of video"
+      "description": "DEPRECATED: Use processing_hours_per_video_gb instead"
+    },
+    "processing_cost_per_hour": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Cost per hour of video processing (transcoding, transcription, etc.)"
+    },
+    "processing_hours_per_video_gb": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Estimated processing hours needed per GB of video"
     }
   },
   "required": [
     "storage_costs_per_gb_month",
     "retrieval_costs_per_gb",
     "retrieval_times_hours",
-    "compute_cost_per_hour",
-    "compute_hours_per_video_gb"
+    "processing_cost_per_hour",
+    "processing_hours_per_video_gb"
   ]
 }

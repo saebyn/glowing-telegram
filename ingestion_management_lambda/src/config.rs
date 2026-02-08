@@ -12,8 +12,10 @@ pub struct StorageCostConfig {
     pub storage_costs_per_gb_month: HashMap<String, f64>,
     pub retrieval_costs_per_gb: HashMap<String, RetrievalOptions>,
     pub retrieval_times_hours: HashMap<String, RetrievalOptions>,
-    pub compute_cost_per_hour: f64,
-    pub compute_hours_per_video_gb: f64,
+    #[serde(alias = "compute_cost_per_hour")]
+    pub processing_cost_per_hour: f64,
+    #[serde(alias = "compute_hours_per_video_gb")]
+    pub processing_hours_per_video_gb: f64,
 }
 
 impl StorageCostConfig {
@@ -47,10 +49,10 @@ impl StorageCostConfig {
             })
     }
 
-    /// Calculate compute cost based on video size in bytes
+    /// Calculate processing cost based on video size in bytes
     pub fn calculate_compute_cost(&self, size_bytes: i64) -> f64 {
         let size_gb = size_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
-        let compute_hours = size_gb * self.compute_hours_per_video_gb;
-        compute_hours * self.compute_cost_per_hour
+        let processing_hours = size_gb * self.processing_hours_per_video_gb;
+        processing_hours * self.processing_cost_per_hour
     }
 }

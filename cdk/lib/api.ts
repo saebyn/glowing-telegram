@@ -348,40 +348,11 @@ export default class APIConstruct extends Construct {
       },
     );
 
-    // Load the storage cost configuration
-    const storageCostConfigJson = JSON.stringify({
-      storage_costs_per_gb_month: {
-        STANDARD: 0.023,
-        STANDARD_IA: 0.0125,
-        INTELLIGENT_TIERING: 0.023,
-        ONEZONE_IA: 0.01,
-        GLACIER_IR: 0.004,
-        GLACIER: 0.0036,
-        DEEP_ARCHIVE: 0.00099,
-      },
-      retrieval_costs_per_gb: {
-        GLACIER: {
-          bulk: 0.0025,
-          standard: 0.01,
-        },
-        DEEP_ARCHIVE: {
-          bulk: 0.0025,
-          standard: 0.02,
-        },
-      },
-      retrieval_times_hours: {
-        GLACIER: {
-          bulk: 8,
-          standard: 4,
-        },
-        DEEP_ARCHIVE: {
-          bulk: 48,
-          standard: 12,
-        },
-      },
-      compute_cost_per_hour: 0.5,
-      compute_hours_per_video_gb: 0.015,
-    });
+    // Load the storage cost configuration from file
+    const storageCostConfigPath = `${__dirname}/../../ingestion_management_lambda/storage_cost_config.json`;
+    // biome-ignore lint: fs is available in CDK synthesis environment
+    const fs = require('fs');
+    const storageCostConfigJson = fs.readFileSync(storageCostConfigPath, 'utf8');
 
     // Configure ingestion management lambda
     const ingestionManagementService = new ServiceLambdaConstruct(

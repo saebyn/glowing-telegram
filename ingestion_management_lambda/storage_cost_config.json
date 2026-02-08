@@ -28,6 +28,6 @@
       "standard": 12
     }
   },
-  "compute_cost_per_hour": 0.50,
-  "compute_hours_per_video_gb": 0.015
+  "processing_cost_per_hour": 0.50,
+  "processing_hours_per_video_gb": 0.015
 }
