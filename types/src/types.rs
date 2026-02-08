@@ -11,7 +11,7 @@
 //     let model: AccessTokenResponse = serde_json::from_str(&json).unwrap();
 // }
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -721,8 +721,7 @@ pub enum StreamWidgetType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SubscribeChatRequest {
-}
+pub struct SubscribeChatRequest {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubscribeChatResponse {

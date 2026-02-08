@@ -1,8 +1,8 @@
 use aws_sdk_s3::Client as S3Client;
 use std::collections::HashMap;
 
-use crate::config::StorageCostConfig;
 use crate::ApiError;
+use crate::config::StorageCostConfig;
 
 #[derive(Debug)]
 pub struct S3ObjectInfo {
@@ -12,19 +12,20 @@ pub struct S3ObjectInfo {
     pub retrieval_required: bool,
 }
 
+/// Result type for cost calculations
+pub struct CostEstimate {
+    pub retrieval_costs: Option<HashMap<String, f64>>,
+    pub retrieval_times: Option<HashMap<String, f64>>,
+    pub compute_cost: f64,
+}
+
 /// Get information about an S3 object using HeadObject
 pub async fn get_s3_object_info(
     s3_client: &S3Client,
     bucket: &str,
     key: &str,
 ) -> Result<S3ObjectInfo, ApiError> {
-    match s3_client
-        .head_object()
-        .bucket(bucket)
-        .key(key)
-        .send()
-        .await
-    {
+    match s3_client.head_object().bucket(bucket).key(key).send().await {
         Ok(output) => {
             let storage_class = output
                 .storage_class()
@@ -46,7 +47,9 @@ pub async fn get_s3_object_info(
         }
         Err(err) => {
             // Check if it's a 404 (object not found)
-            if err.to_string().contains("NotFound") || err.to_string().contains("404") {
+            if err.to_string().contains("NotFound")
+                || err.to_string().contains("404")
+            {
                 Ok(S3ObjectInfo {
                     exists: false,
                     storage_class: None,
@@ -85,11 +88,7 @@ fn requires_retrieval(storage_class: &str) -> bool {
 pub fn calculate_costs(
     s3_info: &S3ObjectInfo,
     config: &StorageCostConfig,
-) -> (
-    Option<HashMap<String, f64>>,
-    Option<HashMap<String, f64>>,
-    f64,
-) {
+) -> CostEstimate {
     let size_bytes = s3_info.size_bytes.unwrap_or(0);
     let size_gb = size_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
 
@@ -98,12 +97,22 @@ pub fn calculate_costs(
 
     // Only calculate retrieval costs for classes that require retrieval
     if !s3_info.retrieval_required {
-        return (None, None, compute_cost);
+        return CostEstimate {
+            retrieval_costs: None,
+            retrieval_times: None,
+            compute_cost,
+        };
     }
 
     let storage_class = match &s3_info.storage_class {
         Some(sc) => sc,
-        None => return (None, None, compute_cost),
+        None => {
+            return CostEstimate {
+                retrieval_costs: None,
+                retrieval_times: None,
+                compute_cost,
+            }
+        }
     };
 
     // Calculate retrieval costs for bulk and standard tiers
@@ -111,12 +120,19 @@ pub fn calculate_costs(
     let mut retrieval_times = HashMap::new();
 
     for tier in ["bulk", "standard"] {
-        if let Some(cost_per_gb) = config.get_retrieval_cost(storage_class, tier) {
+        if let Some(cost_per_gb) =
+            config.get_retrieval_cost(storage_class, tier)
+        {
             let total_cost = cost_per_gb * size_gb;
-            retrieval_costs.insert(tier.to_string(), (total_cost * 100.0).round() / 100.0);
+            retrieval_costs.insert(
+                tier.to_string(),
+                (total_cost * 100.0).round() / 100.0,
+            );
         }
 
-        if let Some(time_hours) = config.get_retrieval_time(storage_class, tier) {
+        if let Some(time_hours) =
+            config.get_retrieval_time(storage_class, tier)
+        {
             retrieval_times.insert(tier.to_string(), time_hours);
         }
     }
@@ -133,7 +149,11 @@ pub fn calculate_costs(
         Some(retrieval_times)
     };
 
-    (retrieval_costs, retrieval_times, compute_cost)
+    CostEstimate {
+        retrieval_costs,
+        retrieval_times,
+        compute_cost,
+    }
 }
 
 #[cfg(test)]
@@ -174,11 +194,11 @@ mod tests {
             compute_hours_per_video_gb: 0.015,
         };
 
-        let (retrieval_costs, retrieval_times, compute_cost) = calculate_costs(&s3_info, &config);
+        let costs = calculate_costs(&s3_info, &config);
 
-        assert!(retrieval_costs.is_none());
-        assert!(retrieval_times.is_none());
-        assert_eq!(compute_cost, 0.0075); // 1 GB * 0.015 hr/GB * $0.50/hr
+        assert!(costs.retrieval_costs.is_none());
+        assert!(costs.retrieval_times.is_none());
+        assert_eq!(costs.compute_cost, 0.0075); // 1 GB * 0.015 hr/GB * $0.50/hr
     }
 
     #[test]
@@ -193,18 +213,21 @@ mod tests {
         let mut retrieval_costs_per_gb = HashMap::new();
         let mut retrieval_times_hours = HashMap::new();
 
-        let mut glacier_costs = HashMap::new();
-        glacier_costs.insert("bulk".to_string(), 0.0025);
-        glacier_costs.insert("standard".to_string(), 0.01);
-        retrieval_costs_per_gb.insert("GLACIER".to_string(), crate::config::RetrievalOptions {
-            bulk: 0.0025,
-            standard: 0.01,
-        });
+        retrieval_costs_per_gb.insert(
+            "GLACIER".to_string(),
+            crate::config::RetrievalOptions {
+                bulk: 0.0025,
+                standard: 0.01,
+            },
+        );
 
-        retrieval_times_hours.insert("GLACIER".to_string(), crate::config::RetrievalOptions {
-            bulk: 8.0,
-            standard: 4.0,
-        });
+        retrieval_times_hours.insert(
+            "GLACIER".to_string(),
+            crate::config::RetrievalOptions {
+                bulk: 8.0,
+                standard: 4.0,
+            },
+        );
 
         let config = StorageCostConfig {
             storage_costs_per_gb_month: HashMap::new(),
@@ -214,20 +237,20 @@ mod tests {
             compute_hours_per_video_gb: 0.015,
         };
 
-        let (retrieval_costs, retrieval_times, compute_cost) = calculate_costs(&s3_info, &config);
+        let costs = calculate_costs(&s3_info, &config);
 
-        assert!(retrieval_costs.is_some());
-        let costs = retrieval_costs.unwrap();
+        assert!(costs.retrieval_costs.is_some());
+        let cost_map = costs.retrieval_costs.unwrap();
         // ~50 GB * $0.0025/GB = ~$0.12 bulk, ~50 GB * $0.01/GB = ~$0.49 standard
-        assert!(costs.get("bulk").is_some());
-        assert!(costs.get("standard").is_some());
+        assert!(cost_map.contains_key("bulk"));
+        assert!(cost_map.contains_key("standard"));
 
-        assert!(retrieval_times.is_some());
-        let times = retrieval_times.unwrap();
+        assert!(costs.retrieval_times.is_some());
+        let times = costs.retrieval_times.unwrap();
         assert_eq!(times.get("bulk"), Some(&8.0));
         assert_eq!(times.get("standard"), Some(&4.0));
 
         // ~50 GB * 0.015 hr/GB * $0.50/hr = ~$0.37
-        assert!((compute_cost - 0.366).abs() < 0.01);
+        assert!((costs.compute_cost - 0.366).abs() < 0.01);
     }
 }

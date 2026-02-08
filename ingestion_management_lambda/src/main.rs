@@ -1,12 +1,12 @@
+use aws_sdk_dynamodb::Client as DynamoDbClient;
+use aws_sdk_s3::Client as S3Client;
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
-    Json, Router,
 };
-use aws_sdk_dynamodb::Client as DynamoDbClient;
-use aws_sdk_s3::Client as S3Client;
 use gt_axum::cognito::CognitoUserId;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
@@ -17,7 +17,7 @@ mod config;
 mod s3_status;
 
 use config::StorageCostConfig;
-use s3_status::{get_s3_object_info, calculate_costs};
+use s3_status::{calculate_costs, get_s3_object_info};
 
 #[derive(Debug, Deserialize, Clone)]
 struct Config {
@@ -36,8 +36,9 @@ struct AppContext {
 
 impl gt_app::ContextProvider<Config> for AppContext {
     async fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
-        let cost_config = serde_json::from_str(&config.storage_cost_config_json)
-            .expect("Failed to parse storage cost config");
+        let cost_config =
+            serde_json::from_str(&config.storage_cost_config_json)
+                .expect("Failed to parse storage cost config");
 
         Self {
             config,
@@ -79,11 +80,15 @@ enum ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         let (status, message) = match self {
-            ApiError::StreamNotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            ApiError::StreamNotFound => {
+                (StatusCode::NOT_FOUND, self.to_string())
+            }
             ApiError::S3Error(_) | ApiError::DynamoDbError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
             }
-            ApiError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            ApiError::InternalError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
+            }
         };
 
         (status, Json(serde_json::json!({ "error": message }))).into_response()
@@ -98,7 +103,10 @@ async fn get_stream_s3_key(
     let result = dynamodb
         .get_item()
         .table_name(streams_table)
-        .key("id", aws_sdk_dynamodb::types::AttributeValue::S(stream_id.to_string()))
+        .key(
+            "id",
+            aws_sdk_dynamodb::types::AttributeValue::S(stream_id.to_string()),
+        )
         .send()
         .await
         .map_err(|e| ApiError::DynamoDbError(e.to_string()))?;
@@ -133,20 +141,18 @@ async fn handle_get_s3_status(
     };
 
     // Get S3 object information
-    let s3_info = get_s3_object_info(
-        &ctx.s3,
-        &ctx.config.video_archive_bucket,
-        &s3_key,
-    )
-    .await?;
+    let s3_info =
+        get_s3_object_info(&ctx.s3, &ctx.config.video_archive_bucket, &s3_key)
+            .await?;
 
     // Calculate costs and times if the object exists
     let (retrieval_costs, retrieval_times, compute_cost) = if s3_info.exists {
-        let costs = calculate_costs(
-            &s3_info,
-            &ctx.cost_config,
-        );
-        (costs.0, costs.1, Some(costs.2))
+        let costs = calculate_costs(&s3_info, &ctx.cost_config);
+        (
+            costs.retrieval_costs,
+            costs.retrieval_times,
+            Some(costs.compute_cost),
+        )
     } else {
         (None, None, None)
     };
@@ -173,7 +179,10 @@ async fn main() {
 
     // Create the router
     let app = Router::new()
-        .route("/ingestion/streams/:id/s3-status", get(handle_get_s3_status))
+        .route(
+            "/ingestion/streams/:id/s3-status",
+            get(handle_get_s3_status),
+        )
         .layer(TraceLayer::new_for_http())
         .with_state(Arc::new(app_context));
 
