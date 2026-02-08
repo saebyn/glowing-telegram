@@ -1,4 +1,6 @@
 use aws_sdk_s3::Client as S3Client;
+use aws_sdk_s3::error::SdkError;
+use aws_sdk_s3::operation::head_object::HeadObjectError;
 use std::collections::HashMap;
 
 use crate::ApiError;
@@ -46,10 +48,15 @@ pub async fn get_s3_object_info(
             })
         }
         Err(sdk_error) => {
-            // Check if it's a NoSuchKey error (object not found)
-            // AWS S3 SDK returns specific error codes for different error types
-            let error_str = sdk_error.to_string();
-            if error_str.contains("NoSuchKey") || error_str.contains("NotFound") {
+            // Check if it's a NoSuchKey error (object not found) using proper error type matching
+            let is_not_found = match &sdk_error {
+                SdkError::ServiceError(err) => {
+                    matches!(err.err(), HeadObjectError::NotFound(_))
+                }
+                _ => false,
+            };
+
+            if is_not_found {
                 Ok(S3ObjectInfo {
                     exists: false,
                     storage_class: None,
@@ -198,7 +205,7 @@ mod tests {
 
         assert!(costs.retrieval_costs.is_none());
         assert!(costs.retrieval_times.is_none());
-        assert_eq!(costs.compute_cost, 0.0075); // 1 GB * 0.015 hr/GB * $0.50/hr
+        assert!((costs.compute_cost - 0.0075).abs() < 1e-6); // 1 GB * 0.015 hr/GB * $0.50/hr
     }
 
     #[test]

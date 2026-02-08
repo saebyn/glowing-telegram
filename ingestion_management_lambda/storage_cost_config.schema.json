@@ -63,16 +63,6 @@
       "compute_cost_per_hour": {
       "type": "number",
       "minimum": 0,
-      "description": "DEPRECATED: Use processing_cost_per_hour instead"
-    },
-    "compute_hours_per_video_gb": {
-      "type": "number",
-      "minimum": 0,
-      "description": "DEPRECATED: Use processing_hours_per_video_gb instead"
-    },
-    "processing_cost_per_hour": {
-      "type": "number",
-      "minimum": 0,
       "description": "Cost per hour of video processing (transcoding, transcription, etc.)"
     },
     "processing_hours_per_video_gb": {
