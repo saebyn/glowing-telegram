@@ -144,14 +144,6 @@ The summary you generate must be not only informational for content review but a
       }),
     );
 
-    // Grant S3 permissions for Glacier restore operations
-    this.stepFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ['s3:GetObject', 's3:RestoreObject'],
-        resources: [`${props.videoArchive.bucketArn}/*`],
-      }),
-    );
-
     const stepfunctionStatusEventLogGroup = new logs.LogGroup(
       this,
       'StepFunctionStatusEventLogGroup',
@@ -495,6 +487,59 @@ def handler(event, context):
       },
     );
 
+    // Re-check storage class after waiting (separate state for loop-back)
+    const recheckObjectStorageClass = new tasks.CallAwsService(
+      this,
+      'Re-check object storage class',
+      {
+        comment: 'Re-check if restore is complete',
+        service: 's3',
+        action: 'headObject',
+        parameters: {
+          Bucket: props.videoArchive.bucketName,
+          Key: stepfunctions.JsonPath.stringAt('$.key'),
+        },
+        iamAction: 's3:GetObject',
+        iamResources: [
+          `${props.videoArchive.bucketArn}/*`,
+        ],
+        resultPath: '$.headObject',
+      },
+    );
+
+    // Pass state to proceed after restore is confirmed
+    const proceedAfterRestore = new stepfunctions.Pass(
+      this,
+      'Proceed after restore',
+      {
+        comment: 'Continue with video ingestion',
+      },
+    );
+
+    // Check restore status after re-checking
+    const checkRestoreComplete = new stepfunctions.Choice(
+      this,
+      'Check if restore complete',
+    )
+      .when(
+        stepfunctions.Condition.and(
+          stepfunctions.Condition.isPresent('$.headObject.Restore'),
+          stepfunctions.Condition.stringMatches(
+            '$.headObject.Restore',
+            '*ongoing-request="false"*',
+          ),
+        ),
+        proceedAfterRestore,
+      )
+      .otherwise(
+        new stepfunctions.Wait(this, 'Wait and re-check', {
+          comment: 'Wait 60 seconds before re-checking restore status',
+          time: stepfunctions.WaitTime.duration(cdk.Duration.seconds(60)),
+        }).next(recheckObjectStorageClass),
+      );
+
+    recheckObjectStorageClass.next(checkRestoreComplete);
+
     // Check if restore is needed based on storage class
     const checkRestoreNeeded = new stepfunctions.Choice(
       this,
@@ -537,7 +582,7 @@ def handler(event, context):
             new stepfunctions.Wait(this, 'Wait for ongoing restore', {
               comment: 'Wait 60 seconds before checking restore status',
               time: stepfunctions.WaitTime.duration(cdk.Duration.seconds(60)),
-            }).next(checkObjectStorageClass),
+            }).next(recheckObjectStorageClass),
           )
           .otherwise(
             new tasks.CallAwsService(this, 'Initiate Glacier restore', {
@@ -565,7 +610,7 @@ def handler(event, context):
                 time: stepfunctions.WaitTime.duration(
                   cdk.Duration.seconds(60),
                 ),
-              }).next(checkObjectStorageClass),
+              }).next(recheckObjectStorageClass),
             ),
           ),
       )
@@ -586,7 +631,7 @@ def handler(event, context):
       resultPath: stepfunctions.JsonPath.DISCARD,
     }).itemProcessor(
       checkObjectStorageClass
-        .next(checkRestoreNeeded)
+        .next(checkRestoreNeeded.afterwards())
         .next(
           new tasks.DynamoGetItem(this, 'Get video metadata', {
             table: props.videoMetadataTable,
