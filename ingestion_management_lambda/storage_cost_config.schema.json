@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "S3 Storage Cost Configuration",
+  "type": "object",
+  "properties": {
+    "storage_costs_per_gb_month": {
+      "type": "object",
+      "properties": {
+        "STANDARD": { "type": "number", "minimum": 0 },
+        "STANDARD_IA": { "type": "number", "minimum": 0 },
+        "INTELLIGENT_TIERING": { "type": "number", "minimum": 0 },
+        "ONEZONE_IA": { "type": "number", "minimum": 0 },
+        "GLACIER_IR": { "type": "number", "minimum": 0 },
+        "GLACIER": { "type": "number", "minimum": 0 },
+        "DEEP_ARCHIVE": { "type": "number", "minimum": 0 }
+      },
+      "required": ["STANDARD", "STANDARD_IA", "INTELLIGENT_TIERING", "ONEZONE_IA", "GLACIER_IR", "GLACIER", "DEEP_ARCHIVE"]
+    },
+    "retrieval_costs_per_gb": {
+      "type": "object",
+      "properties": {
+        "GLACIER": {
+          "type": "object",
+          "properties": {
+            "bulk": { "type": "number", "minimum": 0 },
+            "standard": { "type": "number", "minimum": 0 }
+          },
+          "required": ["bulk", "standard"]
+        },
+        "DEEP_ARCHIVE": {
+          "type": "object",
+          "properties": {
+            "bulk": { "type": "number", "minimum": 0 },
+            "standard": { "type": "number", "minimum": 0 }
+          },
+          "required": ["bulk", "standard"]
+        }
+      },
+      "required": ["GLACIER", "DEEP_ARCHIVE"]
+    },
+    "retrieval_times_hours": {
+      "type": "object",
+      "properties": {
+        "GLACIER": {
+          "type": "object",
+          "properties": {
+            "bulk": { "type": "number", "minimum": 0 },
+            "standard": { "type": "number", "minimum": 0 }
+          },
+          "required": ["bulk", "standard"]
+        },
+        "DEEP_ARCHIVE": {
+          "type": "object",
+          "properties": {
+            "bulk": { "type": "number", "minimum": 0 },
+            "standard": { "type": "number", "minimum": 0 }
+          },
+          "required": ["bulk", "standard"]
+        }
+      },
+      "required": ["GLACIER", "DEEP_ARCHIVE"]
+    },
+    "compute_cost_per_hour": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Cost per hour of compute/inference processing"
+    },
+    "compute_hours_per_video_gb": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Estimated compute hours needed per GB of video"
+    }
+  },
+  "required": [
+    "storage_costs_per_gb_month",
+    "retrieval_costs_per_gb",
+    "retrieval_times_hours",
+    "compute_cost_per_hour",
+    "compute_hours_per_video_gb"
+  ]
+}

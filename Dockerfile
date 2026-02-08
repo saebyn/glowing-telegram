@@ -186,3 +186,8 @@ CMD [ "connect.handler" ]
 FROM runtime_base AS widget_updater_lambda
 COPY --from=rust_builder /app/target/release/widget_updater_lambda /bootstrap
 ENTRYPOINT ["/bootstrap"]
+
+# ingestion_management_lambda
+FROM runtime_base AS ingestion_management_lambda
+COPY --from=rust_builder /app/target/release/ingestion_management_lambda /bootstrap
+ENTRYPOINT ["/bootstrap"]
