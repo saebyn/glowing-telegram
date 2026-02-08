@@ -1,9 +1,6 @@
-use aws_sdk_s3::Client as S3Client;
-use aws_sdk_s3::error::SdkError;
-use aws_sdk_s3::operation::head_object::HeadObjectError;
+use aws_sdk_s3::types::Object;
 use std::collections::HashMap;
 
-use crate::ApiError;
 use crate::config::StorageCostConfig;
 
 #[derive(Debug)]
@@ -21,52 +18,43 @@ pub struct CostEstimate {
     pub compute_cost: f64,
 }
 
-/// Get information about an S3 object using HeadObject
-pub async fn get_s3_object_info(
-    s3_client: &S3Client,
-    bucket: &str,
-    key: &str,
-) -> Result<S3ObjectInfo, ApiError> {
-    match s3_client.head_object().bucket(bucket).key(key).send().await {
-        Ok(output) => {
-            let storage_class = output
-                .storage_class()
-                .map(|sc| normalize_storage_class(sc.as_str()));
+/// Aggregate information about multiple S3 objects under a prefix
+pub fn aggregate_s3_objects_info(objects: Vec<Object>) -> S3ObjectInfo {
+    if objects.is_empty() {
+        return S3ObjectInfo {
+            exists: false,
+            storage_class: None,
+            size_bytes: None,
+            retrieval_required: false,
+        };
+    }
 
-            let size_bytes = output.content_length();
+    // Aggregate total size
+    let total_size: i64 = objects.iter().filter_map(|obj| obj.size()).sum();
 
-            let retrieval_required = storage_class
-                .as_ref()
-                .map(|sc| requires_retrieval(sc))
-                .unwrap_or(false);
+    // Determine the storage class - use the most restrictive one (requiring retrieval)
+    // Priority: DEEP_ARCHIVE > GLACIER > GLACIER_IR > others
+    let storage_class = objects
+        .iter()
+        .filter_map(|obj| obj.storage_class())
+        .map(|sc| normalize_storage_class(sc.as_str()))
+        .max_by_key(|sc| match sc.as_str() {
+            "DEEP_ARCHIVE" => 3,
+            "GLACIER" => 2,
+            "GLACIER_IR" => 1,
+            _ => 0,
+        });
 
-            Ok(S3ObjectInfo {
-                exists: true,
-                storage_class,
-                size_bytes,
-                retrieval_required,
-            })
-        }
-        Err(sdk_error) => {
-            // Check if it's a NoSuchKey error (object not found) using proper error type matching
-            let is_not_found = match &sdk_error {
-                SdkError::ServiceError(err) => {
-                    matches!(err.err(), HeadObjectError::NotFound(_))
-                }
-                _ => false,
-            };
+    let retrieval_required = storage_class
+        .as_ref()
+        .map(|sc| requires_retrieval(sc))
+        .unwrap_or(false);
 
-            if is_not_found {
-                Ok(S3ObjectInfo {
-                    exists: false,
-                    storage_class: None,
-                    size_bytes: None,
-                    retrieval_required: false,
-                })
-            } else {
-                Err(ApiError::S3Error(sdk_error.to_string()))
-            }
-        }
+    S3ObjectInfo {
+        exists: true,
+        storage_class,
+        size_bytes: Some(total_size),
+        retrieval_required,
     }
 }
 
@@ -259,5 +247,88 @@ mod tests {
 
         // ~50 GB * 0.015 hr/GB * $0.50/hr = ~$0.37
         assert!((costs.compute_cost - 0.366).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_aggregate_s3_objects_info_empty() {
+        let objects = vec![];
+        let info = aggregate_s3_objects_info(objects);
+
+        assert!(!info.exists);
+        assert!(info.storage_class.is_none());
+        assert!(info.size_bytes.is_none());
+        assert!(!info.retrieval_required);
+    }
+
+    #[test]
+    fn test_aggregate_s3_objects_info_single_object() {
+        use aws_sdk_s3::types::{Object, ObjectStorageClass};
+
+        let obj = Object::builder()
+            .size(1_073_741_824) // 1 GB
+            .storage_class(ObjectStorageClass::Glacier)
+            .build();
+
+        let objects = vec![obj];
+        let info = aggregate_s3_objects_info(objects);
+
+        assert!(info.exists);
+        assert_eq!(info.storage_class, Some("GLACIER".to_string()));
+        assert_eq!(info.size_bytes, Some(1_073_741_824));
+        assert!(info.retrieval_required);
+    }
+
+    #[test]
+    fn test_aggregate_s3_objects_info_multiple_objects() {
+        use aws_sdk_s3::types::{Object, ObjectStorageClass};
+
+        let obj1 = Object::builder()
+            .size(1_073_741_824) // 1 GB
+            .storage_class(ObjectStorageClass::Standard)
+            .build();
+
+        let obj2 = Object::builder()
+            .size(2_147_483_648) // 2 GB
+            .storage_class(ObjectStorageClass::Glacier)
+            .build();
+
+        let obj3 = Object::builder()
+            .size(536_870_912) // 0.5 GB
+            .storage_class(ObjectStorageClass::Standard)
+            .build();
+
+        let objects = vec![obj1, obj2, obj3];
+        let info = aggregate_s3_objects_info(objects);
+
+        assert!(info.exists);
+        // Should use GLACIER as it's the most restrictive
+        assert_eq!(info.storage_class, Some("GLACIER".to_string()));
+        // Total size should be 3.5 GB
+        assert_eq!(info.size_bytes, Some(3_758_096_384));
+        assert!(info.retrieval_required);
+    }
+
+    #[test]
+    fn test_aggregate_s3_objects_info_deep_archive_priority() {
+        use aws_sdk_s3::types::{Object, ObjectStorageClass};
+
+        let obj1 = Object::builder()
+            .size(1_073_741_824) // 1 GB
+            .storage_class(ObjectStorageClass::Glacier)
+            .build();
+
+        let obj2 = Object::builder()
+            .size(2_147_483_648) // 2 GB
+            .storage_class(ObjectStorageClass::DeepArchive)
+            .build();
+
+        let objects = vec![obj1, obj2];
+        let info = aggregate_s3_objects_info(objects);
+
+        assert!(info.exists);
+        // DEEP_ARCHIVE should take priority over GLACIER
+        assert_eq!(info.storage_class, Some("DEEP_ARCHIVE".to_string()));
+        assert_eq!(info.size_bytes, Some(3_221_225_472));
+        assert!(info.retrieval_required);
     }
 }
