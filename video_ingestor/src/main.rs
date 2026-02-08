@@ -3,7 +3,8 @@ use aws_config::{
 };
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_s3::{
-    operation::get_object::GetObjectOutput, primitives::ByteStream,
+    operation::get_object::GetObjectOutput,
+    primitives::ByteStream,
     types::{GlacierJobParameters, RestoreRequest, Tier},
 };
 use figment::{Figment, providers::Env};
@@ -242,7 +243,7 @@ async fn check_and_restore_if_needed(
         .await?;
 
     let storage_class = head_result.storage_class();
-    
+
     tracing::info!(
         "Object storage class: {:?}, restore status: {:?}",
         storage_class,
@@ -250,10 +251,9 @@ async fn check_and_restore_if_needed(
     );
 
     // Check if object is in Glacier or Deep Archive
-    let needs_restore = storage_class.map_or(false, |class| matches!(
-                class.as_str(),
-                "GLACIER" | "DEEP_ARCHIVE"
-            ));
+    let needs_restore = storage_class.map_or(false, |class| {
+        matches!(class.as_str(), "GLACIER" | "DEEP_ARCHIVE")
+    });
 
     if !needs_restore {
         tracing::info!("Object does not require restore");
@@ -263,8 +263,16 @@ async fn check_and_restore_if_needed(
     // Check if restore is already in progress or completed
     if let Some(restore_status) = head_result.restore() {
         if restore_status.contains("ongoing-request=\"true\"") {
-            tracing::info!("Restore already in progress, waiting for completion");
-            wait_for_restore_completion(s3_client, bucket, key, max_wait_hours).await?;
+            tracing::info!(
+                "Restore already in progress, waiting for completion"
+            );
+            wait_for_restore_completion(
+                s3_client,
+                bucket,
+                key,
+                max_wait_hours,
+            )
+            .await?;
             return Ok(());
         } else if restore_status.contains("ongoing-request=\"false\"") {
             tracing::info!("Object already restored and available");
@@ -273,8 +281,11 @@ async fn check_and_restore_if_needed(
     }
 
     // Initiate restore request
-    tracing::info!("Initiating restore request for object in {:?}", storage_class);
-    
+    tracing::info!(
+        "Initiating restore request for object in {:?}",
+        storage_class
+    );
+
     let restore_request = RestoreRequest::builder()
         .days(restore_days)
         .glacier_job_parameters(
@@ -293,9 +304,10 @@ async fn check_and_restore_if_needed(
         .await?;
 
     tracing::info!("Restore request initiated, waiting for completion");
-    
+
     // Wait for restore to complete
-    wait_for_restore_completion(s3_client, bucket, key, max_wait_hours).await?;
+    wait_for_restore_completion(s3_client, bucket, key, max_wait_hours)
+        .await?;
 
     Ok(())
 }
@@ -311,7 +323,7 @@ async fn wait_for_restore_completion(
     key: &str,
     max_wait_hours: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let max_attempts = max_wait_hours * 60 / POLL_INTERVAL_SECS;
+    let max_attempts = (max_wait_hours * 3600) / POLL_INTERVAL_SECS;
     let poll_interval = Duration::from_secs(POLL_INTERVAL_SECS);
 
     for attempt in 1..=max_attempts {
@@ -329,7 +341,6 @@ async fn wait_for_restore_completion(
                 tracing::info!("Restore completed after {} attempts", attempt);
                 return Ok(());
             }
-            
             tracing::info!(
                 "Restore still in progress (attempt {}/{}): {}",
                 attempt,
@@ -353,9 +364,19 @@ async fn download_s3_object_to_tempfile(
     let s3_client = aws_sdk_s3::Client::new(aws_config);
 
     // Check if object needs to be restored from Glacier and wait if necessary
-    if let Err(e) = check_and_restore_if_needed(&s3_client, input_bucket, input_key, restore_days, max_wait_hours).await {
+    if let Err(e) = check_and_restore_if_needed(
+        &s3_client,
+        input_bucket,
+        input_key,
+        restore_days,
+        max_wait_hours,
+    )
+    .await
+    {
         tracing::error!("Failed to restore object from Glacier: {e}");
-        panic!("Unable to proceed with video ingestion: Glacier restore failed for {input_key}. Error: {e}");
+        panic!(
+            "Unable to proceed with video ingestion: Glacier restore failed for {input_key}. Error: {e}"
+        );
     }
 
     let temp_file_path = std::env::temp_dir()

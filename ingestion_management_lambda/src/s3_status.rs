@@ -110,7 +110,7 @@ pub fn calculate_costs(
                 retrieval_costs: None,
                 retrieval_times: None,
                 compute_cost,
-            }
+            };
         }
     };
 
