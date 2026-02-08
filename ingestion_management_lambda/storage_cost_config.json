@@ -1,4 +1,5 @@
 {
+  "$schema": "./storage_cost_config.schema.json",
   "storage_costs_per_gb_month": {
     "STANDARD": 0.023,
     "STANDARD_IA": 0.0125,
