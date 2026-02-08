@@ -17,7 +17,7 @@ mod config;
 mod s3_status;
 
 use config::StorageCostConfig;
-use s3_status::{calculate_costs, get_s3_object_info};
+use s3_status::{aggregate_s3_objects_info, calculate_costs};
 
 #[derive(Debug, Deserialize, Clone)]
 struct Config {
@@ -141,33 +141,22 @@ async fn handle_get_s3_status(
     };
 
     // The prefix is a directory prefix, not a full object key
-    // List objects under the prefix to find actual video files
+    // List ALL objects under the prefix to aggregate information
     let list_output = ctx
         .s3
         .list_objects_v2()
         .bucket(&ctx.config.video_archive_bucket)
         .prefix(&s3_key)
-        .max_keys(1)
         .send()
         .await
         .map_err(|e| ApiError::S3Error(e.to_string()))?;
 
-    let effective_s3_key = list_output
-        .contents
-        .unwrap_or_default()
-        .into_iter()
-        .find_map(|obj| obj.key)
-        .unwrap_or(s3_key);
+    let objects = list_output.contents.unwrap_or_default();
 
-    // Get S3 object information for the resolved object key
-    let s3_info = get_s3_object_info(
-        &ctx.s3,
-        &ctx.config.video_archive_bucket,
-        &effective_s3_key,
-    )
-    .await?;
+    // Aggregate information about all objects under the prefix
+    let s3_info = aggregate_s3_objects_info(objects);
 
-    // Calculate costs and times if the object exists
+    // Calculate costs and times if objects exist
     let (retrieval_costs, retrieval_times, compute_cost) = if s3_info.exists {
         let costs = calculate_costs(&s3_info, &ctx.cost_config);
         (
