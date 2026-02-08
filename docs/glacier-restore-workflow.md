@@ -165,7 +165,7 @@ The Map state processes multiple videos in parallel. Each video independently:
 Built-in Step Functions error handling:
 - `States.TaskFailed`: S3 API call failures
 - `States.Timeout`: If configured (none set currently)
-- Automatic retry on transient failures
+- Explicit retry configuration is recommended for transient S3 failures (for example, using `addRetry` / `Retry` blocks in `cdk/lib/streamIngestion.ts`).
 
 ## Configuration
 
@@ -196,9 +196,10 @@ Step Functions execution logs show:
 
 ### EventBridge Events
 
-Stream ingestion status events include glacier restore timing:
-- Overall execution time includes restore wait
-- Individual step durations visible in execution history
+Stream ingestion status events publish high-level workflow status (for example: `status`, `name`, `stream_id`, `user_id`).
+Glacier restore timing is observable via Step Functions execution history and CloudWatch metrics:
+- Overall execution time includes any restore wait periods
+- Individual state durations are visible in the Step Functions execution history
 
 ### Metrics to Monitor
 
