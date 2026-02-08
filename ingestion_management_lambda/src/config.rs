@@ -18,7 +18,11 @@ pub struct StorageCostConfig {
 
 impl StorageCostConfig {
     /// Get retrieval cost for a storage class and tier (bulk or standard)
-    pub fn get_retrieval_cost(&self, storage_class: &str, tier: &str) -> Option<f64> {
+    pub fn get_retrieval_cost(
+        &self,
+        storage_class: &str,
+        tier: &str,
+    ) -> Option<f64> {
         self.retrieval_costs_per_gb
             .get(storage_class)
             .and_then(|opts| match tier {
@@ -29,7 +33,11 @@ impl StorageCostConfig {
     }
 
     /// Get retrieval time for a storage class and tier (bulk or standard)
-    pub fn get_retrieval_time(&self, storage_class: &str, tier: &str) -> Option<f64> {
+    pub fn get_retrieval_time(
+        &self,
+        storage_class: &str,
+        tier: &str,
+    ) -> Option<f64> {
         self.retrieval_times_hours
             .get(storage_class)
             .and_then(|opts| match tier {
