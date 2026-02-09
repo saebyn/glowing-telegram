@@ -736,6 +736,17 @@ async fn delete_many_records_handler(
         .map(String::as_str)
         .collect::<Vec<_>>();
 
+    // Enforce a maximum of 100 IDs per request to align with DynamoDB batch limits
+    if ids.len() > 100 {
+        return (
+            StatusCode::BAD_REQUEST,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({
+                "message": "Too many IDs provided. Maximum of 100 IDs per request.",
+            })),
+        );
+    }
+
     // If user_scoped, verify ownership of all items before deleting
     if table_config.user_scoped {
         match dynamodb::get_many(&state.dynamodb, &table_config, &ids).await {
