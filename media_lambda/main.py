@@ -162,7 +162,12 @@ def handle_project_playlist(project_id):
 
 
 def handle_project_with_cut_list(project):
-    """Generate playlist using project's cut_list."""
+    """
+    Generate playlist using project's cut_list.
+    
+    Note: Currently assumes 30fps for frame-to-time conversion.
+    In a full implementation, frame rate should be extracted from video metadata.
+    """
     cut_list = project["cut_list"]
     
     if "inputMedia" not in cut_list or "outputTrack" not in cut_list:
@@ -229,7 +234,8 @@ def handle_project_with_cut_list(project):
             continue
 
         # Calculate approximate frame rate (assuming 30fps as default if not specified)
-        # In a real implementation, we'd extract this from metadata
+        # TODO: Extract actual frame rate from video metadata (e.g., from metadata.format.r_frame_rate)
+        # Using 30fps as a reasonable default for most modern video content
         fps = 30.0
 
         # Convert frames to time
@@ -356,6 +362,10 @@ def get_segments_in_range(transcode_segments, start_time, end_time):
     """
     Filter HLS segments that fall within the specified time range.
     
+    Segments are included if they have any overlap with the desired time range.
+    This means segments may extend slightly beyond the requested end_time, which
+    is acceptable for HLS playback as players will handle the boundaries correctly.
+    
     Args:
         transcode_segments: List of segment dicts with 'path' and 'duration'
         start_time: Start time in seconds
@@ -371,7 +381,8 @@ def get_segments_in_range(transcode_segments, start_time, end_time):
         segment_duration = segment["duration"]
         segment_end = current_time + segment_duration
 
-        # Include segment if it overlaps with the desired range
+        # Include segment if it has any overlap with the desired range
+        # Segment overlaps if: segment_end > start_time AND current_time < end_time
         if segment_end > start_time and current_time < end_time:
             result.append(segment)
 
