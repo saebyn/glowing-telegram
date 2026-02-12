@@ -12,6 +12,7 @@ import ServiceLambdaConstruct from './util/serviceLambda';
 interface MediaServeConstructProps {
   mediaOutputBucket: s3.IBucket;
   videoMetadataTable: dynamodb.ITable;
+  projectsTable: dynamodb.ITable;
   domainName: string;
   tagOrDigest?: string;
 }
@@ -23,7 +24,7 @@ export default class MediaServeConstruct extends Construct {
   constructor(scope: Construct, id: string, props: MediaServeConstructProps) {
     super(scope, id);
 
-    const { mediaOutputBucket, videoMetadataTable, domainName } = props;
+    const { mediaOutputBucket, videoMetadataTable, projectsTable, domainName } = props;
 
     const mediaOrigin = origins.S3BucketOrigin.withOriginAccessControl(
       mediaOutputBucket,
@@ -80,6 +81,7 @@ export default class MediaServeConstruct extends Construct {
           environment: {
             VIDEO_METADATA_TABLE: videoMetadataTable.tableName,
             STREAM_ID_INDEX: 'stream_id-index',
+            PROJECTS_TABLE: props.projectsTable.tableName,
           },
         },
         name: 'media-lambda',
@@ -88,6 +90,7 @@ export default class MediaServeConstruct extends Construct {
     );
 
     videoMetadataTable.grantReadData(playlistLambda.lambda);
+    props.projectsTable.grantReadData(playlistLambda.lambda);
 
     const playlistLambdaUrl = playlistLambda.lambda.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.AWS_IAM,
