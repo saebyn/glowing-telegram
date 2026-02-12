@@ -109,6 +109,7 @@ export default class AppStack extends cdk.Stack {
     const mediaServe = new MediaServeConstruct(this, 'MediaServe', {
       mediaOutputBucket: dataStore.outputBucket,
       videoMetadataTable: dataStore.videoMetadataTable,
+      projectsTable: dataStore.projectsTable,
       domainName,
       tagOrDigest,
     });
