@@ -103,8 +103,10 @@ export default class MediaServeConstruct extends Construct {
     const playlistOrigin =
       origins.FunctionUrlOrigin.withOriginAccessControl(playlistLambdaUrl);
 
-    distribution.addBehavior('/playlist/*.m3u8', playlistOrigin, {
+    // Add behavior for playlist endpoints with no caching
+    distribution.addBehavior('/playlist/*', playlistOrigin, {
       responseHeadersPolicy,
+      cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
     });
 
     this.domainName = distribution.distributionDomainName;

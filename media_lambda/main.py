@@ -50,6 +50,12 @@ def handler(event, context):
     
     return {
         "statusCode": 400,
+        "headers": {
+            "Content-Type": "text/plain",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
         "body": "Invalid playlist path",
     }
 
@@ -137,12 +143,24 @@ def handle_project_playlist(project_id):
         print(f"Error fetching project: {e}")
         return {
             "statusCode": 500,
-            "body": f"Error fetching project: {str(e)}",
+            "headers": {
+                "Content-Type": "text/plain",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+            "body": "Internal server error while fetching project",
         }
 
     if "Item" not in response:
         return {
             "statusCode": 404,
+            "headers": {
+                "Content-Type": "text/plain",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
             "body": "Project not found",
         }
 
@@ -157,6 +175,12 @@ def handle_project_playlist(project_id):
     else:
         return {
             "statusCode": 400,
+            "headers": {
+                "Content-Type": "text/plain",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
             "body": "Project has no cut_list or video_clip_ids defined",
         }
 
@@ -173,6 +197,12 @@ def handle_project_with_cut_list(project):
     if "inputMedia" not in cut_list or "outputTrack" not in cut_list:
         return {
             "statusCode": 400,
+            "headers": {
+                "Content-Type": "text/plain",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
             "body": "Invalid cut_list structure",
         }
 
@@ -189,8 +219,9 @@ def handle_project_with_cut_list(project):
     prev_media_index = None
 
     for track_item in output_track:
-        media_index = track_item["mediaIndex"]
-        section_index = track_item["sectionIndex"]
+        # Convert from DynamoDB Decimal to int for indexing
+        media_index = int(track_item["mediaIndex"])
+        section_index = int(track_item["sectionIndex"])
 
         if media_index >= len(input_media):
             print(f"Warning: mediaIndex {media_index} out of range")
@@ -204,8 +235,9 @@ def handle_project_with_cut_list(project):
             continue
 
         section = media["sections"][section_index]
-        start_frame = section["startFrame"]
-        end_frame = section["endFrame"]
+        # Convert from DynamoDB Decimal to float for calculations
+        start_frame = float(section["startFrame"])
+        end_frame = float(section["endFrame"])
 
         # Fetch video clip data
         try:
@@ -263,6 +295,12 @@ def handle_project_with_cut_list(project):
     if not lines:
         return {
             "statusCode": 400,
+            "headers": {
+                "Content-Type": "text/plain",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
             "body": "No valid segments found in project cut_list",
         }
 
@@ -331,6 +369,12 @@ def handle_project_with_clip_ids(project):
     if not lines:
         return {
             "statusCode": 400,
+            "headers": {
+                "Content-Type": "text/plain",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
             "body": "No valid segments found in project video_clip_ids",
         }
 
@@ -377,7 +421,8 @@ def get_segments_in_range(transcode_segments, start_time, end_time):
     current_time = 0.0
 
     for segment in transcode_segments:
-        segment_duration = segment["duration"]
+        # Convert from DynamoDB Decimal to float for calculations
+        segment_duration = float(segment["duration"])
         segment_end = current_time + segment_duration
 
         # Include segment if it has any overlap with the desired range
