@@ -126,12 +126,24 @@ def handle_project_playlist(project_id):
     if not project_id:
         return {
             "statusCode": 400,
+            "headers": {
+                "Content-Type": "text/plain",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
             "body": "Invalid project ID",
         }
 
     if not PROJECTS_TABLE:
         return {
             "statusCode": 500,
+            "headers": {
+                "Content-Type": "text/plain",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
             "body": "Projects table not configured",
         }
 
