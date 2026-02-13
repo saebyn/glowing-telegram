@@ -131,12 +131,6 @@ def handle_project_playlist(project_id):
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
                 "Expires": "0",
-            "statusCode": 400,
-            "headers": {
-                "Content-Type": "text/plain",
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
             },
             "body": "Invalid project ID",
         }
@@ -144,12 +138,6 @@ def handle_project_playlist(project_id):
     if not PROJECTS_TABLE:
         return {
             "statusCode": 500,
-            "headers": {
-                "Content-Type": "text/plain",
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
-            },
             "headers": {
                 "Content-Type": "text/plain",
                 "Cache-Control": "no-cache, no-store, must-revalidate",
