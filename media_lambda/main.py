@@ -6,6 +6,7 @@ import json
 VIDEO_METADATA_TABLE = os.environ["VIDEO_METADATA_TABLE"]
 STREAM_ID_INDEX = os.environ["STREAM_ID_INDEX"]
 PROJECTS_TABLE = os.environ.get("PROJECTS_TABLE", "")
+DEFAULT_FPS = float(os.environ.get("DEFAULT_FPS", "60"))
 
 M3U8_HEADER = """#EXTM3U
 #EXT-X-VERSION:3
@@ -165,7 +166,7 @@ def handle_project_with_cut_list(project):
     """
     Generate playlist using project's cut_list.
     
-    Note: Currently assumes 30fps for frame-to-time conversion.
+    Note: Uses configured DEFAULT_FPS for frame-to-time conversion.
     In a full implementation, frame rate should be extracted from video metadata.
     """
     cut_list = project["cut_list"]
@@ -233,10 +234,9 @@ def handle_project_with_cut_list(project):
             print(f"Warning: Invalid duration for video clip: {s3_location}")
             continue
 
-        # Calculate approximate frame rate (assuming 30fps as default if not specified)
+        # Use configured default frame rate if not specified in metadata
         # TODO: Extract actual frame rate from video metadata (e.g., from metadata.format.r_frame_rate)
-        # Using 30fps as a reasonable default for most modern video content
-        fps = 30.0
+        fps = DEFAULT_FPS
 
         # Convert frames to time
         start_time = start_frame / fps
