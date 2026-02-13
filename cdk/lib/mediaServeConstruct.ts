@@ -82,6 +82,7 @@ export default class MediaServeConstruct extends Construct {
             VIDEO_METADATA_TABLE: videoMetadataTable.tableName,
             STREAM_ID_INDEX: 'stream_id-index',
             PROJECTS_TABLE: props.projectsTable.tableName,
+            DEFAULT_FPS: '60',
           },
         },
         name: 'media-lambda',
