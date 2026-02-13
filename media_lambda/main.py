@@ -1,7 +1,6 @@
 import boto3
 import os
 import re
-import json
 
 VIDEO_METADATA_TABLE = os.environ["VIDEO_METADATA_TABLE"]
 STREAM_ID_INDEX = os.environ["STREAM_ID_INDEX"]
