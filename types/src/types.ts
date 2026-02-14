@@ -339,12 +339,15 @@ export interface Profile {
     id: string;
 }
 
+/**
+ * Represents a project that combines cuts from multiple streams for episode creation
+ */
 export interface Project {
     created_at?: string;
     /**
      * List of cuts included in the project, with timing and source information
      */
-    cuts?: { [key: string]: any }[];
+    cuts?: CutElement[];
     /**
      * Optional reference to the episode this project is linked to
      */
@@ -357,10 +360,29 @@ export interface Project {
     title?:      string;
     updated_at?: string;
     user_id?:    string;
+}
+
+/**
+ * A clip representing a cut from a source stream, with start and end
+ */
+export interface CutElement {
     /**
-     * Array of video clip IDs that are part of this project
+     * End time of the cut in seconds (relative to the start of the stream)
      */
-    video_clip_ids?: string[];
+    end_time: number;
+    /**
+     * Start time of the cut in seconds (relative to the start of the stream)
+     */
+    start_time: number;
+    /**
+     * ID of the source stream for this cut
+     */
+    stream_id: string;
+    /**
+     * Title or description for this cut
+     */
+    title: string;
+    [property: string]: unknown;
 }
 
 export interface RenderRequest {
@@ -437,15 +459,18 @@ export interface Stream {
     video_clip_count?: number;
 }
 
+/**
+ * A clip representing a cut from a source stream, with start and end
+ */
 export interface StreamClip {
     /**
      * End time of the cut in seconds (relative to the start of the stream)
      */
-    end: number;
+    end_time: number;
     /**
      * Start time of the cut in seconds (relative to the start of the stream)
      */
-    start: number;
+    start_time: number;
     /**
      * ID of the source stream for this cut
      */
