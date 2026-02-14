@@ -11,7 +11,7 @@
 //     let model: AccessTokenResponse = serde_json::from_str(&json).unwrap();
 // }
 
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -285,7 +285,7 @@ pub struct Episode {
     pub created_at: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cut_list: Option<EpisodeCutList>,
+    pub cut_list: Option<CutListClass>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -350,7 +350,7 @@ pub struct Episode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EpisodeCutList {
+pub struct CutListClass {
     /// Audio channel mixing and volume control configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_mixing: Option<Vec<AudioChannelMixing>>,
@@ -409,8 +409,9 @@ pub struct Project {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
 
+    /// List of cuts included in the project, with timing and source information
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cut_list: Option<ProjectCutList>,
+    pub cuts: Option<Vec<HashMap<String, Option<serde_json::Value>>>>,
 
     /// Optional reference to the episode this project is linked to
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -435,27 +436,6 @@ pub struct Project {
     /// Array of video clip IDs that are part of this project
     #[serde(skip_serializing_if = "Option::is_none")]
     pub video_clip_ids: Option<Vec<String>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectCutList {
-    /// Audio channel mixing and volume control configuration
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub audio_mixing: Option<Vec<AudioChannelMixing>>,
-
-    /// List of input media sources
-    pub input_media: Vec<InputMedia>,
-
-    /// Ordered media sections to form the output timeline sequence
-    pub output_track: Vec<OutputTrack>,
-
-    /// One or more overlay tracks
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub overlay_tracks: Option<Vec<OverlayTrack>>,
-
-    /// Schema version
-    pub version: CutListVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -653,6 +633,21 @@ pub struct Stream {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StreamClip {
+    /// End time of the cut in seconds (relative to the start of the stream)
+    pub end: i64,
+
+    /// Start time of the cut in seconds (relative to the start of the stream)
+    pub start: i64,
+
+    /// ID of the source stream for this cut
+    pub stream_id: String,
+
+    /// Title or description for this cut
+    pub title: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamIngestionRequest {
     pub initial_prompt: String,
@@ -721,7 +716,8 @@ pub enum StreamWidgetType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SubscribeChatRequest {}
+pub struct SubscribeChatRequest {
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubscribeChatResponse {

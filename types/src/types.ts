@@ -278,7 +278,7 @@ export type OverlayTrackType = "alpha" | "colorkey";
 export interface Episode {
     category?:              number;
     created_at?:            string;
-    cut_list?:              EpisodeCutList;
+    cut_list?:              CutListClass;
     description?:           string;
     error_message?:         string;
     id?:                    string;
@@ -301,7 +301,7 @@ export interface Episode {
     youtube_video_id?:      string;
 }
 
-export interface EpisodeCutList {
+export interface CutListClass {
     /**
      * Audio channel mixing and volume control configuration
      */
@@ -341,7 +341,10 @@ export interface Profile {
 
 export interface Project {
     created_at?: string;
-    cut_list?:   ProjectCutList;
+    /**
+     * List of cuts included in the project, with timing and source information
+     */
+    cuts?: { [key: string]: any }[];
     /**
      * Optional reference to the episode this project is linked to
      */
@@ -358,29 +361,6 @@ export interface Project {
      * Array of video clip IDs that are part of this project
      */
     video_clip_ids?: string[];
-}
-
-export interface ProjectCutList {
-    /**
-     * Audio channel mixing and volume control configuration
-     */
-    audioMixing?: AudioChannelMixing[];
-    /**
-     * List of input media sources
-     */
-    inputMedia: InputMedia[];
-    /**
-     * Ordered media sections to form the output timeline sequence
-     */
-    outputTrack: OutputTrack[];
-    /**
-     * One or more overlay tracks
-     */
-    overlayTracks?: OverlayTrack[];
-    /**
-     * Schema version
-     */
-    version: "1.0.0";
 }
 
 export interface RenderRequest {
@@ -455,6 +435,26 @@ export interface Stream {
     title?:            string;
     updated_at?:       string;
     video_clip_count?: number;
+}
+
+export interface StreamClip {
+    /**
+     * End time of the cut in seconds (relative to the start of the stream)
+     */
+    end: number;
+    /**
+     * Start time of the cut in seconds (relative to the start of the stream)
+     */
+    start: number;
+    /**
+     * ID of the source stream for this cut
+     */
+    stream_id: string;
+    /**
+     * Title or description for this cut
+     */
+    title: string;
+    [property: string]: unknown;
 }
 
 export interface StreamIngestionRequest {

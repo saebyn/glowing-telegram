@@ -25,9 +25,13 @@
 			"format": "uuid",
 			"description": "Optional reference to the episode this project is linked to"
 		},
-		"cut_list": {
-			"type": "object",
-			"$ref": "./CutList.schema"
+		"cuts": {
+			"type": "array",
+			"description": "List of cuts included in the project, with timing and source information",
+			"items": {
+				"type": "object",
+				"@ref": "./StreamClip.schema"
+			}
 		},
 		"user_id": {
 			"type": "string",
