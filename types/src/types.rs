@@ -635,10 +635,10 @@ pub struct Stream {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StreamClip {
     /// End time of the cut in seconds (relative to the start of the stream)
-    pub end: i64,
+    pub end: f64,
 
     /// Start time of the cut in seconds (relative to the start of the stream)
-    pub start: i64,
+    pub start: f64,
 
     /// ID of the source stream for this cut
     pub stream_id: String,
