@@ -217,19 +217,21 @@ jobs:
           cd cdk
           npm run build
       
-      - name: Determine AppStack name based on environment
+      - name: Determine stack names based on environment
         id: stack_names
         run: |
           if [ "${{ inputs.environment }}" = "production" ]; then
             echo "app=AppStack" >> $GITHUB_OUTPUT
+            echo "github_env=GitHubEnvironmentStack" >> $GITHUB_OUTPUT
           else
             echo "app=AppStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "github_env=GitHubEnvironmentStack-${{ inputs.environment }}" >> $GITHUB_OUTPUT
           fi
       
-      - name: Deploy AppStack
+      - name: Deploy AppStack and GitHubEnvironmentStack
         run: |
           cd cdk
-          npm run cdk -- deploy ${{ steps.stack_names.outputs.app }} --require-approval never
+          npm run cdk -- deploy ${{ steps.stack_names.outputs.app }} ${{ steps.stack_names.outputs.github_env }} --require-approval never
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           IMAGE_VERSION: ${{ steps.final_image_tag.outputs.tag }}
@@ -246,4 +248,4 @@ jobs:
           echo "### Deployment Order" >> $GITHUB_STEP_SUMMARY
           echo "1. ✅ FrontendStack and RepoStack (Phase 1)" >> $GITHUB_STEP_SUMMARY
           echo "2. ✅ Docker images built/pushed (Phase 2)" >> $GITHUB_STEP_SUMMARY
-          echo "3. ✅ AppStack deployed (Phase 3)" >> $GITHUB_STEP_SUMMARY
+          echo "3. ✅ AppStack and GitHubEnvironmentStack deployed (Phase 3)" >> $GITHUB_STEP_SUMMARY
