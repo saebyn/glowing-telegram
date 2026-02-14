@@ -13,7 +13,7 @@ import { LOG_GROUP_PREFIX, LOG_RETENTION } from '../util/serviceLambda';
 interface AudioTranscriberJobConstructProps {
   outputBucket: s3.IBucket;
   videoMetadataTable: dynamodb.ITable;
-  imageVersion?: string;
+  tagOrDigest?: string;
 }
 
 /**
@@ -66,7 +66,7 @@ export default class AudioTranscriberJobConstruct extends Construct {
         memory: cdk.Size.gibibytes(8),
         gpu: 1,
 
-        image: ecs.ContainerImage.fromEcrRepository(repo, props.imageVersion || 'latest'),
+        image: ecs.ContainerImage.fromEcrRepository(repo, props.tagOrDigest || 'latest'),
 
         environment: {
           INPUT_BUCKET: props.outputBucket.bucketName,

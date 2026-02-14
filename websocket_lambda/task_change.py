@@ -3,7 +3,7 @@ import os
 import boto3
 import logging
 from botocore.exceptions import ClientError
-from utils import deserialize_dynamodb_item, paginated_query
+from utils import deserialize_dynamodb_item, paginated_query, decimal_default
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -58,11 +58,14 @@ def handle_task_change(task, old_task):
             return
         
         # Prepare the payload to send to clients
-        payload = json.dumps({
-            'type': 'TASK_UPDATE',
-            'task': task,
-            'old_status': old_task.get('status') if old_task else None,
-        })
+        payload = json.dumps(
+            {
+                "type": "TASK_UPDATE",
+                "task": task,
+                "old_status": old_task.get("status") if old_task else None,
+            },
+            default=decimal_default,
+        )
         
         # Send the update to all connections for this user
         for connection_id in connections:

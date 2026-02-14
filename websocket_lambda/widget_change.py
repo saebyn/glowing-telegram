@@ -3,7 +3,7 @@ import os
 import boto3
 import logging
 from botocore.exceptions import ClientError
-from utils import deserialize_dynamodb_item, paginated_query
+from utils import deserialize_dynamodb_item, paginated_query, decimal_default
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -93,7 +93,8 @@ def handle_widget_change(widget, old_widget, event_name):
                     "type": "WIDGET_CONFIG_UPDATE",
                     "widgetId": widget_id,
                     "config": widget.get("config", {}),
-                }
+                },
+                default=decimal_default,
             )
             broadcast_to_connections(connections, config_message)
 
@@ -105,7 +106,8 @@ def handle_widget_change(widget, old_widget, event_name):
                     "widgetId": widget_id,
                     "state": widget.get("state", {}),
                     "timestamp": widget.get("updated_at", ""),
-                }
+                },
+                default=decimal_default,
             )
             broadcast_to_connections(connections, state_message)
 

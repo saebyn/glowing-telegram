@@ -4,8 +4,9 @@
 	"type": "object",
 	"properties": {
 		"access_token": { "type": "string" },
-		"broadcaster_id": { "type": "string" }
+		"broadcaster_id": { "type": "string" },
+		"login": { "type": "string" }
 	},
-	"required": ["access_token", "broadcaster_id"],
+	"required": ["access_token", "broadcaster_id", "login"],
 	"additionalProperties": false
 }

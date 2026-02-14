@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpNoneAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2';
 import type * as cognito from 'aws-cdk-lib/aws-cognito';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
@@ -12,6 +13,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import type * as batch from 'aws-cdk-lib/aws-batch';
 import type { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import type * as sqs from 'aws-cdk-lib/aws-sqs';
+import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import ServiceLambdaConstruct, { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 import RenderJobSubmissionLambda from './renderJobSubmissionLambda';
@@ -40,12 +42,14 @@ interface APIConstructProps {
   youtubeUploaderAPILambda: lambda.IFunction;
 
   domainName: string;
-  imageVersion?: string;
+  tagOrDigest?: string;
 
   renderJob: {
     jobQueue: batch.IJobQueue;
     jobDefinition: batch.IJobDefinition;
   };
+
+  videoArchiveBucket: s3.IBucket;
 }
 
 export default class APIConstruct extends Construct {
@@ -119,7 +123,7 @@ export default class APIConstruct extends Construct {
         },
       },
       name: 'youtube-lambda',
-      imageVersion: props.imageVersion,
+      tagOrDigest: props.tagOrDigest,
     });
 
     props.youtubeAppSecret.grantRead(youtubeService.lambda);
@@ -173,11 +177,11 @@ export default class APIConstruct extends Construct {
           IS_GLOBAL_REFRESH_SERVICE: 'false',
           CHAT_QUEUE_URL: props.chatQueue.queueUrl,
           EVENTSUB_SECRET_ARN: eventSubSecret.secretArn,
-          EVENTSUB_WEBHOOK_URL: `${httpApi.url}/eventsub/webhook`,
+          EVENTSUB_WEBHOOK_URL: `${httpApi.url}eventsub/webhook`,
         },
       },
       name: 'twitch-lambda',
-      imageVersion: props.imageVersion,
+      tagOrDigest: props.tagOrDigest,
     });
 
     twitchAppSecret.grantRead(twitchService.lambda);
@@ -213,7 +217,7 @@ export default class APIConstruct extends Construct {
       'TokenRefreshLambda',
       {
         name: 'twitch-lambda',
-        imageVersion: props.imageVersion,
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'Twitch Token Refresh Lambda for Glowing-Telegram',
           timeout: cdk.Duration.minutes(5),
@@ -278,7 +282,7 @@ export default class APIConstruct extends Construct {
         },
       },
       name: 'crud-lambda',
-      imageVersion: props.imageVersion,
+      tagOrDigest: props.tagOrDigest,
     });
 
     crudService.lambda.addToRolePolicy(
@@ -329,7 +333,7 @@ export default class APIConstruct extends Construct {
         },
       },
       name: 'ai-chat-lambda',
-      imageVersion: props.imageVersion,
+      tagOrDigest: props.tagOrDigest,
     });
 
     props.openaiSecret.grantRead(aiChatService.lambda);
@@ -343,6 +347,37 @@ export default class APIConstruct extends Construct {
         renderJobDefinition: props.renderJob.jobDefinition,
       },
     );
+
+    // Load the storage cost configuration from file
+    const storageCostConfigPath = `${__dirname}/../../ingestion_management_lambda/storage_cost_config.json`;
+    // biome-ignore lint: fs is available in CDK synthesis environment
+    const fs = require('fs');
+    const storageCostConfigJson = fs.readFileSync(storageCostConfigPath, 'utf8');
+
+    // Configure ingestion management lambda
+    const ingestionManagementService = new ServiceLambdaConstruct(
+      this,
+      'IngestionManagementLambda',
+      {
+        lambdaOptions: {
+          description: 'Ingestion Management Lambda for S3 status and cost estimation',
+          timeout: cdk.Duration.seconds(30),
+          environment: {
+            STREAMS_TABLE: props.streamsTable.tableName,
+            VIDEO_ARCHIVE_BUCKET: props.videoArchiveBucket.bucketName,
+            STORAGE_COST_CONFIG_JSON: storageCostConfigJson,
+          },
+        },
+        name: 'ingestion-management-lambda',
+        tagOrDigest: props.tagOrDigest,
+      },
+    );
+
+    // Grant read permissions to streams table
+    props.streamsTable.grantReadData(ingestionManagementService.lambda);
+
+    // Grant read permissions to video archive bucket
+    props.videoArchiveBucket.grantRead(ingestionManagementService.lambda);
 
     // configure routes
 
@@ -470,6 +505,17 @@ def handler(event, context):
       methods: [apigwv2.HttpMethod.POST, apigwv2.HttpMethod.GET],
     });
 
+    // POST /eventsub/webhook - run twitch lambda for EventSub webhook verification and notifications
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'TwitchEventSubWebhookIntegration',
+        twitchService.lambda,
+      ),
+      authorizer: new HttpNoneAuthorizer(), // explicitly disable authorization for EventSub webhook
+      path: '/eventsub/webhook',
+      methods: [apigwv2.HttpMethod.POST],
+    });
+
     // POST /eventsub/* - run twitch lambda for EventSub endpoints
     httpApi.addRoutes({
       integration: new HttpLambdaIntegration(
@@ -519,6 +565,16 @@ def handler(event, context):
       ),
       path: '/upload/youtube',
       methods: [apigwv2.HttpMethod.POST],
+    });
+
+    // GET /ingestion/streams/:id/s3-status - get S3 storage status and cost estimates
+    httpApi.addRoutes({
+      integration: new HttpLambdaIntegration(
+        'IngestionS3StatusIntegration',
+        ingestionManagementService.lambda,
+      ),
+      path: '/ingestion/streams/{id}/s3-status',
+      methods: [apigwv2.HttpMethod.GET],
     });
   }
 }

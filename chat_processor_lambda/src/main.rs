@@ -1,7 +1,7 @@
 use aws_lambda_events::event::sqs::{SqsEvent, SqsMessage};
 use aws_sdk_dynamodb::Client as DynamoDbClient;
 use aws_sdk_dynamodb::types::AttributeValue;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use lambda_runtime::{Error, LambdaEvent, service_fn};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -39,8 +39,8 @@ struct TwitchChatEvent {
     chatter_user_login: String,
     message_id: String,
     message: TwitchChatMessage,
-    #[serde(with = "chrono::serde::ts_seconds")]
-    timestamp: DateTime<Utc>,
+    color: Option<String>,
+    message_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,13 +63,6 @@ struct EventSubSubscription {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt()
-        .json()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .with_current_span(false)
-        .with_span_list(false)
-        .init();
-
     let context = gt_app::create_app_context::<AppContext, Config>().await?;
 
     lambda_runtime::run(service_fn(|event| {
@@ -128,7 +121,7 @@ async fn process_message(
 
     item.insert(
         "timestamp".to_string(),
-        AttributeValue::S(event.timestamp.to_rfc3339()),
+        AttributeValue::S(Utc::now().to_rfc3339()),
     );
 
     item.insert(

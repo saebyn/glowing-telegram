@@ -121,6 +121,9 @@ export default class DatastoreConstruct extends Construct {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     episodesTable.addGlobalSecondaryIndex({
@@ -142,24 +145,36 @@ export default class DatastoreConstruct extends Construct {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     this.streamSeriesTable = new dynamodb.Table(this, 'StreamSeriesTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     this.streamsTable = new dynamodb.Table(this, 'StreamsTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     const videoMetadataTable = new dynamodb.Table(this, 'VideoMetadataTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'key', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     videoMetadataTable.addGlobalSecondaryIndex({
@@ -179,12 +194,16 @@ export default class DatastoreConstruct extends Construct {
       timeToLiveAttribute: 'ttl',
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
+      // no backups for ephemeral tasks table
     });
 
     this.projectsTable = new dynamodb.Table(this, 'ProjectsTable', {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     const chatMessagesTable = new dynamodb.Table(this, 'ChatMessagesTable', {
@@ -193,6 +212,9 @@ export default class DatastoreConstruct extends Construct {
       sortKey: { name: 'timestamp', type: dynamodb.AttributeType.STRING },
       timeToLiveAttribute: 'ttl',
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     // Add GSI for querying by channel_id
@@ -217,6 +239,9 @@ export default class DatastoreConstruct extends Construct {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
     });
 
     // Add GSI for user_id (primary query pattern: get all widgets for a user)
@@ -234,6 +259,18 @@ export default class DatastoreConstruct extends Construct {
       indexName: 'access_token-index',
       partitionKey: {
         name: 'access_token',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Add GSI for querying widgets by type (for scheduled updates)
+    // Note: active is a boolean and cannot be used as a sort key, so we filter in the query
+    // but we keep the name "type-active-index" just to avoid issues with deploying the change.
+    streamWidgetsTable.addGlobalSecondaryIndex({
+      indexName: 'type-active-index',
+      partitionKey: {
+        name: 'type',
         type: dynamodb.AttributeType.STRING,
       },
       projectionType: dynamodb.ProjectionType.ALL,

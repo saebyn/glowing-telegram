@@ -239,7 +239,7 @@ test('Audio Transcriber Job Has Retry Attempts for Spot Instance Failures', () =
     {
       outputBucket,
       videoMetadataTable,
-      imageVersion: 'test-version',
+      tagOrDigest: 'test-version',
     },
   );
 

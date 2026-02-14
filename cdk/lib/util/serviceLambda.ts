@@ -10,11 +10,14 @@ export const LOG_RETENTION = logs.RetentionDays.ONE_WEEK;
 /** Log group prefix for all glowing-telegram services */
 export const LOG_GROUP_PREFIX = '/glowing-telegram';
 
+type LambdaOptions = Omit<lambda.FunctionProps, 'code' | 'runtime' | 'handler'> & {
+  handler?: string;
+};
+
 interface ServiceLambdaConstructProps {
-  lambdaOptions: Omit<lambda.FunctionProps, 'code' | 'runtime' | 'handler'>;
+  lambdaOptions: LambdaOptions;
   name: string;
   tagOrDigest?: string;
-  imageVersion?: string;
   /**
    * Optional custom log group name. If not provided, defaults to the name parameter.
    * Use this to avoid conflicts when multiple lambdas share the same name.
@@ -49,17 +52,25 @@ export default class ServiceLambdaConstruct extends Construct {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    const { handler, ...lambdaOptions } = props.lambdaOptions;
+
     this.lambda = new lambda.Function(this, 'Lambda', {
-      ...props.lambdaOptions,
+      ...lambdaOptions,
       handler: lambda.Handler.FROM_IMAGE,
       runtime: lambda.Runtime.FROM_IMAGE,
       code: lambda.Code.fromEcrImage(this.repository, {
-        tagOrDigest: props.tagOrDigest || props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest || 'latest',
+        cmd: handler ? [handler] : undefined,
       }),
 
       tracing: lambda.Tracing.ACTIVE,
       loggingFormat: lambda.LoggingFormat.JSON,
       logGroup: this.logGroup,
+
+      environment: {
+        RUST_LOG: 'info',
+        ...props.lambdaOptions.environment,
+      },
     });
   }
 }

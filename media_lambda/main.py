@@ -22,13 +22,13 @@ dynamodb = boto3.resource("dynamodb")
 def paginated_query(table, **kwargs):
     """Generator that yields items from a DynamoDB query, handling pagination automatically."""
     response = table.query(**kwargs)
-    for item in response.get('Items', []):
+    for item in response.get("Items", []):
         yield item
-    
-    while 'LastEvaluatedKey' in response:
-        kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+
+    while "LastEvaluatedKey" in response:
+        kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
         response = table.query(**kwargs)
-        for item in response.get('Items', []):
+        for item in response.get("Items", []):
             yield item
 
 
@@ -97,6 +97,4 @@ import urllib.parse
 
 
 def rewrite_path(path):
-    path = path.replace("transcode/", "/")
-    # make path url safe
-    return urllib.parse.quote(path)
+    return urllib.parse.quote("/" + path)

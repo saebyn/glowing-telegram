@@ -43,7 +43,7 @@ const appStack = new AppStack(app, getStackName('AppStack', environmentName), {
     region: environmentConfig.awsRegion,
   },
   domainName: frontendStack.domainName,
-  imageVersion: process.env.IMAGE_VERSION,
+  tagOrDigest: process.env.IMAGE_VERSION,
   environmentName,
   tags: environmentConfig.tags,
 });

@@ -36,6 +36,8 @@ export default class RepoStack extends cdk.Stack {
         'chat-processor-lambda',
         'embedding-service',
         'websocket-lambda',
+        'widget-updater-lambda',
+        'ingestion-management-lambda',
       ],
     });
 

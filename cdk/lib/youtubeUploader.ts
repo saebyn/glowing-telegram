@@ -35,7 +35,7 @@ type YoutubeUploaderProps = {
   readonly youtubeAppSecret: secretsmanager.ISecret;
   readonly youtubeUserSecretBasePath: string;
   readonly taskMonitoring: TaskMonitoringConstruct;
-  readonly imageVersion?: string;
+  readonly tagOrDigest?: string;
 };
 
 export default class YoutubeUploader extends Construct {
@@ -111,7 +111,7 @@ export default class YoutubeUploader extends Construct {
       this,
       'UploadVideoContainer',
       {
-        image: EcrImage.fromEcrRepository(repo, props.imageVersion || 'latest'),
+        image: EcrImage.fromEcrRepository(repo, props.tagOrDigest || 'latest'),
         cpu: 1,
         command: ['Ref::episode_id'],
         assignPublicIp: true,
@@ -413,7 +413,7 @@ export default class YoutubeUploader extends Construct {
         ],
       },
       name: 'youtube-uploader-lambda',
-      imageVersion: props.imageVersion,
+      tagOrDigest: props.tagOrDigest,
     }).lambda;
 
     new events.Rule(this, 'UploadCompleteEventRule', {

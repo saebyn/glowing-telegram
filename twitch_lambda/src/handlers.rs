@@ -5,11 +5,9 @@ use axum::{
     response::IntoResponse,
 };
 use gt_axum::cognito::CognitoUserId;
-use hmac::{Hmac, Mac};
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sha2::Sha256;
 use tracing::instrument;
 use types::{
     AccessTokenResponse, AuthorizationUrlResponse,
@@ -175,6 +173,7 @@ pub async fn obtain_twitch_access_token_handler(
         let response_body = AccessTokenResponse {
             access_token,
             broadcaster_id: validation_response.user_id,
+            login: validation_response.login,
         };
 
         return (
@@ -249,6 +248,7 @@ pub async fn obtain_twitch_access_token_handler(
                         .secret()
                         .to_string(),
                     broadcaster_id: validation_response.user_id,
+                    login: validation_response.login,
                 };
 
                 return (
@@ -413,7 +413,7 @@ pub async fn subscribe_chat_handler(
     let response = match client
         .post("https://api.twitch.tv/helix/eventsub/subscriptions")
         .header("Authorization", format!("Bearer {}", app_access_token))
-        .header("Client-Id", &state.twitch_credentials.id)
+        .header("Client-ID", &state.twitch_credentials.id)
         .header("Content-Type", "application/json")
         .json(&subscription_request)
         .send()
@@ -492,53 +492,6 @@ pub async fn subscribe_chat_handler(
     }
 }
 
-/// Verify Twitch EventSub webhook signature
-fn verify_webhook_signature(
-    headers: &HeaderMap,
-    body: &str,
-    secret: &str,
-) -> Result<(), String> {
-    // Get required headers
-    let message_id = headers
-        .get("twitch-eventsub-message-id")
-        .and_then(|h| h.to_str().ok())
-        .ok_or("Missing Twitch-Eventsub-Message-Id header")?;
-
-    let timestamp = headers
-        .get("twitch-eventsub-message-timestamp")
-        .and_then(|h| h.to_str().ok())
-        .ok_or("Missing Twitch-Eventsub-Message-Timestamp header")?;
-
-    let signature = headers
-        .get("twitch-eventsub-message-signature")
-        .and_then(|h| h.to_str().ok())
-        .ok_or("Missing Twitch-Eventsub-Message-Signature header")?;
-
-    // Remove "sha256=" prefix from signature
-    let signature = signature
-        .strip_prefix("sha256=")
-        .ok_or("Invalid signature format")?;
-
-    // Create HMAC message: message_id + timestamp + body
-    let message = format!("{}{}{}", message_id, timestamp, body);
-
-    // Create HMAC-SHA256
-    type HmacSha256 = Hmac<Sha256>;
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .map_err(|e| format!("HMAC key error: {}", e))?;
-    mac.update(message.as_bytes());
-
-    // Get expected signature
-    let expected_signature = hex::encode(mac.finalize().into_bytes());
-
-    // Compare signatures
-    if expected_signature.eq_ignore_ascii_case(signature) {
-        Ok(())
-    } else {
-        Err("Signature mismatch".to_string())
-    }
-}
-
 /// Handle incoming Twitch EventSub webhooks
 #[instrument(skip(state))]
 pub async fn eventsub_webhook_handler(
@@ -551,7 +504,7 @@ pub async fn eventsub_webhook_handler(
     // Verify webhook signature for security
     if let Some(eventsub_secret) = &state.eventsub_secret {
         if let Err(err) =
-            verify_webhook_signature(&headers, &body, eventsub_secret)
+            twitch::verify_webhook_signature(&headers, &body, eventsub_secret)
         {
             tracing::error!("Webhook signature verification failed: {}", err);
             return (StatusCode::FORBIDDEN, "Invalid signature".to_string());
@@ -633,49 +586,10 @@ pub async fn chat_subscription_status_handler(
     CognitoUserId(cognito_user_id): CognitoUserId,
 ) -> impl IntoResponse {
     tracing::info!("Chat subscription status handler called");
-
     // Get the user's access token
-    let secret_id =
-        state.config.user_secret_path.secret_path(&cognito_user_id);
-
-    let secret = match gt_secrets::get::<TwitchSessionSecret>(
-        &state.secrets_manager,
-        &secret_id,
-    )
-    .await
-    {
-        Ok(secret) => secret,
-        Err(e) => {
-            tracing::error!("failed to get secret: {:?}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(ChatSubscriptionStatusResponse {
-                    has_active_subscription: false,
-                    subscriptions: vec![],
-                })),
-            )
-                .into_response();
-        }
-    };
-
-    let Some(access_token) = secret.access_token else {
-        tracing::warn!("access_token not found in secret");
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(json!(ChatSubscriptionStatusResponse {
-                has_active_subscription: false,
-                subscriptions: vec![],
-            })),
-        )
-            .into_response();
-    };
-
-    // Validate token and get broadcaster_id
-    let validation_response = match twitch::validate_token(&access_token).await
-    {
-        Ok(response) => response,
-        Err(e) => {
-            tracing::error!("Failed to validate access token: {:?}", e);
+    let user = match twitch::get_twitch_user(&state, &cognito_user_id).await {
+        Ok(user) => user,
+        Err(_) => {
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(json!(ChatSubscriptionStatusResponse {
@@ -687,19 +601,35 @@ pub async fn chat_subscription_status_handler(
         }
     };
 
-    // Get EventSub subscriptions from Twitch
-    let client = reqwest::Client::new();
-    let response = match client
-        .get("https://api.twitch.tv/helix/eventsub/subscriptions")
-        .header("Authorization", format!("Bearer {}", access_token))
-        .header("Client-Id", &state.twitch_credentials.id)
-        .query(&[("type", "channel.chat.message")])
-        .send()
-        .await
+    // Obtain an app access token for querying EventSub subscriptions
+    // EventSub subscriptions must be queried with the same token type used to create them
+    let app_access_token =
+        match twitch::get_app_access_token(&state.twitch_credentials).await {
+            Ok(token) => token,
+            Err(e) => {
+                tracing::error!("Failed to obtain app access token: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!(ChatSubscriptionStatusResponse {
+                        has_active_subscription: false,
+                        subscriptions: vec![],
+                    })),
+                )
+                    .into_response();
+            }
+        };
+
+    // Query Twitch for EventSub subscriptions
+    let user_subscriptions = match twitch::get_user_eventsub_subscriptions(
+        &app_access_token,
+        &state.twitch_credentials.id,
+        &user.user_id,
+    )
+    .await
     {
-        Ok(response) => response,
+        Ok(subscriptions) => subscriptions,
         Err(e) => {
-            tracing::error!("Failed to get subscriptions: {:?}", e);
+            tracing::error!("Failed to get EventSub subscriptions: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!(ChatSubscriptionStatusResponse {
@@ -711,64 +641,137 @@ pub async fn chat_subscription_status_handler(
         }
     };
 
-    if !response.status().is_success() {
-        let status_code = response.status();
-        let error_body = response.text().await.unwrap_or_default();
-        tracing::error!("Twitch API error {}: {}", status_code, error_body);
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!(ChatSubscriptionStatusResponse {
-                has_active_subscription: false,
-                subscriptions: vec![],
-            })),
-        )
-            .into_response();
-    }
-
-    let subscription_response: EventSubSubscriptionResponse = match response
-        .json()
-        .await
-    {
-        Ok(response) => response,
-        Err(e) => {
-            tracing::error!("Failed to parse subscription response: {:?}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(ChatSubscriptionStatusResponse {
-                    has_active_subscription: false,
-                    subscriptions: vec![],
-                })),
-            )
-                .into_response();
-        }
-    };
-
-    // Filter subscriptions for this user's channel and enabled status
-    let user_id = &validation_response.user_id;
-    let active_subscriptions: Vec<EventSubSubscription> =
-        subscription_response
-            .data
-            .into_iter()
-            .filter(|sub| {
-                // Check if this subscription is for the user's channel
-                sub.condition.broadcaster_user_id == Some(user_id.to_string())
-                    && sub.status == "enabled"
-            })
-            .collect();
-
-    let has_active = !active_subscriptions.is_empty();
+    // Check if any subscriptions are active (enabled status)
+    let has_active =
+        user_subscriptions.iter().any(|sub| sub.status == "enabled");
 
     tracing::info!(
-        "Found {} active chat subscriptions for user {}",
-        active_subscriptions.len(),
-        user_id
+        "Found {} total chat subscriptions for user {} ({} active)",
+        user_subscriptions.len(),
+        user.user_id,
+        user_subscriptions
+            .iter()
+            .filter(|sub| sub.status == "enabled")
+            .count()
     );
 
     (
         StatusCode::OK,
         Json(json!(ChatSubscriptionStatusResponse {
             has_active_subscription: has_active,
-            subscriptions: active_subscriptions,
+            subscriptions: user_subscriptions,
+        })),
+    )
+        .into_response()
+}
+
+/// Delete all EventSub chat subscriptions for the authenticated user
+#[instrument(skip(state))]
+pub async fn delete_chat_subscriptions_handler(
+    State(state): State<AppContext>,
+    CognitoUserId(cognito_user_id): CognitoUserId,
+) -> impl IntoResponse {
+    tracing::info!(
+        "Delete chat subscription handler called for user: {}",
+        cognito_user_id
+    );
+
+    // Get the user's access token
+    let user = match twitch::get_twitch_user(&state, &cognito_user_id).await {
+        Ok(user) => user,
+        Err(_) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({
+                    "status": "unauthorized",
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    // Obtain an app access token for deleting the webhook subscription
+    // Twitch requires app access tokens (not user access tokens) for webhook subscriptions
+    let app_access_token =
+        match twitch::get_app_access_token(&state.twitch_credentials).await {
+            Ok(token) => token,
+            Err(e) => {
+                tracing::error!("Failed to obtain app access token: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "status": "app_token_error",
+                    })),
+                )
+                    .into_response();
+            }
+        };
+
+    // Get the user's existing EventSub subscriptions
+    let user_subscriptions = match twitch::get_user_eventsub_subscriptions(
+        &app_access_token,
+        &state.twitch_credentials.id,
+        &user.user_id,
+    )
+    .await
+    {
+        Ok(subscriptions) => subscriptions,
+        Err(e) => {
+            tracing::error!("Failed to get EventSub subscriptions: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "get_subscriptions_error",
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    // Delete each subscription
+    let delete_results = user_subscriptions
+        .iter()
+        .map(async |sub: &EventSubSubscription| {
+            let delete_result = twitch::delete_eventsub_subscription(
+                &app_access_token,
+                &state.twitch_credentials.id,
+                &sub.id,
+            )
+            .await;
+
+            match delete_result {
+                Ok(_) => {
+                    tracing::info!("Deleted subscription: {}", sub.id);
+                    return true;
+                }
+                Err(message) => {
+                    tracing::error!(
+                        "Failed to delete subscription {}: {}",
+                        sub.id,
+                        message
+                    );
+                    return false;
+                }
+            }
+        })
+        .collect::<futures::future::JoinAll<_>>()
+        .await;
+
+    if delete_results.iter().any(|&result| !result) {
+        tracing::error!("One or more subscriptions failed to delete");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "status": "partial_failure",
+            })),
+        )
+            .into_response();
+    }
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "status": "deleted",
         })),
     )
         .into_response()

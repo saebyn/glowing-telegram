@@ -2,10 +2,15 @@ import json
 import os
 import boto3
 import logging
+from datetime import datetime, timezone
+from decimal import Decimal
+
 from botocore.exceptions import ClientError
+from utils import decimal_default
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
 
 # Initialize clients
 dynamodb = boto3.resource("dynamodb")
@@ -173,8 +178,26 @@ def handle_action(connection_id: str, connection: dict, message: dict):
         if widget.get("user_id") != connection.get("user_id"):
             return {"statusCode": 403, "body": "Forbidden"}
 
-        # TODO: Execute action based on widget type and action name
-        # For now, just send success response
+        # Route to type-specific action handler
+        widget_type = widget.get("type", "unknown")
+        payload = message.get("payload", {})
+
+        if widget_type == "countdown":
+            result = handle_countdown_action(widget, action, payload)
+        else:
+            result = {"success": False, "error": f"Unknown widget type: {widget_type}"}
+
+        if result["success"]:
+            # Update widget state in DynamoDB
+            widgets_table.update_item(
+                Key={"id": widget_id},
+                UpdateExpression="SET #state = :state, updated_at = :now",
+                ExpressionAttributeNames={"#state": "state"},
+                ExpressionAttributeValues={
+                    ":state": result["new_state"],
+                    ":now": datetime.now(timezone.utc).isoformat(),
+                },
+            )
 
         send_message(
             connection_id,
@@ -182,11 +205,16 @@ def handle_action(connection_id: str, connection: dict, message: dict):
                 "type": "WIDGET_ACTION_RESPONSE",
                 "widgetId": widget_id,
                 "action": action,
-                "success": True,
+                "success": result["success"],
+                "result": result.get("data"),
+                "error": result.get("error"),
             },
         )
 
-        return {"statusCode": 200, "body": "Action executed"}
+        return {
+            "statusCode": 200 if result["success"] else 400,
+            "body": "Action executed",
+        }
     except Exception as e:
         logger.error(f"Error executing action: {str(e)}")
         send_message(
@@ -202,6 +230,114 @@ def handle_action(connection_id: str, connection: dict, message: dict):
         return {"statusCode": 500, "body": "Internal error"}
 
 
+def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
+    """Handle countdown widget-specific actions"""
+    state = widget.get("state", {})
+    config = widget.get("config", {})
+
+    if action == "start":
+        # Start countdown with initial duration from config
+        duration = config.get("duration", 300)  # Default 5 minutes
+        return {
+            "success": True,
+            "new_state": {
+                **state,
+                "enabled": True,
+                "last_tick_timestamp": datetime.now(timezone.utc).isoformat(),
+                "duration_left": float(duration),
+            },
+        }
+
+    elif action == "pause":
+        # Pause countdown and update duration_left based on elapsed time
+        current_duration = state.get("duration_left", 0)
+        last_tick = state.get("last_tick_timestamp")
+
+        if last_tick and state.get("enabled"):
+            # Calculate elapsed time since last tick
+            last_tick_dt = datetime.fromisoformat(last_tick)
+            now = datetime.now(timezone.utc)
+            elapsed_seconds = (now - last_tick_dt).total_seconds()
+
+            # Update duration_left by subtracting elapsed time
+            # Convert Decimal to float to avoid type mismatch with elapsed_seconds
+            new_duration = max(0, float(current_duration) - elapsed_seconds)
+        else:
+            # Already paused or no timestamp, keep current duration
+            # Convert to float for consistent type handling
+            new_duration = float(current_duration) if current_duration is not None else 0
+
+        return {
+            "success": True,
+            "new_state": {
+                **state,
+                "enabled": False,
+                "duration_left": new_duration,
+                "last_tick_timestamp": None,
+            },
+        }
+
+    elif action == "resume":
+        # Resume countdown from current duration_left
+        return {
+            "success": True,
+            "new_state": {
+                **state,
+                "enabled": True,
+                "last_tick_timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+
+    elif action == "reset":
+        # Reset countdown to initial duration and stop
+        # If currently running, we still reset to initial duration (no elapsed time matters)
+        duration = config.get("duration", 300)
+        # Intentionally not using **state to clear any ongoing countdown info
+        return {
+            "success": True,
+            "new_state": {
+                "enabled": False,
+                "duration_left": float(duration),
+                "last_tick_timestamp": None,
+            },
+        }
+
+    elif action == "set_duration":
+        # Update the duration to the provided value
+        new_duration = payload.get("duration")
+        if not isinstance(new_duration, (int, float, Decimal)):
+            return {"success": False, "error": "Duration must be a number"}
+        if float(new_duration) < 0:
+            return {"success": False, "error": "Duration cannot be negative"}
+        
+        # Convert to float for consistent type handling across all duration values
+        new_duration = float(new_duration)
+
+        # If countdown is running, update last_tick_timestamp to now
+        # so the new duration starts counting from this moment
+        if state.get("enabled"):
+            return {
+                "success": True,
+                "new_state": {
+                    **state,
+                    "duration_left": new_duration,
+                    "last_tick_timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            }
+        else:
+            # Countdown is paused or stopped, just set the new duration
+            return {
+                "success": True,
+                "new_state": {
+                    **state,
+                    "duration_left": new_duration,
+                },
+            }
+
+    else:
+        return {"success": False, "error": f"Unknown action: {action}"}
+
+
 def send_message(connection_id: str, message: dict):
     if not api_client:
         logger.error("API Gateway Management API client not initialized")
@@ -209,7 +345,8 @@ def send_message(connection_id: str, message: dict):
 
     try:
         api_client.post_to_connection(
-            ConnectionId=connection_id, Data=json.dumps(message)
+            ConnectionId=connection_id,
+            Data=json.dumps(message, default=decimal_default),
         )
     except ClientError as e:
         if e.response.get("Error", {}).get("Code") == "GoneException":

@@ -82,3 +82,21 @@ target "chat_processor_lambda" {
     "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/chat-processor-lambda:${IMAGE_TAG}"
   ]
 }
+
+target "widget_updater_lambda" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/widget-updater-lambda:${IMAGE_TAG}"
+  ]
+}
+
+target "websocket_lambda" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/websocket-lambda:${IMAGE_TAG}"
+  ]
+}
+
+target "ingestion_management_lambda" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/ingestion-management-lambda:${IMAGE_TAG}"
+  ]
+}

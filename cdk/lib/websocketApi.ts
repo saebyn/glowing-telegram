@@ -11,7 +11,7 @@ import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import ServiceLambdaConstruct from './util/serviceLambda';
 
 interface WebSocketAPIConstructProps {
-  imageVersion?: string;
+  tagOrDigest?: string;
   userPool: cognito.IUserPool;
   tasksTable: dynamodb.ITable;
   streamWidgetsTable: dynamodb.ITable;
@@ -77,15 +77,15 @@ export default class WebSocketAPIConstruct extends Construct {
       'AuthorizerLambda',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Authorizer Lambda',
           timeout: cdk.Duration.seconds(10),
+          handler: 'authorizer.handler',
           environment: {
             USER_POOL_ID: props.userPool.userPoolId,
             USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
             STREAM_WIDGETS_TABLE: props.streamWidgetsTable.tableName,
-            HANDLER: 'authorizer.handler',
           },
         },
       },
@@ -98,13 +98,13 @@ export default class WebSocketAPIConstruct extends Construct {
       'ConnectHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Connect Handler',
           timeout: cdk.Duration.seconds(30),
+          handler: 'connect.handler',
           environment: {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
-            HANDLER: 'connect.handler',
           },
         },
       },
@@ -117,13 +117,13 @@ export default class WebSocketAPIConstruct extends Construct {
       'DisconnectHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Disconnect Handler',
           timeout: cdk.Duration.seconds(30),
+          handler: 'disconnect.handler',
           environment: {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
-            HANDLER: 'disconnect.handler',
           },
         },
       },
@@ -136,15 +136,15 @@ export default class WebSocketAPIConstruct extends Construct {
       'MessageHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Message Handler',
           timeout: cdk.Duration.seconds(30),
+          handler: 'message.handler',
           environment: {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
             STREAM_WIDGETS_TABLE: props.streamWidgetsTable.tableName,
-            WEBSOCKET_ENDPOINT: this.webSocketStage.url,
-            HANDLER: 'message.handler',
+            WEBSOCKET_ENDPOINT: this.webSocketStage.url
           },
         },
       },
@@ -157,14 +157,14 @@ export default class WebSocketAPIConstruct extends Construct {
       'TaskChangeHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Task Change Handler',
           timeout: cdk.Duration.seconds(30),
+          handler: 'task_change.handler',
           environment: {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
-            WEBSOCKET_ENDPOINT: this.webSocketStage.url,
-            HANDLER: 'task_change.handler',
+            WEBSOCKET_ENDPOINT: this.webSocketStage.url
           },
         },
       },
@@ -260,14 +260,14 @@ export default class WebSocketAPIConstruct extends Construct {
       'WidgetChangeHandler',
       {
         name: 'websocket-lambda',
-        tagOrDigest: props.imageVersion || 'latest',
+        tagOrDigest: props.tagOrDigest,
         lambdaOptions: {
           description: 'WebSocket Widget Change Handler',
           timeout: cdk.Duration.seconds(30),
+          handler: 'widget_change.handler',
           environment: {
             CONNECTIONS_TABLE: this.connectionsTable.tableName,
             WEBSOCKET_ENDPOINT: this.webSocketStage.url,
-            HANDLER: 'widget_change.handler',
           },
         },
       },

@@ -9,7 +9,7 @@ import ServiceLambdaConstruct from './util/serviceLambda';
 
 interface TwitchChatProcessingProps {
   chatMessagesTable: dynamodb.ITable;
-  imageVersion?: string;
+  tagOrDigest?: string;
 }
 
 export default class TwitchChatProcessingConstruct extends Construct {
@@ -46,7 +46,7 @@ export default class TwitchChatProcessingConstruct extends Construct {
           },
         },
         name: 'chat-processor-lambda',
-        imageVersion: props.imageVersion,
+        tagOrDigest: props.tagOrDigest,
       },
     );
 

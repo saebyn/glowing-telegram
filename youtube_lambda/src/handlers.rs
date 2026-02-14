@@ -171,6 +171,7 @@ pub async fn obtain_youtube_access_token_handler(
     let response_body = AccessTokenResponse {
         access_token,
         broadcaster_id: String::new(),
+        login: String::new(),
     };
 
     (

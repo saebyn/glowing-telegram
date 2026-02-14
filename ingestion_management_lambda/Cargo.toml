@@ -1,0 +1,21 @@
+[package]
+name = "ingestion_management_lambda"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aws-config = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+axum = { workspace = true }
+figment = { workspace = true }
+gt_app = { workspace = true }
+gt_axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "2.0"
+tokio = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+types = { workspace = true }
