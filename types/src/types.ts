@@ -344,7 +344,7 @@ export interface Project {
     /**
      * List of cuts included in the project, with timing and source information
      */
-    cuts?: { [key: string]: any }[];
+    cuts?: Cut[];
     /**
      * Optional reference to the episode this project is linked to
      */
@@ -361,6 +361,26 @@ export interface Project {
      * Array of video clip IDs that are part of this project
      */
     video_clip_ids?: string[];
+}
+
+export interface Cut {
+    /**
+     * End time of the cut in seconds (relative to the start of the stream)
+     */
+    end: number;
+    /**
+     * Start time of the cut in seconds (relative to the start of the stream)
+     */
+    start: number;
+    /**
+     * ID of the source stream for this cut
+     */
+    stream_id: string;
+    /**
+     * Title or description for this cut
+     */
+    title: string;
+    [property: string]: unknown;
 }
 
 export interface RenderRequest {

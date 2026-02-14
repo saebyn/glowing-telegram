@@ -411,7 +411,7 @@ pub struct Project {
 
     /// List of cuts included in the project, with timing and source information
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cuts: Option<Vec<HashMap<String, Option<serde_json::Value>>>>,
+    pub cuts: Option<Vec<Cut>>,
 
     /// Optional reference to the episode this project is linked to
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -436,6 +436,21 @@ pub struct Project {
     /// Array of video clip IDs that are part of this project
     #[serde(skip_serializing_if = "Option::is_none")]
     pub video_clip_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Cut {
+    /// End time of the cut in seconds (relative to the start of the stream)
+    pub end: f64,
+
+    /// Start time of the cut in seconds (relative to the start of the stream)
+    pub start: f64,
+
+    /// ID of the source stream for this cut
+    pub stream_id: String,
+
+    /// Title or description for this cut
+    pub title: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
