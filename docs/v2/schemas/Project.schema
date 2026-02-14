@@ -30,7 +30,7 @@
 			"description": "List of cuts included in the project, with timing and source information",
 			"items": {
 				"type": "object",
-				"@ref": "./StreamClip.schema"
+				"$ref": "./StreamClip.schema"
 			}
 		},
 		"user_id": {
