@@ -40,15 +40,16 @@ jobs:
       contents: read
       id-token: write
 
-  # Phase 3: Deploy application stack
+  # Phase 3: Deploy application stack and GitHub environment stack
   # - Requires Docker images to be available in ECR (created in Phase 2)
+  # - GitHubEnvironmentStack synchronizes GitHub environment variables
   # Production environment uses default stack names (no suffix)
   deploy-app-stack:
     needs: build-and-push
     uses: ./.github/workflows/cdk-deploy-reusable.yml
     with:
       image_version: ${{ github.ref_name }}
-      stacks: AppStack
+      stacks: AppStack GitHubEnvironmentStack
       environment: production
     permissions:
       contents: read

@@ -130,7 +130,7 @@ def create_or_update_environment(owner, repo, env_name, token):
         existing = github_api_request('GET', url, token)
         logger.info(f"Environment {env_name} already exists")
         return existing
-    except:
+    except Exception:
         logger.info(f"Environment {env_name} does not exist, creating...")
     
     # Create or update the environment
@@ -141,7 +141,7 @@ def create_or_update_environment(owner, repo, env_name, token):
     
     return github_api_request('PUT', url, token, data)
 
-def set_environment_variable(owner, repo, env_name, var_name, var_value, token, repo_id):
+def set_environment_variable(owner, repo, env_name, var_name, var_value, token):
     """Set a variable on a GitHub environment"""
     url = f"https://api.github.com/repos/{owner}/{repo}/environments/{quote(env_name)}/variables/{var_name}"
     
@@ -153,7 +153,7 @@ def set_environment_variable(owner, repo, env_name, var_name, var_value, token, 
     # Try to update first
     try:
         return github_api_request('PATCH', url, token, data)
-    except:
+    except Exception:
         # If update fails, try to create
         url = f"https://api.github.com/repos/{owner}/{repo}/environments/{quote(env_name)}/variables"
         return github_api_request('POST', url, token, data)
@@ -183,7 +183,6 @@ def handler(event, context):
     
     try:
         token = get_github_token()
-        repo_id = get_repository_id(owner, repo, token)
         
         if request_type in ['Create', 'Update']:
             # Create or update the environment
@@ -192,7 +191,7 @@ def handler(event, context):
             # Set each variable
             for var_name, var_value in variables.items():
                 logger.info(f"Setting variable {var_name} on {env_name}")
-                set_environment_variable(owner, repo, env_name, var_name, var_value, token, repo_id)
+                set_environment_variable(owner, repo, env_name, var_name, var_value, token)
             
             response_data['Message'] = f"Successfully configured environment {env_name}"
             
