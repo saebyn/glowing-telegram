@@ -404,6 +404,7 @@ pub struct Profile {
     pub id: String,
 }
 
+/// Represents a project that combines cuts from multiple streams for episode creation
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Project {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -411,7 +412,7 @@ pub struct Project {
 
     /// List of cuts included in the project, with timing and source information
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cuts: Option<Vec<HashMap<String, Option<serde_json::Value>>>>,
+    pub cuts: Option<Vec<CutElement>>,
 
     /// Optional reference to the episode this project is linked to
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -432,10 +433,22 @@ pub struct Project {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
+}
 
-    /// Array of video clip IDs that are part of this project
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub video_clip_ids: Option<Vec<String>>,
+/// A clip representing a cut from a source stream, with start and end
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CutElement {
+    /// End time of the cut in seconds (relative to the start of the stream)
+    pub end_time: f64,
+
+    /// Start time of the cut in seconds (relative to the start of the stream)
+    pub start_time: f64,
+
+    /// ID of the source stream for this cut
+    pub stream_id: String,
+
+    /// Title or description for this cut
+    pub title: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -632,13 +645,14 @@ pub struct Stream {
     pub video_clip_count: Option<i64>,
 }
 
+/// A clip representing a cut from a source stream, with start and end
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StreamClip {
     /// End time of the cut in seconds (relative to the start of the stream)
-    pub end: f64,
+    pub end_time: f64,
 
     /// Start time of the cut in seconds (relative to the start of the stream)
-    pub start: f64,
+    pub start_time: f64,
 
     /// ID of the source stream for this cut
     pub stream_id: String,
