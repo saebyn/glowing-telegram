@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "stream_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of the source stream for this cut"
+    },
+    "start": {
+      "type": "integer",
+      "minimum": 0,
+      "examples": [0, 0.02, 1000.7],
+      "description": "Start time of the cut in seconds (relative to the start of the stream)"
+    },
+    "end": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "End time of the cut in seconds (relative to the start of the stream)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Title or description for this cut"
+    }
+  },
+  "required": [
+    "stream_id",
+    "start",
+    "end",
+    "title"
+  ]
+}
