@@ -11,7 +11,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-futures = "0.3.31"
+futures = "0.3.32"
 aws-config = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }
 lambda_runtime = { workspace = true }
@@ -34,7 +34,7 @@ oauth2 = { version = "4", features = ["reqwest", "rustls-tls"] }
 gt_secrets = { workspace = true }
 gt_axum = { workspace = true }
 gt_app = { path = "../gt_app" }
-aws-sdk-sqs = "1.93.0"
+aws-sdk-sqs = "1.94.0"
 hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
