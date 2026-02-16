@@ -234,14 +234,19 @@ Real-time chat message capture using Twitch EventSub webhooks.
 
 ### Deployment
 
-The project uses automated deployment via GitHub Actions for production releases. When you publish a release on GitHub, the system automatically:
+The project supports **multi-environment deployments** with separate infrastructure for dev, staging, and production environments.
 
-1. **Builds and pushes Docker images** to Amazon ECR with the release tag
-2. **Deploys the CDK application** using the newly built images
+#### Environments
 
-#### Production Deployment Process
+- **Production**: Main production environment for live users (deployed via releases)
+- **Staging**: Pre-production environment for testing releases before deploying to production
+- **Dev**: Development environment for testing features and changes
 
-To deploy to production:
+Each environment has isolated infrastructure including separate stacks, S3 buckets, DynamoDB tables, Lambda functions, and other AWS resources. See [Multi-Environment Setup Guide](docs/multi-environment-setup.md) for detailed configuration.
+
+#### Production Deployment (Automated via Releases)
+
+Production deployments are automated when you publish a release on GitHub:
 
 1. **Create a release on GitHub:**
    - Go to the GitHub repository
@@ -250,18 +255,35 @@ To deploy to production:
    - Publish the release
 
 2. **Automated deployment happens:**
-   - GitHub Actions triggers the `docker.yml` workflow
+   - GitHub Actions triggers the `deploy.yml` workflow
    - Docker images are built and pushed to ECR with the release tag
-   - CDK deployment automatically updates infrastructure with the new image version
+   - CDK deployment automatically updates production infrastructure with the new image version
    - All services are updated to use the new images
 
-#### Release-Based Deployment Details
-
-The automated deployment process:
+**Details:**
 - **Trigger:** GitHub release events (when published)
 - **Registry:** Amazon ECR (159222827421.dkr.ecr.us-west-2.amazonaws.com)
 - **Tagging:** Uses the git tag from the release (e.g., `v1.2.3`)
-- **Deployment:** CDK automatically deploys with `IMAGE_VERSION` set to the release tag
+- **Environment:** Production (uses default stack names without suffix)
+
+#### Development/Staging Deployment (Manual Workflow)
+
+To deploy a specific branch to dev or staging:
+
+1. Go to GitHub repository → Actions → "Deploy to Environment"
+2. Click "Run workflow"
+3. Select:
+   - **Environment**: `dev` or `staging`
+   - **Branch**: The branch to deploy (e.g., `feature/my-feature`, `main`)
+   - **Image tag** (optional): Existing Docker image tag, or leave empty to build from branch
+4. Click "Run workflow"
+
+The workflow will:
+- Build Docker images from the specified branch (if no image tag provided)
+- Tag images as `{env}-{branch}-{timestamp}` (e.g., `dev-feature-auth-20231201-143022`)
+- Deploy infrastructure stacks with environment suffix (e.g., `AppStack-dev`, `FrontendStack-staging`)
+
+**Workflow:** `.github/workflows/deploy-environment.yml`
 
 ### Docker Images
 
@@ -298,21 +320,33 @@ docker buildx bake -f docker-bake.hcl crud_api
 
 #### Manual CDK Deployment
 
-For development or manual deployment, the CDK can be deployed with a specific image version:
+For development or manual deployment, the CDK can be deployed with a specific environment and image version:
+
 ```bash
 cd cdk
 
 # Install dependencies
-npm install
+npm ci
 
-# Deploy with specific image version
-IMAGE_VERSION=v1.2.3 npm run cdk deploy
+# Build CDK code
+npm run build
 
-# Deploy with latest (default)
-npm run cdk deploy
+# Deploy to dev environment
+ENVIRONMENT=dev IMAGE_VERSION=latest npm run cdk deploy --all
+
+# Deploy to staging environment
+ENVIRONMENT=staging IMAGE_VERSION=v1.2.3 npm run cdk deploy --all
+
+# Deploy to production environment (default)
+IMAGE_VERSION=v1.2.3 npm run cdk deploy --all
+
+# Deploy specific stack to dev
+ENVIRONMENT=dev IMAGE_VERSION=latest npm run cdk deploy AppStack-dev
 ```
 
-**Note:** Production deployments should use the automated GitHub Actions workflow triggered by releases rather than manual CDK deployment.
+**Environment Configuration:** Environments are defined in `cdk/config/environments.json`. Each environment specifies AWS account, region, and default frontend version.
+
+**Note:** Production deployments should use the automated GitHub Actions workflow triggered by releases rather than manual CDK deployment. See [Multi-Environment Setup Guide](docs/multi-environment-setup.md) for complete details.
 
 ### Testing
 

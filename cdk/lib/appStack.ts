@@ -23,14 +23,24 @@ import { EventBus } from 'aws-cdk-lib/aws-events';
 interface AppStackProps extends cdk.StackProps {
   domainName: string;
   tagOrDigest?: string;
+  environmentName: string;
 }
 
 const YOUTUBE_USER_SECRET_BASE_PATH = 'gt/youtube/user';
 const TWITCH_USER_SECRET_BASE_PATH = 'gt/twitch/user';
 
 export default class AppStack extends cdk.Stack {
+  public readonly apiUrl: string;
+  public readonly websocketUrl: string;
+  public readonly userPoolId: string;
+  public readonly userPoolClientId: string;
+  public readonly cognitoDomain: string;
+  public readonly contentUrl: string;
+  public readonly redirectUri: string;
+  public readonly logoutUri: string;
+
   constructor(scope: Construct, id: string, props: AppStackProps) {
-    const { domainName, tagOrDigest, ...restProps } = props;
+    const { domainName, tagOrDigest, environmentName, ...restProps } = props;
 
     super(scope, id, restProps);
 
@@ -152,7 +162,7 @@ export default class AppStack extends cdk.Stack {
       tagOrDigest,
     });
 
-    new WebSocketAPIConstruct(this, 'WebSocketAPI', {
+    const websocketApi = new WebSocketAPIConstruct(this, 'WebSocketAPI', {
       userPool: userManagement.userPool,
       tasksTable: dataStore.tasksTable,
       streamWidgetsTable: dataStore.streamWidgetsTable,
@@ -172,7 +182,7 @@ export default class AppStack extends cdk.Stack {
       tagOrDigest,
     });
 
-    new APIConstruct(this, 'API', {
+    const api = new APIConstruct(this, 'API', {
       streamIngestionFunction: streamIngestion.stepFunction,
       renderJob: {
         jobQueue: batchEnvironment.cpuJobQueue,
@@ -203,6 +213,62 @@ export default class AppStack extends cdk.Stack {
 
       domainName,
       tagOrDigest,
+    });
+
+    // Assign public properties for cross-stack references
+    this.apiUrl = api.httpApi.url || '';
+    this.websocketUrl = websocketApi.webSocketApi.apiEndpoint || '';
+    this.userPoolId = userManagement.userPool.userPoolId;
+    this.userPoolClientId = userManagement.userPoolClient.userPoolClientId;
+    this.cognitoDomain = userManagement.userPoolDomain.domainName;
+    this.contentUrl = `https://${domainName}`;
+    this.redirectUri = `https://${domainName}/auth-callback`;
+    this.logoutUri = `https://${domainName}/`;
+
+    // Export stack outputs for frontend configuration
+    new cdk.CfnOutput(this, 'ApiUrl', {
+      value: api.httpApi.url || 'N/A',
+      description: `HTTP API Gateway URL - ${environmentName}`,
+    });
+
+    new cdk.CfnOutput(this, 'WebSocketApiUrl', {
+      value: websocketApi.webSocketApi.apiEndpoint || 'N/A',
+      description: `WebSocket API Gateway URL - ${environmentName}`,
+    });
+
+    new cdk.CfnOutput(this, 'UserPoolId', {
+      value: userManagement.userPool.userPoolId,
+      description: `Cognito User Pool ID - ${environmentName}`,
+    });
+
+    new cdk.CfnOutput(this, 'UserPoolClientId', {
+      value: userManagement.userPoolClient.userPoolClientId,
+      description: `Cognito User Pool Client ID - ${environmentName}`,
+    });
+
+    new cdk.CfnOutput(this, 'CognitoDomain', {
+      value: userManagement.userPoolDomain.domainName,
+      description: `Cognito User Pool Domain - ${environmentName}`,
+    });
+
+    new cdk.CfnOutput(this, 'Region', {
+      value: this.region,
+      description: `AWS Region - ${environmentName}`,
+    });
+
+    new cdk.CfnOutput(this, 'ContentUrl', {
+      value: `https://${domainName}`,
+      description: `Content URL (CloudFront distribution) - ${environmentName}`,
+    });
+
+    new cdk.CfnOutput(this, 'RedirectUri', {
+      value: `https://${domainName}/auth-callback`,
+      description: `OAuth Redirect URI - ${environmentName}`,
+    });
+
+    new cdk.CfnOutput(this, 'LogoutUri', {
+      value: `https://${domainName}/`,
+      description: `OAuth Logout URI - ${environmentName}`,
     });
   }
 }
