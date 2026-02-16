@@ -51,10 +51,15 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
 
     // Get or create GitHub token secret
     // The secret must contain a GitHub Personal Access Token with repo scope
-    const githubTokenSecret = secretsmanager.Secret.fromSecretNameV2(
+    // Use fromSecretPartialArn to avoid AWS API calls during synth
+    // Use Fn.sub to construct the ARN with account token to avoid credential lookups
+    const secretArn = cdk.Fn.sub(
+      'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:glowing-telegram/github-token'
+    );
+    const githubTokenSecret = secretsmanager.Secret.fromSecretPartialArn(
       this,
       'GitHubTokenSecret',
-      'glowing-telegram/github-token'
+      secretArn
     );
 
     // Use provided Twitch client ID or placeholder
