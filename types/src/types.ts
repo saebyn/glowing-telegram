@@ -278,7 +278,7 @@ export type OverlayTrackType = "alpha" | "colorkey";
 export interface Episode {
     category?:              number;
     created_at?:            string;
-    cut_list?:              EpisodeCutList;
+    cut_list?:              CutListClass;
     description?:           string;
     error_message?:         string;
     id?:                    string;
@@ -301,7 +301,7 @@ export interface Episode {
     youtube_video_id?:      string;
 }
 
-export interface EpisodeCutList {
+export interface CutListClass {
     /**
      * Audio channel mixing and volume control configuration
      */
@@ -339,9 +339,15 @@ export interface Profile {
     id: string;
 }
 
+/**
+ * Represents a project that combines cuts from multiple streams for episode creation
+ */
 export interface Project {
     created_at?: string;
-    cut_list?:   ProjectCutList;
+    /**
+     * List of cuts included in the project, with timing and source information
+     */
+    cuts?: CutElement[];
     /**
      * Optional reference to the episode this project is linked to
      */
@@ -354,33 +360,29 @@ export interface Project {
     title?:      string;
     updated_at?: string;
     user_id?:    string;
-    /**
-     * Array of video clip IDs that are part of this project
-     */
-    video_clip_ids?: string[];
 }
 
-export interface ProjectCutList {
+/**
+ * A clip representing a cut from a source stream, with start and end
+ */
+export interface CutElement {
     /**
-     * Audio channel mixing and volume control configuration
+     * End time of the cut in seconds (relative to the start of the stream)
      */
-    audioMixing?: AudioChannelMixing[];
+    end_time: number;
     /**
-     * List of input media sources
+     * Start time of the cut in seconds (relative to the start of the stream)
      */
-    inputMedia: InputMedia[];
+    start_time: number;
     /**
-     * Ordered media sections to form the output timeline sequence
+     * ID of the source stream for this cut
      */
-    outputTrack: OutputTrack[];
+    stream_id: string;
     /**
-     * One or more overlay tracks
+     * Title or description for this cut
      */
-    overlayTracks?: OverlayTrack[];
-    /**
-     * Schema version
-     */
-    version: "1.0.0";
+    title: string;
+    [property: string]: unknown;
 }
 
 export interface RenderRequest {
@@ -455,6 +457,29 @@ export interface Stream {
     title?:            string;
     updated_at?:       string;
     video_clip_count?: number;
+}
+
+/**
+ * A clip representing a cut from a source stream, with start and end
+ */
+export interface StreamClip {
+    /**
+     * End time of the cut in seconds (relative to the start of the stream)
+     */
+    end_time: number;
+    /**
+     * Start time of the cut in seconds (relative to the start of the stream)
+     */
+    start_time: number;
+    /**
+     * ID of the source stream for this cut
+     */
+    stream_id: string;
+    /**
+     * Title or description for this cut
+     */
+    title: string;
+    [property: string]: unknown;
 }
 
 export interface StreamIngestionRequest {
