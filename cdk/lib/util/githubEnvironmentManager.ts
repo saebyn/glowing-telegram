@@ -115,12 +115,6 @@ def github_api_request(method, url, token, data=None):
         logger.error(f"Request failed: {str(e)}")
         raise
 
-def get_repository_id(owner, repo, token):
-    """Get the repository ID"""
-    url = f"https://api.github.com/repos/{owner}/{repo}"
-    response = github_api_request('GET', url, token)
-    return response.get('id')
-
 def create_or_update_environment(owner, repo, env_name, token):
     """Create or update a GitHub environment"""
     url = f"https://api.github.com/repos/{owner}/{repo}/environments/{quote(env_name)}"
