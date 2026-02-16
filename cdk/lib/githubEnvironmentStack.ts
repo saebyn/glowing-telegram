@@ -83,7 +83,7 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
       repo: 'glowing-telegram-frontend',
       environmentName: environmentName,
       variables: frontendVariables,
-      githubTokenSecretArn: githubTokenSecret.secretArn,
+      githubTokenSecret: githubTokenSecret,
     });
 
     // Prepare variables for backend repository (this repo)
@@ -99,7 +99,7 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
       repo: 'glowing-telegram',
       environmentName: environmentName,
       variables: backendVariables,
-      githubTokenSecretArn: githubTokenSecret.secretArn,
+      githubTokenSecret: githubTokenSecret,
     });
 
     // Output the environment name for reference

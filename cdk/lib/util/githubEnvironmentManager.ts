@@ -28,10 +28,10 @@ export interface GitHubEnvironmentManagerProps {
   variables: Record<string, string>;
 
   /**
-   * GitHub Personal Access Token secret ARN
+   * GitHub Personal Access Token secret
    * The token needs repo scope
    */
-  githubTokenSecretArn: string;
+  githubTokenSecret: secretsmanager.ISecret;
 }
 
 /**
@@ -41,12 +41,8 @@ export class GitHubEnvironmentManager extends Construct {
   constructor(scope: Construct, id: string, props: GitHubEnvironmentManagerProps) {
     super(scope, id);
 
-    // Reference the GitHub token secret
-    const githubTokenSecret = secretsmanager.Secret.fromSecretCompleteArn(
-      this,
-      'GitHubTokenSecret',
-      props.githubTokenSecretArn
-    );
+    // Use the provided GitHub token secret
+    const githubTokenSecret = props.githubTokenSecret;
 
     // Create log group for the custom resource Lambda
     const logGroup = new logs.LogGroup(this, 'LogGroup', {
@@ -62,7 +58,7 @@ export class GitHubEnvironmentManager extends Construct {
       timeout: cdk.Duration.minutes(5),
       logGroup,
       environment: {
-        GITHUB_TOKEN_SECRET_ARN: props.githubTokenSecretArn,
+        GITHUB_TOKEN_SECRET_ARN: githubTokenSecret.secretArn,
       },
       code: lambda.Code.fromInline(`
 import json
