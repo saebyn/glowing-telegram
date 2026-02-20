@@ -244,7 +244,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
                 **state,
                 "enabled": True,
                 "last_tick_timestamp": datetime.now(timezone.utc).isoformat(),
-                "duration_left": float(duration),
+                "duration_left": Decimal(str(float(duration))),
             },
         }
 
@@ -261,11 +261,13 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
 
             # Update duration_left by subtracting elapsed time
             # Convert Decimal to float to avoid type mismatch with elapsed_seconds
-            new_duration = max(0, float(current_duration) - elapsed_seconds)
+            elapsed = max(0, float(current_duration) - elapsed_seconds)
+            new_duration = Decimal(str(elapsed))
         else:
             # Already paused or no timestamp, keep current duration
             # Convert to float for consistent type handling
-            new_duration = float(current_duration) if current_duration is not None else 0
+            duration_float = float(current_duration) if current_duration is not None else 0
+            new_duration = Decimal(str(duration_float))
 
         return {
             "success": True,
@@ -297,7 +299,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
             "success": True,
             "new_state": {
                 "enabled": False,
-                "duration_left": float(duration),
+                "duration_left": Decimal(str(float(duration))),
                 "last_tick_timestamp": None,
             },
         }
@@ -311,7 +313,7 @@ def handle_countdown_action(widget: dict, action: str, payload: dict) -> dict:
             return {"success": False, "error": "Duration cannot be negative"}
         
         # Convert to float for consistent type handling across all duration values
-        new_duration = float(new_duration)
+        new_duration = Decimal(str(float(new_duration)))
 
         # If countdown is running, update last_tick_timestamp to now
         # so the new duration starts counting from this moment
