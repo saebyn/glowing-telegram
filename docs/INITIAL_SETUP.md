@@ -53,7 +53,56 @@ aws secretsmanager describe-secret \
   --region us-west-2
 ```
 
-## Step 3: Deploy Dev Environment
+## Step 3: Configure Environment Settings
+
+Before deploying, you need to configure environment-specific settings in `cdk/config/environments.json`.
+
+### Twitch Client ID
+
+**Get a Twitch Client ID**:
+1. Go to https://dev.twitch.tv/console
+2. Register your application (create separate dev and production apps)
+3. Copy the Client ID
+4. Configure redirect URLs for your environment
+
+### GitHub Owner
+
+The GitHub owner/organization name where your repositories are hosted. Default is `"saebyn"`.
+
+If you've forked this repository or are deploying under a different GitHub organization, update this value.
+
+### Update Configuration
+
+Edit `cdk/config/environments.json`:
+
+```json
+{
+  "environments": {
+    "production": {
+      "awsAccount": "159222827421",
+      "awsRegion": "us-west-2",
+      "frontendVersion": "0.4.1",
+      "twitchClientId": "your_production_twitch_client_id",
+      "githubOwner": "saebyn",
+      "tags": { ... }
+    },
+    "dev": {
+      "awsAccount": "159222827421",
+      "awsRegion": "us-west-2",
+      "frontendVersion": "latest",
+      "twitchClientId": "your_dev_twitch_client_id",
+      "githubOwner": "saebyn",
+      "tags": { ... }
+    }
+  }
+}
+```
+
+**Important**: 
+- Use different Twitch applications for dev and production environments
+- Ensure `githubOwner` matches your GitHub username or organization name
+
+## Step 4: Deploy Dev Environment
 
 Deploy the dev environment infrastructure using GitHub Actions:
 
@@ -85,7 +134,7 @@ The dev environment creates:
 - **IAM Roles**: Environment-specific roles for GitHub Actions
 - **GitHub Environments**: Automatically configured in both repos
 
-## Step 4: Verify Dev Deployment
+## Step 5: Verify Dev Deployment
 
 After deployment completes, verify the infrastructure:
 
@@ -121,7 +170,7 @@ aws cloudformation describe-stacks \
 3. Run workflow with environment: `dev`
 4. Verify frontend deploys successfully
 
-## Step 5: Configure AWS Secrets
+## Step 6: Configure AWS Secrets
 
 Some secrets must be manually populated after initial deployment:
 
@@ -155,11 +204,11 @@ aws secretsmanager put-secret-value \
   --region us-west-2
 ```
 
-### Twitch Configuration
+### Twitch EventSub Configuration
 
-Twitch secrets are configured as Lambda environment variables. Update them through the Lambda console or CDK code.
+Backend Twitch integration (EventSub webhooks) uses separate credentials configured as Lambda environment variables. These are configured separately from the frontend Twitch Client ID.
 
-## Step 6: Create Initial Cognito Users
+## Step 7: Create Initial Cognito Users
 
 Create admin users in the dev Cognito User Pool:
 
@@ -168,7 +217,7 @@ Create admin users in the dev Cognito User Pool:
 3. Create users → Add users
 4. Create your admin account with temporary password
 
-## Step 7: Test Dev Environment
+## Step 8: Test Dev Environment
 
 Perform basic smoke tests:
 
@@ -178,7 +227,7 @@ Perform basic smoke tests:
 4. **WebSocket Test**: Check real-time updates
 5. **Lambda Test**: Invoke a test Lambda function
 
-## Step 8: Deploy to Production
+## Step 9: Deploy to Production
 
 After validating the dev environment works, prepare for production deployment:
 

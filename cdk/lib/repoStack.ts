@@ -8,6 +8,7 @@ import { getRoleName } from './util/environment';
 interface RepoStackProps extends cdk.StackProps {
   frontendAssetBucket: s3.IBucket;
   environmentName: string;
+  githubOwner: string;
 }
 
 export default class RepoStack extends cdk.Stack {
@@ -42,7 +43,7 @@ export default class RepoStack extends cdk.Stack {
     });
 
     const audience = 'sts.amazonaws.com';
-    const githubOrg = 'saebyn';
+    const githubOrg = props.githubOwner;
     const githubRepo = 'glowing-telegram-frontend';
 
     const provider = new iam.OpenIdConnectProvider(this, 'GithubOIDCProvider', {
