@@ -11,16 +11,6 @@
         "ManagedBy": "CDK"
       }
     },
-    "staging": {
-      "description": "Staging environment for testing before production",
-      "awsAccount": "159222827421",
-      "awsRegion": "us-west-2",
-      "frontendVersion": "latest",
-      "tags": {
-        "Environment": "staging",
-        "ManagedBy": "CDK"
-      }
-    },
     "dev": {
       "description": "Development environment for feature testing",
       "awsAccount": "159222827421",
@@ -32,7 +22,7 @@
       }
     },
     "unit-testing": {
-      "description": "Environment for unit testing",
+      "description": "Environment for unit testing in CI/CD",
       "awsAccount": null,
       "awsRegion": "us-west-2",
       "frontendVersion": "latest",

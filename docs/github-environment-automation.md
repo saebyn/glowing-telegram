@@ -62,30 +62,30 @@ Or via AWS Console:
 
 The following variables are set for each environment:
 
-| Variable | Description | Source |
-|----------|-------------|--------|
-| API_URL | HTTP API Gateway endpoint | AppStack output |
-| AWS_REGION | AWS region for deployment | Environment config |
-| AWS_ROLE_ARN | IAM role for GitHub Actions | RepoStack output |
-| BUCKET_NAME | S3 bucket for frontend assets | FrontendStack output |
-| COGNITO_CLIENT_ID | Cognito User Pool Client ID | AppStack output |
-| COGNITO_DOMAIN | Cognito User Pool domain | AppStack output |
-| COGNITO_USER_POOL_ID | Cognito User Pool ID | AppStack output |
-| CONTENT_URL | CloudFront distribution URL | AppStack output |
-| LOGOUT_URI | OAuth logout redirect URI | AppStack output |
-| REDIRECT_URI | OAuth callback redirect URI | AppStack output |
-| SITE_DOMAIN | CloudFront domain name (e.g., d3qqtvukmpw4yh.cloudfront.net) | FrontendStack output |
-| TWITCH_CLIENT_ID | Twitch application client ID | Environment variable or secret |
-| WEBSOCKET_URL | WebSocket API Gateway endpoint | AppStack output |
+| Variable             | Description                                                  | Source                         |
+| -------------------- | ------------------------------------------------------------ | ------------------------------ |
+| API_URL              | HTTP API Gateway endpoint                                    | AppStack output                |
+| AWS_REGION           | AWS region for deployment                                    | Environment config             |
+| AWS_ROLE_ARN         | IAM role for GitHub Actions                                  | RepoStack output               |
+| BUCKET_NAME          | S3 bucket for frontend assets                                | FrontendStack output           |
+| COGNITO_CLIENT_ID    | Cognito User Pool Client ID                                  | AppStack output                |
+| COGNITO_DOMAIN       | Cognito User Pool domain                                     | AppStack output                |
+| COGNITO_USER_POOL_ID | Cognito User Pool ID                                         | AppStack output                |
+| CONTENT_URL          | CloudFront distribution URL                                  | AppStack output                |
+| LOGOUT_URI           | OAuth logout redirect URI                                    | AppStack output                |
+| REDIRECT_URI         | OAuth callback redirect URI                                  | AppStack output                |
+| SITE_DOMAIN          | CloudFront domain name (e.g., d3qqtvukmpw4yh.cloudfront.net) | FrontendStack output           |
+| TWITCH_CLIENT_ID     | Twitch application client ID                                 | Environment variable or secret |
+| WEBSOCKET_URL        | WebSocket API Gateway endpoint                               | AppStack output                |
 
 ### Backend Repository (glowing-telegram)
 
 The following variables are set for each environment:
 
-| Variable | Description |
-|----------|-------------|
+| Variable    | Description                                 |
+| ----------- | ------------------------------------------- |
 | ENVIRONMENT | Environment name (dev, staging, production) |
-| AWS_REGION | AWS region for deployment |
+| AWS_REGION  | AWS region for deployment                   |
 
 ## Deployment
 
@@ -364,7 +364,8 @@ Stack to orchestrate environment management for multiple repositories.
 
 ## Related Documentation
 
-- [Multi-Environment Setup](multi-environment-setup.md) - Complete environment guide
+- [Initial Setup](INITIAL_SETUP.md) - First-time deployment guide
+- [Normal Operation](NORMAL_OPERATION.md) - Day-to-day workflows
 - [GitHub Environment Setup](github-environment-setup.md) - Manual setup (now automated!)
 - [CDK Documentation](../cdk/README.md) - Infrastructure details
 

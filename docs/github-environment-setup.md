@@ -281,7 +281,8 @@ Implement rollback workflows:
 
 ## Related Documentation
 
-- [Multi-Environment Setup Guide](multi-environment-setup.md) - Complete backend setup
+- [Initial Setup Guide](INITIAL_SETUP.md) - First-time deployment
+- [Normal Operation Guide](NORMAL_OPERATION.md) - Day-to-day workflows
 - [Main README](../README.md) - Project overview
 - [CDK Documentation](../cdk/README.md) - Infrastructure details
 
