@@ -81,7 +81,7 @@ export default class MediaServeConstruct extends Construct {
           environment: {
             VIDEO_METADATA_TABLE: videoMetadataTable.tableName,
             STREAM_ID_INDEX: 'stream_id-index',
-            PROJECTS_TABLE: props.projectsTable.tableName,
+            PROJECTS_TABLE: projectsTable.tableName,
             DEFAULT_FPS: '60',
           },
         },
@@ -91,7 +91,7 @@ export default class MediaServeConstruct extends Construct {
     );
 
     videoMetadataTable.grantReadData(playlistLambda.lambda);
-    props.projectsTable.grantReadData(playlistLambda.lambda);
+    projectsTable.grantReadData(playlistLambda.lambda);
 
     const playlistLambdaUrl = playlistLambda.lambda.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.AWS_IAM,
