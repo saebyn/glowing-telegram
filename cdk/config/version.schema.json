@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Version Configuration Schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Current version of the frontend application"
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief description of the current version"
+    },
+    "lastUpdated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the last update to this version"
+    },
+    "rollbackVersion": {
+      "type": "string",
+      "description": "Previous stable version to rollback to if needed"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Additional metadata about the version, such as who deployed it and in which environment"
+    }
+  },
+  "required": ["version", "description", "lastUpdated", "rollbackVersion"]
+}
