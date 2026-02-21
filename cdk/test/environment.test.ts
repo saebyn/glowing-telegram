@@ -19,14 +19,14 @@ describe('Environment Configuration', () => {
     }
   });
 
-  test('loads production environment by default', () => {
+  test('loads unit-testing environment by default', () => {
     delete process.env.ENVIRONMENT;
     const { name, config } = loadEnvironmentConfig();
     
-    expect(name).toBe('production');
-    expect(config.awsAccount).toBe('159222827421');
+    expect(name).toBe('unit-testing');
+    expect(config.awsAccount).toBe(null);
     expect(config.awsRegion).toBe('us-west-2');
-    expect(config.tags.Environment).toBe('production');
+    expect(config.tags.Environment).toBe('unit-testing');
   });
 
   test('loads environment from ENVIRONMENT variable', () => {
