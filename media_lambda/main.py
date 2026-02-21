@@ -1,6 +1,7 @@
 import boto3
 import os
 import re
+import urllib.parse
 
 VIDEO_METADATA_TABLE = os.environ["VIDEO_METADATA_TABLE"]
 STREAM_ID_INDEX = os.environ["STREAM_ID_INDEX"]
@@ -449,9 +450,6 @@ def get_segments_in_range(transcode_segments, start_time, end_time):
             break
 
     return result
-
-
-import urllib.parse
 
 
 def rewrite_path(path):
