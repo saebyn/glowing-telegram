@@ -239,10 +239,9 @@ The project supports **multi-environment deployments** with separate infrastruct
 #### Environments
 
 - **Production**: Main production environment for live users (deployed via releases)
-- **Staging**: Pre-production environment for testing releases before deploying to production
 - **Dev**: Development environment for testing features and changes
 
-Each environment has isolated infrastructure including separate stacks, S3 buckets, DynamoDB tables, Lambda functions, and other AWS resources. See [Multi-Environment Setup Guide](docs/multi-environment-setup.md) for detailed configuration.
+Each environment has isolated infrastructure including separate stacks, S3 buckets, DynamoDB tables, Lambda functions, and other AWS resources. See [Initial Setup Guide](docs/INITIAL_SETUP.md) for first-time deployment and [Normal Operation Guide](docs/NORMAL_OPERATION.md) for day-to-day workflows.
 
 #### Production Deployment (Automated via Releases)
 
@@ -346,7 +345,7 @@ ENVIRONMENT=dev IMAGE_VERSION=latest npm run cdk deploy AppStack-dev
 
 **Environment Configuration:** Environments are defined in `cdk/config/environments.json`. Each environment specifies AWS account, region, and default frontend version.
 
-**Note:** Production deployments should use the automated GitHub Actions workflow triggered by releases rather than manual CDK deployment. See [Multi-Environment Setup Guide](docs/multi-environment-setup.md) for complete details.
+**Note:** All deployments use automated GitHub Actions workflows. Manual CDK deployment is not supported. See [Initial Setup Guide](docs/INITIAL_SETUP.md) for first-time deployment and [Normal Operation Guide](docs/NORMAL_OPERATION.md) for deployment workflows.
 
 ### Testing
 

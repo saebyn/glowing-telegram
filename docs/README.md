@@ -8,9 +8,10 @@ This directory contains documentation for the glowing-telegram project.
 - **JSON Schemas**: Type definitions in `v2/schemas/` directory
 - **Workflow Diagrams**: Process flow documentation
 
-## Deployment and Operations
+### Deployment and Operations
 
-- **[Multi-Environment Setup Guide](multi-environment-setup.md)**: Complete guide for setting up and deploying to multiple environments (dev, staging, production)
+- **[Initial Setup Guide](INITIAL_SETUP.md)**: First-time setup for deploying to dev and production environments
+- **[Normal Operation Guide](NORMAL_OPERATION.md)**: Day-to-day deployment workflows via GitHub Actions
   - Environment configuration
   - Deployment workflows
   - GitHub Actions setup
