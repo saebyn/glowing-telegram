@@ -1,4 +1,5 @@
 {
+  "$schema": "./environments.schema.json",
   "environments": {
     "production": {
       "description": "Production environment",
@@ -29,7 +30,17 @@
         "Environment": "dev",
         "ManagedBy": "CDK"
       }
+    },
+    "unit-testing": {
+      "description": "Environment for unit testing",
+      "awsAccount": null,
+      "awsRegion": "us-west-2",
+      "frontendVersion": "latest",
+      "tags": {
+        "Environment": "unit-testing",
+        "ManagedBy": "CDK"
+      }
     }
   },
-  "default": "production"
+  "default": "unit-testing"
 }
