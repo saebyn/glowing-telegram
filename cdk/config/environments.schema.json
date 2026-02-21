@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Environments Configuration Schema",
+  "type": "object",
+  "properties": {
+    "environments": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "awsAccount": { "type": ["string", "null"] },
+          "awsRegion": { "type": "string" },
+          "frontendVersion": { "type": "string" },
+          "tags": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        },
+        "required": ["description", "awsAccount", "awsRegion", "frontendVersion", "tags"]
+      }
+    },
+    "default": { "type": "string" }
+  },
+  "required": ["environments", "default"]
+}
