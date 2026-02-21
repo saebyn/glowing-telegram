@@ -34,6 +34,7 @@ const repoStack = new RepoStack(app, getStackName('RepoStack', environmentName),
   },
   frontendAssetBucket: frontendStack.assetBucket,
   environmentName,
+  githubOwner: environmentConfig.githubOwner,
   tags: environmentConfig.tags,
 });
 
@@ -71,7 +72,8 @@ if (process.env.SKIP_GITHUB_ENV !== 'true') {
     frontendBucketName: frontendStack.assetBucket.bucketName,
     githubRoleArn: repoStack.githubRole.roleArn,
     siteDomain: frontendStack.domainName,
-    twitchClientId: process.env.TWITCH_CLIENT_ID,
+    twitchClientId: environmentConfig.twitchClientId,
+    githubOwner: environmentConfig.githubOwner,
     tags: environmentConfig.tags,
   });
   

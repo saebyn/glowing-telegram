@@ -9,6 +9,8 @@ export interface EnvironmentConfig {
   awsAccount: string;
   awsRegion: string;
   frontendVersion: string;
+  twitchClientId: string;
+  githubOwner: string;
   tags: Record<string, string>;
 }
 

@@ -5,7 +5,9 @@
       "description": "Production environment",
       "awsAccount": "159222827421",
       "awsRegion": "us-west-2",
-      "frontendVersion": "0.4.1",
+      "frontendVersion": "latest",
+      "twitchClientId": "h2k79ymb9my4v6vqmz9hc2c0uwshg6",
+      "githubOwner": "saebyn",
       "tags": {
         "Environment": "production",
         "ManagedBy": "CDK"
@@ -16,6 +18,8 @@
       "awsAccount": "159222827421",
       "awsRegion": "us-west-2",
       "frontendVersion": "latest",
+      "twitchClientId": "h2k79ymb9my4v6vqmz9hc2c0uwshg",
+      "githubOwner": "saebyn",
       "tags": {
         "Environment": "dev",
         "ManagedBy": "CDK"
@@ -26,6 +30,8 @@
       "awsAccount": null,
       "awsRegion": "us-west-2",
       "frontendVersion": "latest",
+      "twitchClientId": "test-twitch-client-id",
+      "githubOwner": "test-owner",
       "tags": {
         "Environment": "unit-testing",
         "ManagedBy": "CDK"

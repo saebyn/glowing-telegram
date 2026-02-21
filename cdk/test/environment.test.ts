@@ -40,12 +40,14 @@ describe('Environment Configuration', () => {
   });
 
   test('loads environment from parameter', () => {
-    const { name, config } = loadEnvironmentConfig('staging');
+    const { name, config } = loadEnvironmentConfig('dev');
     
-    expect(name).toBe('staging');
+    expect(name).toBe('dev');
     expect(config.awsAccount).toBe('159222827421');
     expect(config.awsRegion).toBe('us-west-2');
-    expect(config.tags.Environment).toBe('staging');
+    expect(config.tags.Environment).toBe('dev');
+    expect(config.twitchClientId).toBeDefined();
+    expect(config.githubOwner).toBeDefined();
   });
 
   test('throws error for invalid environment', () => {
@@ -61,7 +63,7 @@ describe('Environment Configuration', () => {
 
   test('getStackName returns suffixed name for non-production', () => {
     expect(getStackName('AppStack', 'dev')).toBe('AppStack-dev');
-    expect(getStackName('FrontendStack', 'staging')).toBe('FrontendStack-staging');
+    expect(getStackName('FrontendStack', 'dev')).toBe('FrontendStack-dev');
   });
 
   test('getResourceName returns base name for production', () => {
@@ -71,7 +73,7 @@ describe('Environment Configuration', () => {
 
   test('getResourceName returns prefixed name for non-production', () => {
     expect(getResourceName('my-bucket', 'dev')).toBe('dev-my-bucket');
-    expect(getResourceName('my-role', 'staging')).toBe('staging-my-role');
+    expect(getResourceName('my-role', 'dev')).toBe('dev-my-role');
   });
 
   test('getRoleName returns undefined for production', () => {
@@ -80,15 +82,14 @@ describe('Environment Configuration', () => {
 
   test('getRoleName returns suffixed name for non-production', () => {
     expect(getRoleName('MyRole', 'dev')).toBe('MyRole-dev');
-    expect(getRoleName('MyRole', 'staging')).toBe('MyRole-staging');
   });
 
   test('getAvailableEnvironments returns all environments', () => {
     const environments = getAvailableEnvironments();
     
     expect(environments).toContain('production');
-    expect(environments).toContain('staging');
     expect(environments).toContain('dev');
-    expect(environments.length).toBeGreaterThanOrEqual(3);
+    expect(environments).toContain('unit-testing');
+    expect(environments.length).toBe(3);
   });
 });

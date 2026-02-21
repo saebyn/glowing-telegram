@@ -12,12 +12,14 @@
           "awsAccount": { "type": ["string", "null"] },
           "awsRegion": { "type": "string" },
           "frontendVersion": { "type": "string" },
+          "twitchClientId": { "type": "string" },
+          "githubOwner": { "type": "string" },
           "tags": {
             "type": "object",
             "additionalProperties": { "type": "string" }
           }
         },
-        "required": ["description", "awsAccount", "awsRegion", "frontendVersion", "tags"]
+        "required": ["description", "awsAccount", "awsRegion", "frontendVersion", "twitchClientId", "githubOwner", "tags"]
       }
     },
     "default": { "type": "string" }

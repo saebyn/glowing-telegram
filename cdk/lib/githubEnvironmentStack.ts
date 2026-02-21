@@ -17,10 +17,8 @@ interface GitHubEnvironmentStackProps extends cdk.StackProps {
   frontendBucketName: string;
   githubRoleArn: string;
   siteDomain: string;
-  // Optional Twitch client ID - can be set via secret or parameter
-  twitchClientId?: string;
-  // GitHub organization/owner name
-  githubOwner?: string;
+  twitchClientId: string;
+  githubOwner: string;
 }
 
 export default class GitHubEnvironmentStack extends cdk.Stack {
@@ -46,8 +44,7 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
 
     super(scope, id, restProps);
 
-    // Get GitHub owner from props or environment variable, default to 'saebyn'
-    const owner = githubOwner || process.env.GITHUB_OWNER || 'saebyn';
+    const owner = githubOwner;
 
     // Get or create GitHub token secret
     // The secret must contain a GitHub Personal Access Token with repo scope
@@ -62,9 +59,6 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
       secretArn
     );
 
-    // Use provided Twitch client ID or placeholder
-    const twitchClientIdValue = twitchClientId || 'TWITCH_CLIENT_ID_NOT_SET';
-
     // Prepare variables for frontend repository
     const frontendVariables: Record<string, string> = {
       API_URL: apiUrl,
@@ -78,7 +72,7 @@ export default class GitHubEnvironmentStack extends cdk.Stack {
       LOGOUT_URI: logoutUri,
       REDIRECT_URI: redirectUri,
       SITE_DOMAIN: siteDomain,
-      TWITCH_CLIENT_ID: twitchClientIdValue,
+      TWITCH_CLIENT_ID: twitchClientId,
       WEBSOCKET_URL: websocketUrl,
     };
 
