@@ -345,7 +345,7 @@ ENVIRONMENT=dev IMAGE_VERSION=latest npm run cdk deploy AppStack-dev
 
 **Environment Configuration:** Environments are defined in `cdk/config/environments.json`. Each environment specifies AWS account, region, and default frontend version.
 
-**Note:** All deployments use automated GitHub Actions workflows. Manual CDK deployment is not supported. See [Initial Setup Guide](docs/INITIAL_SETUP.md) for first-time deployment and [Normal Operation Guide](docs/NORMAL_OPERATION.md) for deployment workflows.
+**Note:** While manual CDK deployment is possible, deployments are normally performed via automated GitHub Actions workflows for consistency and to ensure proper environment configuration. See [Initial Setup Guide](docs/INITIAL_SETUP.md) for first-time deployment and [Normal Operation Guide](docs/NORMAL_OPERATION.md) for deployment workflows.
 
 ### Testing
 
