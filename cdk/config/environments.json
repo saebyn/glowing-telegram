@@ -6,7 +6,7 @@
       "awsAccount": "159222827421",
       "awsRegion": "us-west-2",
       "frontendVersion": "latest",
-      "twitchClientId": "h2k79ymb9my4v6vqmz9hc2c0uwshg6",
+      "twitchClientId": "u4eb4rk1w4chlbvwbfv5q3q1saxvcz",
       "githubOwner": "saebyn",
       "tags": {
         "Environment": "production",
@@ -18,7 +18,7 @@
       "awsAccount": "159222827421",
       "awsRegion": "us-west-2",
       "frontendVersion": "latest",
-      "twitchClientId": "h2k79ymb9my4v6vqmz9hc2c0uwshg",
+      "twitchClientId": "u4eb4rk1w4chlbvwbfv5q3q1saxvcz",
       "githubOwner": "saebyn",
       "tags": {
         "Environment": "dev",

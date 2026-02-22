@@ -99,7 +99,8 @@ Edit `cdk/config/environments.json`:
 ```
 
 **Important**: 
-- Use different Twitch applications for dev and production environments
+- We may or may not use different Twitch applications
+  for dev and production environments
 - Ensure `githubOwner` matches your GitHub username or organization name
 
 ## Step 4: Deploy Dev Environment
