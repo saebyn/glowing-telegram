@@ -6,7 +6,7 @@ import * as fs from 'node:fs';
  */
 export interface EnvironmentConfig {
   description: string;
-  awsAccount: string;
+  awsAccount: string | null;
   awsRegion: string;
   frontendVersion: string;
   twitchClientId: string;
