@@ -19,7 +19,7 @@ const frontendVersion = process.env.FRONTEND_VERSION || environmentConfig.fronte
 
 const frontendStack = new FrontendStack(app, getStackName('FrontendStack', environmentName), {
   env: {
-    account: environmentConfig.awsAccount,
+    account: environmentConfig.awsAccount ?? undefined,
     region: environmentConfig.awsRegion,
   },
   frontendVersion,
@@ -29,7 +29,7 @@ const frontendStack = new FrontendStack(app, getStackName('FrontendStack', envir
 
 const repoStack = new RepoStack(app, getStackName('RepoStack', environmentName), {
   env: {
-    account: environmentConfig.awsAccount,
+    account: environmentConfig.awsAccount ?? undefined,
     region: environmentConfig.awsRegion,
   },
   frontendAssetBucket: frontendStack.assetBucket,
@@ -40,7 +40,7 @@ const repoStack = new RepoStack(app, getStackName('RepoStack', environmentName),
 
 const appStack = new AppStack(app, getStackName('AppStack', environmentName), {
   env: {
-    account: environmentConfig.awsAccount,
+    account: environmentConfig.awsAccount ?? undefined,
     region: environmentConfig.awsRegion,
   },
   domainName: frontendStack.domainName,
@@ -55,7 +55,7 @@ const appStack = new AppStack(app, getStackName('AppStack', environmentName), {
 if (process.env.SKIP_GITHUB_ENV !== 'true') {
   const githubEnvStack = new GitHubEnvironmentStack(app, getStackName('GitHubEnvironmentStack', environmentName), {
     env: {
-      account: environmentConfig.awsAccount,
+      account: environmentConfig.awsAccount ?? undefined,
       region: environmentConfig.awsRegion,
     },
     environmentName,
