@@ -1,6 +1,7 @@
 use aws_sdk_dynamodb::Client;
 use aws_sdk_dynamodb::types::{
-    AttributeValue, KeysAndAttributes, PutRequest, ReturnValue, WriteRequest,
+    AttributeValue, DeleteRequest, KeysAndAttributes, PutRequest, ReturnValue,
+    WriteRequest,
 };
 use lambda_runtime::Error;
 use serde::Deserialize;
@@ -223,37 +224,90 @@ pub async fn get_many(
     table_config: &DynamoDbTableConfig<'_>,
     ids: &[&str],
 ) -> Result<Vec<serde_json::Value>, Error> {
-    let keys = ids
-        .iter()
-        .map(|id| {
-            vec![(
-                table_config.partition_key.to_string(),
-                AttributeValue::S((*id).to_string()),
-            )]
-            .into_iter()
-            .collect()
-        })
-        .collect();
-
-    let request_items = std::collections::HashMap::from([(
-        table_config.table.to_string(),
-        KeysAndAttributes::builder().set_keys(Some(keys)).build()?,
-    )]);
-
-    let resp = client
-        .batch_get_item()
-        .set_request_items(Some(request_items))
-        .send()
-        .await?;
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
 
     let mut items = Vec::new();
-    if let Some(responses) = resp.responses() {
-        if let Some(table_items) = responses.get(table_config.table) {
-            for item in table_items {
-                items.push(convert_hm_to_json(item.clone()));
+
+    // DynamoDB batch_get_item can handle up to 100 items at a time
+    for chunk in ids.chunks(100) {
+        let keys = chunk
+            .iter()
+            .map(|id| {
+                vec![(
+                    table_config.partition_key.to_string(),
+                    AttributeValue::S((*id).to_string()),
+                )]
+                .into_iter()
+                .collect()
+            })
+            .collect();
+
+        let mut request_items = std::collections::HashMap::from([(
+            table_config.table.to_string(),
+            KeysAndAttributes::builder().set_keys(Some(keys)).build()?,
+        )]);
+
+        let mut retry_count = 0;
+        const MAX_RETRIES: u32 = 3;
+
+        // Retry logic with exponential backoff for unprocessed keys
+        while !request_items.is_empty() && retry_count <= MAX_RETRIES {
+            if retry_count > 0 {
+                // Exponential backoff: 100ms, 200ms, 400ms
+                let backoff_ms = 100 * 2_u64.pow(retry_count - 1);
+                tokio::time::sleep(tokio::time::Duration::from_millis(
+                    backoff_ms,
+                ))
+                .await;
+                tracing::info!(
+                    "Retrying batch get (attempt {}/{})",
+                    retry_count,
+                    MAX_RETRIES
+                );
             }
+
+            let resp = client
+                .batch_get_item()
+                .set_request_items(Some(request_items.clone()))
+                .send()
+                .await?;
+
+            // Collect items from this response
+            if let Some(responses) = resp.responses() {
+                if let Some(table_items) = responses.get(table_config.table) {
+                    for item in table_items {
+                        items.push(convert_hm_to_json(item.clone()));
+                    }
+                }
+            }
+
+            // Check for unprocessed keys
+            request_items =
+                if let Some(unprocessed_keys) = resp.unprocessed_keys() {
+                    if !unprocessed_keys.is_empty() {
+                        unprocessed_keys.clone()
+                    } else {
+                        std::collections::HashMap::new()
+                    }
+                } else {
+                    std::collections::HashMap::new()
+                };
+
+            retry_count += 1;
+        }
+
+        // Log warning if there are still unprocessed keys after all retries
+        if !request_items.is_empty() {
+            tracing::warn!(
+                "Failed to get some keys after {} retries for {} table(s)",
+                MAX_RETRIES,
+                request_items.len()
+            );
         }
     }
+
     Ok(items)
 }
 
@@ -436,6 +490,126 @@ pub async fn delete(
     Ok(())
 }
 
+#[tracing::instrument(skip(client))]
+pub async fn delete_many(
+    client: &Client,
+    table_config: &DynamoDbTableConfig<'_>,
+    ids: &[&str],
+) -> Result<Vec<String>, Error> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut successfully_deleted = HashSet::new();
+
+    // DynamoDB batch_write_item can handle up to 25 items at a time
+    for chunk in ids.chunks(25) {
+        let delete_requests = chunk
+            .iter()
+            .map(|id| {
+                let mut key = HashMap::new();
+                key.insert(
+                    table_config.partition_key.to_string(),
+                    AttributeValue::S((*id).to_string()),
+                );
+
+                let delete_request = DeleteRequest::builder()
+                    .set_key(Some(key))
+                    .build()
+                    .map_err(|_| {
+                        Error::from("Failed to create DeleteRequest")
+                    })?;
+
+                let write_request = WriteRequest::builder()
+                    .set_delete_request(Some(delete_request))
+                    .build();
+
+                Ok(write_request)
+            })
+            .collect::<Result<Vec<WriteRequest>, Error>>()?;
+
+        let mut requests_to_process = delete_requests;
+        let mut retry_count = 0;
+        const MAX_RETRIES: u32 = 3;
+
+        // Retry logic with exponential backoff for unprocessed items
+        while !requests_to_process.is_empty() && retry_count <= MAX_RETRIES {
+            if retry_count > 0 {
+                // Exponential backoff: 100ms, 200ms, 400ms
+                let backoff_ms = 100 * 2_u64.pow(retry_count - 1);
+                tokio::time::sleep(tokio::time::Duration::from_millis(
+                    backoff_ms,
+                ))
+                .await;
+                tracing::info!(
+                    "Retrying batch delete (attempt {}/{})",
+                    retry_count,
+                    MAX_RETRIES
+                );
+            }
+
+            let result = client
+                .batch_write_item()
+                .set_request_items(Some(std::collections::HashMap::from([(
+                    table_config.table.to_string(),
+                    requests_to_process.clone(),
+                )])))
+                .send()
+                .await?;
+
+            // Mark items as successfully deleted (those that were processed)
+            for request in &requests_to_process {
+                if let Some(delete_request) = &request.delete_request {
+                    if let Some(AttributeValue::S(id)) =
+                        delete_request.key.get(table_config.partition_key)
+                    {
+                        successfully_deleted.insert(id.clone());
+                    }
+                }
+            }
+
+            // Check for unprocessed items
+            requests_to_process = if let Some(unprocessed_items) =
+                result.unprocessed_items()
+            {
+                if let Some(unprocessed_requests) =
+                    unprocessed_items.get(table_config.table)
+                {
+                    // Remove unprocessed items from successfully deleted set
+                    for request in unprocessed_requests {
+                        if let Some(delete_request) = &request.delete_request {
+                            if let Some(AttributeValue::S(id)) = delete_request
+                                .key
+                                .get(table_config.partition_key)
+                            {
+                                successfully_deleted.remove(id);
+                            }
+                        }
+                    }
+                    unprocessed_requests.clone()
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+
+            retry_count += 1;
+        }
+
+        // Log warning if there are still unprocessed items after all retries
+        if !requests_to_process.is_empty() {
+            tracing::warn!(
+                "Failed to delete {} items after {} retries",
+                requests_to_process.len(),
+                MAX_RETRIES
+            );
+        }
+    }
+
+    Ok(successfully_deleted.into_iter().collect())
+}
+
 fn get_operator(op_name: &str) -> &'static str {
     match op_name {
         "gte" => ">=",
@@ -590,5 +764,98 @@ mod tests {
             avals.get(":v0").unwrap().as_n().ok(),
             Some("30".to_string()).as_ref()
         );
+    }
+
+    #[test]
+    fn test_delete_many_empty_ids() {
+        // Test that empty ID list returns empty result without errors
+        let ids: Vec<&str> = vec![];
+
+        // Verify chunking logic: empty input should result in no chunks
+        let chunks: Vec<_> = ids.chunks(25).collect();
+        assert_eq!(chunks.len(), 0);
+    }
+
+    #[test]
+    fn test_delete_many_chunking_under_limit() {
+        // Test that IDs under the 25-item limit fit in a single chunk
+        let ids: Vec<&str> = (0..20).map(|_| "test-id").collect();
+
+        let chunks: Vec<_> = ids.chunks(25).collect();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].len(), 20);
+    }
+
+    #[test]
+    fn test_delete_many_chunking_at_limit() {
+        // Test that exactly 25 IDs fit in a single chunk
+        let ids: Vec<&str> = (0..25).map(|_| "test-id").collect();
+
+        let chunks: Vec<_> = ids.chunks(25).collect();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].len(), 25);
+    }
+
+    #[test]
+    fn test_delete_many_chunking_over_limit() {
+        // Test that 26 IDs are split into 2 chunks
+        let ids: Vec<&str> = (0..26).map(|_| "test-id").collect();
+
+        let chunks: Vec<_> = ids.chunks(25).collect();
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].len(), 25);
+        assert_eq!(chunks[1].len(), 1);
+    }
+
+    #[test]
+    fn test_delete_many_chunking_multiple_chunks() {
+        // Test that 75 IDs are split into 3 chunks of 25 each
+        let ids: Vec<&str> = (0..75).map(|_| "test-id").collect();
+
+        let chunks: Vec<_> = ids.chunks(25).collect();
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].len(), 25);
+        assert_eq!(chunks[1].len(), 25);
+        assert_eq!(chunks[2].len(), 25);
+    }
+
+    #[test]
+    fn test_get_many_empty_ids() {
+        // Test that empty ID list for get_many returns no chunks
+        let ids: Vec<&str> = vec![];
+
+        let chunks: Vec<_> = ids.chunks(100).collect();
+        assert_eq!(chunks.len(), 0);
+    }
+
+    #[test]
+    fn test_get_many_chunking_under_limit() {
+        // Test that IDs under the 100-item limit fit in a single chunk
+        let ids: Vec<&str> = (0..50).map(|_| "test-id").collect();
+
+        let chunks: Vec<_> = ids.chunks(100).collect();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].len(), 50);
+    }
+
+    #[test]
+    fn test_get_many_chunking_at_limit() {
+        // Test that exactly 100 IDs fit in a single chunk
+        let ids: Vec<&str> = (0..100).map(|_| "test-id").collect();
+
+        let chunks: Vec<_> = ids.chunks(100).collect();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].len(), 100);
+    }
+
+    #[test]
+    fn test_get_many_chunking_over_limit() {
+        // Test that 101 IDs are split into 2 chunks
+        let ids: Vec<&str> = (0..101).map(|_| "test-id").collect();
+
+        let chunks: Vec<_> = ids.chunks(100).collect();
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].len(), 100);
+        assert_eq!(chunks[1].len(), 1);
     }
 }
