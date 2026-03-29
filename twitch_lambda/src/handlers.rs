@@ -373,10 +373,7 @@ pub async fn subscribe_chat_handler(
     State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
 ) -> impl IntoResponse {
-    tracing::info!(
-        "Subscribe handler called for user: {}",
-        cognito_user_id
-    );
+    tracing::info!("Subscribe handler called for user: {}", cognito_user_id);
 
     // Get the user's access token
     let secret_id =

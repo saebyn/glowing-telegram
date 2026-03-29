@@ -210,14 +210,13 @@ async fn process_ad_break_begin(
     );
 
     // Compute when the ad break ends so the frontend can derive status correctly.
-    let back_from_ads_until = chrono::DateTime::parse_from_rfc3339(
-        &event.started_at,
-    )
-    .ok()
-    .map(|t| {
-        (t + chrono::Duration::seconds(event.duration_seconds))
-            .to_rfc3339()
-    });
+    let back_from_ads_until =
+        chrono::DateTime::parse_from_rfc3339(&event.started_at)
+            .ok()
+            .map(|t| {
+                (t + chrono::Duration::seconds(event.duration_seconds))
+                    .to_rfc3339()
+            });
 
     // Query all active ad_timer widgets for this broadcaster.
     // The broadcaster_user_id from Twitch is stored in the widget's user_id field.
@@ -263,10 +262,7 @@ async fn process_ad_break_begin(
         // nextAdAt is cleared (null) since we are now in the break.
         // backFromAdsUntil marks when the break ends.
         let mut new_state: HashMap<String, AttributeValue> = HashMap::new();
-        new_state.insert(
-            "nextAdAt".to_string(),
-            AttributeValue::Null(true),
-        );
+        new_state.insert("nextAdAt".to_string(), AttributeValue::Null(true));
         if let Some(ref until) = back_from_ads_until {
             new_state.insert(
                 "backFromAdsUntil".to_string(),
@@ -296,7 +292,9 @@ async fn process_ad_break_begin(
             .await;
 
         match result {
-            Ok(_) => info!("Updated ad_timer widget {} to in_ad_break", widget_id),
+            Ok(_) => {
+                info!("Updated ad_timer widget {} to in_ad_break", widget_id)
+            }
             Err(e) => error!("Failed to update widget {}: {:?}", widget_id, e),
         }
     }
