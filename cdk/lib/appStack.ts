@@ -174,6 +174,7 @@ export default class AppStack extends cdk.Stack {
 
     const twitchChatProcessing = new TwitchChatProcessingConstruct(this, 'TwitchChatProcessing', {
       chatMessagesTable: dataStore.chatMessagesTable,
+      streamWidgetsTable: dataStore.streamWidgetsTable,
       tagOrDigest,
     });
 

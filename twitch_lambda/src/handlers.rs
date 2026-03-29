@@ -297,13 +297,84 @@ struct EventSubWebhookRequest {
     event: Option<serde_json::Value>,
 }
 
-/// Subscribe to Twitch chat events for the authenticated user's channel
+/// Create a single EventSub webhook subscription on Twitch.
+/// Returns the subscription ID on success, or an error string.
+async fn create_eventsub_subscription(
+    client: &reqwest::Client,
+    app_access_token: &str,
+    client_id: &str,
+    event_type: &str,
+    version: &str,
+    condition: serde_json::Value,
+    webhook_url: &str,
+    eventsub_secret: &str,
+) -> Result<String, String> {
+    let request = EventSubSubscriptionRequest {
+        event_type: event_type.to_string(),
+        version: version.to_string(),
+        condition,
+        transport: EventSubTransport {
+            method: "webhook".to_string(),
+            callback: webhook_url.to_string(),
+            secret: eventsub_secret.to_string(),
+        },
+    };
+
+    let response = client
+        .post("https://api.twitch.tv/helix/eventsub/subscriptions")
+        .header("Authorization", format!("Bearer {}", app_access_token))
+        .header("Client-ID", client_id)
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| format!("request_failed: {e}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        // 409 Conflict means the subscription already exists — treat as success
+        if status == 409 {
+            tracing::info!(
+                "EventSub subscription for {} already exists (409)",
+                event_type
+            );
+            return Ok("already_exists".to_string());
+        }
+        tracing::error!(
+            "Twitch API error {} for {}: {}",
+            status,
+            event_type,
+            body
+        );
+        return Err(format!("twitch_error_{status}"));
+    }
+
+    let parsed: EventSubSubscriptionResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("parse_error: {e}"))?;
+
+    parsed
+        .data
+        .into_iter()
+        .next()
+        .map(|s| s.id)
+        .ok_or_else(|| "no_data".to_string())
+}
+
+/// Subscribe to all required Twitch EventSub events for the authenticated user:
+/// - channel.chat.message  (chat integration)
+/// - channel.ad_break.begin (ad timer widget)
+///
+/// Idempotent: if a subscription already exists (409), it is treated as success.
+/// The button on the frontend should be enabled until BOTH subscriptions are active.
 pub async fn subscribe_chat_handler(
     State(state): State<AppContext>,
     CognitoUserId(cognito_user_id): CognitoUserId,
 ) -> impl IntoResponse {
     tracing::info!(
-        "Subscribe chat handler called for user: {}",
+        "Subscribe handler called for user: {}",
         cognito_user_id
     );
 
@@ -360,8 +431,7 @@ pub async fn subscribe_chat_handler(
         }
     };
 
-    // Obtain an app access token for creating the webhook subscription
-    // Twitch requires app access tokens (not user access tokens) for webhook subscriptions
+    // Obtain an app access token — required by Twitch for webhook subscriptions
     let app_access_token =
         match twitch::get_app_access_token(&state.twitch_credentials).await {
             Ok(token) => token,
@@ -378,117 +448,81 @@ pub async fn subscribe_chat_handler(
             }
         };
 
-    // Create EventSub subscription request
-    let subscription_request = EventSubSubscriptionRequest {
-        event_type: "channel.chat.message".to_string(),
-        version: "1".to_string(),
-        condition: json!({
-            "broadcaster_user_id": validation_response.user_id,
-            "user_id": validation_response.user_id
-        }),
-        transport: EventSubTransport {
-            method: "webhook".to_string(),
-            callback: state.config.eventsub_webhook_url.clone(),
-            secret: match &state.eventsub_secret {
-                Some(secret) => secret.clone(),
-                None => {
-                    tracing::error!(
-                        "EventSub secret not configured or failed to load"
-                    );
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!(SubscribeChatResponse {
-                            subscription_id: None,
-                            status: "missing_eventsub_secret".to_string(),
-                        })),
-                    )
-                        .into_response();
-                }
-            },
-        },
+    let eventsub_secret = match &state.eventsub_secret {
+        Some(s) => s.clone(),
+        None => {
+            tracing::error!("EventSub secret not configured");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(SubscribeChatResponse {
+                    subscription_id: None,
+                    status: "missing_eventsub_secret".to_string(),
+                })),
+            )
+                .into_response();
+        }
     };
 
-    // Make the subscription request to Twitch using the app access token
+    let broadcaster_id = &validation_response.user_id;
     let client = reqwest::Client::new();
-    let response = match client
-        .post("https://api.twitch.tv/helix/eventsub/subscriptions")
-        .header("Authorization", format!("Bearer {}", app_access_token))
-        .header("Client-ID", &state.twitch_credentials.id)
-        .header("Content-Type", "application/json")
-        .json(&subscription_request)
-        .send()
-        .await
-    {
-        Ok(response) => response,
-        Err(e) => {
-            tracing::error!("Failed to make subscription request: {:?}", e);
-            return (
+
+    // Subscribe to channel.chat.message
+    let chat_result = create_eventsub_subscription(
+        &client,
+        &app_access_token,
+        &state.twitch_credentials.id,
+        "channel.chat.message",
+        "1",
+        json!({
+            "broadcaster_user_id": broadcaster_id,
+            "user_id": broadcaster_id,
+        }),
+        &state.config.eventsub_webhook_url,
+        &eventsub_secret,
+    )
+    .await;
+
+    // Subscribe to channel.ad_break.begin
+    let ad_result = create_eventsub_subscription(
+        &client,
+        &app_access_token,
+        &state.twitch_credentials.id,
+        "channel.ad_break.begin",
+        "1",
+        json!({
+            "broadcaster_user_id": broadcaster_id,
+        }),
+        &state.config.eventsub_webhook_url,
+        &eventsub_secret,
+    )
+    .await;
+
+    match (chat_result, ad_result) {
+        (Ok(chat_id), Ok(_)) => {
+            tracing::info!(
+                "Stream integrations subscribed for broadcaster {}",
+                broadcaster_id
+            );
+            (
+                StatusCode::OK,
+                Json(json!(SubscribeChatResponse {
+                    subscription_id: Some(chat_id),
+                    status: "enabled".to_string(),
+                })),
+            )
+                .into_response()
+        }
+        (Err(e), _) | (_, Err(e)) => {
+            tracing::error!("Failed to create EventSub subscription: {}", e);
+            (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!(SubscribeChatResponse {
                     subscription_id: None,
-                    status: "request_failed".to_string(),
+                    status: e,
                 })),
             )
-                .into_response();
+                .into_response()
         }
-    };
-
-    if !response.status().is_success() {
-        let status_code = response.status();
-        let error_body = response.text().await.unwrap_or_default();
-        tracing::error!("Twitch API error {}: {}", status_code, error_body);
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!(SubscribeChatResponse {
-                subscription_id: None,
-                status: format!("twitch_error_{}", status_code.as_u16()),
-            })),
-        )
-            .into_response();
-    }
-
-    let subscription_response: EventSubSubscriptionResponse = match response
-        .json()
-        .await
-    {
-        Ok(response) => response,
-        Err(e) => {
-            tracing::error!("Failed to parse subscription response: {:?}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!(SubscribeChatResponse {
-                    subscription_id: None,
-                    status: "parse_error".to_string(),
-                })),
-            )
-                .into_response();
-        }
-    };
-
-    if let Some(subscription) = subscription_response.data.first() {
-        tracing::info!(
-            "Created subscription: {} with status: {}",
-            subscription.id,
-            subscription.status
-        );
-        (
-            StatusCode::OK,
-            Json(json!(SubscribeChatResponse {
-                subscription_id: Some(subscription.id.clone()),
-                status: subscription.status.clone(),
-            })),
-        )
-            .into_response()
-    } else {
-        tracing::error!("No subscription data in response");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(SubscribeChatResponse {
-                subscription_id: None,
-                status: "no_data".to_string(),
-            })),
-        )
-            .into_response()
     }
 }
 
