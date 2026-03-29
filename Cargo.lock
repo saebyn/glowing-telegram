@@ -4948,9 +4948,12 @@ version = "0.1.0"
 dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
+ "aws-sdk-secretsmanager",
  "chrono",
  "gt_app",
+ "gt_secrets",
  "lambda_runtime",
+ "reqwest 0.13.2",
  "serde",
  "serde_json",
  "tokio",

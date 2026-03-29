@@ -1,6 +1,8 @@
 use aws_sdk_dynamodb::{Client as DynamoDbClient, types::AttributeValue};
+use aws_sdk_secretsmanager::Client as SecretsManagerClient;
 use chrono::Utc;
 use gt_app::ContextProvider;
+use gt_secrets::UserSecretPathProvider;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -9,6 +11,7 @@ use tracing::{info, warn};
 use types::{StreamWidget, StreamWidgetType};
 
 mod updaters;
+use updaters::ad_timer::compute_ad_timer_updates;
 use updaters::{WidgetUpdate, WidgetUpdater, countdown::CountdownUpdater};
 
 #[derive(Debug, Deserialize)]
@@ -25,19 +28,49 @@ struct Response {
 #[derive(Debug, Clone, Deserialize)]
 struct Config {
     stream_widgets_table: String,
+    /// ARN of the Twitch app secret (contains client_id and client_secret).
+    twitch_secret_arn: String,
+    /// Base path for per-user Twitch secrets in Secrets Manager.
+    user_secret_path: UserSecretPathProvider,
 }
 
 #[derive(Debug, Clone)]
 struct AppContext {
     dynamodb: DynamoDbClient,
+    secrets_manager: SecretsManagerClient,
+    http_client: reqwest::Client,
     config: Config,
+    /// Twitch Client-Id read from the app secret at startup.
+    twitch_client_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TwitchAppSecret {
+    id: String,
 }
 
 impl ContextProvider<Config> for AppContext {
     async fn new(config: Config, aws_config: aws_config::SdkConfig) -> Self {
+        let secrets_manager = SecretsManagerClient::new(&aws_config);
+
+        // Read the Twitch client_id once at cold-start from the app secret.
+        let twitch_client_id = secrets_manager
+            .get_secret_value()
+            .secret_id(&config.twitch_secret_arn)
+            .send()
+            .await
+            .ok()
+            .and_then(|r| r.secret_string)
+            .and_then(|s| serde_json::from_str::<TwitchAppSecret>(&s).ok())
+            .map(|s| s.id)
+            .unwrap_or_default();
+
         Self {
             config,
             dynamodb: DynamoDbClient::new(&aws_config),
+            secrets_manager,
+            http_client: reqwest::Client::new(),
+            twitch_client_id,
         }
     }
 }
@@ -68,15 +101,24 @@ async fn function_handler(
     );
 
     // Get the appropriate updater for this widget type
-    let updater = get_updater_for_type(widget_type)?;
-
-    // Compute updates for all widgets
-    let updates = updater.compute_batch_updates(&active_widgets);
-
-    info!("Generated {} updates", updates.len());
-
-    // Write updates to DynamoDB in batches
-    let updated_count = batch_write_widget_states(context, &updates).await?;
+    // ad_timer uses async Twitch API calls, handled separately from the sync trait.
+    let updated_count = if widget_type == "ad_timer" {
+        let updates = compute_ad_timer_updates(
+            &active_widgets,
+            &context.secrets_manager,
+            &context.http_client,
+            &context.config.user_secret_path,
+            &context.twitch_client_id,
+        )
+        .await;
+        info!("Generated {} ad_timer updates", updates.len());
+        batch_write_widget_states(context, &updates).await?
+    } else {
+        let updater = get_updater_for_type(widget_type)?;
+        let updates = updater.compute_batch_updates(&active_widgets);
+        info!("Generated {} updates", updates.len());
+        batch_write_widget_states(context, &updates).await?
+    };
 
     Ok(Response {
         widgets_processed: active_widgets.len(),
@@ -152,6 +194,7 @@ fn deserialize_widget(
         .clone();
 
     let stream_widget_type = match stream_widget_type_string.as_str() {
+        "ad_timer" => StreamWidgetType::AdTimer,
         "countdown" => StreamWidgetType::Countdown,
         "bot_integration" => StreamWidgetType::BotIntegration,
         "name_queue" => StreamWidgetType::NameQueue,
