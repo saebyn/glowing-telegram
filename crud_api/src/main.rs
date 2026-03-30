@@ -736,6 +736,19 @@ async fn delete_many_records_handler(
         .map(String::as_str)
         .collect::<Vec<_>>();
 
+    // Check for duplicate IDs and return 400 if found
+    let unique_ids: std::collections::HashSet<&str> =
+        ids.iter().copied().collect();
+    if unique_ids.len() != ids.len() {
+        return (
+            StatusCode::BAD_REQUEST,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({
+                "message": "Duplicate IDs provided. Each ID should be unique.",
+            })),
+        );
+    }
+
     // Enforce a maximum of 100 IDs per request to align with DynamoDB batch limits
     if ids.len() > 100 {
         return (
@@ -812,6 +825,22 @@ async fn delete_many_records_handler(
                 }
             }
             Err(e) => {
+                let error_msg = e.to_string();
+                // Check if error is due to throttling/unprocessed keys
+                if error_msg.contains("throttling")
+                    || error_msg.contains("after retries")
+                {
+                    tracing::error!(
+                        "throttling error during verification: {e}"
+                    );
+                    return (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        [(header::CONTENT_TYPE, "application/json")],
+                        Json(json!({
+                            "message": "Service temporarily unavailable, please retry",
+                        })),
+                    );
+                }
                 tracing::error!("failed to verify record ownership: {e}");
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -834,15 +863,29 @@ async fn delete_many_records_handler(
             })),
         ),
         Err(e) => {
-            tracing::error!("failed to batch delete records: {e}");
-
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                [(header::CONTENT_TYPE, "application/json")],
-                Json(json!({
-                    "message": "failed to batch delete records",
-                })),
-            )
+            let error_msg = e.to_string();
+            // Check if error is due to throttling/unprocessed items
+            if error_msg.contains("throttling")
+                || error_msg.contains("after retries")
+            {
+                tracing::error!("throttling error during deletion: {e}");
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(json!({
+                        "message": "Service temporarily unavailable, please retry",
+                    })),
+                )
+            } else {
+                tracing::error!("failed to batch delete records: {e}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(json!({
+                        "message": "failed to batch delete records",
+                    })),
+                )
+            }
         }
     }
 }

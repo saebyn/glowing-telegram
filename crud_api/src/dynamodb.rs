@@ -298,13 +298,16 @@ pub async fn get_many(
             retry_count += 1;
         }
 
-        // Log warning if there are still unprocessed keys after all retries
+        // Return error if there are still unprocessed keys after all retries
         if !request_items.is_empty() {
-            tracing::warn!(
+            tracing::error!(
                 "Failed to get some keys after {} retries for {} table(s)",
                 MAX_RETRIES,
                 request_items.len()
             );
+            return Err(Error::from(
+                "Failed to retrieve all records after retries (possible throttling)",
+            ));
         }
     }
 
@@ -597,17 +600,24 @@ pub async fn delete_many(
             retry_count += 1;
         }
 
-        // Log warning if there are still unprocessed items after all retries
+        // Return error if there are still unprocessed items after all retries
         if !requests_to_process.is_empty() {
-            tracing::warn!(
+            tracing::error!(
                 "Failed to delete {} items after {} retries",
                 requests_to_process.len(),
                 MAX_RETRIES
             );
+            return Err(Error::from(
+                "Failed to delete all records after retries (possible throttling)",
+            ));
         }
     }
 
-    Ok(successfully_deleted.into_iter().collect())
+    // Return deleted IDs in sorted order for deterministic responses
+    let mut deleted_ids: Vec<String> =
+        successfully_deleted.into_iter().collect();
+    deleted_ids.sort();
+    Ok(deleted_ids)
 }
 
 fn get_operator(op_name: &str) -> &'static str {
