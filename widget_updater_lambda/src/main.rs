@@ -54,16 +54,41 @@ impl ContextProvider<Config> for AppContext {
         let secrets_manager = SecretsManagerClient::new(&aws_config);
 
         // Read the Twitch client_id once at cold-start from the app secret.
-        let twitch_client_id = secrets_manager
+        let twitch_secret = secrets_manager
             .get_secret_value()
             .secret_id(&config.twitch_secret_arn)
             .send()
             .await
-            .ok()
-            .and_then(|r| r.secret_string)
-            .and_then(|s| serde_json::from_str::<TwitchAppSecret>(&s).ok())
-            .map(|s| s.id)
-            .unwrap_or_default();
+            .unwrap_or_else(|err| {
+                panic!(
+                    "failed to read Twitch app secret from Secrets Manager (secret_id={}): {err}",
+                    config.twitch_secret_arn
+                );
+            });
+
+        let secret_string = twitch_secret.secret_string.unwrap_or_else(|| {
+            panic!(
+                "Twitch app secret is missing secret_string field: secret_id={}",
+                config.twitch_secret_arn
+            );
+        });
+
+        let twitch_app_secret: TwitchAppSecret =
+            serde_json::from_str(&secret_string).unwrap_or_else(|err| {
+                panic!(
+                    "failed to parse Twitch app secret JSON (secret_id={}): {err}",
+                    config.twitch_secret_arn
+                );
+            });
+
+        if twitch_app_secret.id.is_empty() {
+            panic!(
+                "Twitch app secret has empty id field: secret_id={}",
+                config.twitch_secret_arn
+            );
+        }
+
+        let twitch_client_id = twitch_app_secret.id;
 
         Self {
             config,
@@ -215,18 +240,24 @@ fn deserialize_widget(
 
     let state = item.get("state").and_then(|v| deserialize_map(v).ok());
 
+    let user_id = item
+        .get("user_id")
+        .and_then(|v| v.as_s().ok())
+        .cloned()
+        .unwrap_or_default();
+
     Ok(StreamWidget {
         id,
         stream_widget_type,
         active,
         config,
         state,
+        user_id,
         // unused fields, so don't bother deserializing
         access_token: None,
         created_at: None,
         updated_at: None,
         title: "".to_string(),
-        user_id: "".to_string(),
     })
 }
 

@@ -298,7 +298,8 @@ struct EventSubWebhookRequest {
 }
 
 /// Create a single EventSub webhook subscription on Twitch.
-/// Returns the subscription ID on success, or an error string.
+/// Returns `Some(subscription_id)` on successful creation, `None` when the
+/// subscription already exists (HTTP 409), or an error string on failure.
 async fn create_eventsub_subscription(
     client: &reqwest::Client,
     app_access_token: &str,
@@ -308,7 +309,7 @@ async fn create_eventsub_subscription(
     condition: serde_json::Value,
     webhook_url: &str,
     eventsub_secret: &str,
-) -> Result<String, String> {
+) -> Result<Option<String>, String> {
     let request = EventSubSubscriptionRequest {
         event_type: event_type.to_string(),
         version: version.to_string(),
@@ -339,7 +340,7 @@ async fn create_eventsub_subscription(
                 "EventSub subscription for {} already exists (409)",
                 event_type
             );
-            return Ok("already_exists".to_string());
+            return Ok(None);
         }
         tracing::error!(
             "Twitch API error {} for {}: {}",
@@ -360,6 +361,7 @@ async fn create_eventsub_subscription(
         .into_iter()
         .next()
         .map(|s| s.id)
+        .map(Some)
         .ok_or_else(|| "no_data".to_string())
 }
 
@@ -503,7 +505,9 @@ pub async fn subscribe_chat_handler(
             (
                 StatusCode::OK,
                 Json(json!(SubscribeChatResponse {
-                    subscription_id: Some(chat_id),
+                    // Only include a subscription_id when Twitch actually created
+                    // a new subscription (None means it already existed).
+                    subscription_id: chat_id,
                     status: "enabled".to_string(),
                 })),
             )

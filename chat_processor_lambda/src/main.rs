@@ -218,33 +218,53 @@ async fn process_ad_break_begin(
                     .to_rfc3339()
             });
 
-    // Query all active ad_timer widgets for this broadcaster.
-    // The broadcaster_user_id from Twitch is stored in the widget's user_id field.
-    // Note: This uses a Scan with a filter, which is acceptable given the
-    // expected low cardinality of active ad_timer widgets.
-    let scan_result = context
-        .dynamodb
-        .scan()
-        .table_name(&context.config.stream_widgets_table)
-        .filter_expression(
-            "#type = :widget_type AND #active = :active AND #user_id = :broadcaster_id",
-        )
-        .expression_attribute_names("#type", "type")
-        .expression_attribute_names("#active", "active")
-        .expression_attribute_names("#user_id", "user_id")
-        .expression_attribute_values(
-            ":widget_type",
-            AttributeValue::S("ad_timer".to_string()),
-        )
-        .expression_attribute_values(":active", AttributeValue::Bool(true))
-        .expression_attribute_values(
-            ":broadcaster_id",
-            AttributeValue::S(event.broadcaster_user_id.clone()),
-        )
-        .send()
-        .await?;
+    // Query the user_id-index GSI to efficiently find active ad_timer widgets
+    // for this broadcaster, and paginate through all results.
+    let mut items: Vec<HashMap<String, AttributeValue>> = Vec::new();
+    let mut exclusive_start_key: Option<HashMap<String, AttributeValue>> = None;
 
-    let items = scan_result.items.unwrap_or_default();
+    loop {
+        let mut query_builder = context
+            .dynamodb
+            .query()
+            .table_name(&context.config.stream_widgets_table)
+            .index_name("user_id-index")
+            .key_condition_expression("#user_id = :broadcaster_id")
+            .filter_expression("#type = :widget_type AND #active = :active")
+            .expression_attribute_names("#user_id", "user_id")
+            .expression_attribute_names("#type", "type")
+            .expression_attribute_names("#active", "active")
+            .expression_attribute_values(
+                ":broadcaster_id",
+                AttributeValue::S(event.broadcaster_user_id.clone()),
+            )
+            .expression_attribute_values(
+                ":widget_type",
+                AttributeValue::S("ad_timer".to_string()),
+            )
+            .expression_attribute_values(
+                ":active",
+                AttributeValue::Bool(true),
+            );
+
+        if let Some(start_key) = exclusive_start_key.take() {
+            query_builder =
+                query_builder.set_exclusive_start_key(Some(start_key));
+        }
+
+        let query_result = query_builder.send().await?;
+
+        if let Some(mut page_items) = query_result.items {
+            items.append(&mut page_items);
+        }
+
+        match query_result.last_evaluated_key {
+            Some(key) if !key.is_empty() => {
+                exclusive_start_key = Some(key);
+            }
+            _ => break,
+        }
+    }
     info!(
         "Found {} active ad_timer widgets for broadcaster {}",
         items.len(),
@@ -258,38 +278,48 @@ async fn process_ad_break_begin(
             continue;
         };
 
-        // Build the new state as a DynamoDB map.
-        // nextAdAt is cleared (null) since we are now in the break.
+        // Update only the relevant nested fields within the existing state map.
+        // nextAdAt is cleared since we are now in the break.
         // backFromAdsUntil marks when the break ends.
-        let mut new_state: HashMap<String, AttributeValue> = HashMap::new();
-        new_state.insert("nextAdAt".to_string(), AttributeValue::Null(true));
-        if let Some(ref until) = back_from_ads_until {
-            new_state.insert(
-                "backFromAdsUntil".to_string(),
-                AttributeValue::S(until.clone()),
-            );
-        }
-
-        let result = context
+        // This preserves any other state fields (e.g. snoozeCount, snoozedAt).
+        let base_update = context
             .dynamodb
             .update_item()
             .table_name(&context.config.stream_widgets_table)
             .key("id", AttributeValue::S(widget_id.clone()))
-            .update_expression(
-                "SET #state = :new_state, #updated_at = :updated_at",
-            )
             .expression_attribute_names("#state", "state")
+            .expression_attribute_names("#nextAdAt", "nextAdAt")
+            .expression_attribute_names("#backFromAdsUntil", "backFromAdsUntil")
             .expression_attribute_names("#updated_at", "updated_at")
             .expression_attribute_values(
-                ":new_state",
-                AttributeValue::M(new_state),
+                ":next_ad_at",
+                AttributeValue::Null(true),
             )
             .expression_attribute_values(
                 ":updated_at",
                 AttributeValue::S(now.clone()),
+            );
+
+        let update = if let Some(ref until) = back_from_ads_until {
+            base_update
+                .update_expression(
+                    "SET #state.#nextAdAt = :next_ad_at, \
+                     #state.#backFromAdsUntil = :back_from_ads_until, \
+                     #updated_at = :updated_at",
+                )
+                .expression_attribute_values(
+                    ":back_from_ads_until",
+                    AttributeValue::S(until.clone()),
+                )
+        } else {
+            base_update.update_expression(
+                "SET #state.#nextAdAt = :next_ad_at, \
+                 #updated_at = :updated_at \
+                 REMOVE #state.#backFromAdsUntil",
             )
-            .send()
-            .await;
+        };
+
+        let result = update.send().await;
 
         match result {
             Ok(_) => {

@@ -8,6 +8,12 @@ use types::TwitchSessionSecret;
 
 use super::WidgetUpdate;
 
+/// Minimal response from the Twitch OAuth /validate endpoint.
+#[derive(Deserialize)]
+struct TwitchValidateResponse {
+    user_id: String,
+}
+
 /// Configuration stored per widget instance in DynamoDB.
 #[derive(Debug, Deserialize)]
 struct AdTimerConfig {
@@ -156,6 +162,15 @@ fn compute_new_state(
         current_state.back_from_ads_until.clone()
     };
 
+    // Return None if nothing changed to avoid unnecessary DynamoDB writes.
+    if new_next_ad_at == current_state.next_ad_at
+        && ad_data.snooze_count == current_state.snooze_count
+        && new_snoozed_at == current_state.snoozed_at
+        && new_back_from_ads_until == current_state.back_from_ads_until
+    {
+        return None;
+    }
+
     Some(json!({
         "nextAdAt": new_next_ad_at,
         "snoozeCount": ad_data.snooze_count,
@@ -220,20 +235,33 @@ async fn process_widget(
         .as_deref()
         .ok_or("No Twitch access token for user")?;
 
-    // The broadcaster_id is the user_id in the Twitch token validation response.
-    // It is stored in Secrets Manager alongside the access token.  We derive it
-    // by calling the Twitch /validate endpoint — but to avoid an extra round-trip
-    // on every poll we instead read it from the broadcaster_id field in the token
-    // secret. The twitch_lambda stores it implicitly as the Cognito user_id maps
-    // to the Twitch user. For now we pass user_id as the broadcaster ID; callers
-    // that set up the widget must ensure user_id == Twitch broadcaster_id.
-    //
-    // A cleaner future improvement: store broadcaster_id in the widget record.
-    let broadcaster_id = &widget.user_id;
+    // Derive the Twitch broadcaster_id from the access token by calling the
+    // Twitch OAuth /validate endpoint, rather than assuming widget.user_id is
+    // a Twitch user ID (it is a Cognito sub elsewhere in the codebase).
+    let validate_resp = http
+        .get("https://id.twitch.tv/oauth2/validate")
+        .header("Authorization", format!("OAuth {}", access_token))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to validate Twitch token: {e}"))?;
+
+    if !validate_resp.status().is_success() {
+        return Err(format!(
+            "Twitch token validation failed with status {}",
+            validate_resp.status()
+        ));
+    }
+
+    let validate_body: TwitchValidateResponse = validate_resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Twitch validate response: {e}"))?;
+
+    let broadcaster_id = validate_body.user_id;
 
     let ad_data = fetch_ad_schedule(
         http,
-        broadcaster_id,
+        &broadcaster_id,
         access_token,
         twitch_client_id,
     )
@@ -282,4 +310,152 @@ async fn process_widget(
         id: widget.id.clone(),
         state: state_map,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Duration;
+
+    fn make_config(back_from_ads_duration_ms: i64) -> AdTimerConfig {
+        AdTimerConfig {
+            back_from_ads_duration_ms,
+        }
+    }
+
+    fn make_state(
+        next_ad_at: Option<&str>,
+        snooze_count: i64,
+        snoozed_at: Option<&str>,
+        back_from_ads_until: Option<&str>,
+    ) -> AdTimerState {
+        AdTimerState {
+            next_ad_at: next_ad_at.map(String::from),
+            snooze_count,
+            snoozed_at: snoozed_at.map(String::from),
+            back_from_ads_until: back_from_ads_until.map(String::from),
+        }
+    }
+
+    fn make_ad_data(
+        next_ad_at: i64,
+        snooze_count: i64,
+        last_ad_at: i64,
+    ) -> AdScheduleData {
+        AdScheduleData {
+            next_ad_at,
+            snooze_count,
+            last_ad_at,
+        }
+    }
+
+    #[test]
+    fn test_next_ad_at_set_when_nonzero() {
+        let now = Utc::now();
+        let future = now + Duration::minutes(10);
+        let ad_data = make_ad_data(future.timestamp(), 3, 0);
+        let current = make_state(None, 3, None, None);
+        let config = make_config(10_000);
+
+        let result = compute_new_state(now, &ad_data, &current, &config);
+        assert!(result.is_some());
+        let state = result.unwrap();
+        assert!(!state["nextAdAt"].is_null());
+    }
+
+    #[test]
+    fn test_next_ad_at_cleared_when_zero() {
+        let now = Utc::now();
+        let ad_data = make_ad_data(0, 3, 0);
+        // Previously had a non-null nextAdAt
+        let prev_next = (now + Duration::minutes(10)).to_rfc3339();
+        let current = make_state(Some(&prev_next), 3, None, None);
+        let config = make_config(10_000);
+
+        let result = compute_new_state(now, &ad_data, &current, &config);
+        assert!(result.is_some());
+        let state = result.unwrap();
+        assert!(state["nextAdAt"].is_null());
+    }
+
+    #[test]
+    fn test_snooze_detected_when_count_decrements() {
+        let now = Utc::now();
+        let future = (now + Duration::minutes(10)).timestamp();
+        let ad_data = make_ad_data(future, 2, 0); // was 3, now 2
+        let current = make_state(None, 3, None, None);
+        let config = make_config(10_000);
+
+        let result = compute_new_state(now, &ad_data, &current, &config);
+        assert!(result.is_some());
+        let state = result.unwrap();
+        assert!(!state["snoozedAt"].is_null());
+        assert_eq!(state["snoozeCount"], 2);
+    }
+
+    #[test]
+    fn test_snooze_not_detected_when_count_unchanged() {
+        let now = Utc::now();
+        let future = (now + Duration::minutes(10)).timestamp();
+        let ad_data = make_ad_data(future, 3, 0);
+        let current = make_state(None, 3, None, None);
+        let config = make_config(10_000);
+
+        let result = compute_new_state(now, &ad_data, &current, &config);
+        // next_ad_at changed (None -> Some), so it's not None
+        let state = result.unwrap();
+        assert!(state["snoozedAt"].is_null());
+    }
+
+    #[test]
+    fn test_back_from_ads_until_set_after_break() {
+        let now = Utc::now();
+        // Ad was scheduled in the past (we were in a break)
+        let past_next_ad = (now - Duration::minutes(1)).to_rfc3339();
+        // New next ad is in the future (break is over)
+        let new_next_ad = (now + Duration::minutes(30)).timestamp();
+        let ad_data = make_ad_data(new_next_ad, 3, now.timestamp());
+        let current = make_state(Some(&past_next_ad), 3, None, None);
+        let config = make_config(10_000);
+
+        let result = compute_new_state(now, &ad_data, &current, &config);
+        assert!(result.is_some());
+        let state = result.unwrap();
+        assert!(!state["backFromAdsUntil"].is_null());
+    }
+
+    #[test]
+    fn test_back_from_ads_until_not_set_when_not_in_break() {
+        let now = Utc::now();
+        // nextAdAt is in the future (not in an ad break)
+        let future_next_ad = (now + Duration::minutes(5)).to_rfc3339();
+        let new_next_ad = (now + Duration::minutes(30)).timestamp();
+        let ad_data = make_ad_data(new_next_ad, 3, 0);
+        let current = make_state(Some(&future_next_ad), 3, None, None);
+        let config = make_config(10_000);
+
+        let result = compute_new_state(now, &ad_data, &current, &config);
+        // The state changed (nextAdAt moved forward), so Some is returned
+        let state = result.unwrap();
+        assert!(state["backFromAdsUntil"].is_null());
+    }
+
+    #[test]
+    fn test_no_update_when_state_unchanged() {
+        // Use a fixed past time so there's no sub-second rounding issue.
+        let now = DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+        // Build next_ad_at from an integer timestamp so the round-trip is lossless.
+        let next_ad_ts = now.timestamp() + 600; // 10 minutes from now
+        let next_ad_rfc3339 = DateTime::from_timestamp(next_ad_ts, 0)
+            .unwrap()
+            .to_rfc3339();
+        let ad_data = make_ad_data(next_ad_ts, 3, 0);
+        let current = make_state(Some(&next_ad_rfc3339), 3, None, None);
+        let config = make_config(10_000);
+
+        // Nothing has changed: the timestamp round-trips exactly, snooze count is
+        // the same, and no ad break is in progress. Should return None.
+        let result = compute_new_state(now, &ad_data, &current, &config);
+        assert!(result.is_none(), "expected None when state is unchanged");
+    }
 }
