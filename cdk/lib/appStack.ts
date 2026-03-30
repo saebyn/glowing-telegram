@@ -172,14 +172,9 @@ export default class AppStack extends cdk.Stack {
       tagOrDigest,
     });
 
-    // Widget updater for scheduled background updates (e.g., countdown timers)
-    new WidgetUpdaterConstruct(this, 'WidgetUpdater', {
-      streamWidgetsTable: dataStore.streamWidgetsTable,
-      tagOrDigest,
-    });
-
     const twitchChatProcessing = new TwitchChatProcessingConstruct(this, 'TwitchChatProcessing', {
       chatMessagesTable: dataStore.chatMessagesTable,
+      streamWidgetsTable: dataStore.streamWidgetsTable,
       tagOrDigest,
     });
 
@@ -213,6 +208,14 @@ export default class AppStack extends cdk.Stack {
       videoArchiveBucket: dataStore.videoArchive,
 
       domainName,
+      tagOrDigest,
+    });
+
+    // Widget updater for scheduled background updates (e.g., countdown timers, ad_timer)
+    new WidgetUpdaterConstruct(this, 'WidgetUpdater', {
+      streamWidgetsTable: dataStore.streamWidgetsTable,
+      twitchAppSecret: api.twitchAppSecret,
+      twitchUserSecretBasePath: TWITCH_USER_SECRET_BASE_PATH,
       tagOrDigest,
     });
 
