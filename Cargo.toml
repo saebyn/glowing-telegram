@@ -60,7 +60,7 @@ openai_dive = "1.4.2"
 reqwest = { version = "0.13.2", features = ["json", "form", "query"] }
 redact = { version = "0.1.11", features = ["serde"] }
 chrono = { version = "0.4.44", features = ["serde"] }
-uuid = { version = "1.22", features = ["v7", "fast-rng"] }
+uuid = { version = "1.23", features = ["v7", "fast-rng"] }
 
 [profile.release]
 strip = true
