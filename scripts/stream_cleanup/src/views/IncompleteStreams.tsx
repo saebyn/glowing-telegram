@@ -1,13 +1,14 @@
 import { Box, Text, useInput } from 'ink';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Spinner } from '../components/Spinner.js';
 import { StreamTable } from '../components/StreamTable.js';
 import type { ScanProgress } from '../services/types.js';
-import type { ReconcileResult } from '../utils/reconcile.js';
+import { type ReconcileResult, getStreamDateKey } from '../utils/reconcile.js';
 
 interface IncompleteStreamsProps {
   reconcileResult: ReconcileResult;
   streamsScan: ScanProgress;
+  queuedStreamIds: Set<string>;
   onSelectStream: (streamId: string) => void;
   onBack: () => void;
 }
@@ -15,10 +16,21 @@ interface IncompleteStreamsProps {
 export function IncompleteStreams({
   reconcileResult,
   streamsScan,
+  queuedStreamIds,
   onSelectStream,
   onBack,
 }: IncompleteStreamsProps) {
   const { incompleteStreams } = reconcileResult;
+  const sortedIncompleteStreams = useMemo(
+    () =>
+      [...incompleteStreams].sort((left, right) => {
+        const leftDate = getStreamDateKey(left.stream) ?? '9999-99-99';
+        const rightDate = getStreamDateKey(right.stream) ?? '9999-99-99';
+        if (leftDate !== rightDate) return leftDate.localeCompare(rightDate);
+        return left.stream.id.localeCompare(right.stream.id);
+      }),
+    [incompleteStreams],
+  );
   const [selectedIndex, setSelectedIndex] = useState(0);
   const scanning = streamsScan.status === 'scanning';
 
@@ -32,12 +44,16 @@ export function IncompleteStreams({
       return;
     }
     if (key.downArrow) {
-      setSelectedIndex((i) => Math.min(incompleteStreams.length - 1, i + 1));
+      setSelectedIndex((i) =>
+        Math.min(sortedIncompleteStreams.length - 1, i + 1),
+      );
       return;
     }
-    if (key.return && incompleteStreams.length > 0) {
-      const item = incompleteStreams[selectedIndex];
-      if (item) onSelectStream(item.stream.id);
+    if (key.return && sortedIncompleteStreams.length > 0) {
+      const item = sortedIncompleteStreams[selectedIndex];
+      if (item && !queuedStreamIds.has(item.stream.id)) {
+        onSelectStream(item.stream.id);
+      }
     }
   });
 
@@ -49,9 +65,9 @@ export function IncompleteStreams({
           Incomplete Streams
         </Text>
         {scanning ? (
-          <Spinner label={`${incompleteStreams.length}+ found so far`} />
+          <Spinner label={`${sortedIncompleteStreams.length}+ found so far`} />
         ) : (
-          <Text color="green">{incompleteStreams.length} total</Text>
+          <Text color="green">{sortedIncompleteStreams.length} total</Text>
         )}
       </Box>
 
@@ -66,19 +82,22 @@ export function IncompleteStreams({
         </Box>
       )}
 
-      {incompleteStreams.length === 0 && !scanning ? (
+      {sortedIncompleteStreams.length === 0 && !scanning ? (
         <Text color="green">✓ No incomplete streams found.</Text>
-      ) : incompleteStreams.length === 0 ? (
+      ) : sortedIncompleteStreams.length === 0 ? (
         <Text dimColor>No incomplete streams found yet…</Text>
       ) : (
         <StreamTable
-          streams={incompleteStreams}
+          streams={sortedIncompleteStreams}
           selectedIndex={selectedIndex}
+          queuedStreamIds={queuedStreamIds}
         />
       )}
 
       <Box marginTop={1}>
-        <Text dimColor>[↑/↓] navigate [Enter] edit stream [Esc] back</Text>
+        <Text dimColor>
+          [↑/↓] navigate [Enter] edit unqueued stream [Esc] back
+        </Text>
       </Box>
     </Box>
   );

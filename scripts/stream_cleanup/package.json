@@ -15,19 +15,19 @@
     "@aws-sdk/client-dynamodb": "^3.600.0",
     "@aws-sdk/lib-dynamodb": "^3.600.0",
     "@aws-sdk/client-s3": "^3.600.0",
-    "ink": "^5.1.0",
+    "ink": "^5.0.0",
     "ink-select-input": "^6.0.0",
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
-    "meow": "^13.0.0",
+    "meow": "^14.0.0",
     "react": "^18.3.0",
     "fuse.js": "^7.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.0",
+    "@biomejs/biome": "^1",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.5.0"
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
   }
 }

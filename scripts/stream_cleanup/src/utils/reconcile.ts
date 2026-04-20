@@ -2,10 +2,9 @@ import type { S3VideoObject, Stream } from '../services/types.js';
 
 // Fields that must be present on a Stream for it to be considered complete.
 export const REQUIRED_FIELDS: (keyof Stream)[] = [
-  'series_id',
   'stream_date',
   'title',
-  'stream_platform',
+  'prefix'
 ];
 
 export interface ReconcileResult {
@@ -21,23 +20,20 @@ export interface ReconcileResult {
    * Only populated once the S3 scan is complete.
    */
   orphanedStreams: Array<Stream>;
-  /**
-   * Streams whose video_clip_count doesn't match the actual S3 file count.
-   * Only populated once both scans are complete.
-   */
-  countMismatches: Array<{ stream: Stream; actualCount: number }>;
-  /**
-   * True once both scans are complete and all cross-referencing results are
-   * reliable. While false, orphanedS3Dates / orphanedStreams / countMismatches
-   * are empty or partial.
-   */
-  isFullyDefinitive: boolean;
 }
 
 /** Extract the YYYY-MM-DD date key used to cross-reference against S3. */
 export function getStreamDateKey(stream: Stream): string | undefined {
-  if (stream.stream_date) return stream.stream_date;
-  if (stream.prefix) return stream.prefix.replace(/\/$/, '');
+  // Prefer the prefix as the canonical key — use it exactly as stored.
+  if (stream.prefix) return stream.prefix;
+
+  // Fall back to stream_date, converting to US/Pacific to get the local date.
+  if (stream.stream_date) {
+    return new Date(stream.stream_date).toLocaleDateString('en-CA', {
+      timeZone: 'America/Los_Angeles',
+    });
+  }
+
   return undefined;
 }
 
@@ -93,28 +89,9 @@ export function reconcile(
       })
     : [];
 
-  // --- Count mismatches ---
-  // Reliable only when both scans are done.
-  const countMismatches: ReconcileResult['countMismatches'] =
-    streamsComplete && s3Complete
-      ? streams.reduce<ReconcileResult['countMismatches']>((acc, stream) => {
-          if (stream.video_clip_count === undefined) return acc;
-          const date = getStreamDateKey(stream);
-          if (!date) return acc;
-          const actual = s3ObjectsByDate.get(date);
-          if (actual === undefined) return acc;
-          if (actual.length !== stream.video_clip_count) {
-            acc.push({ stream, actualCount: actual.length });
-          }
-          return acc;
-        }, [])
-      : [];
-
   return {
     incompleteStreams,
     orphanedS3Dates,
     orphanedStreams,
-    countMismatches,
-    isFullyDefinitive: streamsComplete && s3Complete,
   };
 }

@@ -5,6 +5,7 @@ import type { Stream } from '../services/types.js';
 interface StreamTableProps {
   streams: Array<{ stream: Stream; missingFields: string[] }>;
   selectedIndex: number;
+  queuedStreamIds?: Set<string>;
   /** Maximum number of rows to render (used to implement scrolling). */
   maxRows?: number;
 }
@@ -18,6 +19,7 @@ function trunc(s: string | undefined, max: number): string {
 export function StreamTable({
   streams,
   selectedIndex,
+  queuedStreamIds,
   maxRows = 20,
 }: StreamTableProps) {
   // Compute visible window for scrolling.
@@ -40,12 +42,14 @@ export function StreamTable({
           {'Title                    '}
         </Text>
         <Text bold color="cyan">
-          {'Missing fields'}
+          {'Missing fields      Status'}
         </Text>
       </Box>
       <Box>
         <Text dimColor>
-          {'  ──────────  ─────────────────────────  ──────────────────'}
+          {
+            '  ──────────  ─────────────────────────  ──────────────────  ──────'
+          }
         </Text>
       </Box>
 
@@ -56,6 +60,7 @@ export function StreamTable({
           item.stream.stream_date ??
           item.stream.prefix?.replace(/\/$/, '') ??
           '???';
+        const isQueued = queuedStreamIds?.has(item.stream.id) ?? false;
         return (
           <Box key={item.stream.id}>
             <Text color={isSelected ? 'cyan' : undefined}>
@@ -68,6 +73,7 @@ export function StreamTable({
               {`${trunc(item.stream.title, 25).padEnd(27)}`}
             </Text>
             <Text color="yellow">{item.missingFields.join(', ')}</Text>
+            {isQueued && <Text color="green"> queued</Text>}
           </Box>
         );
       })}

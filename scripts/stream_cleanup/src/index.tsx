@@ -15,7 +15,7 @@ const cli = meow(
     --bucket <name>         S3 bucket (default: ${DEFAULT_CONFIG.bucket})
     --streams-table <name>  DynamoDB streams table (default: ${DEFAULT_CONFIG.streamsTable})
     --metadata-table <name> DynamoDB video metadata table (default: ${DEFAULT_CONFIG.metadataTable})
-    --series-table <name>   DynamoDB series table (enables series picker)
+    --series-table <name>   DynamoDB series table (default: ${DEFAULT_CONFIG.seriesTable})
     --prefix <prefix>       Only scan S3 objects with this prefix
     --region <region>       AWS region (default: from environment/config)
 
@@ -31,7 +31,7 @@ const cli = meow(
       bucket: { type: 'string', default: DEFAULT_CONFIG.bucket },
       streamsTable: { type: 'string', default: DEFAULT_CONFIG.streamsTable },
       metadataTable: { type: 'string', default: DEFAULT_CONFIG.metadataTable },
-      seriesTable: { type: 'string' },
+      seriesTable: { type: 'string', default: DEFAULT_CONFIG.seriesTable },
       prefix: { type: 'string' },
       region: { type: 'string' },
     },
