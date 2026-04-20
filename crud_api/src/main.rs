@@ -129,7 +129,10 @@ async fn main() {
             "/records/{resource}/{related_field}/{id}",
             get(get_many_related_records_handler),
         )
-        .route("/records/{resource}/many", get(get_many_records_handler))
+        .route(
+            "/records/{resource}/many",
+            get(get_many_records_handler).delete(delete_many_records_handler),
+        )
         .fallback(|| async {
             (
                 StatusCode::NOT_FOUND,
@@ -719,8 +722,176 @@ async fn get_many_records_handler(
     }
 }
 
-async fn get_many_related_records_handler(
+async fn delete_many_records_handler(
     OptionalCognitoUserId(user_id): OptionalCognitoUserId,
+    Path(RequestPath { resource }): Path<RequestPath>,
+    State(state): State<AppContext>,
+    Query(query_params): Query<ManyQuery>,
+) -> impl IntoResponse {
+    let table_config = get_table_config(&state, &resource);
+
+    let ids = query_params
+        .id
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+
+    // Check for duplicate IDs and return 400 if found
+    let unique_ids: std::collections::HashSet<&str> =
+        ids.iter().copied().collect();
+    if unique_ids.len() != ids.len() {
+        return (
+            StatusCode::BAD_REQUEST,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({
+                "message": "Duplicate IDs provided. Each ID should be unique.",
+            })),
+        );
+    }
+
+    // Enforce a maximum of 100 IDs per request to align with DynamoDB batch limits
+    if ids.len() > 100 {
+        return (
+            StatusCode::BAD_REQUEST,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({
+                "message": "Too many IDs provided. Maximum of 100 IDs per request.",
+            })),
+        );
+    }
+
+    // If user_scoped, verify ownership of all items before deleting
+    if table_config.user_scoped {
+        match dynamodb::get_many(&state.dynamodb, &table_config, &ids).await {
+            Ok(items) => {
+                if let Some(user) = &user_id {
+                    // Verify all requested IDs exist and belong to the user
+                    if items.len() != ids.len() {
+                        return (
+                            StatusCode::NOT_FOUND,
+                            [(header::CONTENT_TYPE, "application/json")],
+                            Json(json!({
+                                "message": "one or more records not found",
+                            })),
+                        );
+                    }
+
+                    // Create a set of returned item IDs for efficient lookup
+                    let returned_ids: std::collections::HashSet<String> =
+                        items
+                            .iter()
+                            .filter_map(|item| {
+                                item.get(table_config.partition_key)
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string())
+                            })
+                            .collect();
+
+                    // Verify all requested IDs are in the returned set
+                    for id in &ids {
+                        if !returned_ids.contains(*id) {
+                            return (
+                                StatusCode::NOT_FOUND,
+                                [(header::CONTENT_TYPE, "application/json")],
+                                Json(json!({
+                                    "message": "one or more records not found",
+                                })),
+                            );
+                        }
+                    }
+
+                    // Check if all items belong to the user
+                    for item in &items {
+                        if item.get("user_id").and_then(|v| v.as_str())
+                            != Some(user)
+                        {
+                            return (
+                                StatusCode::FORBIDDEN,
+                                [(header::CONTENT_TYPE, "application/json")],
+                                Json(json!({
+                                    "message": "Forbidden",
+                                })),
+                            );
+                        }
+                    }
+                } else {
+                    return (
+                        StatusCode::UNAUTHORIZED,
+                        [(header::CONTENT_TYPE, "application/json")],
+                        Json(json!({
+                            "message": "Unauthorized",
+                        })),
+                    );
+                }
+            }
+            Err(e) => {
+                let error_msg = e.to_string();
+                // Check if error is due to throttling/unprocessed keys
+                if error_msg.contains("throttling")
+                    || error_msg.contains("after retries")
+                {
+                    tracing::error!(
+                        "throttling error during verification: {e}"
+                    );
+                    return (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        [(header::CONTENT_TYPE, "application/json")],
+                        Json(json!({
+                            "message": "Service temporarily unavailable, please retry",
+                        })),
+                    );
+                }
+                tracing::error!("failed to verify record ownership: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(json!({
+                        "message": "failed to verify record ownership",
+                    })),
+                );
+            }
+        }
+    }
+
+    match dynamodb::delete_many(&state.dynamodb, &table_config, &ids).await {
+        Ok(deleted_ids) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(json!({
+                "deleted": deleted_ids,
+                "count": deleted_ids.len(),
+            })),
+        ),
+        Err(e) => {
+            let error_msg = e.to_string();
+            // Check if error is due to throttling/unprocessed items
+            if error_msg.contains("throttling")
+                || error_msg.contains("after retries")
+            {
+                tracing::error!("throttling error during deletion: {e}");
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(json!({
+                        "message": "Service temporarily unavailable, please retry",
+                    })),
+                )
+            } else {
+                tracing::error!("failed to batch delete records: {e}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Json(json!({
+                        "message": "failed to batch delete records",
+                    })),
+                )
+            }
+        }
+    }
+}
+
+async fn get_many_related_records_handler(
+    OptionalCognitoUserId(_user_id): OptionalCognitoUserId,
     Path(RequestPathWithRelatedField {
         resource,
         related_field,
