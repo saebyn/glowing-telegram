@@ -9,6 +9,7 @@ interface OrphanedFilesProps {
   streamsScan: ScanProgress;
   s3Scan: ScanProgress;
   bothScansComplete: boolean;
+  queuedCreateDates: Set<string>;
   onCreateStream: (date: string, files: S3VideoObject[]) => void;
   onBack: () => void;
 }
@@ -18,6 +19,7 @@ export function OrphanedFiles({
   streamsScan,
   s3Scan,
   bothScansComplete,
+  queuedCreateDates,
   onCreateStream,
   onBack,
 }: OrphanedFilesProps) {
@@ -40,9 +42,11 @@ export function OrphanedFiles({
       setSelectedIndex((i) => Math.min(orphanedS3Dates.length - 1, i + 1));
       return;
     }
-    if (key.return && orphanedS3Dates.length > 0) {
+    if (key.return && bothScansComplete && orphanedS3Dates.length > 0) {
       const item = orphanedS3Dates[selectedIndex];
-      if (item) onCreateStream(item.date, item.files);
+      if (item && !queuedCreateDates.has(item.date)) {
+        onCreateStream(item.date, item.files);
+      }
     }
   });
 
@@ -83,6 +87,9 @@ export function OrphanedFiles({
                 {item.date.padEnd(14)}
               </Text>
               <Text dimColor>{item.files.length} file(s)</Text>
+              {queuedCreateDates.has(item.date) && (
+                <Text color="green"> queued</Text>
+              )}
             </Box>
           ))}
         </Box>
@@ -100,7 +107,7 @@ export function OrphanedFiles({
       <Box marginTop={1}>
         <Text dimColor>
           {bothScansComplete
-            ? '[↑/↓] navigate  [Enter] create stream record  [Esc] back'
+            ? '[↑/↓] navigate  [Enter] queue stream creation  [Esc] back'
             : '[↑/↓] navigate  [Esc] back  (Enter disabled until scan complete)'}
         </Text>
       </Box>

@@ -43,8 +43,6 @@ export function Dashboard({
     incompleteStreams,
     orphanedS3Dates,
     orphanedStreams,
-    countMismatches,
-    isFullyDefinitive,
   } = reconcileResult;
 
   const streamsScanning = streamsScan.status === 'scanning';
@@ -69,12 +67,6 @@ export function Dashboard({
           ? 'Orphaned Streams   (waiting for S3 scan…)'
           : `Orphaned Streams   (${orphanedStreams.length})`,
       value: 'orphaned-streams',
-    },
-    {
-      label: !isFullyDefinitive
-        ? 'Count Mismatches   (waiting for both scans…)'
-        : `Count Mismatches   (${countMismatches.length})`,
-      value: 'count-mismatches',
     },
     {
       label: `Pending Changes    (${pendingChanges.length})`,

@@ -17,6 +17,7 @@ import { Dashboard } from './views/Dashboard.js';
 import { DryRunSummary } from './views/DryRunSummary.js';
 import { IncompleteStreams } from './views/IncompleteStreams.js';
 import { OrphanedFiles } from './views/OrphanedFiles.js';
+import { OrphanedStreams } from './views/OrphanedStreams.js';
 import { StreamDetail } from './views/StreamDetail.js';
 
 type View =
@@ -25,10 +26,105 @@ type View =
   | 'orphaned-files'
   | 'orphaned-streams'
   | 'stream-detail'
+  | 'count-mismatches'
   | 'dry-run-summary';
 
 interface AppProps {
   config: Config;
+}
+
+const S3_LOCAL_TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2}) (\d{2})-(\d{2})-(\d{2})\.[^/]+$/;
+
+function parseShortOffsetToMinutes(offsetText: string): number | undefined {
+  const match = offsetText.match(/^GMT([+-])(\d{1,2})(?::(\d{2}))?$/);
+  if (!match) return undefined;
+
+  const sign = match[1] === '+' ? 1 : -1;
+  const hours = Number.parseInt(match[2], 10);
+  const minutes = Number.parseInt(match[3] ?? '0', 10);
+  return sign * (hours * 60 + minutes);
+}
+
+function getTimeZoneOffsetMinutes(
+  date: Date,
+  timeZone: string,
+): number | undefined {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    timeZoneName: 'shortOffset',
+  });
+
+  const offsetPart = formatter
+    .formatToParts(date)
+    .find((part) => part.type === 'timeZoneName')?.value;
+
+  if (!offsetPart) return undefined;
+  return parseShortOffsetToMinutes(offsetPart);
+}
+
+function pacificLocalToUtcIso(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+): string | undefined {
+  const timeZone = 'America/Los_Angeles';
+  const naiveUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+
+  const firstOffset = getTimeZoneOffsetMinutes(new Date(naiveUtcMs), timeZone);
+  if (firstOffset === undefined) return undefined;
+
+  let utcMs = naiveUtcMs - firstOffset * 60_000;
+  const secondOffset = getTimeZoneOffsetMinutes(new Date(utcMs), timeZone);
+  if (secondOffset !== undefined && secondOffset !== firstOffset) {
+    utcMs = naiveUtcMs - secondOffset * 60_000;
+  }
+
+  return new Date(utcMs).toISOString();
+}
+
+function deriveStreamDateFromFirstS3File(
+  files: S3VideoObject[],
+  fallbackDate: string,
+): string {
+  const firstKey = files[0]?.key;
+  const firstFilename = files[0]?.filename;
+  const match = firstFilename?.match(S3_LOCAL_TIMESTAMP_PATTERN);
+
+  if (match) {
+    const iso = pacificLocalToUtcIso(
+      Number.parseInt(match[1], 10),
+      Number.parseInt(match[2], 10),
+      Number.parseInt(match[3], 10),
+      Number.parseInt(match[4], 10),
+      Number.parseInt(match[5], 10),
+      Number.parseInt(match[6], 10),
+    );
+    if (iso) return iso;
+  }
+
+  // Fallback: midnight US/Pacific for the prefix date.
+  const fallbackMatch = fallbackDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (fallbackMatch) {
+    const iso = pacificLocalToUtcIso(
+      Number.parseInt(fallbackMatch[1], 10),
+      Number.parseInt(fallbackMatch[2], 10),
+      Number.parseInt(fallbackMatch[3], 10),
+      0,
+      0,
+      0,
+    );
+    if (iso) return iso;
+  }
+
+  console.warn(
+    '[stream-cleanup] Failed to parse Pacific timestamp from first S3 key; falling back to date string:',
+    firstKey ?? '(missing key)',
+  );
+  return fallbackDate;
 }
 
 export function App({ config }: AppProps) {
@@ -85,6 +181,22 @@ export function App({ config }: AppProps) {
     setPendingChanges((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
+  const queuedCreateDates = pendingChanges.reduce<Set<string>>(
+    (acc, change) => {
+      if (change.type === 'create_stream') acc.add(change.date);
+      return acc;
+    },
+    new Set<string>(),
+  );
+
+  const queuedIncompleteStreamIds = pendingChanges.reduce<Set<string>>(
+    (acc, change) => {
+      if (change.type === 'update_stream') acc.add(change.streamId);
+      return acc;
+    },
+    new Set<string>(),
+  );
+
   // ---------- Create stream from orphaned S3 date ----------
 
   const handleCreateStream = useCallback(
@@ -93,11 +205,11 @@ export function App({ config }: AppProps) {
         type: 'create_stream',
         description: `Create stream record for ${date} (${files.length} file(s))`,
         date,
+        stream_date: deriveStreamDateFromFirstS3File(files, date),
         files,
       });
-      goBack();
     },
-    [addPendingChange, goBack],
+    [addPendingChange],
   );
 
   // ---------- Apply all pending changes ----------
@@ -108,6 +220,7 @@ export function App({ config }: AppProps) {
       for (const change of pendingChanges) {
         if (config.dryRun) {
           // In dry-run mode just log; no real writes.
+          console.log('[Dry-run] Would apply change:', change);
           continue;
         }
 
@@ -122,8 +235,8 @@ export function App({ config }: AppProps) {
           const newStream: Stream = {
             id: randomUUID(),
             title: `Stream ${change.date}`,
-            stream_date: change.date,
-            prefix: `${change.date}/`,
+            stream_date: change.stream_date,
+            prefix: `${change.date}`,
             stream_platform: 'twitch',
             video_clip_count: change.files.length,
             created_at: now,
@@ -193,8 +306,8 @@ export function App({ config }: AppProps) {
             const mapping: Record<string, View> = {
               'incomplete-streams': 'incomplete-streams',
               'orphaned-files': 'orphaned-files',
-              'orphaned-streams': 'orphaned-files', // reuse same view
-              'count-mismatches': 'orphaned-files', // TODO: dedicated view
+              'orphaned-streams': 'orphaned-streams',
+              'count-mismatches': 'count-mismatches',
               'dry-run-summary': 'dry-run-summary',
             };
             goTo(mapping[v] ?? 'dashboard');
@@ -206,6 +319,7 @@ export function App({ config }: AppProps) {
         <IncompleteStreams
           reconcileResult={reconcileResult}
           streamsScan={streamsScan}
+          queuedStreamIds={queuedIncompleteStreamIds}
           onSelectStream={(id) => {
             setSelectedStreamId(id);
             goTo('stream-detail');
@@ -220,7 +334,16 @@ export function App({ config }: AppProps) {
           streamsScan={streamsScan}
           s3Scan={s3Scan}
           bothScansComplete={bothScansComplete}
+          queuedCreateDates={queuedCreateDates}
           onCreateStream={handleCreateStream}
+          onBack={goBack}
+        />
+      )}
+
+      {view === 'orphaned-streams' && (
+        <OrphanedStreams
+          reconcileResult={reconcileResult}
+          s3Scan={s3Scan}
           onBack={goBack}
         />
       )}

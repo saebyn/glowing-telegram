@@ -76,6 +76,7 @@ export interface CreateStreamChange {
   type: 'create_stream';
   description: string;
   date: string;
+  stream_date?: string;
   files: S3VideoObject[];
   createdWithScansComplete: boolean;
 }

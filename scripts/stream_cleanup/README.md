@@ -48,15 +48,15 @@ npm start -- --region us-east-1
 
 All CLI options:
 
-| Flag | Default | Description |
-|---|---|---|
-| `--dry-run` | false | Show changes without writing to DynamoDB |
-| `--bucket` | `saebyn-video-archive` | S3 bucket to scan |
-| `--streams-table` | `streams-963700c` | DynamoDB streams table |
-| `--metadata-table` | `metadata-table-aa16405` | DynamoDB video metadata table |
-| `--series-table` | *(none)* | DynamoDB series table (enables fuzzy series picker) |
-| `--prefix` | *(none)* | Scan only S3 objects with this key prefix |
-| `--region` | *(from env)* | AWS region override |
+| Flag               | Default                  | Description                                         |
+| ------------------ | ------------------------ | --------------------------------------------------- |
+| `--dry-run`        | false                    | Show changes without writing to DynamoDB            |
+| `--bucket`         | `saebyn-video-archive`   | S3 bucket to scan                                   |
+| `--streams-table`  | `streams-963700c`        | DynamoDB streams table                              |
+| `--metadata-table` | `metadata-table-aa16405` | DynamoDB video metadata table                       |
+| `--series-table`   | *(none)*                 | DynamoDB series table (enables fuzzy series picker) |
+| `--prefix`         | *(none)*                 | Scan only S3 objects with this key prefix           |
+| `--region`         | *(from env)*             | AWS region override                                 |
 
 ## UI Flow
 
@@ -77,7 +77,6 @@ On launch both scans start immediately in parallel. The dashboard shows live pro
 ❯ Incomplete Streams (12+)
   Orphaned S3 Files  (waiting for DynamoDB scan…)
   Orphaned Streams   (waiting for S3 scan…)
-  Count Mismatches   (waiting for both scans…)
   Pending Changes    (0)
   Exit
 ```
