@@ -153,11 +153,16 @@ pub async fn query(
     table_config: &DynamoDbTableConfig<'_>,
     indexed_field: &str,
     value: serde_json::Value,
+    cursor: Option<String>,
 ) -> Result<ListResult, Error> {
+    let mut last_key =
+        cursor.map(|c| crate::utils::deserialize_cursor(&c));
+
     let query = client
         .query()
         .table_name(table_config.table)
         .index_name(format!("{indexed_field}-index"))
+        .set_exclusive_start_key(last_key.clone())
         .expression_attribute_names("#k", indexed_field)
         .expression_attribute_values(
             ":v",
@@ -186,8 +191,16 @@ pub async fn query(
         .map(|item| convert_hm_to_json(item.clone()))
         .collect::<Vec<serde_json::Value>>();
 
+    if let Some(k) = query_output.last_evaluated_key {
+        last_key = Some(k);
+    } else {
+        // No more items to query
+        tracing::info!("No more items to query");
+        last_key = None;
+    }
+
     Ok(ListResult {
-        cursor: None,
+        cursor: last_key.map(|k| crate::utils::serialize_cursor(&k)),
         items,
     })
 }

@@ -83,6 +83,11 @@ struct ManyQuery {
     id: Vec<String>,
 }
 
+#[derive(Deserialize)]
+struct ManyRelatedQuery {
+    cursor: Option<String>,
+}
+
 #[tokio::main]
 async fn main() {
     // Initialize the application context
@@ -727,6 +732,7 @@ async fn get_many_related_records_handler(
         id,
     }): Path<RequestPathWithRelatedField>,
     State(state): State<AppContext>,
+    Query(query_params): Query<ManyRelatedQuery>,
 ) -> impl IntoResponse {
     let table_config = get_table_config(&state, &resource);
 
@@ -757,6 +763,7 @@ async fn get_many_related_records_handler(
         &table_config,
         related_field.as_str(),
         json!(id),
+        query_params.cursor.clone(),
     )
     .await
     {
