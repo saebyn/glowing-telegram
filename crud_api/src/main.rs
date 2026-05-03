@@ -758,12 +758,17 @@ async fn get_many_related_records_handler(
         );
     }
 
+    let cursor = match query_params.cursor.as_deref() {
+        Some("null") | Some("") | None => None,
+        Some(c) => Some(c.to_string()),
+    };
+
     match dynamodb::query(
         &state.dynamodb,
         &table_config,
         related_field.as_str(),
         json!(id),
-        query_params.cursor.clone(),
+        cursor,
     )
     .await
     {
