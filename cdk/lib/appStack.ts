@@ -46,6 +46,7 @@ export default class AppStack extends cdk.Stack {
 
     const vpc = new ec2.Vpc(this, 'Vpc', {
       natGateways: 0,
+      maxAzs: 2,
       subnetConfiguration: [
         {
           cidrMask: 24,
