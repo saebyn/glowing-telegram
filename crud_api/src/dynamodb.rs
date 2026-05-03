@@ -194,8 +194,8 @@ pub async fn query(
     if let Some(k) = query_output.last_evaluated_key {
         last_key = Some(k);
     } else {
-        // No more items to scan
-        tracing::info!("No more items to scan");
+        // No more items to query
+        tracing::info!("No more items to query");
         last_key = None;
     }
 
