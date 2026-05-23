@@ -58,7 +58,10 @@ pub async fn extract(
 
     tracing::trace!("ffmpeg ametadata output: {}", stdout);
 
-    let peaks = parse_peaks(&stdout);
+    let peaks: Vec<f64> = parse_peaks(&stdout)
+        .into_iter()
+        .map(db_to_amplitude)
+        .collect();
 
     let duration = peaks.len() as f64;
 
@@ -69,6 +72,14 @@ pub async fn extract(
     );
 
     Ok(AudioPeaks { peaks, duration })
+}
+
+/// Convert a dBFS value to a linear amplitude in [0.0, 1.0].
+///
+/// Formula: `amplitude = 10^(db / 20)`, clamped to [0.0, 1.0].
+/// Silence (e.g. −84 dB or lower) maps to ~0.0; 0 dBFS maps to 1.0.
+fn db_to_amplitude(db: f64) -> f64 {
+    (10_f64.powf(db / 20.0)).clamp(0.0, 1.0)
 }
 
 /// Parse `lavfi.astats.1.Peak_level=<value>` lines from ametadata stdout output.
@@ -86,7 +97,7 @@ fn parse_peaks(stdout: &str) -> Vec<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_peaks;
+    use super::{db_to_amplitude, parse_peaks};
 
     #[test]
     fn test_parse_peaks_basic() {
@@ -108,5 +119,32 @@ lavfi.astats.1.Peak_level=0.000000\n";
     fn test_parse_peaks_empty() {
         let peaks = parse_peaks("no matching lines here\n");
         assert!(peaks.is_empty());
+    }
+
+    #[test]
+    fn test_db_to_amplitude_zero_dbfs() {
+        // 0 dBFS = full scale = 1.0
+        assert!((db_to_amplitude(0.0) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_db_to_amplitude_silence() {
+        // -84 dBFS ≈ 0.00006, effectively silence
+        let a = db_to_amplitude(-84.0);
+        assert!(a < 0.001);
+        assert!(a >= 0.0);
+    }
+
+    #[test]
+    fn test_db_to_amplitude_minus_6() {
+        // -6 dBFS ≈ 0.501 (half amplitude)
+        let a = db_to_amplitude(-6.0);
+        assert!((a - 0.501_187).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_db_to_amplitude_clamped() {
+        // Values above 0 dBFS (e.g. due to clipping) clamp to 1.0
+        assert!((db_to_amplitude(3.0) - 1.0).abs() < 1e-9);
     }
 }
