@@ -19,6 +19,7 @@ members = [
   "embedding_service",
   "widget_updater_lambda",
   "ingestion_management_lambda",
+  "audio_peaks_backfill",
 ]
 
 [workspace.package]
