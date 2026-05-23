@@ -3,9 +3,9 @@ use tokio::process::Command;
 /// Per-second peak amplitudes extracted from a WAV file.
 #[derive(Debug)]
 pub struct AudioPeaks {
-    /// One peak amplitude (dB) per second of audio.
+    /// One peak amplitude (linear, 0.0..=1.0) per second of audio.
     pub peaks: Vec<f64>,
-    /// Duration in seconds (equals `peaks.len()` as a float).
+    /// Duration in seconds (typically equals `peaks.len()`).
     pub duration: f64,
 }
 
