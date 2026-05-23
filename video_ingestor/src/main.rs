@@ -24,6 +24,7 @@ struct Config {
     output_bucket: String,
     keyframes_prefix: String,
     audio_prefix: String,
+    peaks_prefix: String,
     transcode_prefix: String,
 
     dynamodb_table: String,
@@ -70,20 +71,44 @@ async fn main() {
     )
     .await;
 
-    // In parallel, do audio extraction to a temp file, extract keyframes, use ffprobe to get metadata
-    // Await the tasks to ensure they complete
+    // Extract audio to disk first so that the peaks task can read the same
+    // temp file concurrently with the S3 upload.
+    let audio_temp_file_path = {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before UNIX_EPOCH")
+            .as_millis();
+
+        std::env::temp_dir()
+            .join(format!("audiofile-{}-{}.wav", std::process::id(), ts))
+            .to_string_lossy()
+            .to_string()
+    };
+    {
+        let audio_stdout =
+            audio_extraction::extract(&input_video_file_path, config.speech_track_number)
+                .expect("failed to extract audio");
+        save_stdio_to_file(audio_stdout, &audio_temp_file_path)
+            .await
+            .expect("failed to save audio to file");
+    }
+
+    // In parallel: upload audio to S3, extract keyframes, run ffprobe, detect
+    // silence, transcode to HLS, and compute audio peaks from the WAV.
     let (
         audio_result,
         keyframes_result,
         metadata_result,
         silence_result,
         transcode_result,
+        peaks_result,
     ) = tokio::join!(
-        do_audio_extraction_task(
+        upload_audio_to_s3(
             &aws_config,
-            config.speech_track_number,
             config.audio_prefix.clone(),
-            input_video_file_path.clone(),
+            audio_temp_file_path.clone(),
             config.output_bucket.clone(),
             input_key.clone()
         ),
@@ -107,15 +132,23 @@ async fn main() {
             input_video_file_path.clone(),
             config.output_bucket.clone(),
             input_key.clone()
-        )
+        ),
+        do_audio_peaks_task(
+            &aws_config,
+            config.peaks_prefix.clone(),
+            audio_temp_file_path.clone(),
+            config.output_bucket.clone(),
+            input_key.clone()
+        ),
     );
 
-    let audio_result = audio_result.expect("failed to extract audio");
+    let audio_result = audio_result.expect("failed to upload audio");
     let keyframes_result =
         keyframes_result.expect("failed to extract keyframes");
     let metadata_result = metadata_result.expect("failed to get metadata");
     let silence_result = silence_result.expect("failed to extract silence");
     let transcode_result = transcode_result.expect("failed to transcode");
+    let peaks_result = peaks_result.expect("failed to compute audio peaks");
 
     let results = IngestionResults {
         input_key,
@@ -124,6 +157,7 @@ async fn main() {
         keyframes: keyframes_result,
         silence: silence_result,
         transcode: transcode_result,
+        peaks: peaks_result,
     };
 
     // Insert the metadata into the DynamoDB table
@@ -254,7 +288,7 @@ async fn save_results_to_dynamodb(
         .table_name(table_name)
         .key("key", AttributeValue::S(results.input_key.clone()))
         .update_expression(
-            "SET metadata = :metadata, audio = :audio, keyframes = :keyframes, silence = :silence, transcode = :transcode",
+            "SET metadata = :metadata, audio = :audio, keyframes = :keyframes, silence = :silence, transcode = :transcode, peaks = :peaks",
         )
         .expression_attribute_values(":metadata", format_metadata(&results.metadata))
         .expression_attribute_values(":audio", AttributeValue::S(results.audio.to_string()))
@@ -324,6 +358,7 @@ async fn save_results_to_dynamodb(
                     .collect(),
             ),
         )
+        .expression_attribute_values(":peaks", AttributeValue::S(results.peaks))
         .send()
         .await?;
 
@@ -338,39 +373,28 @@ struct IngestionResults {
     keyframes: Vec<String>,
     silence: Vec<Segment>,
     transcode: Vec<HLSEntry>,
+    peaks: String,
 }
 
-fn do_audio_extraction_task(
+/// Upload the already-extracted WAV file to S3 and return the S3 key.
+fn upload_audio_to_s3(
     aws_config: &SdkConfig,
-    track_number: u32,
     audio_prefix: String,
-    temp_file_path: String,
+    audio_temp_file_path: String,
     output_bucket: String,
     input_key: String,
 ) -> tokio::task::JoinHandle<String> {
     let s3_client = aws_sdk_s3::Client::new(aws_config);
 
     tokio::spawn(async move {
-        // Extract audio from the video file
-        let audio_temp_file_path =
-            std::env::temp_dir().join("audiofile").to_str().unwrap()[..]
-                .to_string();
-        let audio = audio_extraction::extract(&temp_file_path, track_number)
-            .expect("failed to extract audio");
-
-        save_stdio_to_file(audio, &audio_temp_file_path)
-            .await
-            .expect("failed to save audio to file");
-
         let output_key = format!("{audio_prefix}/{input_key}");
 
-        // Upload the audio to an S3 bucket
         s3_client
             .put_object()
             .bucket(output_bucket)
             .key(output_key.as_str())
             .body(
-                ByteStream::from_path(audio_temp_file_path.clone())
+                ByteStream::from_path(audio_temp_file_path)
                     .await
                     .unwrap(),
             )
@@ -378,7 +402,7 @@ fn do_audio_extraction_task(
             .await
             .expect("failed to upload audio");
 
-        output_key.to_string()
+        output_key
     })
 }
 
@@ -542,5 +566,46 @@ fn do_transcode_task(
 
         // Return the S3 keys of the transcoded files
         transcode_keys
+    })
+}
+
+/// Compute per-second peak amplitudes from the WAV file, serialize to JSON,
+/// upload to S3, and return the S3 key.
+fn do_audio_peaks_task(
+    aws_config: &SdkConfig,
+    peaks_prefix: String,
+    audio_temp_file_path: String,
+    output_bucket: String,
+    input_key: String,
+) -> tokio::task::JoinHandle<String> {
+    let s3_client = aws_sdk_s3::Client::new(aws_config);
+
+    tokio::spawn(async move {
+        let audio_peaks = gt_ffmpeg::audio_peaks::extract(&audio_temp_file_path)
+            .await
+            .expect("failed to compute audio peaks");
+
+        let json = serde_json::json!({
+            "peaks": audio_peaks.peaks,
+            "duration": audio_peaks.duration,
+        });
+
+        let json_bytes = serde_json::to_vec(&json).expect("failed to serialize peaks");
+
+        let output_key = format!("{peaks_prefix}/{input_key}.json");
+
+        tracing::info!("Uploading audio peaks to {}", output_key);
+
+        s3_client
+            .put_object()
+            .bucket(output_bucket)
+            .key(&output_key)
+            .body(ByteStream::from(json_bytes))
+            .content_type("application/json")
+            .send()
+            .await
+            .expect("failed to upload audio peaks");
+
+        output_key
     })
 }

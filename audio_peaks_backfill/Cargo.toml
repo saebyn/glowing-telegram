@@ -1,0 +1,29 @@
+[package]
+name = "audio_peaks_backfill"
+description = "Backfill tool to compute per-second audio peaks for already-ingested video clips"
+version = "0.1.0"
+edition = "2021"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "audio_peaks_backfill"
+path = "src/main.rs"
+
+[dependencies]
+gt_ffmpeg = { path = "../gt_ffmpeg" }
+aws-sdk-s3 = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+aws-config = { workspace = true }
+tokio = { workspace = true }
+figment = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tempfile = "3"
+clap = { version = "4", features = ["derive"] }
+
+[lints]
+workspace = true
