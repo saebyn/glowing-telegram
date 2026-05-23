@@ -73,9 +73,19 @@ async fn main() {
 
     // Extract audio to disk first so that the peaks task can read the same
     // temp file concurrently with the S3 upload.
-    let audio_temp_file_path =
-        std::env::temp_dir().join("audiofile").to_str().unwrap()[..].to_string();
+    let audio_temp_file_path = {
+        use std::time::{SystemTime, UNIX_EPOCH};
 
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before UNIX_EPOCH")
+            .as_millis();
+
+        std::env::temp_dir()
+            .join(format!("audiofile-{}-{}.wav", std::process::id(), ts))
+            .to_string_lossy()
+            .to_string()
+    };
     {
         let audio_stdout =
             audio_extraction::extract(&input_video_file_path, config.speech_track_number)
