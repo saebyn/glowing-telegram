@@ -84,6 +84,7 @@ export default class VideoIngestorConstruct extends Construct {
           KEYFRAMES_PREFIX: 'keyframes',
           TRANSCODE_PREFIX: 'transcode',
           AUDIO_PREFIX: 'audio',
+          PEAKS_PREFIX: 'peaks',
           DYNAMODB_TABLE: props.videoMetadataTable.tableName,
           SPEECH_TRACK_NUMBER: '1', // as of 2025-08-03, this is now track 1 instead of 2
           NOISE_TOLERANCE: '0.004',
