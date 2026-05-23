@@ -3,7 +3,7 @@ use tokio::process::Command;
 /// Per-second peak amplitudes extracted from a WAV file.
 #[derive(Debug)]
 pub struct AudioPeaks {
-    /// One peak amplitude value per second of audio.
+    /// One peak amplitude (dB) per second of audio.
     pub peaks: Vec<f64>,
     /// Duration in seconds (equals `peaks.len()` as a float).
     pub duration: f64,
@@ -11,14 +11,21 @@ pub struct AudioPeaks {
 
 /// Extract per-second peak amplitudes from a WAV file.
 ///
-/// Uses ffmpeg's `astats` filter with `reset=16000` (one measurement per 16 000
-/// samples, matching the 16 kHz mono WAV produced by `audio_extraction::extract`).
+/// Uses the ffmpeg filter chain:
+///   `asetnsamples=n=16000,astats=metadata=1:reset=1,ametadata=print:file=-`
+///
+/// `asetnsamples` rechunks the audio into exactly 16 000-sample frames
+/// (= 1 second at 16 kHz mono), then `astats` with `reset=1` computes fresh
+/// stats for each frame. `ametadata=print:file=-` writes the lavfi metadata
+/// to stdout, one block per frame.
+///
+/// The peak value extracted is `lavfi.astats.1.Peak_level` (dB).
 ///
 /// # Arguments
-/// * `wav_path` - Path to the WAV file on disk.
+/// * `wav_path` - Path to the 16 kHz mono WAV file on disk.
 ///
 /// # Returns
-/// An [`AudioPeaks`] containing one peak value per second and the total duration.
+/// An [`AudioPeaks`] containing one peak dB value per second and the total duration.
 ///
 /// # Errors
 /// Returns an error if ffmpeg fails to run or its output cannot be parsed.
@@ -33,23 +40,25 @@ pub async fn extract(
         .arg("-i")
         .arg(wav_path)
         .arg("-af")
-        .arg("astats=metadata=1:reset=16000")
+        .arg("asetnsamples=n=16000,astats=metadata=1:reset=1,ametadata=print:file=-")
         .arg("-f")
         .arg("null")
         .arg("-")
         .output()
         .await?;
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    tracing::trace!("ffmpeg astats output: {}", stderr);
-
-    if !output.status.success() && !stderr.contains("lavfi.astats") {
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
         tracing::error!("ffmpeg astats failed: {}", stderr);
         return Err("ffmpeg astats failed".into());
     }
 
-    let peaks = parse_peaks(&stderr);
+    // ametadata writes to stdout (file=-)
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    tracing::trace!("ffmpeg ametadata output: {}", stdout);
+
+    let peaks = parse_peaks(&stdout);
 
     let duration = peaks.len() as f64;
 
@@ -62,12 +71,12 @@ pub async fn extract(
     Ok(AudioPeaks { peaks, duration })
 }
 
-/// Parse `lavfi.astats.Overall.Peak_amplitude=<value>` lines from ffmpeg stderr.
-fn parse_peaks(stderr: &str) -> Vec<f64> {
-    stderr
+/// Parse `lavfi.astats.1.Peak_level=<value>` lines from ametadata stdout output.
+fn parse_peaks(stdout: &str) -> Vec<f64> {
+    stdout
         .lines()
         .filter_map(|line| {
-            let marker = "lavfi.astats.Overall.Peak_amplitude=";
+            let marker = "lavfi.astats.1.Peak_level=";
             let pos = line.find(marker)?;
             let value_str = line[pos + marker.len()..].trim();
             value_str.parse::<f64>().ok()
@@ -81,14 +90,17 @@ mod tests {
 
     #[test]
     fn test_parse_peaks_basic() {
-        let stderr = "\
-[Parsed_astats_0 @ 0x...] lavfi.astats.Overall.Peak_amplitude=0.123456\n\
-[Parsed_astats_0 @ 0x...] lavfi.astats.Overall.Peak_amplitude=0.654321\n\
-[Parsed_astats_0 @ 0x...] lavfi.astats.Overall.Peak_amplitude=0.000000\n";
-        let peaks = parse_peaks(stderr);
+        let stdout = "\
+frame:0    pts:0       pts_time:0\n\
+lavfi.astats.1.Peak_level=-18.063656\n\
+frame:1    pts:16000   pts_time:1\n\
+lavfi.astats.1.Peak_level=-21.500000\n\
+frame:2    pts:32000   pts_time:2\n\
+lavfi.astats.1.Peak_level=0.000000\n";
+        let peaks = parse_peaks(stdout);
         assert_eq!(peaks.len(), 3);
-        assert!((peaks[0] - 0.123_456).abs() < 1e-6);
-        assert!((peaks[1] - 0.654_321).abs() < 1e-6);
+        assert!((peaks[0] - -18.063_656).abs() < 1e-4);
+        assert!((peaks[1] - -21.5).abs() < 1e-6);
         assert!((peaks[2]).abs() < 1e-9);
     }
 
