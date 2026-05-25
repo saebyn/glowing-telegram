@@ -49,16 +49,18 @@ pub async fn hls(
         .arg("-i") // flag to specify input video file
         .arg(input); // input video file
 
-    if let Some(mono_audio_filter) =
-        build_mono_audio_filter(&stereo_audio_stream_indexes)
+    if let Some(mono_audio_outputs) =
+        build_mono_audio_outputs(&stereo_audio_stream_indexes)
     {
         command
             .arg("-filter_complex")
-            .arg(mono_audio_filter)
+            .arg(mono_audio_outputs.filter)
             .arg("-map")
-            .arg("0:v:0")
-            .arg("-map")
-            .arg("[aout]");
+            .arg("0:v:0");
+
+        for label in mono_audio_outputs.labels {
+            command.arg("-map").arg(label);
+        }
     } else {
         command.arg("-map").arg("0:v:0").arg("-map").arg("0:a:0?");
     }
@@ -86,9 +88,11 @@ pub async fn hls(
             .arg("-ac") // sets number of audio channels
             .arg("2");
     } else {
-        command
-            .arg("-ac") // sets number of audio channels
-            .arg(stereo_audio_stream_indexes.len().to_string());
+        for _ in &stereo_audio_stream_indexes {
+            command
+                .arg("-ac") // each mapped audio stream is downmixed to mono
+                .arg("1");
+        }
     }
 
     command
@@ -151,63 +155,75 @@ fn stereo_audio_stream_indexes(input_metadata: &ffprobe::FFProbeOutput) -> Vec<u
         .collect()
 }
 
-fn build_mono_audio_filter(stereo_audio_stream_indexes: &[u32]) -> Option<String> {
-    match stereo_audio_stream_indexes {
-        [] => None,
-        [stream_index] => {
-            Some(format!("[0:{stream_index}]pan=mono|c0=.5*c0+.5*c1[aout]"))
-        }
-        _ => {
-            let mut filter_parts = Vec::with_capacity(
-                stereo_audio_stream_indexes.len() + 1,
-            );
-            let mut mono_labels = Vec::with_capacity(stereo_audio_stream_indexes.len());
+struct MonoAudioOutputs {
+    filter: String,
+    labels: Vec<String>,
+}
 
-            for (output_index, stream_index) in
-                stereo_audio_stream_indexes.iter().enumerate()
-            {
-                let mono_label = format!("a{output_index}");
-                filter_parts.push(format!(
-                    "[0:{stream_index}]pan=mono|c0=.5*c0+.5*c1[{mono_label}]"
-                ));
-                mono_labels.push(format!("[{mono_label}]"));
-            }
-
-            filter_parts.push(format!(
-                "{}amerge=inputs={}[aout]",
-                mono_labels.join(""),
-                stereo_audio_stream_indexes.len()
-            ));
-
-            Some(filter_parts.join(";"))
-        }
+fn build_mono_audio_outputs(
+    stereo_audio_stream_indexes: &[u32],
+) -> Option<MonoAudioOutputs> {
+    if stereo_audio_stream_indexes.is_empty() {
+        return None;
     }
+
+    let mut filter_parts = Vec::with_capacity(stereo_audio_stream_indexes.len());
+    let mut labels = Vec::with_capacity(stereo_audio_stream_indexes.len());
+
+    for (output_index, stream_index) in stereo_audio_stream_indexes.iter().enumerate() {
+        let mono_label = format!("a{output_index}");
+        filter_parts.push(format!(
+            "[0:{stream_index}]pan=mono|c0=.5*c0+.5*c1[{mono_label}]"
+        ));
+        labels.push(format!("[{mono_label}]"));
+    }
+
+    Some(MonoAudioOutputs {
+        filter: filter_parts.join(";"),
+        labels,
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::build_mono_audio_filter;
+    use super::{MonoAudioOutputs, build_mono_audio_outputs};
 
     #[test]
     fn builds_single_stream_mono_filter() {
         assert_eq!(
-            build_mono_audio_filter(&[1]),
-            Some("[0:1]pan=mono|c0=.5*c0+.5*c1[aout]".to_string())
+            build_mono_audio_outputs(&[1]).map(|outputs| (outputs.filter, outputs.labels)),
+            Some((
+                "[0:1]pan=mono|c0=.5*c0+.5*c1[a0]".to_string(),
+                vec!["[a0]".to_string()],
+            ))
         );
     }
 
     #[test]
     fn builds_multi_stream_mono_filter() {
         assert_eq!(
-            build_mono_audio_filter(&[1, 2, 3, 4]),
+            build_mono_audio_outputs(&[1, 2, 3, 4])
+                .map(|outputs| (outputs.filter, outputs.labels)),
             Some(
-                "[0:1]pan=mono|c0=.5*c0+.5*c1[a0];\
+                (
+                    "[0:1]pan=mono|c0=.5*c0+.5*c1[a0];\
 [0:2]pan=mono|c0=.5*c0+.5*c1[a1];\
 [0:3]pan=mono|c0=.5*c0+.5*c1[a2];\
-[0:4]pan=mono|c0=.5*c0+.5*c1[a3];\
-[a0][a1][a2][a3]amerge=inputs=4[aout]"
-                    .to_string()
+[0:4]pan=mono|c0=.5*c0+.5*c1[a3]"
+                        .to_string(),
+                    vec![
+                        "[a0]".to_string(),
+                        "[a1]".to_string(),
+                        "[a2]".to_string(),
+                        "[a3]".to_string(),
+                    ],
+                )
             )
         );
+    }
+
+    #[test]
+    fn returns_none_without_stereo_streams() {
+        assert_eq!(build_mono_audio_outputs(&[]).map(|MonoAudioOutputs { filter, labels }| (filter, labels)), None);
     }
 }
