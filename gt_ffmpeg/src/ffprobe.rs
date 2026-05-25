@@ -404,7 +404,7 @@ pub struct FFProbeOutput {
 /// `FFProbeOutput` - Parsed ffprobe output
 ///
 /// # Errors
-/// Box<dyn std::error::Error> - If ffprobe fails to execute or the output is not parsable
+/// `Box<dyn std::error::Error + Send + Sync>` - If ffprobe fails to execute or the output is not parsable
 pub async fn probe(
     path: &str,
 ) -> Result<FFProbeOutput, Box<dyn std::error::Error + Send + Sync>> {
