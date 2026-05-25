@@ -331,6 +331,8 @@ pub struct FFProbeStream {
     #[serde(default)]
     #[serde(deserialize_with = "str_to_u32")]
     pub sample_rate: Option<u32>,
+    pub channels: Option<u32>,
+    pub channel_layout: Option<String>,
     pub extradata_size: Option<u32>,
     pub disposition: Option<FFProbeDisposition>,
     pub tags: Option<FFProbeTags>,
@@ -405,7 +407,7 @@ pub struct FFProbeOutput {
 /// Box<dyn std::error::Error> - If ffprobe fails to execute or the output is not parsable
 pub async fn probe(
     path: &str,
-) -> Result<FFProbeOutput, Box<dyn std::error::Error>> {
+) -> Result<FFProbeOutput, Box<dyn std::error::Error + Send + Sync>> {
     tracing::info!("Probing {}", path);
 
     let Ok(output) = Command::new("ffprobe")
