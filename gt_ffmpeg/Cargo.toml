@@ -15,6 +15,8 @@ tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { version = "4.5.45", features = ["derive"] }
 tempfile = "3"
 chrono = { workspace = true }
 iso8601 = { version = "0.6.3", features = ["serde", "chrono"] }

@@ -1821,6 +1821,7 @@ name = "gt_ffmpeg"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "clap",
  "iso8601",
  "pretty_assertions",
  "regex",
@@ -1829,6 +1830,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "types",
 ]
 

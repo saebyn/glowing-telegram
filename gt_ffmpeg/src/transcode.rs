@@ -1,5 +1,7 @@
 use tokio::process::Command;
 
+use crate::ffprobe;
+
 type Result<T> =
     std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -29,6 +31,8 @@ pub async fn hls(
 
     let hls_segment_format = format!("{}/%03d.ts", temp_dir);
     let hls_playlist_path = format!("{}/index.m3u8", temp_dir);
+    let input_metadata = ffprobe::probe(input).await?;
+    let stereo_audio_stream_indexes = stereo_audio_stream_indexes(&input_metadata);
 
     let mut command = Command::new("ffmpeg");
 
@@ -43,7 +47,25 @@ pub async fn hls(
     command
         .arg("-hide_banner") // hides FFmpeg banners for cleaner logs
         .arg("-i") // flag to specify input video file
-        .arg(input) // input video file
+        .arg(input); // input video file
+
+    if let Some(mono_audio_outputs) =
+        build_mono_audio_outputs(&stereo_audio_stream_indexes)
+    {
+        command
+            .arg("-filter_complex")
+            .arg(mono_audio_outputs.filter)
+            .arg("-map")
+            .arg("0:v:0");
+
+        for label in mono_audio_outputs.labels {
+            command.arg("-map").arg(label);
+        }
+    } else {
+        command.arg("-map").arg("0:v:0").arg("-map").arg("0:a:0?");
+    }
+
+    command
         .arg("-c:v") // choose video codec
         .arg("libx264") // use x264 for H.264 encoding
         .arg("-preset") // sets encoding speed vs. compression tradeoff
@@ -59,9 +81,21 @@ pub async fn hls(
         .arg("-b:a") // sets audio bitrate
         .arg("128k")
         .arg("-ar") // sets audio sampling rate
-        .arg("44100")
-        .arg("-ac") // sets number of audio channels
-        .arg("2")
+        .arg("44100");
+
+    if stereo_audio_stream_indexes.is_empty() {
+        command
+            .arg("-ac") // sets number of audio channels
+            .arg("2");
+    } else {
+        for _ in &stereo_audio_stream_indexes {
+            command
+                .arg("-ac") // each mapped audio stream is downmixed to mono
+                .arg("1");
+        }
+    }
+
+    command
         .arg("-f") // sets output format
         .arg("hls")
         .arg("-hls_time") // duration per segment in seconds
@@ -106,4 +140,90 @@ pub async fn hls(
     }
 
     Ok(files)
+}
+
+fn stereo_audio_stream_indexes(input_metadata: &ffprobe::FFProbeOutput) -> Vec<u32> {
+    input_metadata
+        .streams
+        .iter()
+        .filter(|stream| {
+            stream.codec_type == "audio"
+                && stream.channels == Some(2)
+                && stream.channel_layout.as_deref() == Some("stereo")
+        })
+        .map(|stream| stream.index)
+        .collect()
+}
+
+struct MonoAudioOutputs {
+    filter: String,
+    labels: Vec<String>,
+}
+
+fn build_mono_audio_outputs(
+    stereo_audio_stream_indexes: &[u32],
+) -> Option<MonoAudioOutputs> {
+    if stereo_audio_stream_indexes.is_empty() {
+        return None;
+    }
+
+    let mut filter_parts = Vec::with_capacity(stereo_audio_stream_indexes.len());
+    let mut labels = Vec::with_capacity(stereo_audio_stream_indexes.len());
+
+    for (output_index, stream_index) in stereo_audio_stream_indexes.iter().enumerate() {
+        let mono_label = format!("a{output_index}");
+        filter_parts.push(format!(
+            "[0:{stream_index}]pan=mono|c0=.5*c0+.5*c1[{mono_label}]"
+        ));
+        labels.push(format!("[{mono_label}]"));
+    }
+
+    Some(MonoAudioOutputs {
+        filter: filter_parts.join(";"),
+        labels,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MonoAudioOutputs, build_mono_audio_outputs};
+
+    #[test]
+    fn builds_single_stream_mono_filter() {
+        assert_eq!(
+            build_mono_audio_outputs(&[1]).map(|outputs| (outputs.filter, outputs.labels)),
+            Some((
+                "[0:1]pan=mono|c0=.5*c0+.5*c1[a0]".to_string(),
+                vec!["[a0]".to_string()],
+            ))
+        );
+    }
+
+    #[test]
+    fn builds_multi_stream_mono_filter() {
+        assert_eq!(
+            build_mono_audio_outputs(&[1, 2, 3, 4])
+                .map(|outputs| (outputs.filter, outputs.labels)),
+            Some(
+                (
+                    "[0:1]pan=mono|c0=.5*c0+.5*c1[a0];\
+[0:2]pan=mono|c0=.5*c0+.5*c1[a1];\
+[0:3]pan=mono|c0=.5*c0+.5*c1[a2];\
+[0:4]pan=mono|c0=.5*c0+.5*c1[a3]"
+                        .to_string(),
+                    vec![
+                        "[a0]".to_string(),
+                        "[a1]".to_string(),
+                        "[a2]".to_string(),
+                        "[a3]".to_string(),
+                    ],
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn returns_none_without_stereo_streams() {
+        assert_eq!(build_mono_audio_outputs(&[]).map(|MonoAudioOutputs { filter, labels }| (filter, labels)), None);
+    }
 }
