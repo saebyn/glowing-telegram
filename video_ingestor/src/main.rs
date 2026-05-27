@@ -28,7 +28,7 @@ const STEP_VERSION_AUDIO_UPLOAD: &str = "v1.0.0";
 const STEP_VERSION_KEYFRAMES: &str = "v1.0.0";
 const STEP_VERSION_METADATA: &str = "v1.0.0";
 const STEP_VERSION_SILENCE: &str = "v1.0.0";
-const STEP_VERSION_TRANSCODE_HLS: &str = "v1.0.0";
+const STEP_VERSION_TRANSCODE_HLS: &str = "v1.1.0";
 const STEP_VERSION_PEAKS: &str = "v1.0.0";
 const LEGACY_GLOBAL_INGESTION_VERSION: &str = "v1.1.0";
 
