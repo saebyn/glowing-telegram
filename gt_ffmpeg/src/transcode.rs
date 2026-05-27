@@ -51,6 +51,11 @@ pub async fn hls(
 
     let joined_four_channel_output =
         build_joined_four_channel_output(&stereo_audio_stream_indexes);
+    let audio_bitrate = if joined_four_channel_output.is_some() {
+        "512k"
+    } else {
+        "128k"
+    };
 
     if let Some(joined_audio_output) = &joined_four_channel_output {
         command
@@ -78,7 +83,7 @@ pub async fn hls(
         .arg("-c:a") // choose audio codec
         .arg("aac")
         .arg("-b:a") // sets audio bitrate
-        .arg("128k")
+        .arg(audio_bitrate)
         .arg("-ar") // sets audio sampling rate
         .arg("44100");
 
