@@ -79,13 +79,6 @@ async fn main() {
 
     tracing::info!("Processing video with key: {}", input_key);
 
-    let input_video_file_path = download_s3_object_to_tempfile(
-        &aws_config,
-        &config.input_bucket,
-        &input_key,
-    )
-    .await;
-
     let current_versions = current_step_versions();
     let stored_versions = get_stored_ingestion_versions(
         &aws_config,
@@ -105,6 +98,28 @@ async fn main() {
         plan.should_run_transcode_hls,
         plan.should_run_peaks,
     );
+
+    let should_run_any_step = plan.should_run_audio_upload
+        || plan.should_run_keyframes
+        || plan.should_run_metadata
+        || plan.should_run_silence
+        || plan.should_run_transcode_hls
+        || plan.should_run_peaks;
+
+    if !should_run_any_step {
+        tracing::info!(
+            "All ingestion steps are already current for key: {}",
+            input_key
+        );
+        return;
+    }
+
+    let input_video_file_path = download_s3_object_to_tempfile(
+        &aws_config,
+        &config.input_bucket,
+        &input_key,
+    )
+    .await;
 
     let needs_audio_file =
         plan.should_run_audio_upload || plan.should_run_peaks;
