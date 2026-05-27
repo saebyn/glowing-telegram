@@ -17,6 +17,20 @@ use serde::Deserialize;
 use std::{collections::HashMap, env};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+const STEP_AUDIO_UPLOAD: &str = "audio_upload";
+const STEP_KEYFRAMES: &str = "keyframes";
+const STEP_METADATA: &str = "metadata";
+const STEP_SILENCE: &str = "silence";
+const STEP_TRANSCODE_HLS: &str = "transcode_hls";
+const STEP_PEAKS: &str = "peaks";
+
+const STEP_VERSION_AUDIO_UPLOAD: &str = "v1.0.0";
+const STEP_VERSION_KEYFRAMES: &str = "v1.0.0";
+const STEP_VERSION_METADATA: &str = "v1.0.0";
+const STEP_VERSION_SILENCE: &str = "v1.0.0";
+const STEP_VERSION_TRANSCODE_HLS: &str = "v1.0.0";
+const STEP_VERSION_PEAKS: &str = "v1.0.0";
+
 #[derive(Deserialize, Debug, Clone)]
 struct Config {
     input_bucket: String,
@@ -71,84 +85,188 @@ async fn main() {
     )
     .await;
 
-    // Extract audio to disk first so that the peaks task can read the same
-    // temp file concurrently with the S3 upload.
-    let audio_temp_file_path = {
-        use std::time::{SystemTime, UNIX_EPOCH};
+    let current_versions = current_step_versions();
+    let stored_versions = get_stored_ingestion_versions(
+        &aws_config,
+        &config.dynamodb_table,
+        &input_key,
+    )
+    .await;
+    let plan = build_ingestion_version_plan(&stored_versions, &current_versions);
 
-        let ts = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system time before UNIX_EPOCH")
-            .as_millis();
+    tracing::info!(
+        "Ingestion plan for {}: audio_upload={}, keyframes={}, metadata={}, silence={}, transcode_hls={}, peaks={}",
+        input_key,
+        plan.should_run_audio_upload,
+        plan.should_run_keyframes,
+        plan.should_run_metadata,
+        plan.should_run_silence,
+        plan.should_run_transcode_hls,
+        plan.should_run_peaks,
+    );
 
-        std::env::temp_dir()
-            .join(format!("audiofile-{}-{}.wav", std::process::id(), ts))
-            .to_string_lossy()
-            .to_string()
-    };
-    {
-        let audio_stdout =
-            audio_extraction::extract(&input_video_file_path, config.speech_track_number)
-                .expect("failed to extract audio");
+    let needs_audio_file =
+        plan.should_run_audio_upload || plan.should_run_peaks;
+    let audio_temp_file_path = if needs_audio_file {
+        // Extract audio to disk first so that the peaks task can read the same
+        // temp file concurrently with the S3 upload.
+        let audio_temp_file_path = {
+            use std::time::{SystemTime, UNIX_EPOCH};
+
+            let ts = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system time before UNIX_EPOCH")
+                .as_millis();
+
+            std::env::temp_dir()
+                .join(format!("audiofile-{}-{}.wav", std::process::id(), ts))
+                .to_string_lossy()
+                .to_string()
+        };
+        let audio_stdout = audio_extraction::extract(
+            &input_video_file_path,
+            config.speech_track_number,
+        )
+        .expect("failed to extract audio");
         save_stdio_to_file(audio_stdout, &audio_temp_file_path)
             .await
             .expect("failed to save audio to file");
-    }
+        Some(audio_temp_file_path)
+    } else {
+        None
+    };
 
-    // In parallel: upload audio to S3, extract keyframes, run ffprobe, detect
-    // silence, transcode to HLS, and compute audio peaks from the WAV.
-    let (
-        audio_result,
-        keyframes_result,
-        metadata_result,
-        silence_result,
-        transcode_result,
-        peaks_result,
-    ) = tokio::join!(
-        upload_audio_to_s3(
+    let audio_handle = if plan.should_run_audio_upload {
+        Some(upload_audio_to_s3(
             &aws_config,
             config.audio_prefix.clone(),
-            audio_temp_file_path.clone(),
+            audio_temp_file_path
+                .clone()
+                .expect("audio temp file path missing"),
             config.output_bucket.clone(),
-            input_key.clone()
-        ),
-        do_keyframes_extraction_task(
+            input_key.clone(),
+        ))
+    } else {
+        None
+    };
+
+    let keyframes_handle = if plan.should_run_keyframes {
+        Some(do_keyframes_extraction_task(
             &aws_config,
             config.keyframes_prefix.clone(),
             input_video_file_path.clone(),
             config.output_bucket.clone(),
-            input_key.clone()
-        ),
-        do_metadata_task(input_video_file_path.clone()),
-        do_silence_detection_task(
+            input_key.clone(),
+        ))
+    } else {
+        None
+    };
+
+    let metadata_handle = if plan.should_run_metadata {
+        Some(do_metadata_task(input_video_file_path.clone()))
+    } else {
+        None
+    };
+
+    let silence_handle = if plan.should_run_silence {
+        Some(do_silence_detection_task(
             input_video_file_path.clone(),
             config.speech_track_number,
             config.noise_tolerance,
-            config.silence_duration
-        ),
-        do_transcode_task(
+            config.silence_duration,
+        ))
+    } else {
+        None
+    };
+
+    let transcode_handle = if plan.should_run_transcode_hls {
+        Some(do_transcode_task(
             &aws_config,
             config.transcode_prefix.clone(),
             input_video_file_path.clone(),
             config.output_bucket.clone(),
-            input_key.clone()
-        ),
-        do_audio_peaks_task(
+            input_key.clone(),
+        ))
+    } else {
+        None
+    };
+
+    let peaks_handle = if plan.should_run_peaks {
+        Some(do_audio_peaks_task(
             &aws_config,
             config.peaks_prefix.clone(),
-            audio_temp_file_path.clone(),
+            audio_temp_file_path
+                .clone()
+                .expect("audio temp file path missing"),
             config.output_bucket.clone(),
-            input_key.clone()
-        ),
-    );
+            input_key.clone(),
+        ))
+    } else {
+        None
+    };
 
-    let audio_result = audio_result.expect("failed to upload audio");
-    let keyframes_result =
-        keyframes_result.expect("failed to extract keyframes");
-    let metadata_result = metadata_result.expect("failed to get metadata");
-    let silence_result = silence_result.expect("failed to extract silence");
-    let transcode_result = transcode_result.expect("failed to transcode");
-    let peaks_result = peaks_result.expect("failed to compute audio peaks");
+    let audio_result = match audio_handle {
+        Some(handle) => Some(handle.await.expect("failed to upload audio")),
+        None => None,
+    };
+    let keyframes_result = match keyframes_handle {
+        Some(handle) => Some(handle.await.expect("failed to extract keyframes")),
+        None => None,
+    };
+    let metadata_result = match metadata_handle {
+        Some(handle) => Some(handle.await.expect("failed to get metadata")),
+        None => None,
+    };
+    let silence_result = match silence_handle {
+        Some(handle) => Some(handle.await.expect("failed to extract silence")),
+        None => None,
+    };
+    let transcode_result = match transcode_handle {
+        Some(handle) => Some(handle.await.expect("failed to transcode")),
+        None => None,
+    };
+    let peaks_result = match peaks_handle {
+        Some(handle) => Some(handle.await.expect("failed to compute audio peaks")),
+        None => None,
+    };
+
+    let mut updated_versions = HashMap::new();
+    if plan.should_run_audio_upload {
+        updated_versions.insert(
+            STEP_AUDIO_UPLOAD.to_string(),
+            STEP_VERSION_AUDIO_UPLOAD.to_string(),
+        );
+    }
+    if plan.should_run_keyframes {
+        updated_versions.insert(
+            STEP_KEYFRAMES.to_string(),
+            STEP_VERSION_KEYFRAMES.to_string(),
+        );
+    }
+    if plan.should_run_metadata {
+        updated_versions.insert(
+            STEP_METADATA.to_string(),
+            STEP_VERSION_METADATA.to_string(),
+        );
+    }
+    if plan.should_run_silence {
+        updated_versions.insert(
+            STEP_SILENCE.to_string(),
+            STEP_VERSION_SILENCE.to_string(),
+        );
+    }
+    if plan.should_run_transcode_hls {
+        updated_versions.insert(
+            STEP_TRANSCODE_HLS.to_string(),
+            STEP_VERSION_TRANSCODE_HLS.to_string(),
+        );
+    }
+    if plan.should_run_peaks {
+        updated_versions.insert(
+            STEP_PEAKS.to_string(),
+            STEP_VERSION_PEAKS.to_string(),
+        );
+    }
 
     let results = IngestionResults {
         input_key,
@@ -158,6 +276,7 @@ async fn main() {
         silence: silence_result,
         transcode: transcode_result,
         peaks: peaks_result,
+        updated_versions,
     };
 
     // Insert the metadata into the DynamoDB table
@@ -283,45 +402,47 @@ async fn save_results_to_dynamodb(
 ) -> Result<(), aws_sdk_dynamodb::Error> {
     let dynamodb_client = aws_sdk_dynamodb::Client::new(aws_config);
 
-    dynamodb_client
-        .update_item()
-        .table_name(table_name)
-        .key("key", AttributeValue::S(results.input_key.clone()))
-        .update_expression(
-            "SET metadata = :metadata, audio = :audio, keyframes = :keyframes, silence = :silence, transcode = :transcode, peaks = :peaks",
-        )
-        .expression_attribute_values(":metadata", format_metadata(&results.metadata))
-        .expression_attribute_values(":audio", AttributeValue::S(results.audio.to_string()))
-        .expression_attribute_values(
-            ":keyframes",
-            AttributeValue::Ss(
-                results
-                    .keyframes
-                    .into_iter()
-                    .map(|s| s.parse().unwrap())
-                    .collect(),
-            ),
-        )
-        .expression_attribute_values(
-            ":silence",
+    let mut update_expressions: Vec<String> = Vec::new();
+    let mut expression_attribute_values: Vec<(String, AttributeValue)> = Vec::new();
+    let mut expression_attribute_names: Vec<(String, String)> = Vec::new();
+
+    if let Some(metadata) = results.metadata {
+        update_expressions.push("metadata = :metadata".to_string());
+        expression_attribute_values
+            .push((":metadata".to_string(), format_metadata(&metadata)));
+    }
+
+    if let Some(audio) = results.audio {
+        update_expressions.push("audio = :audio".to_string());
+        expression_attribute_values
+            .push((":audio".to_string(), AttributeValue::S(audio)));
+    }
+
+    if let Some(keyframes) = results.keyframes {
+        update_expressions.push("keyframes = :keyframes".to_string());
+        expression_attribute_values.push((
+            ":keyframes".to_string(),
+            AttributeValue::Ss(keyframes),
+        ));
+    }
+
+    if let Some(silence) = results.silence {
+        update_expressions.push("silence = :silence".to_string());
+        expression_attribute_values.push((
+            ":silence".to_string(),
             AttributeValue::L(
-                results
-                    .silence
+                silence
                     .into_iter()
                     .map(|segment| {
                         AttributeValue::M(
                             vec![
                                 (
                                     "start".to_string(),
-                                    AttributeValue::N(
-                                        segment.start.as_secs().to_string(),
-                                    ),
+                                    AttributeValue::N(segment.start.as_secs().to_string()),
                                 ),
                                 (
                                     "end".to_string(),
-                                    AttributeValue::N(
-                                        segment.end.as_secs().to_string(),
-                                    ),
+                                    AttributeValue::N(segment.end.as_secs().to_string()),
                                 ),
                             ]
                             .into_iter()
@@ -330,25 +451,23 @@ async fn save_results_to_dynamodb(
                     })
                     .collect(),
             ),
-        )
-        .expression_attribute_values(
-            ":transcode",
+        ));
+    }
+
+    if let Some(transcode) = results.transcode {
+        update_expressions.push("transcode = :transcode".to_string());
+        expression_attribute_values.push((
+            ":transcode".to_string(),
             AttributeValue::L(
-                results
-                    .transcode
+                transcode
                     .into_iter()
                     .map(|entry| {
                         AttributeValue::M(
                             vec![
-                                (
-                                    "path".to_string(),
-                                    AttributeValue::S(entry.path),
-                                ),
+                                ("path".to_string(), AttributeValue::S(entry.path)),
                                 (
                                     "duration".to_string(),
-                                    AttributeValue::N(
-                                        entry.duration.to_string(),
-                                    ),
+                                    AttributeValue::N(entry.duration.to_string()),
                                 ),
                             ]
                             .into_iter()
@@ -357,10 +476,43 @@ async fn save_results_to_dynamodb(
                     })
                     .collect(),
             ),
-        )
-        .expression_attribute_values(":peaks", AttributeValue::S(results.peaks))
-        .send()
-        .await?;
+        ));
+    }
+
+    if let Some(peaks) = results.peaks {
+        update_expressions.push("peaks = :peaks".to_string());
+        expression_attribute_values
+            .push((":peaks".to_string(), AttributeValue::S(peaks)));
+    }
+
+    for (step, version) in results.updated_versions {
+        let name_key = format!("#step_{}", step);
+        let value_key = format!(":version_{}", step);
+        update_expressions.push(format!("ingestion_versions.{} = {}", name_key, value_key));
+        expression_attribute_names.push((name_key, step));
+        expression_attribute_values
+            .push((value_key, AttributeValue::S(version)));
+    }
+
+    if update_expressions.is_empty() {
+        return Ok(());
+    }
+
+    let mut request = dynamodb_client
+        .update_item()
+        .table_name(table_name)
+        .key("key", AttributeValue::S(results.input_key.clone()))
+        .update_expression(format!("SET {}", update_expressions.join(", ")));
+
+    for (k, v) in expression_attribute_values {
+        request = request.expression_attribute_values(k, v);
+    }
+
+    for (k, v) in expression_attribute_names {
+        request = request.expression_attribute_names(k, v);
+    }
+
+    request.send().await?;
 
     Ok(())
 }
@@ -368,12 +520,86 @@ async fn save_results_to_dynamodb(
 #[derive(Debug)]
 struct IngestionResults {
     input_key: String,
-    metadata: FFProbeOutput,
-    audio: String,
-    keyframes: Vec<String>,
-    silence: Vec<Segment>,
-    transcode: Vec<HLSEntry>,
-    peaks: String,
+    metadata: Option<FFProbeOutput>,
+    audio: Option<String>,
+    keyframes: Option<Vec<String>>,
+    silence: Option<Vec<Segment>>,
+    transcode: Option<Vec<HLSEntry>>,
+    peaks: Option<String>,
+    updated_versions: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone)]
+struct IngestionVersionPlan {
+    should_run_audio_upload: bool,
+    should_run_keyframes: bool,
+    should_run_metadata: bool,
+    should_run_silence: bool,
+    should_run_transcode_hls: bool,
+    should_run_peaks: bool,
+}
+
+fn current_step_versions() -> HashMap<String, String> {
+    vec![
+        (STEP_AUDIO_UPLOAD.to_string(), STEP_VERSION_AUDIO_UPLOAD.to_string()),
+        (STEP_KEYFRAMES.to_string(), STEP_VERSION_KEYFRAMES.to_string()),
+        (STEP_METADATA.to_string(), STEP_VERSION_METADATA.to_string()),
+        (STEP_SILENCE.to_string(), STEP_VERSION_SILENCE.to_string()),
+        (STEP_TRANSCODE_HLS.to_string(), STEP_VERSION_TRANSCODE_HLS.to_string()),
+        (STEP_PEAKS.to_string(), STEP_VERSION_PEAKS.to_string()),
+    ]
+    .into_iter()
+    .collect()
+}
+
+async fn get_stored_ingestion_versions(
+    aws_config: &SdkConfig,
+    table_name: &str,
+    input_key: &str,
+) -> HashMap<String, String> {
+    let dynamodb_client = aws_sdk_dynamodb::Client::new(aws_config);
+    let item = dynamodb_client
+        .get_item()
+        .table_name(table_name)
+        .key("key", AttributeValue::S(input_key.to_string()))
+        .projection_expression("ingestion_versions, ingestion_version")
+        .send()
+        .await
+        .expect("failed to get item from dynamodb");
+
+    let mut versions = HashMap::new();
+    if let Some(item_map) = item.item {
+        if let Some(AttributeValue::M(map)) = item_map.get("ingestion_versions") {
+            for (step, value) in map {
+                if let AttributeValue::S(v) = value {
+                    versions.insert(step.clone(), v.clone());
+                }
+            }
+        }
+    }
+
+    versions
+}
+
+fn build_ingestion_version_plan(
+    stored_versions: &HashMap<String, String>,
+    current_versions: &HashMap<String, String>,
+) -> IngestionVersionPlan {
+    let should_run_step = |step: &str| -> bool {
+        match (stored_versions.get(step), current_versions.get(step)) {
+            (Some(stored), Some(current)) => stored != current,
+            _ => true,
+        }
+    };
+
+    IngestionVersionPlan {
+        should_run_audio_upload: should_run_step(STEP_AUDIO_UPLOAD),
+        should_run_keyframes: should_run_step(STEP_KEYFRAMES),
+        should_run_metadata: should_run_step(STEP_METADATA),
+        should_run_silence: should_run_step(STEP_SILENCE),
+        should_run_transcode_hls: should_run_step(STEP_TRANSCODE_HLS),
+        should_run_peaks: should_run_step(STEP_PEAKS),
+    }
 }
 
 /// Upload the already-extracted WAV file to S3 and return the S3 key.

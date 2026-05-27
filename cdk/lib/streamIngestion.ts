@@ -16,8 +16,6 @@ import type * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import ServiceLambdaConstruct, { LOG_GROUP_PREFIX, LOG_RETENTION } from './util/serviceLambda';
 import type TaskMonitoringConstruct from './taskMonitoring';
 
-const INGESTION_VERSION = 'v1.1.0';
-
 interface StreamIngestionConstructProps {
   taskMonitoring: TaskMonitoringConstruct;
   audioTranscriberJob: batch.IJobDefinition;
@@ -633,58 +631,15 @@ def handler(event, context):
       checkObjectStorageClass
         .next(checkRestoreNeeded.afterwards())
         .next(
-          new tasks.DynamoGetItem(this, 'Get video metadata', {
-            table: props.videoMetadataTable,
-            key: {
-              key: tasks.DynamoAttributeValue.fromString(
-                stepfunctions.JsonPath.stringAt('$.key'),
-              ),
-            },
-            projectionExpression: [
-              new tasks.DynamoProjectionExpression().withAttribute('#k'),
-              new tasks.DynamoProjectionExpression().withAttribute(
-                'ingestion_version',
-              ),
-            ],
-            expressionAttributeNames: { '#k': 'key' },
-            resultPath: '$.dynamodb',
+          new tasks.BatchSubmitJob(this, 'Ingest Video', {
+            jobDefinitionArn: props.videoIngesterJob.jobDefinitionArn,
+            jobQueueArn: props.cpuBatchJobQueue.jobQueueArn,
+            payload: stepfunctions.TaskInput.fromObject({
+              'key.$': '$.key',
+            }),
+            jobName: 'ingest-video',
+            resultPath: stepfunctions.JsonPath.DISCARD,
           }),
-        )
-        .next(
-          new stepfunctions.Choice(
-            this,
-            'Check video was ingested with correct version',
-          )
-            .when(
-              stepfunctions.Condition.and(
-                stepfunctions.Condition.isPresent(
-                  '$.dynamodb.Item.ingestion_version.S',
-                ),
-                stepfunctions.Condition.stringEquals(
-                  '$.dynamodb.Item.ingestion_version.S',
-                  INGESTION_VERSION,
-                ),
-              ),
-              new stepfunctions.Pass(this, 'Skip ingestion', {
-                comment:
-                  'Skip ingestion if video was ingested with correct version',
-              }),
-              {
-                comment: 'Correct version',
-              },
-            )
-            .otherwise(
-              new tasks.BatchSubmitJob(this, 'Ingest Video', {
-                jobDefinitionArn: props.videoIngesterJob.jobDefinitionArn,
-                jobQueueArn: props.cpuBatchJobQueue.jobQueueArn,
-                payload: stepfunctions.TaskInput.fromObject({
-                  'key.$': '$.key',
-                }),
-                jobName: 'ingest-video',
-                resultPath: stepfunctions.JsonPath.DISCARD,
-              }),
-            )
-            .afterwards(),
         )
         .next(
           new tasks.DynamoUpdateItem(this, 'Update video metadata', {
@@ -694,14 +649,11 @@ def handler(event, context):
                 stepfunctions.JsonPath.stringAt('$.key'),
               ),
             },
-            updateExpression:
-              'SET stream_id = :streamId, ingestion_version = :ingestionVersion',
+            updateExpression: 'SET stream_id = :streamId',
             expressionAttributeValues: {
               ':streamId': tasks.DynamoAttributeValue.fromString(
                 stepfunctions.JsonPath.stringAt('$.stream_id'),
               ),
-              ':ingestionVersion':
-                tasks.DynamoAttributeValue.fromString(INGESTION_VERSION),
             },
             resultPath: stepfunctions.JsonPath.DISCARD,
           }),
