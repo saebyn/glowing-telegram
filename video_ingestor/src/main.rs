@@ -603,27 +603,27 @@ async fn get_stored_ingestion_versions(
             if legacy_version == LEGACY_GLOBAL_INGESTION_VERSION {
                 versions.insert(
                     STEP_AUDIO_UPLOAD.to_string(),
-                    STEP_VERSION_AUDIO_UPLOAD.to_string(),
+                    "v1.0.0".to_string(),
                 );
                 versions.insert(
                     STEP_KEYFRAMES.to_string(),
-                    STEP_VERSION_KEYFRAMES.to_string(),
+                    "v1.0.0".to_string(),
                 );
                 versions.insert(
                     STEP_METADATA.to_string(),
-                    STEP_VERSION_METADATA.to_string(),
+                    "v1.0.0".to_string(),
                 );
                 versions.insert(
                     STEP_SILENCE.to_string(),
-                    STEP_VERSION_SILENCE.to_string(),
+                    "v1.0.0".to_string(),
                 );
                 versions.insert(
                     STEP_TRANSCODE_HLS.to_string(),
-                    STEP_VERSION_TRANSCODE_HLS.to_string(),
+                    "v1.0.0".to_string(),
                 );
                 versions.insert(
                     STEP_PEAKS.to_string(),
-                    STEP_VERSION_PEAKS.to_string(),
+                    "v1.0.0".to_string(),
                 );
             }
         }
