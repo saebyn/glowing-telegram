@@ -49,7 +49,18 @@ pub async fn hls(
         .arg("-i") // flag to specify input video file
         .arg(input); // input video file
 
-    if let Some(mono_audio_outputs) =
+    let joined_four_channel_output =
+        build_joined_four_channel_output(&stereo_audio_stream_indexes);
+
+    if let Some(joined_audio_output) = &joined_four_channel_output {
+        command
+            .arg("-filter_complex")
+            .arg(&joined_audio_output.filter)
+            .arg("-map")
+            .arg("0:v:0")
+            .arg("-map")
+            .arg(&joined_audio_output.label);
+    } else if let Some(mono_audio_outputs) =
         build_mono_audio_outputs(&stereo_audio_stream_indexes)
     {
         command
@@ -83,7 +94,11 @@ pub async fn hls(
         .arg("-ar") // sets audio sampling rate
         .arg("44100");
 
-    if stereo_audio_stream_indexes.is_empty() {
+    if joined_four_channel_output.is_some() {
+        command
+            .arg("-ac") // output joined audio as four channels
+            .arg("4");
+    } else if stereo_audio_stream_indexes.is_empty() {
         command
             .arg("-ac") // sets number of audio channels
             .arg("2");
@@ -160,6 +175,41 @@ struct MonoAudioOutputs {
     labels: Vec<String>,
 }
 
+struct JoinedAudioOutput {
+    filter: String,
+    label: String,
+}
+
+fn build_joined_four_channel_output(
+    stereo_audio_stream_indexes: &[u32],
+) -> Option<JoinedAudioOutput> {
+    if stereo_audio_stream_indexes.len() != 4 {
+        return None;
+    }
+
+    let mut filter_parts = Vec::with_capacity(5);
+    let mut mono_labels = Vec::with_capacity(4);
+
+    for (output_index, stream_index) in stereo_audio_stream_indexes.iter().enumerate() {
+        let mono_label = format!("m{output_index}");
+        filter_parts.push(format!(
+            "[0:{stream_index}]pan=mono|c0=.5*c0+.5*c1[{mono_label}]"
+        ));
+        mono_labels.push(format!("[{mono_label}]"));
+    }
+
+    let output_label = "aout".to_string();
+    filter_parts.push(format!(
+        "{}join=inputs=4:channel_layout=4.0[{output_label}]",
+        mono_labels.join("")
+    ));
+
+    Some(JoinedAudioOutput {
+        filter: filter_parts.join(";"),
+        label: format!("[{output_label}]"),
+    })
+}
+
 fn build_mono_audio_outputs(
     stereo_audio_stream_indexes: &[u32],
 ) -> Option<MonoAudioOutputs> {
@@ -186,7 +236,36 @@ fn build_mono_audio_outputs(
 
 #[cfg(test)]
 mod tests {
-    use super::{MonoAudioOutputs, build_mono_audio_outputs};
+    use super::{
+        MonoAudioOutputs, build_joined_four_channel_output,
+        build_mono_audio_outputs,
+    };
+
+    #[test]
+    fn builds_four_channel_join_filter() {
+        assert_eq!(
+            build_joined_four_channel_output(&[1, 2, 3, 4])
+                .map(|output| (output.filter, output.label)),
+            Some((
+                "[0:1]pan=mono|c0=.5*c0+.5*c1[m0];\
+[0:2]pan=mono|c0=.5*c0+.5*c1[m1];\
+[0:3]pan=mono|c0=.5*c0+.5*c1[m2];\
+[0:4]pan=mono|c0=.5*c0+.5*c1[m3];\
+[m0][m1][m2][m3]join=inputs=4:channel_layout=4.0[aout]"
+                    .to_string(),
+                "[aout]".to_string(),
+            ))
+        );
+    }
+
+    #[test]
+    fn does_not_build_four_channel_join_filter_without_four_inputs() {
+        assert_eq!(
+            build_joined_four_channel_output(&[1, 2, 3])
+                .map(|output| (output.filter, output.label)),
+            None
+        );
+    }
 
     #[test]
     fn builds_single_stream_mono_filter() {
