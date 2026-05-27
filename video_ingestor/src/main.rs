@@ -30,6 +30,7 @@ const STEP_VERSION_METADATA: &str = "v1.0.0";
 const STEP_VERSION_SILENCE: &str = "v1.0.0";
 const STEP_VERSION_TRANSCODE_HLS: &str = "v1.0.0";
 const STEP_VERSION_PEAKS: &str = "v1.0.0";
+const LEGACY_GLOBAL_INGESTION_VERSION: &str = "v1.1.0";
 
 #[derive(Deserialize, Debug, Clone)]
 struct Config {
@@ -574,6 +575,41 @@ async fn get_stored_ingestion_versions(
                 if let AttributeValue::S(v) = value {
                     versions.insert(step.clone(), v.clone());
                 }
+            }
+
+            if !versions.is_empty() {
+                return versions;
+            }
+        }
+
+        if let Some(AttributeValue::S(legacy_version)) =
+            item_map.get("ingestion_version")
+        {
+            if legacy_version == LEGACY_GLOBAL_INGESTION_VERSION {
+                versions.insert(
+                    STEP_AUDIO_UPLOAD.to_string(),
+                    STEP_VERSION_AUDIO_UPLOAD.to_string(),
+                );
+                versions.insert(
+                    STEP_KEYFRAMES.to_string(),
+                    STEP_VERSION_KEYFRAMES.to_string(),
+                );
+                versions.insert(
+                    STEP_METADATA.to_string(),
+                    STEP_VERSION_METADATA.to_string(),
+                );
+                versions.insert(
+                    STEP_SILENCE.to_string(),
+                    STEP_VERSION_SILENCE.to_string(),
+                );
+                versions.insert(
+                    STEP_TRANSCODE_HLS.to_string(),
+                    STEP_VERSION_TRANSCODE_HLS.to_string(),
+                );
+                versions.insert(
+                    STEP_PEAKS.to_string(),
+                    STEP_VERSION_PEAKS.to_string(),
+                );
             }
         }
     }
