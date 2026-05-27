@@ -50,7 +50,7 @@ export default class VideoIngestorConstruct extends Construct {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
 
-    props.videoMetadataTable.grantWriteData(jobRole);
+    props.videoMetadataTable.grantReadWriteData(jobRole);
     props.videoArchiveBucket.grantRead(jobRole);
     props.outputBucket.grantWrite(jobRole);
 
