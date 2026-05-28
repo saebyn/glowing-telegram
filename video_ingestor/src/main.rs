@@ -501,6 +501,17 @@ async fn save_results_to_dynamodb(
             .push((":peaks".to_string(), AttributeValue::S(peaks)));
     }
 
+    if !results.updated_versions.is_empty() {
+        update_expressions.push(
+            "ingestion_versions = if_not_exists(ingestion_versions, :empty_ingestion_versions)"
+                .to_string(),
+        );
+        expression_attribute_values.push((
+            ":empty_ingestion_versions".to_string(),
+            AttributeValue::M(HashMap::new()),
+        ));
+    }
+
     for (step, version) in results.updated_versions {
         let name_key = format!("#step_{}", step);
         let value_key = format!(":version_{}", step);
