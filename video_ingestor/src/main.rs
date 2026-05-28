@@ -502,14 +502,19 @@ async fn save_results_to_dynamodb(
     }
 
     if !results.updated_versions.is_empty() {
-        update_expressions.push(
-            "ingestion_versions = if_not_exists(ingestion_versions, :empty_ingestion_versions)"
-                .to_string(),
-        );
-        expression_attribute_values.push((
-            ":empty_ingestion_versions".to_string(),
-            AttributeValue::M(HashMap::new()),
-        ));
+        dynamodb_client
+            .update_item()
+            .table_name(table_name)
+            .key("key", AttributeValue::S(results.input_key.clone()))
+            .update_expression(
+                "SET ingestion_versions = if_not_exists(ingestion_versions, :empty_ingestion_versions)",
+            )
+            .expression_attribute_values(
+                ":empty_ingestion_versions",
+                AttributeValue::M(HashMap::new()),
+            )
+            .send()
+            .await?;
     }
 
     for (step, version) in results.updated_versions {
