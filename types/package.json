@@ -12,6 +12,6 @@
 		"directory": "types"
 	},
 	"devDependencies": {
-		"quicktype": "23"
+		"quicktype": "26"
 	}
 }
