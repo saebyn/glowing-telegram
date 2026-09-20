@@ -15,6 +15,7 @@ struct BatchEvent {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BatchDetail {
+    job_id: String,
     status: String,
     #[serde(default)]
     status_reason: Option<String>,
@@ -46,6 +47,16 @@ impl BatchDetail {
     }
 }
 
+fn matches_failed_attempt(
+    status: &str,
+    stored_batch_job_id: Option<&str>,
+    event_batch_job_id: &str,
+) -> bool {
+    matches!(status, "pending" | "running")
+        && stored_batch_job_id
+            .is_none_or(|job_id| job_id == event_batch_job_id)
+}
+
 async fn mark_failed(
     client: &mut Client,
     detail: &BatchDetail,
@@ -55,43 +66,76 @@ async fn mark_failed(
     }
 
     let transaction = client.transaction().await?;
+    let job_identity = transaction
+        .query_opt(
+            "SELECT episode_id, tenant_id FROM render_jobs WHERE id = $1",
+            &[&detail.parameters.render_job_id],
+        )
+        .await?;
+    let Some(job_identity) = job_identity else {
+        transaction.commit().await?;
+        return Ok(());
+    };
+    let episode_id: String = job_identity.get("episode_id");
+    let tenant_id: String = job_identity.get("tenant_id");
+    transaction
+        .query_one(
+            "SELECT id FROM episodes WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+            &[&episode_id, &tenant_id],
+        )
+        .await?;
     let job = transaction
         .query_opt(
-            "SELECT episode_id, tenant_id FROM render_jobs \
-             WHERE id = $1 AND status = 'running' FOR UPDATE",
-            &[&detail.parameters.render_job_id],
+            "SELECT status::text AS status, glowing_telegram_id \
+             FROM render_jobs WHERE id = $1 AND episode_id = $2 \
+             AND tenant_id = $3 FOR UPDATE",
+            &[&detail.parameters.render_job_id, &episode_id, &tenant_id],
         )
         .await?;
     let Some(job) = job else {
         transaction.commit().await?;
         return Ok(());
     };
-    let episode_id: String = job.get("episode_id");
-    let tenant_id: String = job.get("tenant_id");
+    let status: String = job.get("status");
+    let stored_batch_job_id: Option<String> = job.get("glowing_telegram_id");
+    if !matches_failed_attempt(
+        &status,
+        stored_batch_job_id.as_deref(),
+        &detail.job_id,
+    ) {
+        transaction.commit().await?;
+        return Ok(());
+    }
     let message = detail.failure_message();
 
-    let episodes = transaction
+    let render_jobs = transaction
         .execute(
             "UPDATE render_jobs SET status = 'failed', error_message = $1, \
+             glowing_telegram_id = COALESCE(glowing_telegram_id, $5), \
              updated_at = NOW() WHERE id = $2 AND episode_id = $3 \
-             AND tenant_id = $4 AND status = 'running'",
+             AND tenant_id = $4 AND status IN ('pending', 'running') \
+             AND (glowing_telegram_id IS NULL OR glowing_telegram_id = $5)",
             &[
                 &message,
                 &detail.parameters.render_job_id,
                 &episode_id,
                 &tenant_id,
+                &detail.job_id,
             ],
         )
         .await?;
     transaction
         .execute(
-            "UPDATE episodes SET status = 'approved', updated_at = NOW() \
-             WHERE id = $1 AND tenant_id = $2 AND status = 'rendering'",
-            &[&episode_id, &tenant_id],
+            "UPDATE episodes AS e SET status = 'approved', updated_at = NOW() \
+             WHERE e.id = $1 AND e.tenant_id = $2 AND e.status = 'rendering' \
+             AND NOT EXISTS (SELECT 1 FROM render_jobs AS r \
+                 WHERE r.episode_id = e.id AND r.tenant_id = e.tenant_id \
+                 AND r.id <> $3 AND r.status = 'running')",
+            &[&episode_id, &tenant_id, &detail.parameters.render_job_id],
         )
         .await?;
-    if episodes != 1 {
-        return Err("render job episode is no longer rendering".into());
+    if render_jobs != 1 {
+        return Err("render job is no longer pending or running".into());
     }
     transaction.commit().await?;
     Ok(())
@@ -129,6 +173,7 @@ mod tests {
     fn parses_batch_failure_and_prefers_status_reason() {
         let event: BatchEvent = serde_json::from_value(serde_json::json!({
             "detail": {
+                "jobId": "batch-job-id",
                 "status": "FAILED",
                 "statusReason": "Task failed to start",
                 "parameters": { "render_job_id": "render-job" },
@@ -138,12 +183,14 @@ mod tests {
         .unwrap();
 
         assert_eq!(event.detail.parameters.render_job_id, "render-job");
+        assert_eq!(event.detail.job_id, "batch-job-id");
         assert_eq!(event.detail.failure_message(), "Task failed to start");
     }
 
     #[test]
     fn falls_back_to_container_reason() {
         let detail: BatchDetail = serde_json::from_value(serde_json::json!({
+            "jobId": "batch-job-id",
             "status": "FAILED",
             "parameters": { "render_job_id": "render-job" },
             "container": { "reason": "Container exited" }
@@ -151,5 +198,25 @@ mod tests {
         .unwrap();
 
         assert_eq!(detail.failure_message(), "Container exited");
+    }
+
+    #[test]
+    fn failure_only_matches_the_current_batch_attempt() {
+        assert!(matches_failed_attempt("pending", None, "current"));
+        assert!(matches_failed_attempt(
+            "running",
+            Some("current"),
+            "current"
+        ));
+        assert!(!matches_failed_attempt(
+            "running",
+            Some("replacement"),
+            "current"
+        ));
+        assert!(!matches_failed_attempt(
+            "completed",
+            Some("current"),
+            "current"
+        ));
     }
 }

@@ -34,6 +34,7 @@ struct Config {
 #[derive(Debug)]
 struct RenderJob {
     id: String,
+    batch_job_id: String,
     episode_id: String,
     tenant_id: String,
     cut_list: serde_json::Value,
@@ -135,6 +136,8 @@ async fn main() -> Result<()> {
         .init();
 
     let render_job_id = exactly_one_argument()?;
+    let batch_job_id =
+        env::var("AWS_BATCH_JOB_ID").context("AWS_BATCH_JOB_ID is not set")?;
     let config: Config = Figment::new()
         .merge(Env::raw())
         .extract()
@@ -148,7 +151,8 @@ async fn main() -> Result<()> {
     let mut postgres = gt_postgres::connect(&config.database, &aws_config)
         .await
         .context("connect to Postgres")?;
-    let job = load_render_job(&postgres, &render_job_id).await?;
+    let job =
+        load_render_job(&mut postgres, &render_job_id, &batch_job_id).await?;
 
     if let Err(error) = process(&config, &s3, &mut postgres, &job).await {
         let message = format!("{error:#}");
@@ -178,10 +182,24 @@ fn exactly_one_argument() -> Result<String> {
 }
 
 async fn load_render_job(
-    client: &PgClient,
+    client: &mut PgClient,
     render_job_id: &str,
+    batch_job_id: &str,
 ) -> Result<RenderJob> {
-    let row = client
+    let transaction = client.transaction().await?;
+    let exists = transaction
+        .query_opt(
+            "SELECT id FROM render_jobs WHERE id = $1 FOR UPDATE",
+            &[&render_job_id],
+        )
+        .await
+        .context("lock render job")?;
+    ensure!(
+        exists.is_some(),
+        "render job {render_job_id} does not exist"
+    );
+
+    let row = transaction
         .query_opt(
             r"
             SELECT r.id, r.episode_id, r.tenant_id, e.cut_list
@@ -191,25 +209,29 @@ async fn load_render_job(
              AND e.tenant_id = r.tenant_id
             WHERE r.id = $1
               AND r.status = 'running'
+              AND r.glowing_telegram_id = $2
               AND e.status = 'rendering'
               AND e.cut_list IS NOT NULL
             ",
-            &[&render_job_id],
+            &[&render_job_id, &batch_job_id],
         )
         .await
         .context("query running render job and episode")?
         .ok_or_else(|| {
             anyhow!(
-                "render job {render_job_id} is not running, has no matching rendering episode, or has no cut list"
+                "render job {render_job_id} is not assigned to Batch job {batch_job_id}, is not running, has no matching rendering episode, or has no cut list"
             )
         })?;
 
-    Ok(RenderJob {
+    let job = RenderJob {
         id: row.get("id"),
+        batch_job_id: batch_job_id.to_owned(),
         episode_id: row.get("episode_id"),
         tenant_id: row.get("tenant_id"),
         cut_list: row.get("cut_list"),
-    })
+    };
+    transaction.commit().await?;
+    Ok(job)
 }
 
 async fn process(
@@ -341,6 +363,12 @@ async fn mark_completed(
     render_seconds: i32,
 ) -> Result<()> {
     let transaction = client.transaction().await?;
+    transaction
+        .query_one(
+            "SELECT id FROM episodes WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+            &[&job.episode_id, &job.tenant_id],
+        )
+        .await?;
     let render_jobs = transaction
         .execute(
             r"
@@ -348,9 +376,9 @@ async fn mark_completed(
             SET status = 'completed', progress = 100, error_message = NULL,
                 updated_at = NOW()
             WHERE id = $1 AND episode_id = $2 AND tenant_id = $3
-              AND status = 'running'
+              AND status = 'running' AND glowing_telegram_id = $4
             ",
-            &[&job.id, &job.episode_id, &job.tenant_id],
+            &[&job.id, &job.episode_id, &job.tenant_id, &job.batch_job_id],
         )
         .await?;
     ensure!(render_jobs == 1, "render job is no longer running");
@@ -361,8 +389,11 @@ async fn mark_completed(
             UPDATE episodes
             SET status = 'rendered', rendered_hls_url = $1, updated_at = NOW()
             WHERE id = $2 AND tenant_id = $3 AND status = 'rendering'
+              AND NOT EXISTS (SELECT 1 FROM render_jobs
+                  WHERE episode_id = $2 AND tenant_id = $3
+                    AND id <> $4 AND status = 'running')
             ",
-            &[&rendered_url, &job.episode_id, &job.tenant_id],
+            &[&rendered_url, &job.episode_id, &job.tenant_id, &job.id],
         )
         .await?;
     ensure!(episodes == 1, "episode is no longer rendering");
@@ -393,15 +424,27 @@ async fn mark_failed(
 ) -> Result<()> {
     let error: String = error.chars().take(4_000).collect();
     let transaction = client.transaction().await?;
+    transaction
+        .query_one(
+            "SELECT id FROM episodes WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+            &[&job.episode_id, &job.tenant_id],
+        )
+        .await?;
     let render_jobs = transaction
         .execute(
             r"
             UPDATE render_jobs
             SET status = 'failed', error_message = $1, updated_at = NOW()
             WHERE id = $2 AND episode_id = $3 AND tenant_id = $4
-              AND status = 'running'
+              AND status = 'running' AND glowing_telegram_id = $5
             ",
-            &[&error, &job.id, &job.episode_id, &job.tenant_id],
+            &[
+                &error,
+                &job.id,
+                &job.episode_id,
+                &job.tenant_id,
+                &job.batch_job_id,
+            ],
         )
         .await?;
     ensure!(render_jobs == 1, "render job is no longer running");
@@ -412,8 +455,11 @@ async fn mark_failed(
             UPDATE episodes
             SET status = 'approved', updated_at = NOW()
             WHERE id = $1 AND tenant_id = $2 AND status = 'rendering'
+              AND NOT EXISTS (SELECT 1 FROM render_jobs
+                  WHERE episode_id = $1 AND tenant_id = $2
+                    AND id <> $3 AND status = 'running')
             ",
-            &[&job.episode_id, &job.tenant_id],
+            &[&job.episode_id, &job.tenant_id, &job.id],
         )
         .await?;
     ensure!(episodes == 1, "episode is no longer rendering");

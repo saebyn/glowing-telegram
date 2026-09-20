@@ -72,13 +72,12 @@ fn start_decision(
     episode_status: &str,
     has_cut_list: bool,
     render_status: &str,
-    existing_job_name: Option<&str>,
-    expected_job_name: &str,
+    existing_batch_job_id: Option<&str>,
 ) -> StartDecision {
     if episode_status == "rendering"
         && has_cut_list
         && render_status == "running"
-        && existing_job_name == Some(expected_job_name)
+        && existing_batch_job_id.is_some()
     {
         StartDecision::AlreadyRunning
     } else if render_status != "pending" {
@@ -117,6 +116,13 @@ enum StartRenderError {
     DatabaseAndCleanup {
         database: tokio_postgres::Error,
         cleanup: String,
+    },
+    #[error(
+        "database operation failed after Batch submission: {database}; failure writeback failed: {writeback}"
+    )]
+    DatabaseAndWriteback {
+        database: tokio_postgres::Error,
+        writeback: String,
     },
 }
 
@@ -178,6 +184,56 @@ async fn fail_pending_render(
     Ok(())
 }
 
+async fn fail_submitted_render(
+    client: &mut PgClient,
+    request: &StartRenderRequest,
+    batch_job_id: &str,
+    error_message: &str,
+) -> Result<(), StartRenderError> {
+    let transaction = client.transaction().await?;
+    transaction
+        .query_one(
+            "SELECT id FROM episodes WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+            &[&request.episode_id, &request.tenant_id],
+        )
+        .await?;
+    let updated = transaction
+        .execute(
+            "UPDATE render_jobs SET status = 'failed', progress = 0, \
+             glowing_telegram_id = $2, error_message = $3, updated_at = NOW() \
+             WHERE id = $1 AND tenant_id = $4 AND episode_id = $5 \
+             AND status IN ('pending', 'running', 'failed') \
+             AND (glowing_telegram_id IS NULL OR glowing_telegram_id = $2)",
+            &[
+                &request.render_job_id,
+                &batch_job_id,
+                &error_message,
+                &request.tenant_id,
+                &request.episode_id,
+            ],
+        )
+        .await?;
+    if updated != 1 {
+        return Err(StartRenderError::RenderJobNotPending);
+    }
+    transaction
+        .execute(
+            "UPDATE episodes AS e SET status = 'approved', updated_at = NOW() \
+             WHERE e.id = $1 AND e.tenant_id = $2 AND e.status = 'rendering' \
+             AND NOT EXISTS (SELECT 1 FROM render_jobs AS r \
+                 WHERE r.episode_id = e.id AND r.tenant_id = e.tenant_id \
+                 AND r.id <> $3 AND r.status = 'running')",
+            &[
+                &request.episode_id,
+                &request.tenant_id,
+                &request.render_job_id,
+            ],
+        )
+        .await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
 async fn start_render(
     context: &AppContext,
     request: &StartRenderRequest,
@@ -229,15 +285,14 @@ async fn start_render(
         .and_then(|value| serde_json::from_value::<CutListShape>(value).ok())
         .is_some_and(|cut_list| cut_list.is_renderable());
     let render_status: String = render_job.get("status");
-    let existing_job_name: Option<String> =
+    let existing_batch_job_id: Option<String> =
         render_job.get("glowing_telegram_id");
 
     match start_decision(
         &episode_status,
         has_cut_list,
         &render_status,
-        existing_job_name.as_deref(),
-        &job_name,
+        existing_batch_job_id.as_deref(),
     ) {
         StartDecision::AlreadyRunning => {
             transaction.commit().await?;
@@ -285,7 +340,7 @@ async fn start_render(
                 "UPDATE render_jobs SET status = 'running', \
                  glowing_telegram_id = $2, progress = 0, error_message = NULL, \
                  updated_at = NOW() WHERE id = $1",
-                &[&request.render_job_id, &job_name],
+                &[&request.render_job_id, &batch_job_id],
             )
             .await?;
         transaction
@@ -303,12 +358,32 @@ async fn start_render(
         let cleanup = context
             .batch
             .terminate_job()
-            .job_id(batch_job_id)
+            .job_id(&batch_job_id)
             .reason("pipeline database transaction failed")
             .send()
             .await;
         return match cleanup {
-            Ok(_) => Err(StartRenderError::Database(database_error)),
+            Ok(_) => {
+                let message = format!(
+                    "database operation failed after Batch submission: {database_error}"
+                );
+                match fail_submitted_render(
+                    &mut database,
+                    request,
+                    &batch_job_id,
+                    &message,
+                )
+                .await
+                {
+                    Ok(()) => Err(StartRenderError::Database(database_error)),
+                    Err(writeback_error) => {
+                        Err(StartRenderError::DatabaseAndWriteback {
+                            database: database_error,
+                            writeback: writeback_error.to_string(),
+                        })
+                    }
+                }
+            }
             Err(cleanup_error) => Err(StartRenderError::DatabaseAndCleanup {
                 database: database_error,
                 cleanup: cleanup_error.to_string(),
@@ -427,17 +502,11 @@ mod tests {
     #[test]
     fn competing_pending_job_is_failed_after_episode_starts_rendering() {
         assert_eq!(
-            start_decision("rendering", true, "pending", None, "render-job"),
+            start_decision("rendering", true, "pending", None),
             StartDecision::FailPending
         );
         assert_eq!(
-            start_decision(
-                "rendering",
-                true,
-                "running",
-                Some("render-job"),
-                "render-job"
-            ),
+            start_decision("rendering", true, "running", Some("batch-job-id")),
             StartDecision::AlreadyRunning
         );
     }
