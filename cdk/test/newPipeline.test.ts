@@ -123,6 +123,17 @@ test('creates the startRender job definition and pipeline Lambda', () => {
     }),
     Targets: Match.anyValue(),
   });
+  template.hasResourceProperties('AWS::SQS::Queue', {
+    MessageRetentionPeriod: 1_209_600,
+    SqsManagedSseEnabled: true,
+  });
+  template.hasResourceProperties('AWS::Lambda::EventInvokeConfig', {
+    MaximumEventAgeInSeconds: 21_600,
+    MaximumRetryAttempts: 2,
+    DestinationConfig: {
+      OnFailure: { Destination: Match.anyValue() },
+    },
+  });
   expect(JSON.stringify(template.toJSON())).toContain(
     'glowing-telegram/render-job-new:test-tag',
   );

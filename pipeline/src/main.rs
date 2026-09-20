@@ -7,7 +7,7 @@ use gt_postgres::PostgresConfig;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
-use tokio_postgres::Client as PgClient;
+use tokio_postgres::{Client as PgClient, Transaction};
 
 #[derive(Clone, Debug, Deserialize)]
 struct Config {
@@ -57,6 +57,36 @@ impl CutListShape {
         self.version == "1.0.0"
             && !self.input_media.is_empty()
             && !self.output_track.is_empty()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum StartDecision {
+    AlreadyRunning,
+    Submit,
+    FailPending,
+    RejectJob,
+}
+
+fn start_decision(
+    episode_status: &str,
+    has_cut_list: bool,
+    render_status: &str,
+    existing_job_name: Option<&str>,
+    expected_job_name: &str,
+) -> StartDecision {
+    if episode_status == "rendering"
+        && has_cut_list
+        && render_status == "running"
+        && existing_job_name == Some(expected_job_name)
+    {
+        StartDecision::AlreadyRunning
+    } else if render_status != "pending" {
+        StartDecision::RejectJob
+    } else if episode_status != "approved" || !has_cut_list {
+        StartDecision::FailPending
+    } else {
+        StartDecision::Submit
     }
 }
 
@@ -122,6 +152,32 @@ fn render_job_name(render_job_id: &str) -> String {
     format!("{PREFIX}{safe_id}")
 }
 
+async fn fail_pending_render(
+    transaction: Transaction<'_>,
+    request: &StartRenderRequest,
+    error_message: &str,
+) -> Result<(), StartRenderError> {
+    let updated = transaction
+        .execute(
+            "UPDATE render_jobs SET status = 'failed', progress = 0, \
+             error_message = $2, updated_at = NOW() \
+             WHERE id = $1 AND tenant_id = $3 AND episode_id = $4 \
+             AND status = 'pending'",
+            &[
+                &request.render_job_id,
+                &error_message,
+                &request.tenant_id,
+                &request.episode_id,
+            ],
+        )
+        .await?;
+    if updated != 1 {
+        return Err(StartRenderError::RenderJobNotPending);
+    }
+    transaction.commit().await?;
+    Ok(())
+}
+
 async fn start_render(
     context: &AppContext,
     request: &StartRenderRequest,
@@ -176,22 +232,30 @@ async fn start_render(
     let existing_job_name: Option<String> =
         render_job.get("glowing_telegram_id");
 
-    if episode_status == "rendering"
-        && has_cut_list
-        && render_status == "running"
-        && existing_job_name.as_deref() == Some(job_name.as_str())
-    {
-        transaction.commit().await?;
-        return Ok(AcceptedResponse { accepted: true });
-    }
-    if episode_status != "approved" || !has_cut_list {
-        return Err(StartRenderError::EpisodeNotReady);
-    }
-    if render_status != "pending" {
-        return Err(StartRenderError::RenderJobNotPending);
+    match start_decision(
+        &episode_status,
+        has_cut_list,
+        &render_status,
+        existing_job_name.as_deref(),
+        &job_name,
+    ) {
+        StartDecision::AlreadyRunning => {
+            transaction.commit().await?;
+            return Ok(AcceptedResponse { accepted: true });
+        }
+        StartDecision::FailPending => {
+            let error = StartRenderError::EpisodeNotReady;
+            fail_pending_render(transaction, request, &error.to_string())
+                .await?;
+            return Err(error);
+        }
+        StartDecision::RejectJob => {
+            return Err(StartRenderError::RenderJobNotPending);
+        }
+        StartDecision::Submit => {}
     }
 
-    let submission = context
+    let submission = match context
         .batch
         .submit_job()
         .job_name(&job_name)
@@ -200,11 +264,20 @@ async fn start_render(
         .parameters("render_job_id", &request.render_job_id)
         .send()
         .await
-        .map_err(|error| StartRenderError::Submit(error.to_string()))?;
-    let batch_job_id = submission
-        .job_id()
-        .ok_or(StartRenderError::MissingBatchJobId)?
-        .to_owned();
+    {
+        Ok(submission) => submission,
+        Err(submit_error) => {
+            let error = StartRenderError::Submit(submit_error.to_string());
+            fail_pending_render(transaction, request, &error.to_string())
+                .await?;
+            return Err(error);
+        }
+    };
+    let Some(batch_job_id) = submission.job_id().map(str::to_owned) else {
+        let error = StartRenderError::MissingBatchJobId;
+        fail_pending_render(transaction, request, &error.to_string()).await?;
+        return Err(error);
+    };
 
     let database_result = async {
         transaction
@@ -349,6 +422,24 @@ mod tests {
                 "trims": {}
             }));
         assert!(simplified.is_err());
+    }
+
+    #[test]
+    fn competing_pending_job_is_failed_after_episode_starts_rendering() {
+        assert_eq!(
+            start_decision("rendering", true, "pending", None, "render-job"),
+            StartDecision::FailPending
+        );
+        assert_eq!(
+            start_decision(
+                "rendering",
+                true,
+                "running",
+                Some("render-job"),
+                "render-job"
+            ),
+            StartDecision::AlreadyRunning
+        );
     }
 
     #[test]

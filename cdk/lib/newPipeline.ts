@@ -9,10 +9,12 @@ import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as destinations from 'aws-cdk-lib/aws-lambda-destinations';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import ServiceLambdaConstruct from './util/serviceLambda';
 
 export interface NewPipelineConstructProps {
@@ -30,6 +32,7 @@ export interface NewPipelineConstructProps {
 /** Smallest deployable startRender pipeline backed by Streamosaic Postgres. */
 export default class NewPipelineConstruct extends Construct {
   public readonly lambda: lambda.Function;
+  public readonly failureQueue: sqs.Queue;
   public readonly statusHandler: lambda.Function;
   public readonly jobDefinition: batch.IJobDefinition;
 
@@ -126,6 +129,15 @@ export default class NewPipelineConstruct extends Construct {
     this.lambda = pipelineService.lambda;
     props.database.grantConnect(this.lambda, 'postgres');
     props.databaseSecret.grantRead(this.lambda);
+    this.failureQueue = new sqs.Queue(this, 'FailureQueue', {
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      retentionPeriod: cdk.Duration.days(14),
+    });
+    this.lambda.configureAsyncInvoke({
+      maxEventAge: cdk.Duration.hours(6),
+      onFailure: new destinations.SqsDestination(this.failureQueue),
+      retryAttempts: 2,
+    });
     this.lambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['batch:SubmitJob'],
