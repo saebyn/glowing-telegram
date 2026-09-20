@@ -27,7 +27,7 @@ tower-http = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 openai_dive = { workspace = true }
-types = { workspace = true }
+types = { workspace = true, features = ["dynamodb"] }
 gt_app = { path = "../gt_app" }
 gt_axum = { workspace = true }
 

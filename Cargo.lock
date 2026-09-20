@@ -312,6 +312,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "aws-sdk-batch"
+version = "1.111.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bfe6bf4c32c9b22dc0d255c3224930edba23797219dad6617488065251d1d11"
+dependencies = [
+ "aws-credential-types",
+ "aws-runtime",
+ "aws-smithy-async",
+ "aws-smithy-http",
+ "aws-smithy-json",
+ "aws-smithy-observability",
+ "aws-smithy-runtime",
+ "aws-smithy-runtime-api",
+ "aws-smithy-types",
+ "aws-types",
+ "bytes",
+ "fastrand",
+ "http 0.2.12",
+ "http 1.4.0",
+ "regex-lite",
+ "tracing",
+]
+
+[[package]]
 name = "aws-sdk-dynamodb"
 version = "1.110.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1835,6 +1859,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gt_postgres"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-secretsmanager",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
+]
+
+[[package]]
 name = "gt_secrets"
 version = "0.1.0"
 dependencies = [
@@ -3035,6 +3073,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "pipeline"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-batch",
+ "figment",
+ "gt_postgres",
+ "lambda_runtime",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "pkcs8"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3388,6 +3444,43 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "types",
+]
+
+[[package]]
+name = "render_job_new"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aws-config",
+ "aws-sdk-s3",
+ "figment",
+ "gt_ffmpeg",
+ "gt_postgres",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
+ "tracing-subscriber",
+ "types",
+ "uuid",
+]
+
+[[package]]
+name = "render_job_status_handler"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "figment",
+ "gt_postgres",
+ "lambda_runtime",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -1,7 +1,11 @@
-use crate::{CutList, CutListClass, Episode};
+#[cfg(feature = "dynamodb")]
+use crate::Episode;
+use crate::{CutList, CutListClass};
+#[cfg(feature = "dynamodb")]
 use aws_sdk_dynamodb::types::AttributeValue;
 use serde::Deserialize;
-use std::{collections::HashMap, convert::From};
+#[cfg(feature = "dynamodb")]
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct YouTubeCredentials {
@@ -24,6 +28,7 @@ impl From<CutListClass> for CutList {
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl TryFrom<HashMap<String, AttributeValue>> for Episode {
     type Error = serde_json::Error;
 
@@ -65,6 +70,7 @@ impl TryFrom<HashMap<String, AttributeValue>> for Episode {
 //     "name": "John Doe"
 // }
 // ```
+#[cfg(feature = "dynamodb")]
 pub fn convert_hm_to_json(
     hm: HashMap<String, AttributeValue>,
 ) -> serde_json::Value {
@@ -73,6 +79,7 @@ pub fn convert_hm_to_json(
         .collect()
 }
 
+#[cfg(feature = "dynamodb")]
 pub fn convert_json_to_hm(
     json: &serde_json::Value,
 ) -> HashMap<String, AttributeValue> {
@@ -83,6 +90,7 @@ pub fn convert_json_to_hm(
         .collect()
 }
 
+#[cfg(feature = "dynamodb")]
 fn convert_number_json_to_json(number_json: String) -> serde_json::Value {
     serde_json::from_str(&number_json).unwrap_or(serde_json::Value::Null)
 }
@@ -96,6 +104,7 @@ fn convert_number_json_to_json(number_json: String) -> serde_json::Value {
 /// # Returns
 ///
 /// A `serde_json::Value` representing the converted attribute value.
+#[cfg(feature = "dynamodb")]
 pub fn convert_attribute_value_to_json(
     attribute_value: AttributeValue,
 ) -> serde_json::Value {
@@ -121,6 +130,7 @@ pub fn convert_attribute_value_to_json(
     }
 }
 
+#[cfg(feature = "dynamodb")]
 pub fn convert_json_to_attribute_value(
     json: serde_json::Value,
 ) -> AttributeValue {

@@ -19,6 +19,7 @@ import WebSocketAPIConstruct from './websocketApi';
 import TwitchChatProcessingConstruct from './twitchChatProcessing';
 import WidgetUpdaterConstruct from './widgetUpdater';
 import { EventBus } from 'aws-cdk-lib/aws-events';
+import NewPipelineConstruct from './newPipeline';
 
 interface AppStackProps extends cdk.StackProps {
   domainName: string;
@@ -150,6 +151,18 @@ export default class AppStack extends cdk.Stack {
       episodeTable: dataStore.episodesTable,
       jobQueue: batchEnvironment.cpuJobQueue,
       taskMonitoring,
+      tagOrDigest,
+    });
+
+    new NewPipelineConstruct(this, 'NewPipeline', {
+      vpc,
+      cpuJobQueue: batchEnvironment.cpuJobQueue,
+      inputBucket: dataStore.videoArchive,
+      outputBucket: dataStore.outputBucket,
+      mediaDomain: mediaServe.domainName,
+      database: dataStore.vectorDatabase,
+      databaseSecret: dataStore.vectorDatabaseSecret,
+      environmentName,
       tagOrDigest,
     });
 

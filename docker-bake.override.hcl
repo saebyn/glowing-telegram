@@ -41,6 +41,24 @@ target "render_job" {
   ]
 }
 
+target "render_job_new" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/render-job-new:${IMAGE_TAG}"
+  ]
+}
+
+target "pipeline" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/pipeline:${IMAGE_TAG}"
+  ]
+}
+
+target "render_job_status_handler" {
+  tags = [
+    "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/render-job-status-handler:${IMAGE_TAG}"
+  ]
+}
+
 target "summarize_transcription" {
   tags = [
     "159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/summarize-transcription-lambda:${IMAGE_TAG}"
