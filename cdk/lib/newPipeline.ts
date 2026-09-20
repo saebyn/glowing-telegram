@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
 import * as batch from 'aws-cdk-lib/aws-batch';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
@@ -132,6 +133,16 @@ export default class NewPipelineConstruct extends Construct {
     this.failureQueue = new sqs.Queue(this, 'FailureQueue', {
       encryption: sqs.QueueEncryption.SQS_MANAGED,
       retentionPeriod: cdk.Duration.days(14),
+    });
+    new cloudwatch.Alarm(this, 'FailureQueueAlarm', {
+      alarmName: `streamosaic-pipeline-failures-${props.environmentName}`,
+      metric: this.failureQueue.metricApproximateNumberOfMessagesVisible({
+        period: cdk.Duration.minutes(1),
+        statistic: 'Maximum',
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
     this.lambda.configureAsyncInvoke({
       maxEventAge: cdk.Duration.hours(6),

@@ -127,6 +127,18 @@ test('creates the startRender job definition and pipeline Lambda', () => {
     MessageRetentionPeriod: 1_209_600,
     SqsManagedSseEnabled: true,
   });
+  template.hasResourceProperties('AWS::CloudWatch::Alarm', {
+    AlarmName: 'streamosaic-pipeline-failures-test',
+    AlarmActions: Match.absent(),
+    ComparisonOperator: 'GreaterThanOrEqualToThreshold',
+    EvaluationPeriods: 1,
+    MetricName: 'ApproximateNumberOfMessagesVisible',
+    Namespace: 'AWS/SQS',
+    Period: 60,
+    Statistic: 'Maximum',
+    Threshold: 1,
+    TreatMissingData: 'notBreaching',
+  });
   template.hasResourceProperties('AWS::Lambda::EventInvokeConfig', {
     MaximumEventAgeInSeconds: 21_600,
     MaximumRetryAttempts: 2,
