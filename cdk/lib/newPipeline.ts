@@ -191,6 +191,11 @@ export default class NewPipelineConstruct extends Construct {
     this.statusHandler = statusService.lambda;
     props.database.grantConnect(this.statusHandler, 'postgres');
     props.databaseSecret.grantRead(this.statusHandler);
+    this.statusHandler.configureAsyncInvoke({
+      maxEventAge: cdk.Duration.hours(6),
+      onFailure: new destinations.SqsDestination(this.failureQueue),
+      retryAttempts: 2,
+    });
 
     new events.Rule(this, 'RenderFailureRule', {
       eventPattern: {

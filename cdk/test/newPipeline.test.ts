@@ -150,6 +150,7 @@ test('creates the startRender job definition and pipeline Lambda', () => {
       OnFailure: { Destination: Match.anyValue() },
     },
   });
+  template.resourceCountIs('AWS::Lambda::EventInvokeConfig', 2);
   expect(JSON.stringify(template.toJSON())).toContain(
     'glowing-telegram/render-job-new:test-tag',
   );
