@@ -201,7 +201,11 @@ export default class NewPipelineConstruct extends Construct {
           status: ['FAILED'],
         },
       },
-      targets: [new targets.LambdaFunction(this.statusHandler)],
+      targets: [
+        new targets.LambdaFunction(this.statusHandler, {
+          deadLetterQueue: this.failureQueue,
+        }),
+      ],
     });
 
     new cdk.CfnOutput(this, 'PipelineLambdaArn', {

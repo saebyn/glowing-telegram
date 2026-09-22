@@ -302,7 +302,7 @@ async fn start_render(
             let error = StartRenderError::EpisodeNotReady;
             fail_pending_render(transaction, request, &error.to_string())
                 .await?;
-            return Err(error);
+            return Ok(AcceptedResponse { accepted: false });
         }
         StartDecision::RejectJob => {
             return Err(StartRenderError::RenderJobNotPending);

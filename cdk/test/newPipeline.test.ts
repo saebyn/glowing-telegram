@@ -121,7 +121,11 @@ test('creates the startRender job definition and pipeline Lambda', () => {
       source: ['aws.batch'],
       detail: Match.objectLike({ status: ['FAILED'] }),
     }),
-    Targets: Match.anyValue(),
+    Targets: Match.arrayWith([
+      Match.objectLike({
+        DeadLetterConfig: { Arn: Match.anyValue() },
+      }),
+    ]),
   });
   template.hasResourceProperties('AWS::SQS::Queue', {
     MessageRetentionPeriod: 1_209_600,
