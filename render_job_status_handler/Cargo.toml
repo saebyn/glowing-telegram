@@ -1,0 +1,28 @@
+[package]
+name = "render_job_status_handler"
+version = "0.1.0"
+edition = "2024"
+description = "Streamosaic render Batch failure status handler"
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+keywords = ["rust", "glowing-telegram", "aws-lambda"]
+categories = ["web-programming"]
+
+[dependencies]
+aws-config = { workspace = true }
+figment = { workspace = true }
+gt_postgres = { workspace = true }
+lambda_runtime = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tokio-postgres = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -20,6 +20,10 @@ members = [
   "widget_updater_lambda",
   "ingestion_management_lambda",
   "audio_peaks_backfill",
+  "gt_postgres",
+  "pipeline",
+  "render_job_new",
+  "render_job_status_handler",
 ]
 
 [workspace.package]
@@ -31,10 +35,11 @@ keywords = ["rust", "glowing-telegram", "twitch", "lambda"]
 categories = ["web-programming"]
 
 [workspace.dependencies]
-types = { path = "./types" }
+types = { path = "./types", default-features = false }
 gt_secrets = { path = "./gt_secrets" }
 gt_axum = { path = "./gt_axum" }
 gt_app = { path = "./gt_app" }
+gt_postgres = { path = "./gt_postgres" }
 aws-config = "1.8.15"
 aws-sdk-secretsmanager = { version = "1.103.0" }
 aws-sdk-s3 = { version = "1.127.0" }
@@ -62,6 +67,9 @@ reqwest = { version = "0.13.2", features = ["json", "form", "query"] }
 redact = { version = "0.1.11", features = ["serde"] }
 chrono = { version = "0.4.44", features = ["serde"] }
 uuid = { version = "1.22", features = ["v7", "fast-rng"] }
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1"] }
+thiserror = "2"
+anyhow = "1"
 
 [profile.release]
 strip = true

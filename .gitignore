@@ -2,6 +2,7 @@
 /*.otio
 
 .env
+.direnv/
 docker-compose.override.yaml
 
 # Ignore old projects
