@@ -22,7 +22,7 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-types = { workspace = true }
+types = { workspace = true, features = ["dynamodb"] }
 gt_app = { path = "../gt_app" }
 
 [lints]

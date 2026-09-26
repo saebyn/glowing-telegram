@@ -1,0 +1,31 @@
+[package]
+name = "render_job_new"
+description = "Postgres-backed Streamosaic render job"
+version = "0.1.0"
+edition = "2021"
+authors = ["saebyn <saebynx@gmail.com>"]
+repository = "https://github.com/saebyn/glowing-telegram"
+license = "AGPL-3.0"
+readme = "../README.md"
+keywords = ["rust", "ffmpeg", "glowing-telegram"]
+categories = ["multimedia::video"]
+
+[dependencies]
+anyhow = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+figment = { workspace = true }
+gt_ffmpeg = { path = "../gt_ffmpeg" }
+gt_postgres = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = "3"
+tokio = { workspace = true }
+tokio-postgres = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+types = { workspace = true, default-features = false }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

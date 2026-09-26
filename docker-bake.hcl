@@ -11,6 +11,9 @@ group "all" {
     "ingestion_management_lambda",
     "media_lambda",
     "render_job",
+    "render_job_new",
+    "pipeline",
+    "render_job_status_handler",
     "summarize_transcription",
     "twitch_lambda",
     "upload_video",
@@ -30,6 +33,8 @@ group "batch1" {
     "crud_api", 
     "embedding_service",
     "ingestion_management_lambda",
+    "pipeline",
+    "render_job_status_handler",
     "summarize_transcription",
     "twitch_lambda",
     "upload_video",
@@ -46,6 +51,7 @@ group "batch2" {
     "audio_transcriber",
     "media_lambda",
     "render_job",
+    "render_job_new",
     "video_ingestor",
   ]
 }
@@ -104,6 +110,27 @@ target "render_job" {
   context = "."
   target = "render_job"
   tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/render-job:latest"]
+}
+
+target "render_job_new" {
+  dockerfile = "Dockerfile"
+  context = "."
+  target = "render_job_new"
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/render-job-new:latest"]
+}
+
+target "pipeline" {
+  dockerfile = "Dockerfile"
+  context = "."
+  target = "pipeline"
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/pipeline:latest"]
+}
+
+target "render_job_status_handler" {
+  dockerfile = "Dockerfile"
+  context = "."
+  target = "render_job_status_handler"
+  tags = ["159222827421.dkr.ecr.us-west-2.amazonaws.com/glowing-telegram/render-job-status-handler:latest"]
 }
 
 target "summarize_transcription" {

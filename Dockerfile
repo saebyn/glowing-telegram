@@ -142,6 +142,22 @@ FROM runtime AS render_job
 COPY --from=rust_builder --chown=${USER}:${USER} /app/target/release/render_job /app/render_job
 ENTRYPOINT [ "/app/render_job" ]
 
+# render_job_new
+FROM runtime AS render_job_new
+
+COPY --from=rust_builder --chown=${USER}:${USER} /app/target/release/render_job_new /app/render_job_new
+ENTRYPOINT [ "/app/render_job_new" ]
+
+# pipeline
+FROM runtime_base AS pipeline
+COPY --from=rust_builder /app/target/release/pipeline /bootstrap
+ENTRYPOINT ["/bootstrap"]
+
+# render_job_status_handler
+FROM runtime_base AS render_job_status_handler
+COPY --from=rust_builder /app/target/release/render_job_status_handler /bootstrap
+ENTRYPOINT ["/bootstrap"]
+
 # summarize_transcription
 FROM runtime_base AS summarize_transcription
 COPY --from=rust_builder /app/target/release/summarize_transcription /bootstrap
