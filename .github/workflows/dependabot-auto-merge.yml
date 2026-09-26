@@ -1,0 +1,72 @@
+name: Dependabot auto-merge
+
+on:
+  workflow_run:
+    workflows: ["CDK", "Rust"]
+    types: [completed]
+
+permissions:
+  checks: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.workflow_run.head_sha }}
+
+jobs:
+  merge:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge Dependabot PR after all checks pass
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const pr = context.payload.workflow_run.pull_requests.find(
+              ({ base }) => base.ref === "main",
+            );
+            if (!pr) {
+              core.info("No pull request targeting main is associated with this run");
+              return;
+            }
+
+            const { data: pull } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+            });
+            if (pull.user.login !== "dependabot[bot]" || pull.draft || pull.state !== "open") {
+              core.info("Pull request is not a ready Dependabot PR");
+              return;
+            }
+
+            const { data } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: pull.head.sha,
+              filter: "latest",
+              per_page: 100,
+            });
+            const requiredChecks = ["cdk_synth_check", "rust_build", "clippy_check"];
+            const checksByName = new Map(data.check_runs.map((check) => [check.name, check]));
+            const requiredPassed = requiredChecks.every(
+              (name) => checksByName.get(name)?.conclusion === "success",
+            );
+            const acceptableConclusions = new Set(["success", "neutral", "skipped"]);
+            const allPassed = data.check_runs.every(
+              (check) =>
+                check.status === "completed" && acceptableConclusions.has(check.conclusion),
+            );
+
+            if (!requiredPassed || !allPassed) {
+              core.info("Not all checks have passed; a later completed workflow will retry");
+              return;
+            }
+
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pull.number,
+              merge_method: "squash",
+              sha: pull.head.sha,
+            });
