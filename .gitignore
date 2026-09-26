@@ -2,6 +2,7 @@
 /*.otio
 
 .env
+.envrc
 .direnv/
 docker-compose.override.yaml
 
