@@ -61,7 +61,7 @@ export default class NewPipelineConstruct extends Construct {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
     props.inputBucket.grantRead(jobRole);
-    props.outputBucket.grantWrite(jobRole);
+    props.outputBucket.grantPut(jobRole, 'new/renders/*');
     props.database.grantConnect(jobRole, 'postgres');
     props.databaseSecret.grantRead(jobRole);
 
