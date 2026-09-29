@@ -9,6 +9,7 @@ import ServiceLambdaConstruct from './util/serviceLambda';
 
 interface TwitchChatProcessingProps {
   chatMessagesTable: dynamodb.ITable;
+  streamWidgetsTable: dynamodb.ITable;
   tagOrDigest?: string;
 }
 
@@ -43,6 +44,7 @@ export default class TwitchChatProcessingConstruct extends Construct {
           environment: {
             CHAT_MESSAGES_TABLE: props.chatMessagesTable.tableName,
             CHAT_MESSAGE_TTL_DAYS: '365', // Set TTL for chat messages
+            STREAM_WIDGETS_TABLE: props.streamWidgetsTable.tableName,
           },
         },
         name: 'chat-processor-lambda',
@@ -63,7 +65,7 @@ export default class TwitchChatProcessingConstruct extends Construct {
     // Grant Lambda permissions to read from SQS
     this.chatQueue.grantConsumeMessages(this.processingLambda);
 
-    // Grant Lambda permissions to write to DynamoDB
+    // Grant Lambda permissions to write chat messages to DynamoDB
     this.processingLambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
@@ -72,6 +74,21 @@ export default class TwitchChatProcessingConstruct extends Construct {
           'dynamodb:GetItem',
         ],
         resources: [props.chatMessagesTable.tableArn],
+      }),
+    );
+
+    // Grant Lambda permissions to read and update stream widgets in DynamoDB
+    this.processingLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'dynamodb:Scan',
+          'dynamodb:UpdateItem',
+          'dynamodb:GetItem',
+        ],
+        resources: [
+          props.streamWidgetsTable.tableArn,
+          `${props.streamWidgetsTable.tableArn}/index/*`,
+        ],
       }),
     );
   }

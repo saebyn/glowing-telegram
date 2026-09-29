@@ -16,7 +16,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["countdown", "text_overlay", "poll", "name_queue", "bot_integration"],
+      "enum": ["countdown", "text_overlay", "poll", "name_queue", "bot_integration", "ad_timer"],
       "description": "Widget type determines update behavior and available actions"
     },
     "active": {
