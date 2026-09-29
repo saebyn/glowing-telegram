@@ -2,7 +2,7 @@ use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use serde::Deserialize;
 use sha2::Sha256;
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::HeaderMap;
 use types::{EventSubSubscription, TwitchSessionSecret};
 
