@@ -119,7 +119,7 @@ export interface CutList {
     /**
      * Ordered media sections to form the output timeline sequence
      */
-    outputTrack: OutputTrack[];
+    outputTrack: [OutputTrack, ...OutputTrack[]];
     /**
      * One or more overlay tracks
      */
@@ -313,7 +313,7 @@ export interface CutListClass {
     /**
      * Ordered media sections to form the output timeline sequence
      */
-    outputTrack: OutputTrack[];
+    outputTrack: [OutputTrack, ...OutputTrack[]];
     /**
      * One or more overlay tracks
      */
@@ -500,7 +500,7 @@ export interface StreamWidget {
     /**
      * Widget configuration settings
      */
-    config?: { [key: string]: any };
+    config?: { [key: string]: unknown };
     /**
      * ISO 8601 timestamp when the widget was created
      */
@@ -512,7 +512,7 @@ export interface StreamWidget {
     /**
      * Current widget state data
      */
-    state?: { [key: string]: any };
+    state?: { [key: string]: unknown };
     /**
      * Display title for the widget
      */
@@ -697,11 +697,11 @@ export interface WebSocketMessage {
     type:      WebSocketMessageType;
     widgetId?: string;
     action?:   string;
-    payload?:  { [key: string]: any };
-    config?:   { [key: string]: any };
-    state?:    { [key: string]: any };
+    payload?:  { [key: string]: unknown };
+    config?:   { [key: string]: unknown };
+    state?:    { [key: string]: unknown };
     error?:    string;
-    result?:   { [key: string]: any };
+    result?:   { [key: string]: unknown };
     success?:  boolean;
     task?:     Task;
     [property: string]: unknown;
