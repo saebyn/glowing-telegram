@@ -190,7 +190,7 @@ COPY youtube_uploader_lambda/main.py ${LAMBDA_TASK_ROOT}
 CMD [ "main.handler" ]
 
 # websocket_lambda
-FROM public.ecr.aws/lambda/python:3 AS websocket_lambda
+FROM public.ecr.aws/lambda/python:3.13 AS websocket_lambda
 COPY websocket_lambda/Pipfile websocket_lambda/Pipfile.lock ${LAMBDA_TASK_ROOT}
 RUN pip install --no-cache-dir pipenv && \
   pipenv install --system --deploy
