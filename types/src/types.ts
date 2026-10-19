@@ -534,7 +534,7 @@ export interface StreamWidget {
 /**
  * Widget type determines update behavior and available actions
  */
-export type StreamWidgetType = "countdown" | "text_overlay" | "poll" | "name_queue" | "bot_integration";
+export type StreamWidgetType = "ad_timer" | "countdown" | "text_overlay" | "poll" | "name_queue" | "bot_integration";
 
 export interface SubscribeChatRequest {
 }

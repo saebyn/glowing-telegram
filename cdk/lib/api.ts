@@ -54,6 +54,7 @@ interface APIConstructProps {
 
 export default class APIConstruct extends Construct {
   public readonly httpApi: apigwv2.HttpApi;
+  public readonly twitchAppSecret: secretsmanager.ISecret;
 
   constructor(scope: Construct, id: string, props: APIConstructProps) {
     super(scope, id);
@@ -154,6 +155,7 @@ export default class APIConstruct extends Construct {
       description: 'Twitch App Secret for API access in glowing-telegram',
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
+    this.twitchAppSecret = twitchAppSecret;
 
     // EventSub webhook secret for signature verification
     const eventSubSecret = new secretsmanager.Secret(this, 'EventSubSecret', {
