@@ -329,7 +329,7 @@ export default class APIConstruct extends Construct {
         timeout: cdk.Duration.minutes(3),
         environment: {
           OPENAI_SECRET_ARN: props.openaiSecret.secretArn,
-          OPENAI_MODEL: 'gpt-4o-2024-11-20',
+          OPENAI_MODEL: 'gpt-6-luna',
         },
       },
       name: 'ai-chat-lambda',

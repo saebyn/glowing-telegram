@@ -17,7 +17,7 @@ This is a full-featured platform for managing live streams and recordings, featu
 ### AI-Powered Analysis
 1. **Audio Transcription** - Automated transcription using HuggingFace Whisper models with silence detection
 1. **Semantic Search** - Vector embeddings with pgvector for intelligent content discovery
-1. **AI Summaries** - Automatic episode summaries via GPT-4
+1. **AI Summaries** - Automatic episode summaries via GPT-6 Luna
 1. **Embedding Service** - Aurora Serverless v2 with pgvector for similarity search
 
 ### Real-Time Features
@@ -140,7 +140,7 @@ This repository contains these directories:
 
 ### AI & ML
 - **HuggingFace Transformers** - Whisper large-v3 for audio transcription
-- **OpenAI GPT-4** - Episode summarization and chat completion
+- **OpenAI GPT-6 Luna** - Episode summarization and chat completion (`gpt-6-luna`, with reasoning disabled to preserve the previous latency baseline)
 - **OpenAI Embeddings** - text-embedding-3-small for semantic search
 - **pgvector** - Vector similarity search in PostgreSQL
 
