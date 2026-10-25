@@ -19,6 +19,7 @@ use openai_dive::v1::error::APIError;
 use openai_dive::v1::resources::chat::{
     ChatCompletionParameters, ChatCompletionResponse,
 };
+use openai_dive::v1::resources::shared::ReasoningEffort;
 use openai_dive::v1::{
     api::Client,
     resources::chat::{
@@ -176,6 +177,8 @@ fn build_parameters(
 ) -> ChatCompletionParameters {
     ChatCompletionParameters {
         model: model.to_string(),
+        // Preserve the non-reasoning behavior of the previous GPT-4o model.
+        reasoning_effort: Some(ReasoningEffort::None),
         response_format: Some(ChatCompletionResponseFormat::JsonObject),
         messages: messages
             .iter()

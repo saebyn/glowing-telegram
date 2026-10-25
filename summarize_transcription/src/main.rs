@@ -7,6 +7,7 @@ use aws_sdk_dynamodb::types::AttributeValue;
 use lambda_runtime::{Diagnostic, Error, LambdaEvent, service_fn};
 use openai_dive::v1::error::APIError;
 use openai_dive::v1::resources::shared::FinishReason::StopSequenceReached;
+use openai_dive::v1::resources::shared::ReasoningEffort;
 use openai_dive::v1::{
     api::Client,
     resources::chat::{
@@ -162,6 +163,8 @@ async fn handler(
 
     let parameters = ChatCompletionParametersBuilder::default()
         .model(config.openai_model.clone())
+        // Preserve the non-reasoning behavior of the previous GPT-4o model.
+        .reasoning_effort(ReasoningEffort::None)
         .response_format(ChatCompletionResponseFormat::JsonSchema {
             json_schema,
         })

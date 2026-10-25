@@ -57,7 +57,7 @@ export default class StreamIngestionConstruct extends Construct {
           environment: {
             OPENAI_SECRET_ARN: props.openaiSecret.secretArn,
             METADATA_TABLE_NAME: props.videoMetadataTable.tableName,
-            OPENAI_MODEL: 'gpt-4o-2024-11-20',
+            OPENAI_MODEL: 'gpt-6-luna',
             OPENAI_INSTRUCTIONS: `
 Generate a detailed summary report for the given transcript of a 20-minute video, using the provided context summary of preceding videos to enhance continuity and depth.
 
