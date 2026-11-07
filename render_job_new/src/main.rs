@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 use std::env;
 use std::path::Path;
+use std::process::Stdio;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use aws_config::BehaviorVersion;
@@ -9,6 +11,9 @@ use figment::{Figment, providers::Env};
 use gt_ffmpeg::edit::build_ffmpeg_command;
 use serde::Deserialize;
 use tempfile::{NamedTempFile, TempDir};
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::process::Command;
+use tokio::sync::watch;
 use tokio::task::JoinSet;
 use tokio_postgres::Client as PgClient;
 use types::{
@@ -251,7 +256,7 @@ async fn process(
     download_inputs(s3, &config.input_bucket, &cut_list, &input_dir).await?;
 
     let output = NamedTempFile::new().context("create output file")?;
-    run_ffmpeg(&cut_list, input_dir.path(), output.path()).await?;
+    run_ffmpeg(&cut_list, input_dir.path(), output.path(), duration_frames, postgres, job).await?;
     upload_output(s3, &config.output_bucket, &output_key, output.path())
         .await?;
 
@@ -307,29 +312,143 @@ async fn download_inputs(
     Ok(())
 }
 
+// FFmpeg progress measures encoding only: downloads precede it and upload follows it.
+// Reserve 100 for the completion transaction, after the upload has succeeded.
+fn frame_percentage(frame: u64, duration_frames: i64) -> Option<i32> {
+    let duration = u128::try_from(duration_frames).ok().filter(|d| *d > 0)?;
+    let percent = (u128::from(frame) * 100 / duration).min(99);
+    Some(i32::try_from(percent).expect("percentage is at most 99"))
+}
+
+fn parse_frame(line: &[u8]) -> Option<u64> {
+    let value = line.strip_prefix(b"frame=")?;
+    std::str::from_utf8(value).ok()?.trim().parse().ok()
+}
+
+struct ProgressThrottle {
+    last_percent: i32,
+    last_write: Option<Instant>,
+}
+
+impl ProgressThrottle {
+    fn should_write(&self, percent: i32, now: Instant) -> bool {
+        percent > self.last_percent
+            && self.last_write.is_none_or(|last| now.duration_since(last) >= Duration::from_secs(5))
+    }
+
+    fn recorded(&mut self, percent: i32, now: Instant) {
+        self.last_percent = percent;
+        self.last_write = Some(now);
+    }
+}
+
+// Consume fixed-size chunks and discard oversized lines. A watch channel retains
+// only the latest frame, so slow database writes cannot block FFmpeg's stdout.
+async fn read_progress<R: AsyncRead + Unpin>(mut input: R, sender: watch::Sender<u64>) -> std::io::Result<()> {
+    let mut chunk = [0_u8; 4096];
+    let mut line = Vec::new();
+    let mut oversized = false;
+    loop {
+        let count = input.read(&mut chunk).await?;
+        if count == 0 { break; }
+        for &byte in &chunk[..count] {
+            if byte == b'\n' {
+                if !oversized {
+                    if let Some(frame) = parse_frame(&line) {
+                        sender.send_if_modified(|current| {
+                            if frame > *current { *current = frame; true } else { false }
+                        });
+                    }
+                }
+                line.clear();
+                oversized = false;
+            } else if line.len() < 1024 && !oversized {
+                line.push(byte);
+            } else {
+                oversized = true;
+            }
+        }
+    }
+    Ok(())
+}
+
+// Keep the end of stderr, where FFmpeg normally prints its fatal error.
+async fn read_stderr<R: AsyncRead + Unpin>(mut input: R) -> std::io::Result<Vec<u8>> {
+    const LIMIT: usize = 16_000;
+    let mut tail = Vec::new();
+    let mut chunk = [0_u8; 4096];
+    loop {
+        let count = input.read(&mut chunk).await?;
+        if count == 0 { break; }
+        tail.extend_from_slice(&chunk[..count]);
+        if tail.len() > LIMIT { tail.drain(..tail.len() - LIMIT); }
+    }
+    Ok(tail)
+}
+
 async fn run_ffmpeg(
     cut_list: &CutList,
     input_dir: &Path,
     output: &Path,
+    duration_frames: i64,
+    postgres: &PgClient,
+    job: &RenderJob,
 ) -> Result<()> {
-    let output = output
-        .to_str()
-        .ok_or_else(|| anyhow!("output path is not valid UTF-8"))?;
-    let mut command =
-        build_ffmpeg_command(cut_list, FRAME_RATE, output, RESOLUTION);
-    command.current_dir(input_dir);
-    let result = command
-        .output()
-        .await
-        .context("run ffmpeg render command")?;
-    if !result.status.success() {
-        let stderr = String::from_utf8_lossy(&result.stderr);
-        bail!(
-            "ffmpeg exited with {}: {}",
-            result.status,
-            stderr.trim().chars().take(4_000).collect::<String>()
-        );
+    let output = output.to_str().ok_or_else(|| anyhow!("output path is not valid UTF-8"))?;
+    let mut command = build_ffmpeg_command(cut_list, FRAME_RATE, output, RESOLUTION);
+    command.current_dir(input_dir).arg("-progress").arg("pipe:1");
+    run_render_command(&mut command, duration_frames, Some((postgres, job))).await
+}
+
+async fn run_render_command(
+    command: &mut Command,
+    duration_frames: i64,
+    database: Option<(&PgClient, &RenderJob)>,
+) -> Result<()> {
+    let mut child = command.stdout(Stdio::piped()).stderr(Stdio::piped())
+        .kill_on_drop(true).spawn().context("spawn ffmpeg render command")?;
+    let stdout = child.stdout.take().context("capture ffmpeg stdout")?;
+    let stderr = child.stderr.take().context("capture ffmpeg stderr")?;
+    let (sender, mut receiver) = watch::channel(0_u64);
+    let progress_task = tokio::spawn(read_progress(stdout, sender));
+    let stderr_task = tokio::spawn(read_stderr(stderr));
+    let mut throttle = ProgressThrottle { last_percent: 0, last_write: None };
+    let mut updates_enabled = database.is_some();
+    let status = loop {
+        tokio::select! {
+            result = child.wait() => break result.context("wait for ffmpeg")?,
+            changed = receiver.changed(), if updates_enabled => {
+                if changed.is_err() { updates_enabled = false; continue; }
+                let frame = *receiver.borrow_and_update();
+                let Some(percent) = frame_percentage(frame, duration_frames) else { continue; };
+                let now = Instant::now();
+                if !throttle.should_write(percent, now) { continue; }
+                let (client, job) = database.expect("updates require a database");
+                let parameters: &[&(dyn tokio_postgres::types::ToSql + Sync)] =
+                    &[&percent, &job.id, &job.episode_id, &job.tenant_id, &job.batch_job_id];
+                let update = client.execute(
+                    r"UPDATE render_jobs SET progress = GREATEST(COALESCE(progress, 0), $1), updated_at = NOW()
+                      WHERE id = $2 AND episode_id = $3 AND tenant_id = $4
+                        AND status = 'running' AND glowing_telegram_id = $5",
+                    parameters,
+                );
+                match tokio::time::timeout(Duration::from_secs(5), update).await {
+                    Ok(Ok(0)) => { tracing::warn!("render job no longer running or assigned to this Batch job"); updates_enabled = false; }
+                    Ok(Ok(_)) => throttle.recorded(percent, now),
+                    Ok(Err(error)) => { tracing::warn!(%error, "could not update render progress"); throttle.recorded(percent, now); }
+                    Err(_) => { tracing::warn!("render progress update timed out"); throttle.recorded(percent, now); }
+                }
+            }
+        }
+    };
+    let progress_result = progress_task.await.context("progress reader task failed")?;
+    let stderr = stderr_task.await.context("stderr reader task failed")?.context("read ffmpeg stderr")?;
+    if !status.success() {
+        let stderr = String::from_utf8_lossy(&stderr);
+        let diagnostic: String = stderr.trim().chars().rev().take(4_000).collect::<String>().chars().rev().collect();
+        bail!("ffmpeg exited with {status}: {diagnostic}");
     }
+    progress_result.context("read ffmpeg progress")?;
     Ok(())
 }
 
@@ -788,6 +907,67 @@ impl From<StreamosaicOverlayType> for OverlayTrackType {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn parses_progress_frames_and_ignores_invalid_lines() {
+        assert_eq!(parse_frame(b"frame=   123"), Some(123));
+        assert_eq!(parse_frame(b"frame=N/A"), None);
+        assert_eq!(parse_frame(b"frame=-1"), None);
+        assert_eq!(parse_frame(b"out_time_us=123"), None);
+        assert_eq!(parse_frame(b"frame=18446744073709551616"), None);
+    }
+
+    #[test]
+    fn percentage_uses_timeline_frames_and_reserves_completion() {
+        assert_eq!(frame_percentage(0, 270), Some(0));
+        assert_eq!(frame_percentage(1, 270), Some(0));
+        assert_eq!(frame_percentage(135, 270), Some(50));
+        assert_eq!(frame_percentage(269, 270), Some(99));
+        assert_eq!(frame_percentage(270, 270), Some(99));
+        assert_eq!(frame_percentage(u64::MAX, 270), Some(99));
+        assert_eq!(frame_percentage(1, 0), None);
+        assert_eq!(frame_percentage(1, -1), None);
+    }
+
+    #[test]
+    fn throttle_requires_increasing_progress_and_elapsed_time() {
+        let now = Instant::now();
+        let mut throttle = ProgressThrottle { last_percent: 0, last_write: None };
+        assert!(!throttle.should_write(0, now));
+        assert!(throttle.should_write(1, now));
+        throttle.recorded(1, now);
+        assert!(!throttle.should_write(2, now + Duration::from_secs(4)));
+        assert!(!throttle.should_write(1, now + Duration::from_secs(5)));
+        assert!(!throttle.should_write(0, now + Duration::from_secs(5)));
+        assert!(throttle.should_write(2, now + Duration::from_secs(5)));
+    }
+
+    #[tokio::test]
+    async fn progress_reader_handles_missing_invalid_and_regressing_values() {
+        let (sender, receiver) = watch::channel(0);
+        let input = &b"frame=N/A\nframe=12\nframe=5\nframe=20\n"[..];
+        read_progress(input, sender).await.unwrap();
+        assert_eq!(*receiver.borrow(), 20);
+        let (sender, receiver) = watch::channel(0);
+        read_progress(&b"progress=end\n"[..], sender).await.unwrap();
+        assert_eq!(*receiver.borrow(), 0);
+    }
+
+    #[tokio::test]
+    async fn process_failure_retains_stderr_even_without_progress() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "printf 'useful failure' >&2; exit 7"]);
+        let error = run_render_command(&mut command, 60, None).await.unwrap_err().to_string();
+        assert!(error.contains("useful failure"));
+        assert!(error.contains('7'));
+    }
+
+    #[tokio::test]
+    async fn process_succeeds_without_progress() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "printf 'no progress' >&2"]);
+        run_render_command(&mut command, 60, None).await.unwrap();
+    }
 
     fn cut_list_json() -> serde_json::Value {
         json!({
