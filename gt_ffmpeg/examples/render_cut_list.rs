@@ -19,8 +19,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         &args[1],
         (96, 64),
     );
-    // Bound resources for tiny fixtures; do not substitute a different filter graph.
-    command.args(["-threads", "1", "-filter_complex_threads", "1"]);
     let status = command.status().await?;
     if !status.success() {
         return Err(format!("ffmpeg failed: {status}").into());
