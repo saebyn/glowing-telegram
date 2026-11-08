@@ -258,20 +258,20 @@ fn assemble_track_segments(
     let mut video_streams = Vec::new();
     let mut audio_streams = Vec::new();
 
+    let mut group_start = 0;
+    let mut group_frames = 0_i64;
     for (i, track) in output_tracks.iter().enumerate() {
+        let section = &input_media[track.media_index as usize].sections
+            [track.section_index as usize];
+        let section_frames = section.end_frame - section.start_frame;
         if let Some(transition) = &track.transition_in {
             if transition.transition_type == TransitionInType::Fade && i > 0 {
                 let duration_sec =
                     convert_frame_to_time(transition.duration, frame_rate);
-                let prev_section = &input_media
-                    [output_tracks[i - 1].media_index as usize]
-                    .sections
-                    [output_tracks[i - 1].section_index as usize];
-                let prev_len_sec = convert_frame_to_time(
-                    prev_section.end_frame - prev_section.start_frame,
+                let offset = convert_frame_to_time(
+                    group_frames - transition.duration,
                     frame_rate,
                 );
-                let offset = prev_len_sec - duration_sec;
                 // xfade
                 parts.push(FilterPipe::new(
                     vec![Filter::new(
@@ -283,10 +283,10 @@ fn assemble_track_segments(
                         ],
                     )],
                     vec![
-                        FilterChannel::MyVideo((i - 1) as u8),
+                        FilterChannel::MyVideo(group_start as u8),
                         FilterChannel::MyVideo(i as u8),
                     ],
-                    FilterChannel::MyVideo((i - 1) as u8),
+                    FilterChannel::MyVideo(group_start as u8),
                 ));
 
                 parts.push(FilterPipe::new(
@@ -295,16 +295,21 @@ fn assemble_track_segments(
                         vec![("d", duration_sec.to_string())],
                     )],
                     vec![
-                        FilterChannel::MyAudio((i - 1) as u8),
+                        FilterChannel::MyAudio(group_start as u8),
                         FilterChannel::MyAudio(i as u8),
                     ],
-                    FilterChannel::MyAudio((i - 1) as u8),
+                    FilterChannel::MyAudio(group_start as u8),
                 ));
+                group_frames += section_frames - transition.duration;
             } else {
+                group_start = i;
+                group_frames = section_frames;
                 video_streams.push(FilterChannel::MyVideo(i as u8));
                 audio_streams.push(FilterChannel::MyAudio(i as u8));
             }
         } else {
+            group_start = i;
+            group_frames = section_frames;
             video_streams.push(FilterChannel::MyVideo(i as u8));
             audio_streams.push(FilterChannel::MyAudio(i as u8));
         }
@@ -471,6 +476,42 @@ mod test {
     use types::CutList;
 
     use super::build_ffmpeg_command;
+
+    #[test]
+    fn consecutive_fades_chain_into_the_accumulated_result() {
+        let data: CutList = serde_json::from_value(json!({
+            "version": "1.0.0",
+            "inputMedia": [{"s3Location": "a.mkv", "sections": [
+                {"startFrame": 0, "endFrame": 360},
+                {"startFrame": 360, "endFrame": 780},
+                {"startFrame": 780, "endFrame": 1440}
+            ]}],
+            "outputTrack": [
+                {"mediaIndex": 0, "sectionIndex": 0},
+                {"mediaIndex": 0, "sectionIndex": 1,
+                 "transitionIn": {"type": "fade", "duration": 120}},
+                {"mediaIndex": 0, "sectionIndex": 2,
+                 "transitionIn": {"type": "fade", "duration": 120}}
+            ]
+        }))
+        .unwrap();
+        let command =
+            build_ffmpeg_command(&data, 60.0, "output.mp4", (96, 64));
+        let args: Vec<_> = command
+            .as_std()
+            .get_args()
+            .map(|v| v.to_string_lossy().to_string())
+            .collect();
+        let graph = &args
+            [args.iter().position(|a| a == "-filter_complex").unwrap() + 1];
+        assert!(graph.contains(
+            "[v0][v1]xfade=duration=2:offset=4:transition=fade[v0]"
+        ));
+        assert!(graph.contains(
+            "[v0][v2]xfade=duration=2:offset=9:transition=fade[v0]"
+        ));
+        assert!(graph.contains("[a0][a2]acrossfade=d=2[a0]"));
+    }
 
     #[test]
     fn test_real_example_1() {
