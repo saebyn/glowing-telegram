@@ -2,7 +2,10 @@ use std::fmt::{self, Display};
 use std::{collections::HashMap, rc::Rc};
 use tokio::process::Command;
 
-use types::{CutList, InputMedia, OutputTrack, TransitionInType};
+use types::{
+    AudioChannelKeyframe, AudioChannelMixing, CutList, InputMedia,
+    OutputTrack, TransitionInType,
+};
 
 // Converts a frame number to time (seconds)
 fn convert_frame_to_time(frame: i64, frame_rate: f32) -> f32 {
@@ -441,7 +444,13 @@ pub fn build_ffmpeg_command(
         cmd.arg("-i").arg(m.s3_location.clone());
     }
 
-    let filter = FilterGraph::new(data, frame_rate, resolution).to_string();
+    let mut filter =
+        FilterGraph::new(data, frame_rate, resolution).to_string();
+    if let Some(mixing) =
+        data.audio_mixing.as_deref().filter(|m| !m.is_empty())
+    {
+        filter.push_str(&audio_mixing_filter(mixing, frame_rate));
+    }
 
     cmd.arg("-filter_complex").arg(filter);
 
@@ -469,13 +478,183 @@ pub fn build_ffmpeg_command(
     cmd
 }
 
+// Apply routing after concatenation and crossfades: keyframe positions refer to
+// the output timeline, not the source media's timestamps.
+fn audio_mixing_filter(
+    mixing: &[AudioChannelMixing],
+    frame_rate: f32,
+) -> String {
+    let channels = mixing
+        .iter()
+        .map(|m| m.output_channel)
+        .max()
+        .unwrap()
+        .saturating_add(1);
+    let mut graph = String::new();
+    if mixing.len() > 1 {
+        graph.push_str(&format!(";[a255]asplit={}", mixing.len()));
+        for i in 0..mixing.len() {
+            graph.push_str(&format!("[mix_in{i}]"));
+        }
+    }
+    for (i, route) in mixing.iter().enumerate() {
+        let input = if mixing.len() == 1 {
+            "a255".to_owned()
+        } else {
+            format!("mix_in{i}")
+        };
+        let volume = volume_expression(
+            route.keyframes.as_deref().unwrap_or(&[]),
+            frame_rate,
+        );
+        graph.push_str(&format!(
+            ";[{input}]pan=mono|c0=c{},volume='{}':eval=frame,pan={}c|c{}=c0[mix{i}]",
+            route.source_channel, volume, channels, route.output_channel
+        ));
+    }
+    graph.push(';');
+    for i in 0..mixing.len() {
+        graph.push_str(&format!("[mix{i}]"));
+    }
+    graph.push_str(&format!("amix=inputs={}:normalize=0[a255]", mixing.len()));
+    graph
+}
+
+fn volume_expression(
+    keyframes: &[AudioChannelKeyframe],
+    frame_rate: f32,
+) -> String {
+    let mut keyframes: Vec<_> = keyframes.iter().collect();
+    keyframes.sort_by_key(|keyframe| keyframe.frame);
+    keyframes.dedup_by(|later, earlier| {
+        if later.frame == earlier.frame {
+            *earlier = *later;
+            true
+        } else {
+            false
+        }
+    });
+    let Some(last) = keyframes.last() else {
+        return "1".to_owned();
+    };
+    let mut expression = last.volume.to_string();
+    for pair in keyframes.windows(2).rev() {
+        let start = pair[0].frame as f64 / f64::from(frame_rate);
+        let end = pair[1].frame as f64 / f64::from(frame_rate);
+        expression = format!(
+            "if(lt(t,{end}),{}+({}-{})*(t-{start})/({end}-{start}),{expression})",
+            pair[0].volume, pair[1].volume, pair[0].volume
+        );
+    }
+    let first = keyframes[0];
+    format!(
+        "if(lt(t,{}),{},{expression})",
+        first.frame as f64 / f64::from(frame_rate),
+        first.volume
+    )
+}
+
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
     use serde_json::json;
     use types::CutList;
 
-    use super::build_ffmpeg_command;
+    use super::{
+        audio_mixing_filter, build_ffmpeg_command, volume_expression,
+    };
+
+    #[test]
+    fn mixing_is_optional_and_duplicate_keyframes_use_the_last_value() {
+        let mut data: CutList = serde_json::from_value(json!({
+            "version": "1.0.0",
+            "inputMedia": [{"s3Location": "a.mkv", "sections": [{"startFrame": 0, "endFrame": 60}]}],
+            "outputTrack": [{"mediaIndex": 0, "sectionIndex": 0}]
+        })).unwrap();
+        let graph = |data: &CutList| {
+            let cmd = build_ffmpeg_command(data, 60.0, "out.mp4", (96, 64));
+            let args: Vec<_> = cmd
+                .as_std()
+                .get_args()
+                .map(|a| a.to_string_lossy().to_string())
+                .collect();
+            args[args.iter().position(|a| a == "-filter_complex").unwrap() + 1]
+                .clone()
+        };
+        let original = graph(&data);
+        data.audio_mixing = Some(vec![]);
+        assert_eq!(graph(&data), original);
+        data.audio_mixing = Some(
+            serde_json::from_value(json!([
+                {"sourceChannel": 0, "outputChannel": 0}
+            ]))
+            .unwrap(),
+        );
+        assert!(
+            graph(&data)
+                .contains("[a255]pan=mono|c0=c0,volume='1':eval=frame")
+        );
+
+        let keys: Vec<types::AudioChannelKeyframe> =
+            serde_json::from_value(json!([
+                {"frame": 0, "volume": 0.0}, {"frame": 0, "volume": 0.5}
+            ]))
+            .unwrap();
+        assert_eq!(volume_expression(&keys, 60.0), "if(lt(t,0),0.5,0.5)");
+    }
+
+    #[test]
+    fn mixing_routes_channels_and_interpolates_on_the_output_timeline() {
+        let mixing: Vec<types::AudioChannelMixing> =
+            serde_json::from_value(json!([
+                {"sourceChannel": 0, "outputChannel": 1, "keyframes": [
+                    {"frame": 60, "volume": 1.0}, {"frame": 0, "volume": 0.0}
+                ]},
+                {"sourceChannel": 1, "outputChannel": 0, "keyframes": [
+                    {"frame": 0, "volume": 0.5}
+                ]},
+                {"sourceChannel": 0, "outputChannel": 0, "keyframes": [
+                    {"frame": 0, "volume": 0.5}
+                ]}
+            ]))
+            .unwrap();
+        let graph =
+            format!("[0:a]anull[a255]{}", audio_mixing_filter(&mixing, 60.0));
+        let output = std::process::Command::new("ffmpeg")
+            .args([
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "aevalsrc=0.1|0.2:s=48000:d=2",
+                "-filter_complex",
+                &graph,
+                "-map",
+                "[a255]",
+                "-f",
+                "f32le",
+                "-acodec",
+                "pcm_f32le",
+                "-",
+            ])
+            .output()
+            .expect("ffmpeg must be installed for this test");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let sample = |time: f64, channel: usize| {
+            let offset = ((time * 48000.0) as usize * 2 + channel) * 4;
+            f32::from_le_bytes(
+                output.stdout[offset..offset + 4].try_into().unwrap(),
+            )
+        };
+        assert!((sample(0.5, 0) - 0.15).abs() < 0.002);
+        assert!((sample(0.5, 1) - 0.05).abs() < 0.003);
+        assert!((sample(1.5, 1) - 0.1).abs() < 0.002);
+    }
 
     #[test]
     fn consecutive_fades_chain_into_the_accumulated_result() {
