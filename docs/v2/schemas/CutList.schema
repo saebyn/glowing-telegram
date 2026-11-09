@@ -33,7 +33,7 @@
         "outputChannel": { "type": "integer", "minimum": 0, "description": "0-indexed output audio channel number" },
         "keyframes": {
           "type": "array",
-          "description": "Volume keyframes for this channel throughout the timeline",
+          "description": "Volume keyframes on the output timeline. Levels interpolate linearly between keyframes and hold the nearest level outside them; absent or empty keyframes use volume 1. Duplicate frames use the last value.",
           "items": { "$ref": "#/definitions/audioChannelKeyframe" },
           "minItems": 0
         }
@@ -122,7 +122,7 @@
     },
     "audioMixing": {
       "type": "array",
-      "description": "Audio channel mixing and volume control configuration",
+      "description": "Audio channel routes applied to the assembled output timeline. Routes to the same output channel are summed; output channels without routes are silent. An absent or empty array preserves the original audio.",
       "items": { "$ref": "#/definitions/audioChannelMixing" },
       "minItems": 0
     }
