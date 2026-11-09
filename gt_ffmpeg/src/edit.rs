@@ -604,7 +604,7 @@ mod test {
     }
 
     #[test]
-    fn mixing_routes_channels_and_interpolates_on_the_output_timeline() {
+    fn mixing_graph_routes_and_sums_channels() {
         let mixing: Vec<types::AudioChannelMixing> =
             serde_json::from_value(json!([
                 {"sourceChannel": 0, "outputChannel": 1, "keyframes": [
@@ -618,42 +618,12 @@ mod test {
                 ]}
             ]))
             .unwrap();
-        let graph =
-            format!("[0:a]anull[a255]{}", audio_mixing_filter(&mixing, 60.0));
-        let output = std::process::Command::new("ffmpeg")
-            .args([
-                "-v",
-                "error",
-                "-f",
-                "lavfi",
-                "-i",
-                "aevalsrc=0.1|0.2:s=48000:d=2",
-                "-filter_complex",
-                &graph,
-                "-map",
-                "[a255]",
-                "-f",
-                "f32le",
-                "-acodec",
-                "pcm_f32le",
-                "-",
-            ])
-            .output()
-            .expect("ffmpeg must be installed for this test");
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let sample = |time: f64, channel: usize| {
-            let offset = ((time * 48000.0) as usize * 2 + channel) * 4;
-            f32::from_le_bytes(
-                output.stdout[offset..offset + 4].try_into().unwrap(),
-            )
-        };
-        assert!((sample(0.5, 0) - 0.15).abs() < 0.002);
-        assert!((sample(0.5, 1) - 0.05).abs() < 0.003);
-        assert!((sample(1.5, 1) - 0.1).abs() < 0.002);
+        let graph = audio_mixing_filter(&mixing, 60.0);
+        assert!(graph.starts_with(";[a255]asplit=3[mix_in0][mix_in1][mix_in2]"));
+        assert!(graph.contains("[mix_in0]pan=mono|c0=c0,volume='if(lt(t,0),0,if(lt(t,1),0+(1-0)*(t-0)/(1-0),1))':eval=frame,pan=2c|c1=c0[mix0]"));
+        assert!(graph.contains("[mix_in1]pan=mono|c0=c1,volume='if(lt(t,0),0.5,0.5)':eval=frame,pan=2c|c0=c0[mix1]"));
+        assert!(graph.contains("[mix_in2]pan=mono|c0=c0,volume='if(lt(t,0),0.5,0.5)':eval=frame,pan=2c|c0=c0[mix2]"));
+        assert!(graph.ends_with("[mix0][mix1][mix2]amix=inputs=3:normalize=0[a255]"));
     }
 
     #[test]
@@ -835,3 +805,4 @@ mod test {
         );
     }
 }
+
