@@ -118,8 +118,11 @@ pub enum Method {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct CutList {
-    /// Audio channel mixing and volume control configuration
+    /// Audio channel routes applied to the assembled output timeline. Routes to the same output
+    /// channel are summed; output channels without routes are silent. An absent or empty array
+    /// preserves the original audio.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_mixing: Option<Vec<AudioChannelMixing>>,
 
@@ -141,7 +144,9 @@ pub struct CutList {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioChannelMixing {
-    /// Volume keyframes for this channel throughout the timeline
+    /// Volume keyframes on the output timeline. Levels interpolate linearly between keyframes
+    /// and hold the nearest level outside them; absent or empty keyframes use volume 1.
+    /// Duplicate frames use the last value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keyframes: Option<Vec<AudioChannelKeyframe>>,
 
@@ -158,7 +163,8 @@ pub struct AudioChannelKeyframe {
     /// Timeline frame position for this keyframe
     pub frame: i64,
 
-    /// Volume level (0.0 = mute, 1.0 = original, >1.0 = amplified)
+    /// Linear gain (0 = mute, 1 = original, >1 = amplified). Nonzero gains must fit FFmpeg's
+    /// 32-bit floating-point volume processing; no loudness normalization is implied.
     pub volume: f64,
 }
 
@@ -183,12 +189,19 @@ pub struct MediaSection {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct OutputTrack {
     /// Index of the media source
     pub media_index: i64,
 
     /// Index of the section in the media source
     pub section_index: i64,
+
+    /// Complete explicit physical routes for this section. Omit to retain the renderer's
+    /// original input audio. Both stereo output channels must be routed.
+    #[serde(default, deserialize_with = "crate::deserialize_present")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_audio: Option<Vec<SourceAudioRoute>>,
 
     /// Transition to apply at the start of the section
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -197,6 +210,43 @@ pub struct OutputTrack {
     /// Transition to apply at the end of the section
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transition_out: Option<TransitionOutClass>,
+}
+
+/// Route a physical channel of an input audio stream before the section's transition. Stream
+/// index counts audio streams only. Output channels are stereo. Routes sum without
+/// normalization.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct SourceAudioRoute {
+    /// Output-timeline frames, linearly interpolated with held endpoints; empty means unity.
+    /// Duplicate frames use the last value.
+    #[serde(default, deserialize_with = "crate::deserialize_present")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyframes: Option<Vec<AudioChannelKeyframe>>,
+
+    pub output_channel: i32,
+
+    /// Strictly increasing absolute output-timeline seconds; linear sample-wise gain with held
+    /// endpoints. Do not supply with keyframes.
+    #[serde(default, deserialize_with = "crate::deserialize_present")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub points: Option<Vec<SourceAudioPoint>>,
+
+    pub source_channel: i64,
+
+    pub stream_index: i64,
+}
+
+/// A gain point at an absolute output-timeline time in seconds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceAudioPoint {
+    /// Nonnegative linear gain; current renderer rejects values outside its safe float range
+    /// rather than silently losing them.
+    pub gain: f64,
+
+    pub time: f64,
 }
 
 /// Transition to apply at the start of the section
@@ -350,8 +400,11 @@ pub struct Episode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct CutListClass {
-    /// Audio channel mixing and volume control configuration
+    /// Audio channel routes applied to the assembled output timeline. Routes to the same output
+    /// channel are summed; output channels without routes are silent. An absent or empty array
+    /// preserves the original audio.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_mixing: Option<Vec<AudioChannelMixing>>,
 

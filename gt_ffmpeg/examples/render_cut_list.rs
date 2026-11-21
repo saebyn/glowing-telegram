@@ -13,6 +13,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let cut_list: types::CutList =
         serde_json::from_slice(&fs::read(&args[0])?)?;
+    gt_ffmpeg::edit::validate_source_audio(
+        &cut_list,
+        std::path::Path::new("."),
+        60.0,
+    )
+    .await
+    .map_err(|error| error.to_string())?;
     let mut command = gt_ffmpeg::edit::build_ffmpeg_command(
         &cut_list,
         60.0,

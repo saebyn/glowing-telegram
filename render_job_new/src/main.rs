@@ -19,7 +19,8 @@ use tokio_postgres::Client as PgClient;
 use types::{
     AudioChannelKeyframe, AudioChannelMixing, CutList, CutListVersion,
     InputMedia, MediaSection, OutputTrack, OverlayTrack, OverlayTrackType,
-    TransitionInClass, TransitionInType, TransitionOutClass,
+    SourceAudioPoint, SourceAudioRoute, TransitionInClass, TransitionInType,
+    TransitionOutClass,
 };
 use uuid::Uuid;
 
@@ -76,10 +77,31 @@ struct StreamosaicMediaSection {
 struct StreamosaicOutputTrack {
     media_index: i64,
     section_index: i64,
+    #[serde(default, deserialize_with = "types::deserialize_present")]
+    source_audio: Option<Vec<StreamosaicSourceAudioRoute>>,
     #[serde(default)]
     transition_in: Option<StreamosaicTransition>,
     #[serde(default)]
     transition_out: Option<StreamosaicTransition>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StreamosaicSourceAudioRoute {
+    stream_index: i64,
+    source_channel: i64,
+    output_channel: i32,
+    #[serde(default, deserialize_with = "types::deserialize_present")]
+    keyframes: Option<Vec<StreamosaicAudioKeyframe>>,
+    #[serde(default, deserialize_with = "types::deserialize_present")]
+    points: Option<Vec<StreamosaicSourceAudioPoint>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StreamosaicSourceAudioPoint {
+    time: f64,
+    gain: f64,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
@@ -256,7 +278,15 @@ async fn process(
     download_inputs(s3, &config.input_bucket, &cut_list, &input_dir).await?;
 
     let output = NamedTempFile::new().context("create output file")?;
-    run_ffmpeg(&cut_list, input_dir.path(), output.path(), duration_frames, postgres, job).await?;
+    run_ffmpeg(
+        &cut_list,
+        input_dir.path(),
+        output.path(),
+        duration_frames,
+        postgres,
+        job,
+    )
+    .await?;
     upload_output(s3, &config.output_bucket, &output_key, output.path())
         .await?;
 
@@ -333,7 +363,9 @@ struct ProgressThrottle {
 impl ProgressThrottle {
     fn should_write(&self, percent: i32, now: Instant) -> bool {
         percent > self.last_percent
-            && self.last_write.is_none_or(|last| now.duration_since(last) >= Duration::from_secs(5))
+            && self.last_write.is_none_or(|last| {
+                now.duration_since(last) >= Duration::from_secs(5)
+            })
     }
 
     fn recorded(&mut self, percent: i32, now: Instant) {
@@ -344,19 +376,29 @@ impl ProgressThrottle {
 
 // Consume fixed-size chunks and discard oversized lines. A watch channel retains
 // only the latest frame, so slow database writes cannot block FFmpeg's stdout.
-async fn read_progress<R: AsyncRead + Unpin>(mut input: R, sender: watch::Sender<u64>) -> std::io::Result<()> {
+async fn read_progress<R: AsyncRead + Unpin>(
+    mut input: R,
+    sender: watch::Sender<u64>,
+) -> std::io::Result<()> {
     let mut chunk = [0_u8; 4096];
     let mut line = Vec::new();
     let mut oversized = false;
     loop {
         let count = input.read(&mut chunk).await?;
-        if count == 0 { break; }
+        if count == 0 {
+            break;
+        }
         for &byte in &chunk[..count] {
             if byte == b'\n' {
                 if !oversized {
                     if let Some(frame) = parse_frame(&line) {
                         sender.send_if_modified(|current| {
-                            if frame > *current { *current = frame; true } else { false }
+                            if frame > *current {
+                                *current = frame;
+                                true
+                            } else {
+                                false
+                            }
                         });
                     }
                 }
@@ -373,15 +415,21 @@ async fn read_progress<R: AsyncRead + Unpin>(mut input: R, sender: watch::Sender
 }
 
 // Keep the end of stderr, where FFmpeg normally prints its fatal error.
-async fn read_stderr<R: AsyncRead + Unpin>(mut input: R) -> std::io::Result<Vec<u8>> {
+async fn read_stderr<R: AsyncRead + Unpin>(
+    mut input: R,
+) -> std::io::Result<Vec<u8>> {
     const LIMIT: usize = 16_000;
     let mut tail = Vec::new();
     let mut chunk = [0_u8; 4096];
     loop {
         let count = input.read(&mut chunk).await?;
-        if count == 0 { break; }
+        if count == 0 {
+            break;
+        }
         tail.extend_from_slice(&chunk[..count]);
-        if tail.len() > LIMIT { tail.drain(..tail.len() - LIMIT); }
+        if tail.len() > LIMIT {
+            tail.drain(..tail.len() - LIMIT);
+        }
     }
     Ok(tail)
 }
@@ -394,10 +442,20 @@ async fn run_ffmpeg(
     postgres: &PgClient,
     job: &RenderJob,
 ) -> Result<()> {
-    let output = output.to_str().ok_or_else(|| anyhow!("output path is not valid UTF-8"))?;
-    let mut command = build_ffmpeg_command(cut_list, FRAME_RATE, output, RESOLUTION);
-    command.current_dir(input_dir).arg("-progress").arg("pipe:1");
-    run_render_command(&mut command, duration_frames, Some((postgres, job))).await
+    let output = output
+        .to_str()
+        .ok_or_else(|| anyhow!("output path is not valid UTF-8"))?;
+    gt_ffmpeg::edit::validate_source_audio(cut_list, input_dir, FRAME_RATE)
+        .await
+        .map_err(|error| anyhow!("validate source audio: {error}"))?;
+    let mut command =
+        build_ffmpeg_command(cut_list, FRAME_RATE, output, RESOLUTION);
+    command
+        .current_dir(input_dir)
+        .arg("-progress")
+        .arg("pipe:1");
+    run_render_command(&mut command, duration_frames, Some((postgres, job)))
+        .await
 }
 
 async fn run_render_command(
@@ -405,14 +463,21 @@ async fn run_render_command(
     duration_frames: i64,
     database: Option<(&PgClient, &RenderJob)>,
 ) -> Result<()> {
-    let mut child = command.stdout(Stdio::piped()).stderr(Stdio::piped())
-        .kill_on_drop(true).spawn().context("spawn ffmpeg render command")?;
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .context("spawn ffmpeg render command")?;
     let stdout = child.stdout.take().context("capture ffmpeg stdout")?;
     let stderr = child.stderr.take().context("capture ffmpeg stderr")?;
     let (sender, mut receiver) = watch::channel(0_u64);
     let progress_task = tokio::spawn(read_progress(stdout, sender));
     let stderr_task = tokio::spawn(read_stderr(stderr));
-    let mut throttle = ProgressThrottle { last_percent: 0, last_write: None };
+    let mut throttle = ProgressThrottle {
+        last_percent: 0,
+        last_write: None,
+    };
     let mut updates_enabled = database.is_some();
     let status = loop {
         tokio::select! {
@@ -441,11 +506,23 @@ async fn run_render_command(
             }
         }
     };
-    let progress_result = progress_task.await.context("progress reader task failed")?;
-    let stderr = stderr_task.await.context("stderr reader task failed")?.context("read ffmpeg stderr")?;
+    let progress_result =
+        progress_task.await.context("progress reader task failed")?;
+    let stderr = stderr_task
+        .await
+        .context("stderr reader task failed")?
+        .context("read ffmpeg stderr")?;
     if !status.success() {
         let stderr = String::from_utf8_lossy(&stderr);
-        let diagnostic: String = stderr.trim().chars().rev().take(4_000).collect::<String>().chars().rev().collect();
+        let diagnostic: String = stderr
+            .trim()
+            .chars()
+            .rev()
+            .take(4_000)
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect();
         bail!("ffmpeg exited with {status}: {diagnostic}");
     }
     progress_result.context("read ffmpeg progress")?;
@@ -636,6 +713,51 @@ fn normalize_cut_list(source: StreamosaicCutList) -> Result<(CutList, i64)> {
         )
         .with_context(|| format!("invalid outputTrack[{index}] reference"))?;
         let section_frames = section.end_frame - section.start_frame;
+        if let Some(routes) = &track.source_audio {
+            ensure!(
+                !routes.is_empty(),
+                "outputTrack[{index}].sourceAudio must not be empty"
+            );
+            ensure!(
+                routes.iter().any(|route| route.output_channel == 0)
+                    && routes.iter().any(|route| route.output_channel == 1),
+                "outputTrack[{index}].sourceAudio must cover both stereo output channels"
+            );
+            for (route_index, route) in routes.iter().enumerate() {
+                ensure!(
+                    route.stream_index >= 0
+                        && route.source_channel >= 0
+                        && (0..=1).contains(&route.output_channel),
+                    "outputTrack[{index}].sourceAudio[{route_index}] has an invalid stream or channel index"
+                );
+                if let Some(points) = &route.points {
+                    ensure!(
+                        !points.is_empty() && route.keyframes.is_none(),
+                        "outputTrack[{index}].sourceAudio[{route_index}] points must be nonempty and cannot be combined with keyframes"
+                    );
+                    let mut previous = None;
+                    for point in points {
+                        ensure!(
+                            point.time.is_finite()
+                                && point.time >= 0.0
+                                && previous
+                                    .is_none_or(|time| point.time > time),
+                            "outputTrack[{index}].sourceAudio[{route_index}] point times must be finite, nonnegative, and strictly increasing"
+                        );
+                        gt_ffmpeg::edit::validate_ffmpeg_gain(point.gain).map_err(|error| anyhow!("outputTrack[{index}].sourceAudio[{route_index}] has an invalid point gain: {error}"))?;
+                        previous = Some(point.time);
+                    }
+                }
+                for keyframe in route.keyframes.iter().flatten() {
+                    ensure!(
+                        keyframe.frame >= 0,
+                        "outputTrack[{index}].sourceAudio[{route_index}] has an invalid keyframe"
+                    );
+                    gt_ffmpeg::edit::validate_ffmpeg_gain(keyframe.volume)
+                        .map_err(|error| anyhow!("outputTrack[{index}].sourceAudio[{route_index}] has an invalid keyframe gain: {error}"))?;
+                }
+            }
+        }
         duration_frames = duration_frames
             .checked_add(section_frames)
             .ok_or_else(|| anyhow!("timeline duration overflow"))?;
@@ -709,11 +831,11 @@ fn normalize_cut_list(source: StreamosaicCutList) -> Result<(CutList, i64)> {
             );
             for keyframe in channel.keyframes.iter().flatten() {
                 ensure!(
-                    keyframe.frame >= 0
-                        && keyframe.volume.is_finite()
-                        && keyframe.volume >= 0.0,
+                    keyframe.frame >= 0,
                     "audioMixing[{index}] has an invalid keyframe"
                 );
+                gt_ffmpeg::edit::validate_ffmpeg_gain(keyframe.volume)
+                    .map_err(|error| anyhow!("audioMixing[{index}] has an invalid keyframe gain: {error}"))?;
             }
         }
     }
@@ -741,6 +863,34 @@ fn normalize_cut_list(source: StreamosaicCutList) -> Result<(CutList, i64)> {
             .map(|track| OutputTrack {
                 media_index: track.media_index,
                 section_index: track.section_index,
+                source_audio: track.source_audio.map(|routes| {
+                    routes
+                        .into_iter()
+                        .map(|route| SourceAudioRoute {
+                            stream_index: route.stream_index,
+                            source_channel: route.source_channel,
+                            output_channel: route.output_channel,
+                            points: route.points.map(|points| {
+                                points
+                                    .into_iter()
+                                    .map(|point| SourceAudioPoint {
+                                        time: point.time,
+                                        gain: point.gain,
+                                    })
+                                    .collect()
+                            }),
+                            keyframes: route.keyframes.map(|keyframes| {
+                                keyframes
+                                    .into_iter()
+                                    .map(|keyframe| AudioChannelKeyframe {
+                                        frame: keyframe.frame,
+                                        volume: keyframe.volume,
+                                    })
+                                    .collect()
+                            }),
+                        })
+                        .collect()
+                }),
                 transition_in: track.transition_in.map(|transition| {
                     TransitionInClass {
                         transition_type: transition.transition_type.into(),
@@ -932,7 +1082,10 @@ mod tests {
     #[test]
     fn throttle_requires_increasing_progress_and_elapsed_time() {
         let now = Instant::now();
-        let mut throttle = ProgressThrottle { last_percent: 0, last_write: None };
+        let mut throttle = ProgressThrottle {
+            last_percent: 0,
+            last_write: None,
+        };
         assert!(!throttle.should_write(0, now));
         assert!(throttle.should_write(1, now));
         throttle.recorded(1, now);
@@ -957,7 +1110,10 @@ mod tests {
     async fn process_failure_retains_stderr_even_without_progress() {
         let mut command = Command::new("sh");
         command.args(["-c", "printf 'useful failure' >&2; exit 7"]);
-        let error = run_render_command(&mut command, 60, None).await.unwrap_err().to_string();
+        let error = run_render_command(&mut command, 60, None)
+            .await
+            .unwrap_err()
+            .to_string();
         assert!(error.contains("useful failure"));
         assert!(error.contains('7'));
     }
@@ -1014,6 +1170,181 @@ mod tests {
                 .duration,
             0
         );
+    }
+
+    #[test]
+    fn preserves_source_audio_routes_in_normalized_cut_list() {
+        let mut value = cut_list_json();
+        value["outputTrack"][1]["sourceAudio"] = json!([
+            {"streamIndex": 1, "sourceChannel": 0, "outputChannel": 0,
+             "keyframes": [{"frame": 100, "volume": 0.5}]},
+            {"streamIndex": 1, "sourceChannel": 1, "outputChannel": 1}
+        ]);
+        let source: StreamosaicCutList =
+            serde_json::from_value(value).unwrap();
+        let (normalized, _) = normalize_cut_list(source).unwrap();
+        let routes = normalized.output_track[1].source_audio.as_ref().unwrap();
+        assert_eq!(routes.len(), 2);
+        assert_eq!(routes[0].stream_index, 1);
+        assert_eq!(routes[0].keyframes.as_ref().unwrap()[0].frame, 100);
+        assert!(
+            (routes[0].keyframes.as_ref().unwrap()[0].volume - 0.5).abs()
+                < f64::EPSILON
+        );
+        assert_eq!(routes[1].source_channel, 1);
+        assert_eq!(routes[1].output_channel, 1);
+    }
+
+    #[test]
+    fn preserves_distinct_subframe_source_points_in_normalized_cut_list() {
+        let mut value = cut_list_json();
+        value["outputTrack"][0]["sourceAudio"] = json!([
+            {"streamIndex":0,"sourceChannel":0,"outputChannel":0,"points":[{"time":0.001,"gain":0.2},{"time":0.002,"gain":0.8}]},
+            {"streamIndex":0,"sourceChannel":1,"outputChannel":1}
+        ]);
+        let source: StreamosaicCutList =
+            serde_json::from_value(value).unwrap();
+        let (normalized, _) = normalize_cut_list(source).unwrap();
+        let serialized = serde_json::to_value(normalized).unwrap();
+        assert_eq!(
+            serialized["outputTrack"][0]["sourceAudio"][0]["points"],
+            json!([{"time":0.001,"gain":0.2},{"time":0.002,"gain":0.8}])
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_source_seconds_before_download() {
+        for (points, keyframes, expected) in [
+            (json!([]), false, "nonempty"),
+            (
+                json!([{"time":0.002,"gain":1},{"time":0.001,"gain":1}]),
+                false,
+                "increasing",
+            ),
+            (
+                json!([{"time":0.001,"gain":1},{"time":0.001,"gain":0}]),
+                false,
+                "increasing",
+            ),
+            (json!([{"time":-0.001,"gain":1}]), false, "nonnegative"),
+            (json!([{"time":0,"gain":1e-50}]), false, "gain"),
+            (json!([{"time":0,"gain":1}]), true, "keyframes"),
+        ] {
+            let mut value = cut_list_json();
+            value["outputTrack"][0]["sourceAudio"] = json!([
+                {"streamIndex":0,"sourceChannel":0,"outputChannel":0,"points":points},
+                {"streamIndex":0,"sourceChannel":1,"outputChannel":1}
+            ]);
+            if keyframes {
+                value["outputTrack"][0]["sourceAudio"][0]["keyframes"] =
+                    json!([]);
+            }
+            let source: StreamosaicCutList =
+                serde_json::from_value(value).unwrap();
+            let error = normalize_cut_list(source).unwrap_err().to_string();
+            assert!(error.contains(expected), "expected {expected}: {error}");
+        }
+    }
+
+    #[test]
+    fn rejects_present_null_source_corrections_before_normalization() {
+        let routes = json!([
+            {"streamIndex":0,"sourceChannel":0,"outputChannel":0},
+            {"streamIndex":0,"sourceChannel":1,"outputChannel":1}
+        ]);
+        for case in [
+            "sourceAudio",
+            "points",
+            "keyframes",
+            "points-with-keyframes",
+            "keyframes-with-points",
+        ] {
+            let mut value = cut_list_json();
+            value["outputTrack"][0]["sourceAudio"] = routes.clone();
+            match case {
+                "sourceAudio" => {
+                    value["outputTrack"][0]["sourceAudio"] = json!(null)
+                }
+                "points" => {
+                    value["outputTrack"][0]["sourceAudio"][0]["points"] =
+                        json!(null)
+                }
+                "keyframes" => {
+                    value["outputTrack"][0]["sourceAudio"][0]["keyframes"] =
+                        json!(null)
+                }
+                "points-with-keyframes" => {
+                    value["outputTrack"][0]["sourceAudio"][0]["points"] =
+                        json!(null);
+                    value["outputTrack"][0]["sourceAudio"][0]["keyframes"] =
+                        json!([]);
+                }
+                _ => {
+                    value["outputTrack"][0]["sourceAudio"][0]["keyframes"] =
+                        json!(null);
+                    value["outputTrack"][0]["sourceAudio"][0]["points"] =
+                        json!([{"time":0,"gain":0}]);
+                }
+            }
+            assert!(
+                serde_json::from_value::<StreamosaicCutList>(value).is_err(),
+                "accepted null {case}"
+            );
+        }
+        let mut valid = cut_list_json();
+        valid["outputTrack"][0]["sourceAudio"] = routes;
+        valid["outputTrack"][0]["sourceAudio"][0]["keyframes"] = json!([]);
+        normalize_cut_list(serde_json::from_value(valid).unwrap()).unwrap();
+        normalize_cut_list(serde_json::from_value(cut_list_json()).unwrap())
+            .unwrap();
+        let mut legacy = cut_list_json();
+        legacy["audioMixing"] = json!(null);
+        normalize_cut_list(serde_json::from_value(legacy.clone()).unwrap())
+            .unwrap();
+        legacy["audioMixing"] =
+            json!([{"sourceChannel":0,"outputChannel":0,"keyframes":null}]);
+        normalize_cut_list(serde_json::from_value(legacy).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn rejects_invalid_source_audio_routes_before_download() {
+        for routes in [
+            json!([]),
+            json!([{"streamIndex": 0, "sourceChannel": 0, "outputChannel": 0}]),
+            json!([{"streamIndex": -1, "sourceChannel": 0, "outputChannel": 0}, {"streamIndex": 0, "sourceChannel": 1, "outputChannel": 1}]),
+            json!([{"streamIndex": 0, "sourceChannel": 0, "outputChannel": 0, "keyframes": [{"frame": 0, "volume": 1e39}]}, {"streamIndex": 0, "sourceChannel": 1, "outputChannel": 1}]),
+            json!([{"streamIndex": 0, "sourceChannel": 0, "outputChannel": 0}, {"streamIndex": 0, "sourceChannel": 1, "outputChannel": 1}, {"streamIndex": 0, "sourceChannel": 1, "outputChannel": 2}]),
+        ] {
+            let mut value = cut_list_json();
+            value["outputTrack"][0]["sourceAudio"] = routes;
+            let source: StreamosaicCutList =
+                serde_json::from_value(value).unwrap();
+            assert!(normalize_cut_list(source).is_err());
+        }
+    }
+
+    #[test]
+    fn accepts_finite_source_gains_above_two_through_the_safe_integer_range() {
+        for gain in [2.1, 9_007_199_254_740_991.0] {
+            let mut value = cut_list_json();
+            value["outputTrack"][0]["sourceAudio"] = json!([
+                {"streamIndex": 0, "sourceChannel": 0, "outputChannel": 0, "keyframes": [{"frame": 0, "volume": gain}]},
+                {"streamIndex": 0, "sourceChannel": 1, "outputChannel": 1}
+            ]);
+            let source: StreamosaicCutList =
+                serde_json::from_value(value).unwrap();
+            let (normalized, _) = normalize_cut_list(source).unwrap();
+            let actual =
+                normalized.output_track[0].source_audio.as_ref().unwrap()[0]
+                    .keyframes
+                    .as_ref()
+                    .unwrap()[0]
+                    .volume;
+            assert!(
+                (actual - gain).abs() < 0.01,
+                "gain {gain} changed to {actual}"
+            );
+        }
     }
 
     #[test]

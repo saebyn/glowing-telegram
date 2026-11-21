@@ -1,11 +1,849 @@
 use std::fmt::{self, Display};
+use std::path::Path;
+use std::process::Stdio;
 use std::{collections::HashMap, rc::Rc};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
 use types::{
     AudioChannelKeyframe, AudioChannelMixing, CutList, InputMedia,
-    OutputTrack, TransitionInType,
+    OutputTrack, SourceAudioRoute, TransitionInType,
 };
+
+/// The `volume` filter defaults to single-precision floating-point samples.
+pub const MIN_NONZERO_FFMPEG_GAIN: f64 = f32::from_bits(1) as f64;
+pub const MAX_FFMPEG_GAIN: f64 = f32::MAX as f64;
+
+/// Reject gains that FFmpeg's default float volume processing cannot express.
+pub fn validate_ffmpeg_gain(gain: f64) -> Result<(), &'static str> {
+    if !gain.is_finite() || gain < 0.0 {
+        return Err("gain must be finite and nonnegative");
+    }
+    if gain > MAX_FFMPEG_GAIN || (gain > 0.0 && gain < MIN_NONZERO_FFMPEG_GAIN)
+    {
+        return Err("gain is outside FFmpeg's nonzero 32-bit float range");
+    }
+    Ok(())
+}
+
+fn parse_time_base(value: Option<&str>) -> Option<f64> {
+    let (n, d) = value?.split_once('/')?;
+    let numerator = n.parse::<f64>().ok()?;
+    let denominator = d.parse::<f64>().ok()?;
+    if numerator <= 0.0 || denominator <= 0.0 {
+        return None;
+    }
+    let value = numerator / denominator;
+    (value.is_finite() && value > 0.0).then_some(value)
+}
+
+async fn collect_probe_errors(
+    mut stderr: tokio::process::ChildStderr,
+) -> std::io::Result<String> {
+    let mut buffer = [0_u8; 4096];
+    let mut captured = Vec::new();
+    loop {
+        let read = stderr.read(&mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        let remaining = 4096_usize.saturating_sub(captured.len());
+        captured.extend_from_slice(&buffer[..read.min(remaining)]);
+    }
+    Ok(String::from_utf8_lossy(&captured).trim().to_owned())
+}
+
+async fn finish_probe_scan(
+    child: &mut tokio::process::Child,
+) -> Result<(), String> {
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("could not wait for ffprobe: {e}"))?;
+    if !status.success() {
+        return Err(format!("ffprobe exited with {status}"));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+struct AudioCoverage {
+    start: f64,
+    end: f64,
+    tolerance: f64,
+}
+
+async fn validate_audio_timestamps(
+    path: &Path,
+    stream: usize,
+    video_start: f64,
+    end: f64,
+) -> Result<AudioCoverage, String> {
+    let selector = format!("a:{stream}");
+    let metadata = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            &selector,
+            "-show_entries",
+            "stream=start_time,sample_rate,time_base",
+            "-of",
+            "json",
+        ])
+        .arg(path)
+        .output()
+        .await
+        .map_err(|e| format!("could not probe audio stream {stream}: {e}"))?;
+    if !metadata.status.success() {
+        return Err(format!("could not probe audio stream {stream}"));
+    }
+    let value: serde_json::Value = serde_json::from_slice(&metadata.stdout)
+        .map_err(|e| format!("invalid audio stream {stream} metadata: {e}"))?;
+    let metadata = value
+        .get("streams")
+        .and_then(|s| s.as_array())
+        .and_then(|s| s.first())
+        .ok_or_else(|| format!("audio stream {stream} metadata is missing"))?;
+    let start = metadata
+        .get("start_time")
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<f64>().ok())
+        .filter(|v| v.is_finite())
+        .ok_or_else(|| {
+            format!(
+                "audio stream {stream} start timestamp is missing or invalid"
+            )
+        })?;
+    let rate = metadata
+        .get("sample_rate")
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<f64>().ok())
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .ok_or_else(|| {
+            format!("audio stream {stream} sample rate is missing or invalid")
+        })?;
+    let time_base =
+        parse_time_base(metadata.get("time_base").and_then(|v| v.as_str()))
+            .ok_or_else(|| {
+                format!(
+                    "audio stream {stream} time base is missing or invalid"
+                )
+            })?;
+    if time_base > 0.001 {
+        return Err(format!(
+            "audio stream {stream} time base is too coarse to establish timing"
+        ));
+    }
+    if start < video_start - time_base {
+        return Err(format!(
+            "audio stream {stream} starts before the video; source timing is unsupported"
+        ));
+    }
+    let mut child = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            &selector,
+            "-show_frames",
+            "-show_entries",
+            "frame=pts_time,best_effort_timestamp_time,nb_samples",
+            "-of",
+            "compact=p=1:nk=0",
+        ])
+        .arg(path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| format!("could not scan audio stream {stream}: {e}"))?;
+    let stdout = child.stdout.take().ok_or_else(|| {
+        format!("could not capture audio stream {stream} frames")
+    })?;
+    let stderr = child.stderr.take().ok_or_else(|| {
+        format!("could not capture audio stream {stream} errors")
+    })?;
+    let errors_task = tokio::spawn(collect_probe_errors(stderr));
+    let mut lines = BufReader::new(stdout).lines();
+    let mut last_end: Option<f64> = None;
+    while let Some(line) = lines.next_line().await.map_err(|e| {
+        format!("could not read audio stream {stream} frames: {e}")
+    })? {
+        if line.is_empty() {
+            continue;
+        }
+        if line != "frame" && !line.starts_with("frame|") {
+            return Err(format!(
+                "audio stream {stream} frame output is malformed"
+            ));
+        }
+        let mut timestamp = None;
+        let mut pts = None;
+        let mut samples = None;
+        for field in line.split('|') {
+            if let Some(value) =
+                field.strip_prefix("best_effort_timestamp_time=")
+            {
+                timestamp =
+                    value.parse::<f64>().ok().filter(|v| v.is_finite());
+            }
+            if let Some(value) = field.strip_prefix("pts_time=") {
+                pts = value.parse::<f64>().ok().filter(|v| v.is_finite());
+            }
+            if let Some(value) = field.strip_prefix("nb_samples=") {
+                samples = value.parse::<u64>().ok().filter(|v| *v > 0);
+            }
+        }
+        let timestamp = timestamp.ok_or_else(|| {
+            format!(
+                "audio stream {stream} frame timestamp is missing or invalid"
+            )
+        })?;
+        let pts = pts.ok_or_else(|| {
+            format!("audio stream {stream} frame PTS is missing or invalid")
+        })?;
+        if (pts - timestamp).abs() > 0.000_001 {
+            return Err(format!(
+                "audio stream {stream} frame timestamp disagrees with PTS"
+            ));
+        }
+        let samples = samples.ok_or_else(|| format!("audio stream {stream} frame sample count is missing or invalid"))?;
+        if let Some(previous_end) = last_end {
+            if (timestamp - previous_end).abs()
+                > time_base + 1.0 / rate + 0.000_001
+            {
+                return Err(format!(
+                    "audio stream {stream} has a discontinuous timestamp near {timestamp}"
+                ));
+            }
+        } else if (timestamp - start).abs() > time_base + 1.0 / rate {
+            return Err(format!(
+                "audio stream {stream} first frame timestamp disagrees with its start"
+            ));
+        }
+        last_end = Some(timestamp + samples as f64 / rate);
+        if timestamp >= end {
+            break;
+        }
+    }
+    while lines
+        .next_line()
+        .await
+        .map_err(|e| format!("could not drain audio stream {stream}: {e}"))?
+        .is_some()
+    {}
+    finish_probe_scan(&mut child)
+        .await
+        .map_err(|e| format!("audio stream {stream}: {e}"))?;
+    let errors = errors_task
+        .await
+        .map_err(|e| {
+            format!("audio stream {stream} error reader failed: {e}")
+        })?
+        .map_err(|e| {
+            format!("could not read audio stream {stream} errors: {e}")
+        })?;
+    if !errors.is_empty() {
+        return Err(format!(
+            "audio stream {stream} decoder reported: {errors}"
+        ));
+    }
+    let end = last_end.ok_or_else(|| {
+        format!("audio stream {stream} has no timestamped frames")
+    })?;
+    Ok(AudioCoverage {
+        start,
+        end,
+        tolerance: time_base + 1.0 / rate + 0.000_001,
+    })
+}
+
+pub async fn validate_source_audio(
+    data: &CutList,
+    input_dir: &Path,
+    frame_rate: f32,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    for (index, channel) in data.audio_mixing.iter().flatten().enumerate() {
+        for keyframe in channel.keyframes.iter().flatten() {
+            if keyframe.frame < 0 {
+                return Err(std::io::Error::other(format!(
+                    "audioMixing[{index}] has a negative keyframe frame"
+                ))
+                .into());
+            }
+            validate_ffmpeg_gain(keyframe.volume).map_err(|error| std::io::Error::other(format!("audioMixing[{index}] has an invalid keyframe gain: {error}")))?;
+        }
+    }
+    if !data
+        .output_track
+        .iter()
+        .any(|track| track.source_audio.is_some())
+    {
+        return Ok(());
+    }
+    validate_minimum_filter_size(data)?;
+    // A short or delayed uncorrected intro/outro would shift concatenated audio
+    // independently of video and invalidate every later output-time envelope.
+    // Validate those tracks against their unchanged first-audio-stream path.
+    let mut all_tracks = data.clone();
+    let mut legacy_tracks = Vec::with_capacity(data.output_track.len());
+    for track in &mut all_tracks.output_track {
+        legacy_tracks.push(track.source_audio.is_none());
+        if track.source_audio.is_none() {
+            track.source_audio = Some(vec![
+                SourceAudioRoute {
+                    stream_index: 0,
+                    source_channel: 0,
+                    output_channel: 0,
+                    keyframes: None,
+                    points: None,
+                },
+                SourceAudioRoute {
+                    stream_index: 0,
+                    source_channel: 0,
+                    output_channel: 1,
+                    keyframes: None,
+                    points: None,
+                },
+            ]);
+        }
+    }
+    validate_source_audio_inner(
+        &all_tracks,
+        input_dir,
+        frame_rate,
+        &legacy_tracks,
+    )
+    .await?;
+    validate_filter_argument_size(data, frame_rate)?;
+    Ok(())
+}
+
+async fn validate_source_audio_inner(
+    data: &CutList,
+    input_dir: &Path,
+    frame_rate: f32,
+    legacy_tracks: &[bool],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if !frame_rate.is_finite() || frame_rate <= 0.0 {
+        return Err(std::io::Error::other("invalid output frame rate").into());
+    }
+    if data
+        .output_track
+        .iter()
+        .any(|track| track.source_audio.is_some())
+    {
+        if data.input_media.len() > 255 || data.output_track.len() > 255 {
+            return Err(std::io::Error::other(
+                "too many input or output tracks",
+            )
+            .into());
+        }
+        let mut duration = 0_i64;
+        let mut previous_length = 0_i64;
+        for (index, track) in data.output_track.iter().enumerate() {
+            let fail = || {
+                std::io::Error::other(format!(
+                    "outputTrack[{index}] has an invalid timeline or section reference"
+                ))
+            };
+            let media = usize::try_from(track.media_index)
+                .ok()
+                .and_then(|i| data.input_media.get(i))
+                .ok_or_else(fail)?;
+            let section = usize::try_from(track.section_index)
+                .ok()
+                .and_then(|i| media.sections.get(i))
+                .ok_or_else(fail)?;
+            let length = section
+                .end_frame
+                .checked_sub(section.start_frame)
+                .filter(|length| section.start_frame >= 0 && *length > 0)
+                .ok_or_else(fail)?;
+            if index > 0 {
+                if let Some(transition) = track
+                    .transition_in
+                    .as_ref()
+                    .filter(|t| t.transition_type == TransitionInType::Fade)
+                {
+                    if transition.duration <= 0
+                        || transition.duration > length
+                        || transition.duration > previous_length
+                    {
+                        return Err(fail().into());
+                    }
+                    duration = duration
+                        .checked_sub(transition.duration)
+                        .ok_or_else(fail)?;
+                }
+            }
+            duration = duration.checked_add(length).ok_or_else(fail)?;
+            previous_length = length;
+        }
+    }
+    let mut probes: HashMap<usize, Vec<Option<u64>>> = HashMap::new();
+    let mut validated_video_frames: HashMap<usize, i64> = HashMap::new();
+    let mut validated_audio_until: HashMap<
+        (usize, usize),
+        (f64, AudioCoverage),
+    > = HashMap::new();
+    for (track_index, track) in data.output_track.iter().enumerate() {
+        let Some(routes) = &track.source_audio else {
+            continue;
+        };
+        let fail = |message: String| {
+            std::io::Error::other(format!(
+                "outputTrack[{track_index}].sourceAudio: {message}"
+            ))
+        };
+        if routes.is_empty()
+            || !routes.iter().any(|r| r.output_channel == 0)
+            || !routes.iter().any(|r| r.output_channel == 1)
+        {
+            return Err(fail(
+                "routes must cover both stereo output channels".to_owned(),
+            )
+            .into());
+        }
+        let media_index = usize::try_from(track.media_index)
+            .map_err(|_| fail("invalid media index".to_owned()))?;
+        let media = data
+            .input_media
+            .get(media_index)
+            .ok_or_else(|| fail("media index is out of bounds".to_owned()))?;
+        let section_index = usize::try_from(track.section_index)
+            .map_err(|_| fail("invalid section index".to_owned()))?;
+        let section = media.sections.get(section_index).ok_or_else(|| {
+            fail("section index is out of bounds".to_owned())
+        })?;
+        if section.start_frame < 0 || section.end_frame <= section.start_frame
+        {
+            return Err(
+                fail("invalid video section frame range".to_owned()).into()
+            );
+        }
+        if let std::collections::hash_map::Entry::Vacant(entry) =
+            probes.entry(media_index)
+        {
+            let output = Command::new("ffprobe")
+                .args([
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "a",
+                    "-show_entries",
+                    "stream=channels",
+                    "-of",
+                    "json",
+                ])
+                .arg(input_dir.join(&media.s3_location))
+                .output()
+                .await
+                .map_err(|e| fail(format!("could not run ffprobe: {e}")))?;
+            if !output.status.success() {
+                return Err(fail(format!(
+                    "ffprobe failed: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                ))
+                .into());
+            }
+            let parsed: serde_json::Value =
+                serde_json::from_slice(&output.stdout).map_err(|e| {
+                    fail(format!("invalid ffprobe output: {e}"))
+                })?;
+            let streams = parsed
+                .get("streams")
+                .and_then(|s| s.as_array())
+                .ok_or_else(|| {
+                    fail("ffprobe omitted audio streams".to_owned())
+                })?;
+            entry.insert(
+                streams
+                    .iter()
+                    .map(|stream| {
+                        stream.get("channels").and_then(|c| c.as_u64())
+                    })
+                    .collect(),
+            );
+        }
+        let streams = &probes[&media_index];
+        for (route_index, route) in routes.iter().enumerate() {
+            let prefix = format!("route[{route_index}]");
+            if let Some(points) = &route.points {
+                if points.is_empty() || route.keyframes.is_some() {
+                    return Err(fail(format!("{prefix} points must be nonempty and cannot be combined with keyframes")).into());
+                }
+                let mut previous = None;
+                for point in points {
+                    if !point.time.is_finite()
+                        || point.time < 0.0
+                        || previous.is_some_and(|time| point.time <= time)
+                    {
+                        return Err(fail(format!("{prefix} point times must be finite, nonnegative, and strictly increasing")).into());
+                    }
+                    validate_ffmpeg_gain(point.gain).map_err(|error| {
+                        fail(format!(
+                            "{prefix} has an invalid point gain: {error}"
+                        ))
+                    })?;
+                    previous = Some(point.time);
+                }
+            }
+            if !(0..=1).contains(&route.output_channel) {
+                return Err(fail(format!(
+                    "{prefix} output channel must be 0 or 1"
+                ))
+                .into());
+            }
+            let stream_index =
+                usize::try_from(route.stream_index).map_err(|_| {
+                    fail(format!("{prefix} has negative stream index"))
+                })?;
+            let channels = streams.get(stream_index).ok_or_else(|| fail(format!("{prefix} audio stream {stream_index} is missing ({} audio streams found)", streams.len())))?
+                .ok_or_else(|| fail(format!("{prefix} audio stream {stream_index} has unknown channel count")))?;
+            let channel =
+                u64::try_from(route.source_channel).map_err(|_| {
+                    fail(format!("{prefix} has negative source channel"))
+                })?;
+            if channel >= channels {
+                return Err(fail(format!("{prefix} source channel {channel} is out of bounds for audio stream {stream_index} ({channels} channels)" )).into());
+            }
+            for keyframe in route.keyframes.iter().flatten() {
+                if keyframe.frame < 0 {
+                    return Err(fail(format!(
+                        "{prefix} has an invalid keyframe"
+                    ))
+                    .into());
+                }
+                validate_ffmpeg_gain(keyframe.volume).map_err(|error| {
+                    fail(format!(
+                        "{prefix} has an invalid keyframe gain: {error}"
+                    ))
+                })?;
+            }
+        }
+        // FFmpeg rebases each input by the container start. Our frame-based
+        // trim assumes that rebased time zero is also the first video frame.
+        // Refuse cases where that cannot be established instead of shifting
+        // leading audio to the wrong video position.
+        let video_probe = Command::new("ffprobe")
+            .args([
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=start_time,time_base:format=start_time",
+                "-of",
+                "json",
+            ])
+            .arg(input_dir.join(&media.s3_location))
+            .output()
+            .await
+            .map_err(|e| fail(format!("could not probe video timing: {e}")))?;
+        if !video_probe.status.success() {
+            return Err(fail(
+                "ffprobe failed to read video timing".to_owned(),
+            )
+            .into());
+        }
+        let timing: serde_json::Value =
+            serde_json::from_slice(&video_probe.stdout).map_err(|e| {
+                fail(format!("invalid video timing metadata: {e}"))
+            })?;
+        let parse_time = |value: Option<&serde_json::Value>| {
+            value
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<f64>().ok())
+                .filter(|n| n.is_finite())
+        };
+        let video_start = parse_time(
+            timing
+                .get("streams")
+                .and_then(|s| s.as_array())
+                .and_then(|s| s.first())
+                .and_then(|s| s.get("start_time")),
+        )
+        .ok_or_else(|| {
+            fail("video start time is missing or invalid".to_owned())
+        })?;
+        let container_start =
+            parse_time(timing.get("format").and_then(|f| f.get("start_time")))
+                .ok_or_else(|| {
+                    fail(
+                        "container start time is missing or invalid"
+                            .to_owned(),
+                    )
+                })?;
+        if (video_start - container_start).abs() > 0.000_001 {
+            return Err(fail(format!("video start time {video_start} differs from container start time {container_start}; source timing is unsupported" )).into());
+        }
+        let required_video_frames = data
+            .output_track
+            .iter()
+            .filter(|candidate| {
+                candidate.media_index == track.media_index
+                    && candidate.source_audio.is_some()
+            })
+            .filter_map(|candidate| {
+                usize::try_from(candidate.section_index)
+                    .ok()
+                    .and_then(|index| media.sections.get(index))
+            })
+            .map(|section| section.end_frame)
+            .max()
+            .unwrap_or(section.end_frame);
+        if validated_video_frames
+            .get(&media_index)
+            .copied()
+            .unwrap_or(0)
+            < required_video_frames
+        {
+            let time_base = parse_time_base(
+                timing
+                    .get("streams")
+                    .and_then(|s| s.as_array())
+                    .and_then(|s| s.first())
+                    .and_then(|s| s.get("time_base"))
+                    .and_then(|s| s.as_str()),
+            )
+            .ok_or_else(|| {
+                fail("video time base is missing or invalid".to_owned())
+            })?;
+            if time_base > 0.001 || time_base >= 0.5 / f64::from(frame_rate) {
+                return Err(fail(
+                    "video time base is too coarse for the output frame rate"
+                        .to_owned(),
+                )
+                .into());
+            }
+            let mut child = Command::new("ffprobe")
+                .args([
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_frames",
+                    "-show_entries",
+                    "frame=pts_time,best_effort_timestamp_time",
+                    "-of",
+                    "compact=p=1:nk=0",
+                ])
+                .arg(input_dir.join(&media.s3_location))
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .kill_on_drop(true)
+                .spawn()
+                .map_err(|e| {
+                    fail(format!("could not scan video frames: {e}"))
+                })?;
+            let stdout = child.stdout.take().ok_or_else(|| {
+                fail("could not capture video frames".to_owned())
+            })?;
+            let stderr = child.stderr.take().ok_or_else(|| {
+                fail("could not capture video scan errors".to_owned())
+            })?;
+            let errors_task = tokio::spawn(collect_probe_errors(stderr));
+            let mut lines = BufReader::new(stdout).lines();
+            let mut count = 0_i64;
+            while count < required_video_frames {
+                let Some(line) = lines.next_line().await.map_err(|e| {
+                    fail(format!("could not read video frames: {e}"))
+                })?
+                else {
+                    break;
+                };
+                if line.is_empty() {
+                    continue;
+                }
+                if line != "frame" && !line.starts_with("frame|") {
+                    return Err(fail(format!(
+                        "video frame {count} output is malformed"
+                    ))
+                    .into());
+                }
+                let field = |name: &str| {
+                    line.split('|')
+                        .find_map(|field| field.strip_prefix(name))
+                        .and_then(|s| s.parse::<f64>().ok())
+                        .filter(|v| v.is_finite())
+                };
+                let pts = field("pts_time=").ok_or_else(|| {
+                    fail(format!(
+                        "video frame {count} has missing or invalid timestamp"
+                    ))
+                })?;
+                let best_effort = field("best_effort_timestamp_time=")
+                    .ok_or_else(|| fail(format!("video frame {count} has missing or invalid best-effort timestamp")))?;
+                if (pts - best_effort).abs() > 0.000_001 {
+                    return Err(fail(format!(
+                        "video frame {count} timestamp disagrees with PTS"
+                    ))
+                    .into());
+                }
+                let expected =
+                    video_start + count as f64 / f64::from(frame_rate);
+                if (pts - expected).abs() > time_base + 0.000_001 {
+                    return Err(fail(format!("video frame {count} timestamp {pts} does not match the {frame_rate} fps timeline" )).into());
+                }
+                count += 1;
+            }
+            if count < required_video_frames {
+                return Err(fail(format!("video frame range ends at {required_video_frames} but only {count} frames were available")).into());
+            }
+            // Drain to EOF so a decoder failure cannot be hidden by killing
+            // the probe immediately after the requested frame.
+            while lines
+                .next_line()
+                .await
+                .map_err(|e| fail(format!("could not drain video scan: {e}")))?
+                .is_some()
+            {}
+            finish_probe_scan(&mut child)
+                .await
+                .map_err(|e| fail(format!("video frame scan: {e}")))?;
+            let errors = errors_task
+                .await
+                .map_err(|e| fail(format!("video error reader failed: {e}")))?
+                .map_err(|e| {
+                    fail(format!("could not read video scan errors: {e}"))
+                })?;
+            if !errors.is_empty() {
+                return Err(
+                    fail(format!("video decoder reported: {errors}")).into()
+                );
+            }
+            validated_video_frames.insert(media_index, count);
+        }
+        for route in routes {
+            let stream_index = usize::try_from(route.stream_index)
+                .map_err(|_| fail("negative audio stream index".to_owned()))?;
+            let required_end_frame = data
+                .output_track
+                .iter()
+                .filter(|candidate| {
+                    candidate.media_index == track.media_index
+                        && candidate.source_audio.as_ref().is_some_and(
+                            |routes| {
+                                routes.iter().any(|r| {
+                                    r.stream_index == route.stream_index
+                                })
+                            },
+                        )
+                })
+                .filter_map(|candidate| {
+                    usize::try_from(candidate.section_index)
+                        .ok()
+                        .and_then(|index| media.sections.get(index))
+                })
+                .map(|section| section.end_frame)
+                .max()
+                .unwrap_or(section.end_frame);
+            let section_end = video_start
+                + required_end_frame as f64 / f64::from(frame_rate);
+            let key = (media_index, stream_index);
+            if validated_audio_until
+                .get(&key)
+                .is_none_or(|(end, _)| *end < section_end)
+            {
+                let coverage = validate_audio_timestamps(
+                    &input_dir.join(&media.s3_location),
+                    stream_index,
+                    video_start,
+                    section_end,
+                )
+                .await
+                .map_err(&fail)?;
+                validated_audio_until.insert(key, (section_end, coverage));
+            }
+            if legacy_tracks[track_index] {
+                let (_, coverage) = validated_audio_until[&key];
+                let start = video_start
+                    + section.start_frame as f64 / f64::from(frame_rate);
+                let end = video_start
+                    + section.end_frame as f64 / f64::from(frame_rate);
+                if coverage.start > start + coverage.tolerance
+                    || coverage.end < end - coverage.tolerance
+                {
+                    return Err(fail(format!("legacy audio stream {stream_index} does not cover the complete video section")).into());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_filter_argument_size(
+    data: &CutList,
+    frame_rate: f32,
+) -> std::io::Result<()> {
+    // Linux execve imposes MAX_ARG_STRLEN = 32 pages, including the NUL.
+    // Estimate with maximum u32 output dimensions so the production graph
+    // cannot be larger due to its resolution. Fail before launching FFmpeg.
+    #[cfg(target_os = "linux")]
+    {
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+        if page_size <= 0 {
+            return Err(std::io::Error::other(
+                "could not determine the OS filter argument limit",
+            ));
+        }
+        let limit = page_size as usize * 32;
+        let command =
+            build_ffmpeg_command(data, frame_rate, "", (u32::MAX, u32::MAX));
+        let mut args = command.as_std().get_args();
+        let filter = args
+            .find(|arg| *arg == "-filter_complex")
+            .and_then(|_| args.next())
+            .ok_or_else(|| {
+                std::io::Error::other("missing FFmpeg filter argument")
+            })?;
+        use std::os::unix::ffi::OsStrExt;
+        if filter.as_bytes().len() >= limit {
+            return Err(std::io::Error::other(format!(
+                "FFmpeg filter argument is {} bytes; Linux permits fewer than {limit} bytes per argument. Reduce the generated graph or use a renderer supporting filter scripts",
+                filter.as_bytes().len()
+            )));
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = (data, frame_rate);
+    Ok(())
+}
+
+fn validate_minimum_filter_size(data: &CutList) -> std::io::Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+        if page_size <= 0 {
+            return Err(std::io::Error::other(
+                "could not determine the OS filter argument limit",
+            ));
+        }
+        let limit = page_size as usize * 32;
+        // Every point in a nontrivial balanced curve contributes at least
+        // three bytes of `if(`. Reject before cloning data or probing media.
+        let minimum = data
+            .output_track
+            .iter()
+            .flat_map(|track| track.source_audio.iter().flatten())
+            .filter_map(|route| route.points.as_ref())
+            .filter(|points| points.len() >= 2)
+            .try_fold(0_usize, |total, points| {
+                total.checked_add(points.len().saturating_mul(3))
+            })
+            .unwrap_or(usize::MAX);
+        if minimum >= limit {
+            return Err(std::io::Error::other(format!(
+                "FFmpeg filter argument exceeds the Linux per-argument limit of {limit} bytes; use a renderer supporting filter scripts"
+            )));
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = data;
+    Ok(())
+}
 
 // Converts a frame number to time (seconds)
 fn convert_frame_to_time(frame: i64, frame_rate: f32) -> f32 {
@@ -63,20 +901,28 @@ impl Display for Filter {
 /// FilterChannel::SourceVideo(0) and FilterChannel::MyVideo(0).
 enum FilterChannel {
     SourceAudio(u8),
+    SourceAudioStream(u8, i64),
     SourceVideo(u8),
     MyAudio(u8),
     MyVideo(u8),
     OverlayVideo(u8),
+    RouteAudio(usize, usize),
 }
 
 impl Display for FilterChannel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FilterChannel::SourceAudio(index) => write!(f, "[{}:a]", index),
+            FilterChannel::SourceAudioStream(index, stream) => {
+                write!(f, "[{index}:a:{stream}]")
+            }
             FilterChannel::SourceVideo(index) => write!(f, "[{}:v]", index),
             FilterChannel::MyAudio(index) => write!(f, "[a{}]", index),
             FilterChannel::MyVideo(index) => write!(f, "[v{}]", index),
             FilterChannel::OverlayVideo(index) => write!(f, "[o{}]", index),
+            FilterChannel::RouteAudio(track, route) => {
+                write!(f, "[route{track}_{route}]")
+            }
         }
     }
 }
@@ -165,6 +1011,7 @@ fn create_main_track(
     resolution: (u32, u32),
 ) -> Vec<FilterPipe> {
     let mut parts = Vec::new();
+    let mut timeline_frame = 0_i64;
     for (i, track) in data.output_track.iter().enumerate() {
         let media_item = &data.input_media[track.media_index as usize];
         let section = &media_item.sections[track.section_index as usize];
@@ -177,14 +1024,33 @@ fn create_main_track(
             frame_rate,
             resolution,
         ));
-        // Add audio
-        parts.push(add_audio_to_output_track(
-            track.media_index as usize,
-            section.start_frame,
-            section.end_frame,
-            i,
-            frame_rate,
-        ));
+        if i > 0 {
+            if let Some(transition) = &track.transition_in {
+                if transition.transition_type == TransitionInType::Fade {
+                    timeline_frame -= transition.duration;
+                }
+            }
+        }
+        if let Some(routes) = &track.source_audio {
+            parts.extend(add_routed_audio(
+                track.media_index as usize,
+                section.start_frame,
+                section.end_frame,
+                i,
+                frame_rate,
+                timeline_frame,
+                routes,
+            ));
+        } else {
+            parts.push(add_audio_to_output_track(
+                track.media_index as usize,
+                section.start_frame,
+                section.end_frame,
+                i,
+                frame_rate,
+            ));
+        }
+        timeline_frame += section.end_frame - section.start_frame;
     }
     parts.extend(assemble_track_segments(
         &data.output_track,
@@ -192,6 +1058,136 @@ fn create_main_track(
         frame_rate,
     ));
     parts
+}
+
+fn add_routed_audio(
+    media_index: usize,
+    start_frame: i64,
+    end_frame: i64,
+    track_index: usize,
+    frame_rate: f32,
+    timeline_frame: i64,
+    routes: &[SourceAudioRoute],
+) -> Vec<FilterPipe> {
+    let mut parts = Vec::new();
+    let start = start_frame as f64 / f64::from(frame_rate);
+    let end = end_frame as f64 / f64::from(frame_rate);
+    let duration = (end_frame - start_frame) as f64 / f64::from(frame_rate);
+    for (i, route) in routes.iter().enumerate() {
+        let time =
+            format!("(t+{})", timeline_frame as f64 / f64::from(frame_rate));
+        let gain_filter = if let Some(points) = &route.points {
+            let expression = source_gain_expression(points, &time);
+            Filter::new(
+                "aeval",
+                vec![("exprs", format!("'val(0)*({expression})'"))],
+            )
+        } else {
+            let expression = volume_expression_at(
+                route.keyframes.as_deref().unwrap_or(&[]),
+                frame_rate,
+                &time,
+            );
+            Filter::new(
+                "volume",
+                vec![
+                    ("volume", format!("'{expression}'")),
+                    ("eval", "frame".to_owned()),
+                ],
+            )
+        };
+        parts.push(FilterPipe::new(
+            vec![
+                Filter::new(
+                    "atrim",
+                    vec![
+                        ("start", start.to_string()),
+                        ("end", end.to_string()),
+                    ],
+                ),
+                Filter::new(
+                    "asetpts",
+                    vec![(format!("PTS-{start}/TB").as_str(), "".to_owned())],
+                ),
+                Filter::new(
+                    "aresample",
+                    vec![
+                        ("async", "1".to_owned()),
+                        ("first_pts", "0".to_owned()),
+                    ],
+                ),
+                Filter::new("apad", vec![("whole_dur", duration.to_string())]),
+                Filter::new("atrim", vec![("end", duration.to_string())]),
+                Filter::new(
+                    "pan",
+                    vec![("mono|c0", format!("c{}", route.source_channel))],
+                ),
+                gain_filter,
+                Filter::new(
+                    "pan",
+                    vec![(
+                        format!("stereo|c{}", route.output_channel).as_str(),
+                        "c0".to_owned(),
+                    )],
+                ),
+            ],
+            vec![FilterChannel::SourceAudioStream(
+                media_index as u8,
+                route.stream_index,
+            )],
+            FilterChannel::RouteAudio(track_index, i),
+        ));
+    }
+    parts.push(FilterPipe::new(
+        vec![Filter::new(
+            "amix",
+            vec![
+                ("inputs", routes.len().to_string()),
+                ("normalize", "0".to_owned()),
+            ],
+        )],
+        (0..routes.len())
+            .map(|i| FilterChannel::RouteAudio(track_index, i))
+            .collect(),
+        FilterChannel::MyAudio(track_index as u8),
+    ));
+    parts
+}
+
+fn source_gain_expression(
+    points: &[types::SourceAudioPoint],
+    time: &str,
+) -> String {
+    fn segments(points: &[types::SourceAudioPoint], time: &str) -> String {
+        if points.len() == 2 {
+            let a = &points[0];
+            let b = &points[1];
+            return format!(
+                "{}+({}-{})*({time}-{})/({}-{})",
+                a.gain, b.gain, a.gain, a.time, b.time, a.time
+            );
+        }
+        let mid = points.len() / 2;
+        format!(
+            "if(lt({time},{}),{},{})",
+            points[mid].time,
+            segments(&points[..=mid], time),
+            segments(&points[mid..], time)
+        )
+    }
+    let first = &points[0];
+    let last = points.last().unwrap();
+    if points.len() == 1 {
+        return first.gain.to_string();
+    }
+    format!(
+        "if(lt({time},{}),{},if(lt({time},{}),{},{}))",
+        first.time,
+        first.gain,
+        last.time,
+        segments(points, time),
+        last.gain
+    )
 }
 
 fn add_video_to_output_track(
@@ -431,7 +1427,9 @@ fn create_overlay_tracks(
     parts
 }
 
-// Builds the final ffmpeg command
+/// Builds the final FFmpeg command. Callers must first await
+/// [`validate_source_audio`] with the same input directory and frame rate;
+/// otherwise explicit source routes can be rendered with incorrect timing.
 pub fn build_ffmpeg_command(
     data: &CutList,
     frame_rate: f32,
@@ -524,6 +1522,14 @@ fn volume_expression(
     keyframes: &[AudioChannelKeyframe],
     frame_rate: f32,
 ) -> String {
+    volume_expression_at(keyframes, frame_rate, "t")
+}
+
+fn volume_expression_at(
+    keyframes: &[AudioChannelKeyframe],
+    frame_rate: f32,
+    time: &str,
+) -> String {
     let mut keyframes: Vec<_> = keyframes.iter().collect();
     keyframes.sort_by_key(|keyframe| keyframe.frame);
     keyframes.dedup_by(|later, earlier| {
@@ -542,13 +1548,13 @@ fn volume_expression(
         let start = pair[0].frame as f64 / f64::from(frame_rate);
         let end = pair[1].frame as f64 / f64::from(frame_rate);
         expression = format!(
-            "if(lt(t,{end}),{}+({}-{})*(t-{start})/({end}-{start}),{expression})",
+            "if(lt({time},{end}),{}+({}-{})*({time}-{start})/({end}-{start}),{expression})",
             pair[0].volume, pair[1].volume, pair[0].volume
         );
     }
     let first = keyframes[0];
     format!(
-        "if(lt(t,{}),{},{expression})",
+        "if(lt({time},{}),{},{expression})",
         first.frame as f64 / f64::from(frame_rate),
         first.volume
     )
@@ -619,11 +1625,17 @@ mod test {
             ]))
             .unwrap();
         let graph = audio_mixing_filter(&mixing, 60.0);
-        assert!(graph.starts_with(";[a255]asplit=3[mix_in0][mix_in1][mix_in2]"));
+        assert!(
+            graph.starts_with(";[a255]asplit=3[mix_in0][mix_in1][mix_in2]")
+        );
         assert!(graph.contains("[mix_in0]pan=mono|c0=c0,volume='if(lt(t,0),0,if(lt(t,1),0+(1-0)*(t-0)/(1-0),1))':eval=frame,pan=2c|c1=c0[mix0]"));
         assert!(graph.contains("[mix_in1]pan=mono|c0=c1,volume='if(lt(t,0),0.5,0.5)':eval=frame,pan=2c|c0=c0[mix1]"));
         assert!(graph.contains("[mix_in2]pan=mono|c0=c0,volume='if(lt(t,0),0.5,0.5)':eval=frame,pan=2c|c0=c0[mix2]"));
-        assert!(graph.ends_with("[mix0][mix1][mix2]amix=inputs=3:normalize=0[a255]"));
+        assert!(
+            graph.ends_with(
+                "[mix0][mix1][mix2]amix=inputs=3:normalize=0[a255]"
+            )
+        );
     }
 
     #[test]
@@ -805,4 +1817,3 @@ mod test {
         );
     }
 }
-

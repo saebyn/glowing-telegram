@@ -171,6 +171,13 @@ pub async fn run_command(
     temp_input_dir: &std::path::Path,
     output_file: &std::path::Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    gt_ffmpeg::edit::validate_source_audio(
+        cut_list,
+        temp_input_dir,
+        FRAME_RATE,
+    )
+    .await
+    .map_err(|error| error.to_string())?;
     let mut command = build_ffmpeg_command(
         cut_list,
         FRAME_RATE,
@@ -239,4 +246,101 @@ pub async fn update_job_record(
 
     tracing::info!("Updated job record: {:?}", update_item_output);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use types::{Episode, utils::convert_json_to_hm};
+
+    #[test]
+    fn dynamodb_episode_deserialization_rejects_misspelled_corrections() {
+        let base = json!({"version":"1.0.0", "inputMedia":[{"s3Location":"fixture.mkv","sections":[{"startFrame":0,"endFrame":120}]}], "outputTrack":[{"mediaIndex":0,"sectionIndex":0}]});
+        let item = convert_json_to_hm(&json!({"cut_list":base.clone()}));
+        let valid: Episode = serde_dynamo::from_item(item).unwrap();
+        assert!(
+            valid.cut_list.unwrap().output_track[0]
+                .source_audio
+                .is_none()
+        );
+        for field in ["sourceAudios", "unknownOutputTrackField"] {
+            let mut value = base.clone();
+            value["outputTrack"][0][field] = json!([]);
+            let item = convert_json_to_hm(&json!({"cut_list":value}));
+            let error =
+                serde_dynamo::from_item::<_, Episode>(item).unwrap_err();
+            assert!(error.to_string().contains(field), "{error}");
+        }
+        let mut value = base;
+        value["outputTrack"][0]["sourceAudio"] = json!([
+            {"streamIndex":0,"sourceChannel":0,"outputChannel":0,"keyframe":[{"frame":0,"volume":0}]}
+        ]);
+        let item = convert_json_to_hm(&json!({"cut_list":value}));
+        let error = serde_dynamo::from_item::<_, Episode>(item).unwrap_err();
+        assert!(error.to_string().contains("keyframe"), "{error}");
+    }
+
+    #[test]
+    fn dynamodb_episode_deserialization_rejects_present_null_source_corrections()
+     {
+        let base = json!({"version":"1.0.0","inputMedia":[{"s3Location":"fixture.mkv","sections":[{"startFrame":0,"endFrame":120}]}],"outputTrack":[{"mediaIndex":0,"sectionIndex":0}]});
+        let routes = json!([{"streamIndex":0,"sourceChannel":0,"outputChannel":0},{"streamIndex":0,"sourceChannel":1,"outputChannel":1}]);
+        let item = convert_json_to_hm(&json!({"cut_list":base.clone()}));
+        let valid: Episode = serde_dynamo::from_item(item).unwrap();
+        assert!(
+            valid.cut_list.unwrap().output_track[0]
+                .source_audio
+                .is_none()
+        );
+        for case in [
+            "sourceAudio",
+            "points",
+            "keyframes",
+            "points-with-keyframes",
+            "keyframes-with-points",
+        ] {
+            let mut value = base.clone();
+            value["outputTrack"][0]["sourceAudio"] = routes.clone();
+            match case {
+                "sourceAudio" => {
+                    value["outputTrack"][0]["sourceAudio"] = json!(null)
+                }
+                "points" => {
+                    value["outputTrack"][0]["sourceAudio"][0]["points"] =
+                        json!(null)
+                }
+                "keyframes" => {
+                    value["outputTrack"][0]["sourceAudio"][0]["keyframes"] =
+                        json!(null)
+                }
+                "points-with-keyframes" => {
+                    value["outputTrack"][0]["sourceAudio"][0]["points"] =
+                        json!(null);
+                    value["outputTrack"][0]["sourceAudio"][0]["keyframes"] =
+                        json!([]);
+                }
+                _ => {
+                    value["outputTrack"][0]["sourceAudio"][0]["keyframes"] =
+                        json!(null);
+                    value["outputTrack"][0]["sourceAudio"][0]["points"] =
+                        json!([{"time":0,"gain":0}]);
+                }
+            }
+            let item = convert_json_to_hm(&json!({"cut_list":value}));
+            assert!(
+                serde_dynamo::from_item::<_, Episode>(item).is_err(),
+                "accepted null {case}"
+            );
+        }
+        let mut valid = base;
+        valid["outputTrack"][0]["sourceAudio"] = routes;
+        valid["outputTrack"][0]["sourceAudio"][0]["keyframes"] = json!([]);
+        let item = convert_json_to_hm(&json!({"cut_list":valid}));
+        let decoded: Episode = serde_dynamo::from_item(item).unwrap();
+        assert!(
+            decoded.cut_list.unwrap().output_track[0]
+                .source_audio
+                .is_some()
+        );
+    }
 }

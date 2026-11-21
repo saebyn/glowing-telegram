@@ -20,7 +20,11 @@
       "type": "object",
       "properties": {
         "frame": { "type": "integer", "minimum": 0, "description": "Timeline frame position for this keyframe" },
-        "volume": { "type": "number", "minimum": 0, "maximum": 2, "description": "Volume level (0.0 = mute, 1.0 = original, >1.0 = amplified)" }
+        "volume": {
+          "type": "number", "minimum": 0, "maximum": 3.4028234663852886e38,
+          "not": { "exclusiveMinimum": 0, "exclusiveMaximum": 1.401298464324817e-45 },
+          "description": "Linear gain (0 = mute, 1 = original, >1 = amplified). Nonzero gains must fit FFmpeg's 32-bit floating-point volume processing; no loudness normalization is implied."
+        }
       },
       "required": ["frame", "volume"]
     },
@@ -39,6 +43,45 @@
         }
       },
       "required": ["sourceChannel", "outputChannel"]
+    },
+    "sourceAudioPoint": {
+      "title": "SourceAudioPoint",
+      "type": "object",
+      "description": "A gain point at an absolute output-timeline time in seconds.",
+      "properties": {
+        "time": { "type": "number", "minimum": 0 },
+        "gain": {
+          "type": "number", "minimum": 0, "maximum": 3.4028234663852886e38,
+          "not": { "exclusiveMinimum": 0, "exclusiveMaximum": 1.401298464324817e-45 },
+          "description": "Nonnegative linear gain; current renderer rejects values outside its safe float range rather than silently losing them."
+        }
+      },
+      "required": ["time", "gain"],
+      "additionalProperties": false
+    },
+    "sourceAudioRoute": {
+      "title": "SourceAudioRoute",
+      "description": "Route a physical channel of an input audio stream before the section's transition. Stream index counts audio streams only. Output channels are stereo. Routes sum without normalization.",
+      "type": "object",
+      "properties": {
+        "streamIndex": { "type": "integer", "minimum": 0 },
+        "sourceChannel": { "type": "integer", "minimum": 0 },
+        "outputChannel": { "type": "integer", "minimum": 0, "maximum": 1 },
+        "points": {
+          "type": "array",
+          "description": "Strictly increasing absolute output-timeline seconds; linear sample-wise gain with held endpoints. Do not supply with keyframes.",
+          "items": { "$ref": "#/definitions/sourceAudioPoint" },
+          "minItems": 1
+        },
+        "keyframes": {
+          "type": "array",
+          "description": "Output-timeline frames, linearly interpolated with held endpoints; empty means unity. Duplicate frames use the last value.",
+          "items": { "$ref": "#/definitions/audioChannelKeyframe" }
+        }
+      },
+      "required": ["streamIndex", "sourceChannel", "outputChannel"],
+      "not": { "required": ["keyframes", "points"] },
+      "additionalProperties": false
     }
   },
   "properties": {
@@ -86,6 +129,12 @@
         "properties": {
           "mediaIndex": { "type": "integer", "description": "Index of the media source", "minimum": 0 },
           "sectionIndex": { "type": "integer", "description": "Index of the section in the media source", "minimum": 0 },
+          "sourceAudio": {
+            "type": "array",
+            "description": "Complete explicit physical routes for this section. Omit to retain the renderer's original input audio. Both stereo output channels must be routed.",
+            "items": { "$ref": "#/definitions/sourceAudioRoute" },
+            "minItems": 1
+          },
           "transitionIn": {
             "type": "object",
             "description": "Transition to apply at the start of the section",

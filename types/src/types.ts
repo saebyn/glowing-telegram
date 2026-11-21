@@ -109,7 +109,9 @@ export type Method = "webhook" | "websocket";
 
 export interface CutList {
     /**
-     * Audio channel mixing and volume control configuration
+     * Audio channel routes applied to the assembled output timeline. Routes to the same output
+     * channel are summed; output channels without routes are silent. An absent or empty array
+     * preserves the original audio.
      */
     audioMixing?: AudioChannelMixing[];
     /**
@@ -135,7 +137,9 @@ export interface CutList {
  */
 export interface AudioChannelMixing {
     /**
-     * Volume keyframes for this channel throughout the timeline
+     * Volume keyframes on the output timeline. Levels interpolate linearly between keyframes
+     * and hold the nearest level outside them; absent or empty keyframes use volume 1.
+     * Duplicate frames use the last value.
      */
     keyframes?: AudioChannelKeyframe[];
     /**
@@ -158,7 +162,8 @@ export interface AudioChannelKeyframe {
      */
     frame: number;
     /**
-     * Volume level (0.0 = mute, 1.0 = original, >1.0 = amplified)
+     * Linear gain (0 = mute, 1 = original, >1 = amplified). Nonzero gains must fit FFmpeg's
+     * 32-bit floating-point volume processing; no loudness normalization is implied.
      */
     volume: number;
     [property: string]: unknown;
@@ -193,6 +198,11 @@ export interface OutputTrack {
      */
     sectionIndex: number;
     /**
+     * Complete explicit physical routes for this section. Omit to retain the renderer's
+     * original input audio. Both stereo output channels must be routed.
+     */
+    sourceAudio?: [SourceAudioRoute, ...SourceAudioRoute[]];
+    /**
      * Transition to apply at the start of the section
      */
     transitionIn?: TransitionInObject;
@@ -200,6 +210,39 @@ export interface OutputTrack {
      * Transition to apply at the end of the section
      */
     transitionOut?: TransitionOutObject;
+}
+
+/**
+ * Route a physical channel of an input audio stream before the section's transition. Stream
+ * index counts audio streams only. Output channels are stereo. Routes sum without
+ * normalization.
+ */
+export interface SourceAudioRoute {
+    /**
+     * Output-timeline frames, linearly interpolated with held endpoints; empty means unity.
+     * Duplicate frames use the last value.
+     */
+    keyframes?:    AudioChannelKeyframe[];
+    outputChannel: number;
+    /**
+     * Strictly increasing absolute output-timeline seconds; linear sample-wise gain with held
+     * endpoints. Do not supply with keyframes.
+     */
+    points?:       [SourceAudioPoint, ...SourceAudioPoint[]];
+    sourceChannel: number;
+    streamIndex:   number;
+}
+
+/**
+ * A gain point at an absolute output-timeline time in seconds.
+ */
+export interface SourceAudioPoint {
+    /**
+     * Nonnegative linear gain; current renderer rejects values outside its safe float range
+     * rather than silently losing them.
+     */
+    gain: number;
+    time: number;
 }
 
 /**
@@ -303,7 +346,9 @@ export interface Episode {
 
 export interface CutListClass {
     /**
-     * Audio channel mixing and volume control configuration
+     * Audio channel routes applied to the assembled output timeline. Routes to the same output
+     * channel are summed; output channels without routes are silent. An absent or empty array
+     * preserves the original audio.
      */
     audioMixing?: AudioChannelMixing[];
     /**
